@@ -1,0 +1,15 @@
+[package]
+name = "visio-core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+tokio = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tracing = { workspace = true }
+thiserror = { workspace = true }
+uuid = { workspace = true }
+livekit = { workspace = true }
+livekit-api = { workspace = true }
