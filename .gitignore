@@ -1,0 +1,36 @@
+# Rust
+/target/
+**/*.rs.bk
+
+# Android
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+*.apk
+*.aab
+
+# iOS
+ios/build/
+ios/DerivedData/
+ios/*.xcworkspace/xcuserdata/
+ios/*.xcodeproj/xcuserdata/
+*.ipa
+
+# Tauri
+crates/visio-desktop/frontend/node_modules/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# UniFFI generated bindings (regenerated on build)
+android/app/src/main/kotlin/generated/
+ios/VisioMobile/Generated/
