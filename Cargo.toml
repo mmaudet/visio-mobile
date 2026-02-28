@@ -3,7 +3,7 @@ members = [
     "crates/visio-core",
     "crates/visio-video",
     "crates/visio-ffi",
-    # "crates/visio-desktop", # Task 5
+    "crates/visio-desktop",
 ]
 resolver = "2"
 

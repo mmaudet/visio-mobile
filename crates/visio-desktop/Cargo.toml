@@ -1,0 +1,14 @@
+[package]
+name = "visio-desktop"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+visio-core = { path = "../visio-core" }
+tauri = { version = "2", features = [] }
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
