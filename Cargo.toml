@@ -1,7 +1,7 @@
 [workspace]
 members = [
     "crates/visio-core",
-    # "crates/visio-video",   # Task 3
+    "crates/visio-video",
     # "crates/visio-ffi",     # Task 4
     # "crates/visio-desktop", # Task 5
 ]
