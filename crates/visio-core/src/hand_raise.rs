@@ -8,7 +8,7 @@ use crate::events::{EventEmitter, VisioEvent};
 
 /// Manages hand-raise state using LiveKit participant attributes.
 ///
-/// Interoperable with LaSuite Meet: uses `{"handRaised": "<timestamp>"}` attribute.
+/// Interoperable with LaSuite Meet: uses `{"handRaisedAt": "<ISO 8601>"}` attribute.
 /// Maintains a queue ordered by raise time (BTreeMap<timestamp, participant_sid>).
 /// Supports auto-lower: if the local participant speaks for 3 consecutive seconds
 /// with hand raised, the hand is automatically lowered.
@@ -32,17 +32,24 @@ impl HandRaiseManager {
 
     /// Raise the local participant's hand.
     ///
-    /// Sets the `handRaised` participant attribute to the current timestamp,
+    /// Sets the `handRaisedAt` participant attribute to the current ISO 8601 timestamp,
     /// matching the LaSuite Meet protocol for interoperability.
     pub async fn raise_hand(&self) -> Result<(), VisioError> {
-        let timestamp = chrono::Utc::now().timestamp_millis().to_string();
+        let now = chrono::Utc::now();
+        let iso_timestamp = now.to_rfc3339_opts(chrono::SecondsFormat::Millis, true);
+        let epoch_ms = now.timestamp_millis();
+        tracing::info!("raise_hand: setting handRaisedAt={iso_timestamp}");
         self.room
             .local_participant()
-            .set_attributes(HashMap::from([("handRaised".to_string(), timestamp.clone())]))
+            .set_attributes(HashMap::from([("handRaisedAt".to_string(), iso_timestamp)]))
             .await
-            .map_err(|e| VisioError::Room(e.to_string()))?;
+            .map_err(|e| {
+                tracing::error!("raise_hand: set_attributes failed: {e}");
+                VisioError::Room(e.to_string())
+            })?;
+        tracing::info!("raise_hand: set_attributes succeeded");
 
-        let ts: i64 = timestamp.parse().unwrap_or(0);
+        let ts: i64 = epoch_ms;
         let local_sid = self.room.local_participant().sid().to_string();
         let mut hands = self.raised_hands.lock().await;
         hands.insert(ts, local_sid.clone());
@@ -59,13 +66,18 @@ impl HandRaiseManager {
 
     /// Lower the local participant's hand.
     ///
-    /// Clears the `handRaised` attribute and cancels any auto-lower timer.
+    /// Clears the `handRaisedAt` attribute and cancels any auto-lower timer.
     pub async fn lower_hand(&self) -> Result<(), VisioError> {
+        tracing::info!("lower_hand: clearing handRaisedAt attribute");
         self.room
             .local_participant()
-            .set_attributes(HashMap::from([("handRaised".to_string(), String::new())]))
+            .set_attributes(HashMap::from([("handRaisedAt".to_string(), String::new())]))
             .await
-            .map_err(|e| VisioError::Room(e.to_string()))?;
+            .map_err(|e| {
+                tracing::error!("lower_hand: set_attributes failed: {e}");
+                VisioError::Room(e.to_string())
+            })?;
+        tracing::info!("lower_hand: set_attributes succeeded");
 
         let local_sid = self.room.local_participant().sid().to_string();
         let mut hands = self.raised_hands.lock().await;
@@ -95,18 +107,28 @@ impl HandRaiseManager {
     /// Handle a remote (or local) participant's attribute change.
     ///
     /// Called from the room event loop when `ParticipantAttributesChanged` fires.
-    /// Checks the `handRaised` key: non-empty means raised, empty means lowered.
+    /// Checks the `handRaisedAt` key: non-empty means raised, empty means lowered.
+    /// Parses ISO 8601 timestamps for ordering; falls back to epoch millis for compat.
     pub async fn handle_participant_attributes(
         &self,
         participant_sid: String,
         attributes: &HashMap<String, String>,
     ) {
-        let hand_raised_value = attributes.get("handRaised").cloned().unwrap_or_default();
+        tracing::info!(
+            "handle_participant_attributes: sid={participant_sid} attributes={attributes:?}"
+        );
+        let hand_raised_value = attributes.get("handRaisedAt").cloned().unwrap_or_default();
         let is_raised = !hand_raised_value.is_empty();
+        tracing::info!(
+            "handle_participant_attributes: sid={participant_sid} handRaisedAt={hand_raised_value:?} is_raised={is_raised}"
+        );
 
         let mut hands = self.raised_hands.lock().await;
         if is_raised {
-            let ts: i64 = hand_raised_value.parse().unwrap_or(0);
+            // Parse ISO 8601 → epoch ms; fallback to raw integer parse for compat
+            let ts: i64 = chrono::DateTime::parse_from_rfc3339(&hand_raised_value)
+                .map(|dt| dt.timestamp_millis())
+                .unwrap_or_else(|_| hand_raised_value.parse().unwrap_or(0));
             if !hands.values().any(|s| s == &participant_sid) {
                 hands.insert(ts, participant_sid.clone());
             }
@@ -120,6 +142,9 @@ impl HandRaiseManager {
         };
         drop(hands);
 
+        tracing::info!(
+            "handle_participant_attributes: emitting HandRaisedChanged sid={participant_sid} raised={is_raised} position={position}"
+        );
         self.emitter.emit(VisioEvent::HandRaisedChanged {
             participant_sid,
             raised: is_raised,
@@ -183,7 +208,7 @@ impl HandRaiseManager {
                     let _ = room2
                         .local_participant()
                         .set_attributes(HashMap::from([
-                            ("handRaised".to_string(), String::new()),
+                            ("handRaisedAt".to_string(), String::new()),
                         ]))
                         .await;
 

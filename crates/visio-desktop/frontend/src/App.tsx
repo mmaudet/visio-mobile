@@ -10,6 +10,17 @@ import {
   RiArrowUpSLine,
   RiHand,
   RiChat1Line,
+  RiGroupLine,
+  RiInformationLine,
+  RiRecordCircleLine,
+  RiFileCopyLine,
+  RiCheckLine,
+  RiArrowLeftSLine,
+  RiFileTextLine,
+  RiMailLine,
+  RiGlobalLine,
+  RiApps2Line,
+  RiArrowRightSLine,
   RiPhoneFill,
   RiCloseLine,
   RiSendPlane2Fill,
@@ -89,7 +100,29 @@ const translations: Record<string, Record<string, string>> = {
     "control.camDevices": "Camera devices",
     "control.lowerHand": "Lower hand",
     "control.raiseHand": "Raise hand",
+    "control.participants": "Participants",
+    "control.info": "Meeting info",
+    "control.tools": "Meeting tools",
+    "control.transcribe": "Transcribe",
+    "control.record": "Record",
     "control.leave": "Leave call",
+    "tools.title": "Meeting tools",
+    "tools.subtitle": "Access more tools to enhance your meetings.",
+    "tools.transcribe.desc": "Record the conversation.",
+    "tools.record.desc": "Record the meeting.",
+    "info.title": "Meeting information",
+    "info.connection": "Connection information",
+    "info.copy": "Copy information",
+    "info.copied": "Copied!",
+    "transcribe.title": "Transcribe",
+    "transcribe.heading": "Transcribe your meeting with AI Assistant",
+    "transcribe.subheading": "Transcribe your meeting without limits.",
+    "transcribe.newDoc": "A new document will be created",
+    "transcribe.emailSent": "The transcription will be sent to the organizer and co-organizers.",
+    "transcribe.language": "Meeting language",
+    "transcribe.alsoRecord": "Also start a recording",
+    "transcribe.start": "Start transcribing the meeting",
+    "transcribe.comingSoon": "Transcription will be available in a future update.",
     "device.microphone": "Microphone",
     "device.speaker": "Speaker",
     "device.camera": "Camera",
@@ -133,7 +166,29 @@ const translations: Record<string, Record<string, string>> = {
     "control.camDevices": "Caméras",
     "control.lowerHand": "Baisser la main",
     "control.raiseHand": "Lever la main",
+    "control.participants": "Participants",
+    "control.info": "Infos de la réunion",
+    "control.tools": "Outils de réunion",
+    "control.transcribe": "Transcrire",
+    "control.record": "Enregistrer",
     "control.leave": "Quitter l'appel",
+    "tools.title": "Outils de réunion",
+    "tools.subtitle": "Accéder à d'avantage d'outils pour améliorer vos réunions.",
+    "tools.transcribe.desc": "Enregistrer la conversation.",
+    "tools.record.desc": "Enregistrer la réunion.",
+    "info.title": "Informations sur la réunion",
+    "info.connection": "Informations de connexions",
+    "info.copy": "Copier les informations",
+    "info.copied": "Copié !",
+    "transcribe.title": "Transcrire",
+    "transcribe.heading": "Transcrivez votre réunion avec l'Assistant IA",
+    "transcribe.subheading": "Transcrivez votre réunion sans limite.",
+    "transcribe.newDoc": "Un nouveau document sera créé",
+    "transcribe.emailSent": "La transcription sera envoyée à l'organisateur et aux coorganisateurs.",
+    "transcribe.language": "Langue de la réunion",
+    "transcribe.alsoRecord": "Démarrer aussi un enregistrement",
+    "transcribe.start": "Commencer à transcrire la réunion",
+    "transcribe.comingSoon": "La transcription sera disponible dans une prochaine mise à jour.",
     "device.microphone": "Microphone",
     "device.speaker": "Haut-parleur",
     "device.camera": "Caméra",
@@ -385,10 +440,112 @@ function HomeView({
   );
 }
 
+// -- Info Sidebar -----------------------------------------------------------
+
+function InfoSidebar({ meetUrl, onClose }: { meetUrl: string; onClose: () => void }) {
+  const t = useT();
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(meetUrl);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch { /* fallback: ignore */ }
+  };
+
+  // Normalize URL for display
+  const displayUrl = meetUrl.replace(/^https?:\/\//, "");
+
+  return (
+    <div className="info-sidebar">
+      <div className="participants-header">
+        <span>{t("info.title")}</span>
+        <button className="chat-close" onClick={onClose}><RiCloseLine size={20} /></button>
+      </div>
+      <div className="info-body">
+        <div className="info-section">
+          <div className="info-section-title">{t("info.connection")}</div>
+          <div className="info-url">{displayUrl}</div>
+          <button className="info-copy-btn" onClick={handleCopy}>
+            {copied ? <RiCheckLine size={16} /> : <RiFileCopyLine size={16} />}
+            {copied ? t("info.copied") : t("info.copy")}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// -- Tools Sidebar ----------------------------------------------------------
+
+function ToolsSidebar({ onClose }: { onClose: () => void }) {
+  const t = useT();
+  const [subView, setSubView] = useState<"menu" | "transcribe">("menu");
+
+  if (subView === "transcribe") {
+    return (
+      <div className="info-sidebar">
+        <div className="participants-header">
+          <button className="chat-close" onClick={() => setSubView("menu")}><RiArrowLeftSLine size={20} /></button>
+          <span style={{ flex: 1 }}>{t("transcribe.title")}</span>
+          <button className="chat-close" onClick={onClose}><RiCloseLine size={20} /></button>
+        </div>
+        <div className="info-body transcribe-body">
+          <h3 className="transcribe-heading">{t("transcribe.heading")}</h3>
+          <p className="transcribe-sub">{t("transcribe.subheading")}</p>
+          <div className="transcribe-features">
+            <div className="transcribe-feature"><RiFileTextLine size={16} /><span>{t("transcribe.newDoc")}</span></div>
+            <div className="transcribe-feature"><RiMailLine size={16} /><span>{t("transcribe.emailSent")}</span></div>
+            <div className="transcribe-feature"><RiGlobalLine size={16} /><span>{t("transcribe.language")} : Français (fr)</span></div>
+          </div>
+          <label className="transcribe-record-check">
+            <input type="checkbox" />
+            {t("transcribe.alsoRecord")}
+          </label>
+          <button className="btn btn-primary transcribe-start" disabled>
+            {t("transcribe.start")}
+          </button>
+          <p className="transcribe-notice">{t("transcribe.comingSoon")}</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="info-sidebar">
+      <div className="participants-header">
+        <span>{t("tools.title")}</span>
+        <button className="chat-close" onClick={onClose}><RiCloseLine size={20} /></button>
+      </div>
+      <div className="info-body">
+        <p className="tools-subtitle">{t("tools.subtitle")}</p>
+        <button className="tools-row" onClick={() => setSubView("transcribe")}>
+          <span className="tools-row-icon"><RiFileTextLine size={20} /></span>
+          <span className="tools-row-text">
+            <span className="tools-row-label">{t("control.transcribe")}</span>
+            <span className="tools-row-desc">{t("tools.transcribe.desc")}</span>
+          </span>
+          <RiArrowRightSLine size={18} />
+        </button>
+        <button className="tools-row" disabled>
+          <span className="tools-row-icon"><RiRecordCircleLine size={20} /></span>
+          <span className="tools-row-text">
+            <span className="tools-row-label">{t("control.record")}</span>
+            <span className="tools-row-desc">{t("tools.record.desc")}</span>
+          </span>
+          <RiArrowRightSLine size={18} />
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // -- Call View --------------------------------------------------------------
 
 function CallView({
   participants,
+  localParticipant,
   micEnabled,
   camEnabled,
   videoFrames,
@@ -403,6 +560,13 @@ function CallView({
   onToggleHandRaise,
   onToggleChat,
   onSendChat,
+  onToggleParticipants,
+  showParticipants,
+  onToggleInfo,
+  showInfo,
+  meetUrl,
+  onToggleTranscription,
+  showTranscription,
   onShowMicPicker,
   onShowCamPicker,
   showMicPicker,
@@ -416,6 +580,7 @@ function CallView({
   onSelectVideoInput,
 }: {
   participants: Participant[];
+  localParticipant: Participant | null;
   micEnabled: boolean;
   camEnabled: boolean;
   videoFrames: Map<string, string>;
@@ -430,6 +595,13 @@ function CallView({
   onToggleHandRaise: () => void;
   onToggleChat: () => void;
   onSendChat: (text: string) => void;
+  onToggleParticipants: () => void;
+  showParticipants: boolean;
+  onToggleInfo: () => void;
+  showInfo: boolean;
+  meetUrl: string;
+  onToggleTranscription: () => void;
+  showTranscription: boolean;
   onShowMicPicker: () => void;
   onShowCamPicker: () => void;
   showMicPicker: boolean;
@@ -460,38 +632,55 @@ function CallView({
     onSendChat(text);
   };
 
-  const localFrame = videoFrames.get("local-camera");
-  const gridCount = Math.min(participants.length, 9);
+  // Build allParticipants with local participant first
+  const allParticipants: Participant[] = [];
+  if (localParticipant) {
+    // Override local participant's name to show "You" label, and sync mute/video state
+    allParticipants.push({
+      ...localParticipant,
+      name: localParticipant.name ? `${localParticipant.name} (${t("call.you")})` : t("call.you"),
+      is_muted: !micEnabled,
+      has_video: camEnabled,
+      video_track_sid: camEnabled ? "local-camera" : null,
+    });
+  }
+  allParticipants.push(...participants);
+  const gridCount = Math.min(allParticipants.length, 9);
 
   return (
     <div id="call" className="section active">
-      {/* Self-view PiP */}
-      {camEnabled && localFrame && (
-        <div className={`self-view ${showChat ? "with-chat" : ""}`}>
-          <img
-            className="self-video"
-            src={`data:image/jpeg;base64,${localFrame}`}
-            alt="self-view"
-          />
-          <span className="self-label">{t("call.you")}</span>
-        </div>
-      )}
-
-      {/* Main video area */}
-      <div className={`call-content ${showChat ? "with-chat" : ""}`}>
-        {focusedParticipant && participants.find((p) => p.sid === focusedParticipant) ? (
-          <div className="focus-layout">
-            <div className="focus-main" onClick={() => setFocusedParticipant(null)}>
-              <ParticipantTile
-                participant={participants.find((p) => p.sid === focusedParticipant)!}
-                videoFrames={videoFrames}
-                handRaisePosition={handRaisedMap[focusedParticipant]}
-              />
+      <div className="call-body">
+        {/* Main video area */}
+        <div className="call-content">
+          {focusedParticipant && allParticipants.find((p) => p.sid === focusedParticipant) ? (
+            <div className="focus-layout">
+              <div className="focus-main" onClick={() => setFocusedParticipant(null)}>
+                <ParticipantTile
+                  participant={allParticipants.find((p) => p.sid === focusedParticipant)!}
+                  videoFrames={videoFrames}
+                  handRaisePosition={handRaisedMap[focusedParticipant]}
+                />
+              </div>
+              <div className="focus-strip">
+                {allParticipants
+                  .filter((p) => p.sid !== focusedParticipant)
+                  .map((p) => (
+                    <div key={p.sid} onClick={() => setFocusedParticipant(p.sid)}>
+                      <ParticipantTile
+                        participant={p}
+                        videoFrames={videoFrames}
+                        handRaisePosition={handRaisedMap[p.sid]}
+                      />
+                    </div>
+                  ))}
+              </div>
             </div>
-            <div className="focus-strip">
-              {participants
-                .filter((p) => p.sid !== focusedParticipant)
-                .map((p) => (
+          ) : (
+            <div className={`video-grid video-grid-${gridCount}`}>
+              {allParticipants.length === 0 ? (
+                <div className="empty-state">{t("call.noParticipants")}</div>
+              ) : (
+                allParticipants.map((p) => (
                   <div key={p.sid} onClick={() => setFocusedParticipant(p.sid)}>
                     <ParticipantTile
                       participant={p}
@@ -499,76 +688,108 @@ function CallView({
                       handRaisePosition={handRaisedMap[p.sid]}
                     />
                   </div>
-                ))}
+                ))
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Chat sidebar */}
+        {showChat && (
+          <div className="chat-sidebar">
+            <div className="chat-header">
+              <span>{t("chat")}</span>
+              <button className="chat-close" onClick={onToggleChat}>
+                <RiCloseLine size={20} />
+              </button>
+            </div>
+            <div className="chat-messages" ref={chatScrollRef}>
+              {messages.length === 0 ? (
+                <div className="chat-empty">{t("chat.noMessages")}</div>
+              ) : (
+                messages.map((m, i) => {
+                  const showName =
+                    i === 0 || messages[i - 1].sender_sid !== m.sender_sid;
+                  return (
+                    <div key={m.id} className="chat-bubble">
+                      {showName && (
+                        <div className="chat-sender">
+                          {m.sender_name || t("unknown")}
+                        </div>
+                      )}
+                      <div className="chat-text">{m.text}</div>
+                      <div className="chat-time">{formatTime(m.timestamp_ms)}</div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+            <div className="chat-input-bar">
+              <input
+                className="chat-input"
+                value={chatInput}
+                onChange={(e) => setChatInput(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && sendMessage()}
+                placeholder={t("chat.placeholder")}
+              />
+              <button
+                className="chat-send"
+                onClick={sendMessage}
+                disabled={!chatInput.trim()}
+              >
+                <RiSendPlane2Fill size={18} />
+              </button>
             </div>
           </div>
-        ) : (
-          <div className={`video-grid video-grid-${gridCount}`}>
-            {participants.length === 0 ? (
-              <div className="empty-state">{t("call.noParticipants")}</div>
-            ) : (
-              participants.map((p) => (
-                <div key={p.sid} onClick={() => setFocusedParticipant(p.sid)}>
-                  <ParticipantTile
-                    participant={p}
-                    videoFrames={videoFrames}
-                    handRaisePosition={handRaisedMap[p.sid]}
-                  />
-                </div>
-              ))
-            )}
-          </div>
         )}
-      </div>
 
-      {/* Chat sidebar */}
-      {showChat && (
-        <div className="chat-sidebar">
-          <div className="chat-header">
-            <span>{t("chat")}</span>
-            <button className="chat-close" onClick={onToggleChat}>
-              <RiCloseLine size={20} />
-            </button>
-          </div>
-          <div className="chat-messages" ref={chatScrollRef}>
-            {messages.length === 0 ? (
-              <div className="chat-empty">{t("chat.noMessages")}</div>
-            ) : (
-              messages.map((m, i) => {
-                const showName =
-                  i === 0 || messages[i - 1].sender_sid !== m.sender_sid;
+        {/* Participants sidebar */}
+        {showParticipants && (
+          <div className="participants-sidebar">
+            <div className="participants-header">
+              <span>{t("control.participants")} <span className="participants-count">({allParticipants.length})</span></span>
+              <button className="chat-close" onClick={onToggleParticipants}>
+                <RiCloseLine size={20} />
+              </button>
+            </div>
+            <div className="participants-list">
+              {allParticipants.map((p) => {
+                const name = p.name || p.identity || t("unknown");
+                const isLocal = localParticipant && p.sid === localParticipant.sid;
                 return (
-                  <div key={m.id} className="chat-bubble">
-                    {showName && (
-                      <div className="chat-sender">
-                        {m.sender_name || t("unknown")}
-                      </div>
-                    )}
-                    <div className="chat-text">{m.text}</div>
-                    <div className="chat-time">{formatTime(m.timestamp_ms)}</div>
+                  <div key={p.sid} className="participant-row">
+                    <div
+                      className="participant-avatar-sm"
+                      style={{ background: `hsl(${getHue(name)}, 50%, 35%)` }}
+                    >
+                      {getInitials(name)}
+                    </div>
+                    <div className="participant-info">
+                      <div className="participant-display-name">{name}</div>
+                      {isLocal && <div className="participant-you-label">{t("call.you")}</div>}
+                    </div>
+                    <div className="participant-icons">
+                      {p.is_muted && <RiMicOffFill size={14} className="muted-icon" />}
+                      {handRaisedMap[p.sid] > 0 && <RiHand size={14} style={{ color: "var(--hand-raise)" }} />}
+                      <ConnectionQualityBars quality={p.connection_quality} />
+                    </div>
                   </div>
                 );
-              })
-            )}
+              })}
+            </div>
           </div>
-          <div className="chat-input-bar">
-            <input
-              className="chat-input"
-              value={chatInput}
-              onChange={(e) => setChatInput(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && sendMessage()}
-              placeholder={t("chat.placeholder")}
-            />
-            <button
-              className="chat-send"
-              onClick={sendMessage}
-              disabled={!chatInput.trim()}
-            >
-              <RiSendPlane2Fill size={18} />
-            </button>
-          </div>
-        </div>
-      )}
+        )}
+
+        {/* Info sidebar */}
+        {showInfo && !showTranscription && (
+          <InfoSidebar meetUrl={meetUrl} onClose={onToggleInfo} />
+        )}
+
+        {/* Tools sidebar */}
+        {showTranscription && (
+          <ToolsSidebar onClose={onToggleTranscription} />
+        )}
+      </div>
 
       {/* Control bar */}
       <div className="control-bar">
@@ -637,6 +858,36 @@ function CallView({
               {unreadCount > 9 ? "9+" : unreadCount}
             </span>
           )}
+        </button>
+
+        {/* Participants */}
+        <button
+          className={`control-btn ${showParticipants ? "control-btn-hand" : ""}`}
+          onClick={onToggleParticipants}
+          title={t("control.participants")}
+        >
+          <RiGroupLine size={20} />
+          <span className="unread-badge" style={{ background: "var(--accent)" }}>
+            {allParticipants.length}
+          </span>
+        </button>
+
+        {/* Tools */}
+        <button
+          className={`control-btn ${showTranscription ? "control-btn-hand" : ""}`}
+          onClick={onToggleTranscription}
+          title={t("control.tools")}
+        >
+          <RiApps2Line size={20} />
+        </button>
+
+        {/* Info */}
+        <button
+          className={`control-btn ${showInfo ? "control-btn-hand" : ""}`}
+          onClick={onToggleInfo}
+          title={t("control.info")}
+        >
+          <RiInformationLine size={20} />
         </button>
 
         {/* Hangup */}
@@ -849,6 +1100,7 @@ export default function App() {
   const [view, setView] = useState<View>("home");
   const [connectionState, setConnectionState] = useState("disconnected");
   const [participants, setParticipants] = useState<Participant[]>([]);
+  const [localParticipant, setLocalParticipant] = useState<Participant | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [micEnabled, setMicEnabled] = useState(false);
   const [camEnabled, setCamEnabled] = useState(false);
@@ -861,10 +1113,15 @@ export default function App() {
   const [unreadCount, setUnreadCount] = useState(0);
   const [handRaisedMap, setHandRaisedMap] = useState<Record<string, number>>({});
   const [showChat, setShowChat] = useState(false);
+  const [showParticipants, setShowParticipants] = useState(false);
+  const [showInfo, setShowInfo] = useState(false);
+  const [showTranscription, setShowTranscription] = useState(false);
   const [showMicPicker, setShowMicPicker] = useState(false);
   const [showCamPicker, setShowCamPicker] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
 
+  // Meeting URL (set on join, used in info panel)
+  const [currentMeetUrl, setCurrentMeetUrl] = useState("");
   // Display name (shared between Home and Settings)
   const [displayName, setDisplayName] = useState("");
   // i18n
@@ -949,15 +1206,22 @@ export default function App() {
         setMessages([]);
         setVideoFrames(new Map());
         setShowChat(false);
+        setShowParticipants(false);
+        setShowInfo(false);
+        setShowTranscription(false);
         setIsHandRaised(false);
         setUnreadCount(0);
         setHandRaisedMap({});
+        setLocalParticipant(null);
         return;
       }
 
       if (state === "connected" || state === "reconnecting") {
         const ps: Participant[] = await invoke("get_participants");
         setParticipants(ps);
+
+        const lp: Participant | null = await invoke("get_local_participant");
+        setLocalParticipant(lp);
 
         const ms: ChatMessage[] = await invoke("get_messages");
         setMessages(ms);
@@ -1038,7 +1302,8 @@ export default function App() {
   }, [view]);
 
   // ---- Handlers -----------------------------------------------------------
-  const handleJoin = () => {
+  const handleJoin = (meetUrl: string) => {
+    setCurrentMeetUrl(meetUrl);
     setView("call");
   };
 
@@ -1076,10 +1341,15 @@ export default function App() {
     setMessages([]);
     setVideoFrames(new Map());
     setShowChat(false);
+    setShowParticipants(false);
+    setShowInfo(false);
+    setShowTranscription(false);
     setConnectionState("disconnected");
     setIsHandRaised(false);
     setUnreadCount(0);
     setHandRaisedMap({});
+    setLocalParticipant(null);
+    setCurrentMeetUrl("");
   };
 
   const handleToggleHandRaise = async () => {
@@ -1117,10 +1387,12 @@ export default function App() {
   // ---- Render -------------------------------------------------------------
   return (
     <I18nContext.Provider value={t}>
-      <header>
-        <h1>Visio Mobile</h1>
-        <StatusBadge state={connectionState} />
-      </header>
+      {view === "call" && (
+        <header>
+          <h1>Visio Mobile</h1>
+          <StatusBadge state={connectionState} />
+        </header>
+      )}
       <main>
         {view === "home" && (
           <HomeView
@@ -1133,6 +1405,7 @@ export default function App() {
         {view === "call" && (
           <CallView
             participants={participants}
+            localParticipant={localParticipant}
             micEnabled={micEnabled}
             camEnabled={camEnabled}
             videoFrames={videoFrames}
@@ -1147,6 +1420,13 @@ export default function App() {
             onToggleHandRaise={handleToggleHandRaise}
             onToggleChat={handleToggleChat}
             onSendChat={handleSendChat}
+            onToggleParticipants={() => setShowParticipants(!showParticipants)}
+            showParticipants={showParticipants}
+            onToggleInfo={() => { setShowInfo(!showInfo); if (showInfo) setShowTranscription(false); }}
+            showInfo={showInfo}
+            meetUrl={currentMeetUrl}
+            onToggleTranscription={() => setShowTranscription(!showTranscription)}
+            showTranscription={showTranscription}
             onShowMicPicker={() => {
               setShowMicPicker(!showMicPicker);
               setShowCamPicker(false);

@@ -98,6 +98,9 @@ impl VisioEventListener for DesktopEventListener {
                 raised,
                 position,
             } => {
+                tracing::info!(
+                    "DesktopEventListener: HandRaisedChanged sid={participant_sid} raised={raised} position={position}"
+                );
                 if let Some(app) = APP_HANDLE.get() {
                     let _ = app.emit(
                         "hand-raised-changed",
@@ -176,6 +179,25 @@ async fn get_participants(
         })
         .collect();
     Ok(result)
+}
+
+#[tauri::command]
+async fn get_local_participant(
+    state: tauri::State<'_, VisioState>,
+) -> Result<Option<serde_json::Value>, String> {
+    let room = state.room.lock().await;
+    let info = room.local_participant_info().await;
+    Ok(info.map(|p| {
+        serde_json::json!({
+            "sid": p.sid,
+            "identity": p.identity,
+            "name": p.name,
+            "is_muted": p.is_muted,
+            "has_video": p.has_video,
+            "video_track_sid": p.video_track_sid,
+            "connection_quality": format!("{:?}", p.connection_quality),
+        })
+    }))
 }
 
 #[tauri::command]
@@ -335,14 +357,22 @@ fn set_theme(state: tauri::State<'_, VisioState>, theme: String) {
 
 #[tauri::command]
 async fn raise_hand(state: tauri::State<'_, VisioState>) -> Result<(), String> {
+    tracing::info!("Tauri command: raise_hand");
     let room = state.room.lock().await;
-    room.raise_hand().await.map_err(|e| e.to_string())
+    room.raise_hand().await.map_err(|e| {
+        tracing::error!("raise_hand command failed: {e}");
+        e.to_string()
+    })
 }
 
 #[tauri::command]
 async fn lower_hand(state: tauri::State<'_, VisioState>) -> Result<(), String> {
+    tracing::info!("Tauri command: lower_hand");
     let room = state.room.lock().await;
-    room.lower_hand().await.map_err(|e| e.to_string())
+    room.lower_hand().await.map_err(|e| {
+        tracing::error!("lower_hand command failed: {e}");
+        e.to_string()
+    })
 }
 
 #[tauri::command]
@@ -436,6 +466,7 @@ pub fn run() {
             disconnect,
             get_connection_state,
             get_participants,
+            get_local_participant,
             get_video_tracks,
             toggle_mic,
             toggle_camera,
