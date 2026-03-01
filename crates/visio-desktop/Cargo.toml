@@ -7,6 +7,7 @@ license.workspace = true
 [dependencies]
 visio-core = { path = "../visio-core" }
 tauri = { version = "2", features = [] }
+tokio = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 

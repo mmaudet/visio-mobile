@@ -1,32 +1,761 @@
 <!DOCTYPE html>
-<html lang="fr">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Visio</title>
     <style>
+        :root {
+            --bg-primary: #1a1a2e;
+            --bg-secondary: #16213e;
+            --bg-card: #0f3460;
+            --bg-input: #1a1a3e;
+            --accent: #e94560;
+            --accent-hover: #ff6b81;
+            --text-primary: #eee;
+            --text-secondary: #aab;
+            --text-muted: #778;
+            --border: #2a2a4e;
+            --success: #2ecc71;
+            --warning: #f39c12;
+            --danger: #e74c3c;
+            --radius: 8px;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
             display: flex;
+            flex-direction: column;
+        }
+
+        header {
+            background: var(--bg-secondary);
+            padding: 12px 20px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-bottom: 1px solid var(--border);
+        }
+
+        header h1 {
+            font-size: 1.1rem;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+        }
+
+        .status-badge {
+            font-size: 0.75rem;
+            padding: 4px 10px;
+            border-radius: 12px;
+            background: var(--bg-card);
+            color: var(--text-muted);
+        }
+
+        .status-badge.connected {
+            background: rgba(46, 204, 113, 0.15);
+            color: var(--success);
+        }
+
+        .status-badge.connecting, .status-badge.reconnecting {
+            background: rgba(243, 156, 18, 0.15);
+            color: var(--warning);
+        }
+
+        main {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .section {
+            display: none;
+            flex: 1;
+            flex-direction: column;
+        }
+
+        .section.active {
+            display: flex;
+        }
+
+        /* --- Home section --- */
+        #home {
             justify-content: center;
             align-items: center;
-            min-height: 100vh;
-            margin: 0;
-            background: #f5f5f5;
-            color: #333;
+            padding: 40px 20px;
         }
-        .container {
+
+        .join-form {
+            width: 100%;
+            max-width: 360px;
+        }
+
+        .join-form h2 {
+            font-size: 1.3rem;
+            margin-bottom: 6px;
             text-align: center;
-            padding: 2rem;
         }
-        h1 { font-size: 1.5rem; margin-bottom: 0.5rem; }
-        p { color: #666; }
+
+        .join-form p {
+            color: var(--text-secondary);
+            font-size: 0.85rem;
+            text-align: center;
+            margin-bottom: 24px;
+        }
+
+        .form-group {
+            margin-bottom: 16px;
+        }
+
+        .form-group label {
+            display: block;
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            margin-bottom: 6px;
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 10px 14px;
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            background: var(--bg-input);
+            color: var(--text-primary);
+            font-size: 0.9rem;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        .form-group input:focus {
+            border-color: var(--accent);
+        }
+
+        .form-group input::placeholder {
+            color: var(--text-muted);
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 10px 20px;
+            border: none;
+            border-radius: var(--radius);
+            font-size: 0.9rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background 0.2s, opacity 0.2s;
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .btn-primary {
+            background: var(--accent);
+            color: #fff;
+            width: 100%;
+        }
+
+        .btn-primary:hover:not(:disabled) {
+            background: var(--accent-hover);
+        }
+
+        .error-msg {
+            color: var(--danger);
+            font-size: 0.8rem;
+            margin-top: 12px;
+            text-align: center;
+            min-height: 1.2em;
+        }
+
+        /* --- Call section --- */
+        #call {
+            padding: 0;
+        }
+
+        .call-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 16px;
+        }
+
+        .section-label {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 10px;
+        }
+
+        .participant-list {
+            list-style: none;
+        }
+
+        .participant-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 12px;
+            background: var(--bg-secondary);
+            border-radius: var(--radius);
+            margin-bottom: 8px;
+        }
+
+        .participant-avatar {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            background: var(--bg-card);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--accent);
+            flex-shrink: 0;
+        }
+
+        .participant-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .participant-name {
+            font-size: 0.9rem;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .participant-status {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+        }
+
+        .participant-icons {
+            display: flex;
+            gap: 6px;
+            font-size: 0.8rem;
+        }
+
+        .icon-muted { color: var(--danger); }
+        .icon-video { color: var(--success); }
+        .icon-no-video { color: var(--text-muted); }
+
+        .empty-state {
+            text-align: center;
+            color: var(--text-muted);
+            font-size: 0.85rem;
+            padding: 30px 0;
+        }
+
+        .call-controls {
+            display: flex;
+            gap: 12px;
+            padding: 16px;
+            background: var(--bg-secondary);
+            border-top: 1px solid var(--border);
+            justify-content: center;
+        }
+
+        .ctrl-btn {
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            border: none;
+            cursor: pointer;
+            font-size: 1.1rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background 0.2s, transform 0.1s;
+            background: var(--bg-card);
+            color: var(--text-primary);
+        }
+
+        .ctrl-btn:hover {
+            transform: scale(1.05);
+        }
+
+        .ctrl-btn.active {
+            background: var(--success);
+            color: #fff;
+        }
+
+        .ctrl-btn.off {
+            background: var(--bg-card);
+            color: var(--text-muted);
+        }
+
+        .ctrl-btn.hangup {
+            background: var(--danger);
+            color: #fff;
+        }
+
+        .ctrl-btn.hangup:hover {
+            background: #c0392b;
+        }
+
+        .ctrl-btn.chat-toggle {
+            background: var(--bg-card);
+            color: var(--text-primary);
+        }
+
+        /* --- Chat section --- */
+        #chat {
+            padding: 0;
+        }
+
+        .chat-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 16px;
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border);
+        }
+
+        .chat-header h3 {
+            font-size: 0.95rem;
+            font-weight: 500;
+        }
+
+        .back-btn {
+            background: none;
+            border: none;
+            color: var(--text-secondary);
+            cursor: pointer;
+            font-size: 0.85rem;
+            padding: 4px 8px;
+        }
+
+        .back-btn:hover {
+            color: var(--text-primary);
+        }
+
+        .message-list {
+            flex: 1;
+            overflow-y: auto;
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .message-item {
+            max-width: 85%;
+        }
+
+        .message-sender {
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            margin-bottom: 3px;
+        }
+
+        .message-bubble {
+            padding: 8px 12px;
+            border-radius: 12px;
+            background: var(--bg-secondary);
+            font-size: 0.85rem;
+            line-height: 1.4;
+            word-break: break-word;
+        }
+
+        .message-item.self-msg {
+            align-self: flex-end;
+        }
+
+        .message-item.self-msg .message-bubble {
+            background: var(--bg-card);
+        }
+
+        .message-time {
+            font-size: 0.65rem;
+            color: var(--text-muted);
+            margin-top: 3px;
+        }
+
+        .chat-input-area {
+            display: flex;
+            gap: 8px;
+            padding: 12px 16px;
+            background: var(--bg-secondary);
+            border-top: 1px solid var(--border);
+        }
+
+        .chat-input-area input {
+            flex: 1;
+            padding: 8px 12px;
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            background: var(--bg-input);
+            color: var(--text-primary);
+            font-size: 0.85rem;
+            outline: none;
+        }
+
+        .chat-input-area input:focus {
+            border-color: var(--accent);
+        }
+
+        .chat-input-area input::placeholder {
+            color: var(--text-muted);
+        }
+
+        .send-btn {
+            padding: 8px 16px;
+            background: var(--accent);
+            color: #fff;
+            border: none;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 0.85rem;
+        }
+
+        .send-btn:hover {
+            background: var(--accent-hover);
+        }
+
+        .chat-empty {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-muted);
+            font-size: 0.85rem;
+        }
     </style>
 </head>
 <body>
-    <div class="container">
+    <header>
         <h1>Visio</h1>
-        <p>Desktop client — Phase 0 stub</p>
-    </div>
+        <span id="statusBadge" class="status-badge">disconnected</span>
+    </header>
+
+    <main>
+        <!-- Home / Join -->
+        <div id="home" class="section active">
+            <div class="join-form">
+                <h2>Join a Room</h2>
+                <p>Enter a meeting URL and your display name</p>
+                <div class="form-group">
+                    <label for="meetUrl">Meeting URL</label>
+                    <input type="text" id="meetUrl" placeholder="meet.example.com/my-room" autocomplete="off" />
+                </div>
+                <div class="form-group">
+                    <label for="username">Display Name (optional)</label>
+                    <input type="text" id="username" placeholder="Your name" autocomplete="off" />
+                </div>
+                <button id="joinBtn" class="btn btn-primary">Join</button>
+                <div id="joinError" class="error-msg"></div>
+            </div>
+        </div>
+
+        <!-- In-Call -->
+        <div id="call" class="section">
+            <div class="call-content">
+                <div class="section-label">Participants</div>
+                <ul id="participantList" class="participant-list"></ul>
+                <div id="emptyParticipants" class="empty-state">No other participants yet</div>
+            </div>
+            <div class="call-controls">
+                <button id="micBtn" class="ctrl-btn off" title="Toggle microphone">Mic</button>
+                <button id="camBtn" class="ctrl-btn off" title="Toggle camera">Cam</button>
+                <button id="chatBtn" class="ctrl-btn chat-toggle" title="Open chat">Chat</button>
+                <button id="hangupBtn" class="ctrl-btn hangup" title="Leave call">End</button>
+            </div>
+        </div>
+
+        <!-- Chat -->
+        <div id="chat" class="section">
+            <div class="chat-header">
+                <button id="chatBackBtn" class="back-btn">Back</button>
+                <h3>Chat</h3>
+                <span></span>
+            </div>
+            <div id="messageList" class="message-list">
+                <div id="chatEmpty" class="chat-empty">No messages yet</div>
+            </div>
+            <div class="chat-input-area">
+                <input type="text" id="chatInput" placeholder="Type a message..." />
+                <button id="sendBtn" class="send-btn">Send</button>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        const { invoke } = window.__TAURI__.core;
+
+        // State
+        let currentSection = 'home';
+        let micEnabled = false;
+        let camEnabled = false;
+        let pollInterval = null;
+        let knownMessageCount = 0;
+
+        // DOM refs
+        const $home = document.getElementById('home');
+        const $call = document.getElementById('call');
+        const $chat = document.getElementById('chat');
+        const $statusBadge = document.getElementById('statusBadge');
+        const $meetUrl = document.getElementById('meetUrl');
+        const $username = document.getElementById('username');
+        const $joinBtn = document.getElementById('joinBtn');
+        const $joinError = document.getElementById('joinError');
+        const $participantList = document.getElementById('participantList');
+        const $emptyParticipants = document.getElementById('emptyParticipants');
+        const $micBtn = document.getElementById('micBtn');
+        const $camBtn = document.getElementById('camBtn');
+        const $chatBtn = document.getElementById('chatBtn');
+        const $hangupBtn = document.getElementById('hangupBtn');
+        const $chatBackBtn = document.getElementById('chatBackBtn');
+        const $messageList = document.getElementById('messageList');
+        const $chatEmpty = document.getElementById('chatEmpty');
+        const $chatInput = document.getElementById('chatInput');
+        const $sendBtn = document.getElementById('sendBtn');
+
+        function showSection(name) {
+            currentSection = name;
+            $home.classList.toggle('active', name === 'home');
+            $call.classList.toggle('active', name === 'call');
+            $chat.classList.toggle('active', name === 'chat');
+        }
+
+        function updateStatusBadge(state) {
+            $statusBadge.textContent = state;
+            $statusBadge.className = 'status-badge ' + state;
+        }
+
+        function getInitials(name) {
+            if (!name) return '?';
+            const parts = name.trim().split(/\s+/);
+            if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
+            return name.substring(0, 2).toUpperCase();
+        }
+
+        function renderParticipants(participants) {
+            $participantList.innerHTML = '';
+            if (participants.length === 0) {
+                $emptyParticipants.style.display = 'block';
+                return;
+            }
+            $emptyParticipants.style.display = 'none';
+            participants.forEach(p => {
+                const displayName = p.name || p.identity || 'Unknown';
+                const li = document.createElement('li');
+                li.className = 'participant-item';
+                li.innerHTML = `
+                    <div class="participant-avatar">${getInitials(displayName)}</div>
+                    <div class="participant-info">
+                        <div class="participant-name">${escapeHtml(displayName)}</div>
+                        <div class="participant-status">${p.connection_quality}</div>
+                    </div>
+                    <div class="participant-icons">
+                        <span class="${p.is_muted ? 'icon-muted' : ''}">${p.is_muted ? 'Muted' : ''}</span>
+                        <span class="${p.has_video ? 'icon-video' : 'icon-no-video'}">${p.has_video ? 'Video' : ''}</span>
+                    </div>
+                `;
+                $participantList.appendChild(li);
+            });
+        }
+
+        function formatTime(timestampMs) {
+            if (!timestampMs) return '';
+            const d = new Date(timestampMs);
+            return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        }
+
+        function renderMessages(messages) {
+            if (messages.length === 0) {
+                $chatEmpty.style.display = 'flex';
+                return;
+            }
+            $chatEmpty.style.display = 'none';
+
+            // Only add new messages
+            for (let i = knownMessageCount; i < messages.length; i++) {
+                const m = messages[i];
+                const div = document.createElement('div');
+                div.className = 'message-item';
+                div.innerHTML = `
+                    <div class="message-sender">${escapeHtml(m.sender_name || 'Unknown')}</div>
+                    <div class="message-bubble">${escapeHtml(m.text)}</div>
+                    <div class="message-time">${formatTime(m.timestamp_ms)}</div>
+                `;
+                $messageList.appendChild(div);
+            }
+            knownMessageCount = messages.length;
+
+            // Scroll to bottom
+            $messageList.scrollTop = $messageList.scrollHeight;
+        }
+
+        function escapeHtml(str) {
+            const div = document.createElement('div');
+            div.textContent = str;
+            return div.innerHTML;
+        }
+
+        // --- Polling ---
+        async function pollState() {
+            try {
+                const state = await invoke('get_connection_state');
+                updateStatusBadge(state);
+
+                if (state === 'disconnected' && currentSection !== 'home') {
+                    stopPolling();
+                    showSection('home');
+                    $joinBtn.disabled = false;
+                    $joinBtn.textContent = 'Join';
+                    micEnabled = false;
+                    camEnabled = false;
+                    updateControlButtons();
+                    knownMessageCount = 0;
+                    return;
+                }
+
+                if (state === 'connected' || state === 'reconnecting') {
+                    const participants = await invoke('get_participants');
+                    if (currentSection === 'call') {
+                        renderParticipants(participants);
+                    }
+
+                    const messages = await invoke('get_messages');
+                    if (currentSection === 'chat') {
+                        renderMessages(messages);
+                    }
+                }
+            } catch (e) {
+                console.error('poll error:', e);
+            }
+        }
+
+        function startPolling() {
+            if (pollInterval) return;
+            pollInterval = setInterval(pollState, 1000);
+        }
+
+        function stopPolling() {
+            if (pollInterval) {
+                clearInterval(pollInterval);
+                pollInterval = null;
+            }
+        }
+
+        function updateControlButtons() {
+            $micBtn.className = 'ctrl-btn ' + (micEnabled ? 'active' : 'off');
+            $micBtn.textContent = micEnabled ? 'Mic' : 'Mic';
+            $camBtn.className = 'ctrl-btn ' + (camEnabled ? 'active' : 'off');
+            $camBtn.textContent = camEnabled ? 'Cam' : 'Cam';
+        }
+
+        // --- Event handlers ---
+        $joinBtn.addEventListener('click', async () => {
+            const url = $meetUrl.value.trim();
+            if (!url) {
+                $joinError.textContent = 'Please enter a meeting URL';
+                return;
+            }
+
+            $joinBtn.disabled = true;
+            $joinBtn.textContent = 'Connecting...';
+            $joinError.textContent = '';
+
+            try {
+                const username = $username.value.trim() || null;
+                await invoke('connect', { meetUrl: url, username: username });
+                showSection('call');
+                startPolling();
+            } catch (e) {
+                $joinError.textContent = String(e);
+                $joinBtn.disabled = false;
+                $joinBtn.textContent = 'Join';
+            }
+        });
+
+        $meetUrl.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') $joinBtn.click();
+        });
+
+        $micBtn.addEventListener('click', async () => {
+            micEnabled = !micEnabled;
+            updateControlButtons();
+            try {
+                await invoke('toggle_mic', { enabled: micEnabled });
+            } catch (e) {
+                console.error('mic toggle error:', e);
+                micEnabled = !micEnabled;
+                updateControlButtons();
+            }
+        });
+
+        $camBtn.addEventListener('click', async () => {
+            camEnabled = !camEnabled;
+            updateControlButtons();
+            try {
+                await invoke('toggle_camera', { enabled: camEnabled });
+            } catch (e) {
+                console.error('camera toggle error:', e);
+                camEnabled = !camEnabled;
+                updateControlButtons();
+            }
+        });
+
+        $hangupBtn.addEventListener('click', async () => {
+            try {
+                await invoke('disconnect');
+            } catch (e) {
+                console.error('disconnect error:', e);
+            }
+            stopPolling();
+            showSection('home');
+            $joinBtn.disabled = false;
+            $joinBtn.textContent = 'Join';
+            micEnabled = false;
+            camEnabled = false;
+            updateControlButtons();
+            knownMessageCount = 0;
+            updateStatusBadge('disconnected');
+        });
+
+        $chatBtn.addEventListener('click', () => {
+            showSection('chat');
+            knownMessageCount = 0;
+            $messageList.innerHTML = '<div id="chatEmpty" class="chat-empty">No messages yet</div>';
+            // Re-fetch refs after innerHTML change
+            pollState();
+        });
+
+        $chatBackBtn.addEventListener('click', () => {
+            showSection('call');
+        });
+
+        $sendBtn.addEventListener('click', async () => {
+            const text = $chatInput.value.trim();
+            if (!text) return;
+            $chatInput.value = '';
+            try {
+                await invoke('send_chat', { text: text });
+                // Will appear on next poll
+            } catch (e) {
+                console.error('send error:', e);
+            }
+        });
+
+        $chatInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') $sendBtn.click();
+        });
+    </script>
 </body>
 </html>

@@ -5420,6 +5420,7 @@ dependencies = [
  "serde_json",
  "tauri",
  "tauri-build",
+ "tokio",
  "visio-core",
 ]
 
@@ -5427,6 +5428,8 @@ dependencies = [
 name = "visio-ffi"
 version = "0.1.0"
 dependencies = [
+ "thiserror 2.0.18",
+ "tokio",
  "uniffi",
  "visio-core",
 ]
