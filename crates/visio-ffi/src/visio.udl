@@ -1,2 +1,111 @@
-namespace visio {
+namespace visio {};
+
+[Enum]
+interface ConnectionState {
+    Disconnected();
+    Connecting();
+    Connected();
+    Reconnecting(u32 attempt);
+};
+
+enum ConnectionQuality {
+    "Excellent",
+    "Good",
+    "Poor",
+    "Lost",
+};
+
+enum TrackKind {
+    "Audio",
+    "Video",
+};
+
+enum TrackSource {
+    "Microphone",
+    "Camera",
+    "ScreenShare",
+    "Unknown",
+};
+
+dictionary ParticipantInfo {
+    string sid;
+    string identity;
+    string? name;
+    boolean is_muted;
+    boolean has_video;
+    ConnectionQuality connection_quality;
+};
+
+dictionary TrackInfo {
+    string sid;
+    string participant_sid;
+    TrackKind kind;
+    TrackSource source;
+};
+
+dictionary ChatMessage {
+    string id;
+    string sender_sid;
+    string sender_name;
+    string text;
+    u64 timestamp_ms;
+};
+
+[Enum]
+interface VisioEvent {
+    ConnectionStateChanged(ConnectionState state);
+    ParticipantJoined(ParticipantInfo info);
+    ParticipantLeft(string participant_sid);
+    TrackSubscribed(TrackInfo info);
+    TrackUnsubscribed(string track_sid);
+    TrackMuted(string participant_sid, TrackSource source);
+    TrackUnmuted(string participant_sid, TrackSource source);
+    ActiveSpeakersChanged(sequence<string> participant_sids);
+    ConnectionQualityChanged(string participant_sid, ConnectionQuality quality);
+    ChatMessageReceived(ChatMessage message);
+};
+
+[Error]
+enum VisioError {
+    "Connection",
+    "Room",
+    "Auth",
+    "Http",
+    "InvalidUrl",
+};
+
+callback interface VisioEventListener {
+    void on_event(VisioEvent event);
+};
+
+interface VisioClient {
+    constructor();
+
+    [Throws=VisioError]
+    void connect(string meet_url, string? username);
+
+    void disconnect();
+
+    ConnectionState connection_state();
+
+    sequence<ParticipantInfo> participants();
+
+    sequence<string> active_speakers();
+
+    [Throws=VisioError]
+    void set_microphone_enabled(boolean enabled);
+
+    [Throws=VisioError]
+    void set_camera_enabled(boolean enabled);
+
+    boolean is_microphone_enabled();
+
+    boolean is_camera_enabled();
+
+    [Throws=VisioError]
+    ChatMessage send_chat_message(string text);
+
+    sequence<ChatMessage> chat_messages();
+
+    void add_listener(VisioEventListener listener);
 };

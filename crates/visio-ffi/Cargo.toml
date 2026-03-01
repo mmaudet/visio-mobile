@@ -10,6 +10,8 @@ crate-type = ["cdylib", "staticlib"]
 [dependencies]
 visio-core = { path = "../visio-core" }
 uniffi = { workspace = true }
+tokio = { workspace = true }
+thiserror = { workspace = true }
 
 [build-dependencies]
 uniffi = { workspace = true, features = ["build"] }
