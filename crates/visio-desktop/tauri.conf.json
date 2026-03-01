@@ -4,7 +4,10 @@
   "version": "0.1.0",
   "identifier": "io.visio.desktop",
   "build": {
-    "frontendDist": "./frontend"
+    "devUrl": "http://localhost:5173",
+    "frontendDist": "../frontend/dist",
+    "beforeDevCommand": "cd frontend && npm run dev",
+    "beforeBuildCommand": "cd frontend && npm run build"
   },
   "app": {
     "withGlobalTauri": true,
