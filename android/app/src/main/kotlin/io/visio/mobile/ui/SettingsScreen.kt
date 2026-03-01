@@ -17,10 +17,14 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.RadioButtonDefaults
 import androidx.compose.material3.Switch
@@ -163,17 +167,14 @@ fun SettingsScreen(
 
             // Language section
             SectionHeader(Strings.t("settings.language", lang), isDark)
-            Strings.supportedLangs.forEach { code ->
-                LanguageOption(
-                    label = Strings.t("lang.$code", code),
-                    value = code,
-                    selected = language,
-                    isDark = isDark
-                ) {
+            LanguageDropdown(
+                selected = language,
+                isDark = isDark,
+                onSelect = {
                     language = it
                     VisioManager.setLanguage(it)
                 }
-            }
+            )
         }
 
         // Save button
@@ -249,43 +250,59 @@ private fun SettingsToggle(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun LanguageOption(
-    label: String,
-    value: String,
+private fun LanguageDropdown(
     selected: String,
     isDark: Boolean,
     onSelect: (String) -> Unit
 ) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .selectable(
-                selected = value == selected,
-                onClick = { onSelect(value) },
-                role = Role.RadioButton
-            )
-            .background(
-                if (isDark) VisioColors.PrimaryDark100 else VisioColors.LightSurfaceVariant,
-                RoundedCornerShape(12.dp)
-            )
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    var expanded by remember { mutableStateOf(false) }
+
+    ExposedDropdownMenuBox(
+        expanded = expanded,
+        onExpandedChange = { expanded = it }
     ) {
-        RadioButton(
-            selected = value == selected,
-            onClick = null,
-            colors = RadioButtonDefaults.colors(
-                selectedColor = VisioColors.Primary500,
-                unselectedColor = VisioColors.Greyscale400
-            )
+        TextField(
+            value = Strings.t("lang.$selected", selected),
+            onValueChange = {},
+            readOnly = true,
+            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+            modifier = Modifier
+                .menuAnchor(MenuAnchorType.PrimaryNotEditable)
+                .fillMaxWidth(),
+            colors = TextFieldDefaults.colors(
+                focusedContainerColor = if (isDark) VisioColors.PrimaryDark100 else VisioColors.LightSurfaceVariant,
+                unfocusedContainerColor = if (isDark) VisioColors.PrimaryDark100 else VisioColors.LightSurfaceVariant,
+                focusedTextColor = if (isDark) VisioColors.White else VisioColors.LightOnBackground,
+                unfocusedTextColor = if (isDark) VisioColors.White else VisioColors.LightOnBackground,
+                focusedIndicatorColor = Color.Transparent,
+                unfocusedIndicatorColor = Color.Transparent,
+                focusedTrailingIconColor = if (isDark) VisioColors.White else VisioColors.LightOnBackground,
+                unfocusedTrailingIconColor = if (isDark) VisioColors.Greyscale400 else VisioColors.LightTextSecondary
+            ),
+            shape = RoundedCornerShape(12.dp)
         )
-        Text(
-            text = label,
-            style = MaterialTheme.typography.bodyLarge,
-            color = if (isDark) VisioColors.White else VisioColors.LightOnBackground
-        )
+        ExposedDropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+            containerColor = if (isDark) VisioColors.PrimaryDark100 else VisioColors.LightSurfaceVariant
+        ) {
+            Strings.supportedLangs.forEach { code ->
+                DropdownMenuItem(
+                    text = {
+                        Text(
+                            Strings.t("lang.$code", code),
+                            color = if (isDark) VisioColors.White else VisioColors.LightOnBackground
+                        )
+                    },
+                    onClick = {
+                        onSelect(code)
+                        expanded = false
+                    }
+                )
+            }
+        }
     }
 }
 

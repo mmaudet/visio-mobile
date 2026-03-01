@@ -45,8 +45,7 @@ struct SettingsView: View {
                             Text(Strings.t("lang.\(code)", lang: code)).tag(code)
                         }
                     }
-                    .pickerStyle(.inline)
-                    .labelsHidden()
+                    .pickerStyle(.menu)
                     .onChange(of: language) { newLang in
                         manager.setLanguage(newLang)
                     }
