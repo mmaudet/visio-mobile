@@ -1,4 +1,7 @@
-use crate::events::{ConnectionQuality, ParticipantInfo};
+use crate::events::ParticipantInfo;
+
+#[cfg(test)]
+use crate::events::ConnectionQuality;
 
 /// Manages the list of participants in a room.
 ///
