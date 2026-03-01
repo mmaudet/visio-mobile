@@ -86,6 +86,14 @@ import nl from "../../../../i18n/nl.json";
 const translations: Record<string, Record<string, string>> = { en, fr, de, es, it, nl };
 const SUPPORTED_LANGS = Object.keys(translations);
 
+const SLUG_REGEX = /^[a-z]{3}-[a-z]{4}-[a-z]{3}$/;
+
+function extractSlug(input: string): string | null {
+  const trimmed = input.trim().replace(/\/$/, "");
+  const candidate = trimmed.includes("/") ? trimmed.split("/").pop() || "" : trimmed;
+  return SLUG_REGEX.test(candidate) ? candidate : null;
+}
+
 function detectSystemLang(): string {
   const navLang = navigator.language?.split("-")[0];
   return SUPPORTED_LANGS.includes(navLang) ? navLang : "en";
@@ -254,6 +262,31 @@ function HomeView({
   const [meetUrl, setMeetUrl] = useState("");
   const [error, setError] = useState("");
   const [joining, setJoining] = useState(false);
+  const [roomStatus, setRoomStatus] = useState<"idle" | "checking" | "valid" | "not_found" | "error">("idle");
+
+  useEffect(() => {
+    const slug = extractSlug(meetUrl);
+    if (!slug) {
+      setRoomStatus("idle");
+      return;
+    }
+    setRoomStatus("checking");
+    const controller = new AbortController();
+    const timer = setTimeout(async () => {
+      try {
+        const result = await invoke<{ status: string; livekit_url?: string; token?: string }>(
+          "validate_room", { url: meetUrl.trim(), username: displayName.trim() || null }
+        );
+        if (controller.signal.aborted) return;
+        if (result.status === "valid") setRoomStatus("valid");
+        else if (result.status === "not_found") setRoomStatus("not_found");
+        else setRoomStatus("error");
+      } catch {
+        if (!controller.signal.aborted) setRoomStatus("error");
+      }
+    }, 500);
+    return () => { clearTimeout(timer); controller.abort(); };
+  }, [meetUrl]);
 
   const handleJoin = async () => {
     const url = meetUrl.trim();
@@ -299,6 +332,9 @@ function HomeView({
             onKeyDown={handleKeyDown}
           />
         </div>
+        {roomStatus === "checking" && <div className="room-status checking">{t("home.room.checking")}</div>}
+        {roomStatus === "valid" && <div className="room-status valid">{t("home.room.valid")}</div>}
+        {roomStatus === "not_found" && <div className="room-status not-found">{t("home.room.notFound")}</div>}
         <div className="form-group">
           <label htmlFor="username">{t("home.displayName")}</label>
           <input
@@ -311,7 +347,7 @@ function HomeView({
             onKeyDown={handleKeyDown}
           />
         </div>
-        <button className="btn btn-primary" disabled={joining} onClick={handleJoin}>
+        <button className="btn btn-primary" disabled={joining || roomStatus !== "valid"} onClick={handleJoin}>
           {joining ? t("home.connecting") : t("home.join")}
         </button>
         <div className="error-msg">{error}</div>
