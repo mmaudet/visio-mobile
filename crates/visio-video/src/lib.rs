@@ -19,6 +19,9 @@ use tokio::task::JoinHandle;
 mod android;
 
 #[cfg(target_os = "android")]
+pub use android::render_i420_to_surface;
+
+#[cfg(target_os = "android")]
 fn android_log(msg: &str) {
     use std::ffi::CString;
     let tag = CString::new("VISIO_VIDEO").unwrap();

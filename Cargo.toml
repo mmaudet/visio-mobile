@@ -27,3 +27,6 @@ uniffi = "0.29"
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls-webpki-roots"] }
 urlencoding = "2"
 futures-util = "0.3"
+
+[patch.crates-io]
+webrtc-sys = { path = "vendor/webrtc-sys" }

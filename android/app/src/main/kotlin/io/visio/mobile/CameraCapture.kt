@@ -8,10 +8,12 @@ import android.hardware.camera2.CameraCharacteristics
 import android.hardware.camera2.CameraDevice
 import android.hardware.camera2.CameraManager
 import android.hardware.camera2.CaptureRequest
+import android.hardware.display.DisplayManager
 import android.media.ImageReader
 import android.os.Handler
 import android.os.HandlerThread
 import android.util.Log
+import android.view.Display
 
 /**
  * Captures camera frames via Camera2 API and pushes them into the
@@ -36,6 +38,7 @@ class CameraCapture(private val context: Context) {
     private var sensorOrientation: Int = 0
     private var isFrontCamera: Boolean = false
     private var running = false
+    private val displayManager = context.getSystemService(Context.DISPLAY_SERVICE) as DisplayManager
 
     @SuppressLint("MissingPermission") // Caller must check CAMERA permission first
     fun start() {
@@ -63,11 +66,24 @@ class CameraCapture(private val context: Context) {
         // ImageReader receives YUV_420_888 frames
         imageReader = ImageReader.newInstance(WIDTH, HEIGHT, ImageFormat.YUV_420_888, MAX_IMAGES).apply {
             setOnImageAvailableListener({ reader ->
-                val image = reader.acquireLatestImage() ?: return@setOnImageAvailableListener
+                val image = reader.acquireLatestImage() ?: run {
+                    Log.w(TAG, "acquireLatestImage returned null")
+                    return@setOnImageAvailableListener
+                }
                 try {
                     val yPlane = image.planes[0]
                     val uPlane = image.planes[1]
                     val vPlane = image.planes[2]
+
+                    // Compensate for device orientation so the self-view
+                    // is always upright. Display.rotation is 0/1/2/3.
+                    val displayDegrees = (displayManager
+                        .getDisplay(Display.DEFAULT_DISPLAY)?.rotation ?: 0) * 90
+                    val rotation = if (isFrontCamera) {
+                        (sensorOrientation + displayDegrees) % 360
+                    } else {
+                        (sensorOrientation - displayDegrees + 360) % 360
+                    }
 
                     NativeVideo.nativePushCameraFrame(
                         yPlane.buffer,
@@ -80,7 +96,7 @@ class CameraCapture(private val context: Context) {
                         vPlane.pixelStride,
                         image.width,
                         image.height,
-                        sensorOrientation
+                        rotation
                     )
                 } finally {
                     image.close()

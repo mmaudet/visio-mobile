@@ -70,7 +70,6 @@ import io.visio.mobile.R
 import io.visio.mobile.VideoSurfaceView
 import io.visio.mobile.VisioManager
 import io.visio.mobile.ui.i18n.Strings
-import io.visio.mobile.ui.i18n.Strings
 import io.visio.mobile.ui.theme.VisioColors
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -381,6 +380,7 @@ fun CallScreen(
                                     VisioManager.client.setCameraEnabled(true)
                                     VisioManager.startCameraCapture()
                                     cameraEnabled = true
+                                    VisioManager.refreshParticipantsPublic()
                                 } catch (_: Exception) {}
                             }
                         } else {
@@ -392,6 +392,7 @@ fun CallScreen(
                                 VisioManager.stopCameraCapture()
                                 VisioManager.client.setCameraEnabled(false)
                                 cameraEnabled = false
+                                VisioManager.refreshParticipantsPublic()
                             } catch (_: Exception) {}
                         }
                     }
@@ -626,6 +627,7 @@ fun ParticipantTile(
     handRaisePosition: Int,
     onClick: () -> Unit
 ) {
+    val lang = VisioManager.currentLang
     val name = participant.name ?: participant.identity
     val initials = name
         .split(" ")

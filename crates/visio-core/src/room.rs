@@ -6,6 +6,7 @@ use livekit::track::{
     RemoteVideoTrack,
     TrackKind as LkTrackKind,
     TrackSource as LkTrackSource,
+    VideoQuality,
 };
 use livekit::participant::ConnectionQuality as LkConnectionQuality;
 use livekit::data_stream::StreamReader;
@@ -79,7 +80,12 @@ impl RoomManager {
 
     /// Get a snapshot of current participants.
     pub async fn participants(&self) -> Vec<ParticipantInfo> {
-        self.participants.lock().await.participants().to_vec()
+        let mut list = self.participants.lock().await.participants().to_vec();
+        // Prepend local participant so the UI can render a self-view tile.
+        if let Some(local) = self.local_participant_info().await {
+            list.insert(0, local);
+        }
+        list
     }
 
     /// Get local participant info (for self-view tile).
@@ -379,8 +385,13 @@ impl RoomManager {
                         if let livekit::track::RemoteTrack::Video(video_track) = &track {
                             subscribed_tracks.lock().await
                                 .insert(track_sid.clone(), video_track.clone());
-
                         }
+
+                        // Force LOW simulcast layer on Android to prevent decoder
+                        // thrashing between 320x180 and 1280x720 (the hardware
+                        // decoder gets released/reinited before OnFrame fires).
+                        #[cfg(target_os = "android")]
+                        publication.set_video_quality(VideoQuality::Low);
                     }
 
                     // Start audio playout: create NativeAudioStream and feed

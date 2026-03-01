@@ -501,6 +501,8 @@ impl VisioClient {
                     if let Some(source) = self.controls.video_source().await {
                         visio_log("VISIO FFI: camera source stored for JNI pipeline");
                         *guard = Some(source);
+                    } else {
+                        visio_log("VISIO FFI: ERROR — video_source() returned None, CAMERA_SOURCE not set!");
                     }
                 } else {
                     visio_log("VISIO FFI: camera source cleared");
@@ -647,6 +649,12 @@ static CLIENT_FOR_VIDEO: StdMutex<usize> = StdMutex::new(0);
 #[cfg(target_os = "android")]
 static CAMERA_SOURCE: StdMutex<Option<NativeVideoSource>> = StdMutex::new(None);
 
+/// Stores the ANativeWindow* for local camera self-view (as usize for Send).
+/// Set when VideoSurfaceView attaches with track_sid "local-camera".
+/// The nativePushCameraFrame JNI renders I420 frames directly to this surface.
+#[cfg(target_os = "android")]
+static LOCAL_PREVIEW_SURFACE: StdMutex<usize> = StdMutex::new(0);
+
 /// Stores the NativeAudioSource after `set_microphone_enabled(true)` publishes
 /// the audio track. The Android AudioCapture Kotlin class pushes PCM frames
 /// into this source via JNI → `nativePushAudioFrame()`.
@@ -695,6 +703,7 @@ pub unsafe extern "C" fn Java_io_visio_mobile_NativeVideo_nativePushCameraFrame(
 ) {
     let guard = CAMERA_SOURCE.lock().unwrap();
     let Some(source) = guard.as_ref() else {
+        visio_log("VISIO FFI: CAMERA_SOURCE is None — discarding frame");
         return;
     };
 
@@ -712,6 +721,7 @@ pub unsafe extern "C" fn Java_io_visio_mobile_NativeVideo_nativePushCameraFrame(
     };
 
     let (Ok(y_ptr), Ok(u_ptr), Ok(v_ptr)) = (y_ptr, u_ptr, v_ptr) else {
+        visio_log("VISIO FFI: failed to get direct buffer addresses from ByteBuffers");
         return;
     };
 
@@ -773,12 +783,30 @@ pub unsafe extern "C" fn Java_io_visio_mobile_NativeVideo_nativePushCameraFrame(
         _ => VideoRotation::VideoRotation0,
     };
 
+    // Render to local preview surface (self-view) BEFORE moving i420 into VideoFrame.
+    // The guard MUST be kept alive during rendering so that detachSurface cannot
+    // release the ANativeWindow while we are writing to it (prevents SIGSEGV).
+    {
+        let guard = LOCAL_PREVIEW_SURFACE.lock().unwrap();
+        let preview_addr = *guard;
+        if preview_addr != 0 {
+            visio_video::render_i420_to_surface(
+                &i420,
+                preview_addr as *mut std::ffi::c_void,
+                rotation_degrees as u32,
+                true, // mirror for front-camera self-view
+            );
+        }
+        drop(guard);
+    }
+
     let frame = VideoFrame {
         rotation,
         timestamp_us: 0,
         buffer: i420,
     };
     source.capture_frame(&frame);
+    drop(guard);
 
     // Prevent Drop from calling DestroyJavaVM
     std::mem::forget(jni_env);
@@ -1125,7 +1153,16 @@ pub unsafe extern "C" fn Java_io_visio_mobile_NativeVideo_attachSurface(
 
     visio_log(&format!("VISIO JNI: attachSurface track={track_sid}"));
 
-    // Get client pointer
+    // Local camera self-view: store the surface for direct rendering
+    // in nativePushCameraFrame (bypasses NativeVideoStream which only
+    // works with remote tracks).
+    if track_sid == "local-camera" {
+        visio_log("VISIO JNI: storing local preview surface for self-view");
+        *LOCAL_PREVIEW_SURFACE.lock().unwrap() = native_window as usize;
+        return;
+    }
+
+    // Remote tracks: look up the subscribed video track and start a renderer.
     let client_addr = *CLIENT_FOR_VIDEO.lock().unwrap();
     if client_addr == 0 {
         visio_log("VISIO JNI: no client pointer stored, cannot attach surface");
@@ -1180,6 +1217,17 @@ pub unsafe extern "C" fn Java_io_visio_mobile_NativeVideo_detachSurface(
     };
 
     visio_log(&format!("VISIO JNI: detachSurface track={track_sid}"));
+
+    // Local camera self-view: release the stored ANativeWindow.
+    if track_sid == "local-camera" {
+        let prev = std::mem::replace(&mut *LOCAL_PREVIEW_SURFACE.lock().unwrap(), 0);
+        if prev != 0 {
+            visio_log("VISIO JNI: releasing local preview surface");
+            unsafe { ndk_sys::ANativeWindow_release(prev as *mut ndk_sys::ANativeWindow) };
+        }
+        return;
+    }
+
     visio_video::stop_track_renderer(&track_sid);
 }
 

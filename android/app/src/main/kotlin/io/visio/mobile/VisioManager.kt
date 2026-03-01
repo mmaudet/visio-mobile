@@ -149,6 +149,8 @@ object VisioManager : VisioEventListener {
         audioPlayout = null
     }
 
+    fun refreshParticipantsPublic() = refreshParticipants()
+
     private fun refreshParticipants() {
         scope.launch {
             val list = client.participants()
