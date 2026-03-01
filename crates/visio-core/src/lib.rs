@@ -4,6 +4,7 @@
 //! Consumed by native UI shells via UniFFI bindings.
 
 pub mod auth;
+pub mod chat;
 pub mod controls;
 pub mod errors;
 pub mod events;
@@ -11,6 +12,7 @@ pub mod participants;
 pub mod room;
 
 pub use auth::{AuthService, TokenInfo};
+pub use chat::ChatService;
 pub use controls::MeetingControls;
 pub use errors::VisioError;
 pub use events::{

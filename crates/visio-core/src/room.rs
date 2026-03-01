@@ -43,6 +43,11 @@ impl RoomManager {
         crate::controls::MeetingControls::new(self.room.clone(), self.emitter.clone())
     }
 
+    /// Create a ChatService bound to this room.
+    pub fn chat(&self) -> crate::chat::ChatService {
+        crate::chat::ChatService::new(self.room.clone(), self.emitter.clone())
+    }
+
     /// Get current connection state.
     pub async fn connection_state(&self) -> ConnectionState {
         self.connection_state.lock().await.clone()
@@ -323,6 +328,26 @@ impl RoomManager {
                         participant_sid: psid,
                         quality: q,
                     });
+                }
+
+                RoomEvent::ChatMessage { message, participant, .. } => {
+                    let sender_sid = participant
+                        .as_ref()
+                        .map(|p| p.sid().to_string())
+                        .unwrap_or_default();
+                    let sender_name = participant
+                        .as_ref()
+                        .map(|p| p.name().to_string())
+                        .unwrap_or_default();
+
+                    let msg = crate::events::ChatMessage {
+                        id: message.id,
+                        sender_sid,
+                        sender_name,
+                        text: message.message,
+                        timestamp_ms: message.timestamp as u64,
+                    };
+                    emitter.emit(VisioEvent::ChatMessageReceived(msg));
                 }
 
                 _ => {
