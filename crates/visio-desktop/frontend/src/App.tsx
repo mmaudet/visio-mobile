@@ -76,140 +76,20 @@ function useT() {
   return useContext(I18nContext);
 }
 
-const translations: Record<string, Record<string, string>> = {
-  en: {
-    "home.subtitle": "Enter a meeting URL and your display name",
-    "home.meetUrl": "Meeting URL",
-    "home.meetUrl.placeholder": "meet.example.com/my-room",
-    "home.displayName": "Display Name (optional)",
-    "home.displayName.placeholder": "Your name",
-    "home.join": "Join",
-    "home.connecting": "Connecting...",
-    "home.error.noUrl": "Please enter a meeting URL",
-    "call.noParticipants": "No other participants yet",
-    "call.you": "You",
-    "chat": "Chat",
-    "chat.noMessages": "No messages yet",
-    "chat.placeholder": "Message",
-    "unknown": "Unknown",
-    "control.mute": "Mute microphone",
-    "control.unmute": "Unmute microphone",
-    "control.audioDevices": "Audio devices",
-    "control.camOff": "Turn off camera",
-    "control.camOn": "Turn on camera",
-    "control.camDevices": "Camera devices",
-    "control.lowerHand": "Lower hand",
-    "control.raiseHand": "Raise hand",
-    "control.participants": "Participants",
-    "control.info": "Meeting info",
-    "control.tools": "Meeting tools",
-    "control.transcribe": "Transcribe",
-    "control.record": "Record",
-    "control.leave": "Leave call",
-    "tools.title": "Meeting tools",
-    "tools.subtitle": "Access more tools to enhance your meetings.",
-    "tools.transcribe.desc": "Record the conversation.",
-    "tools.record.desc": "Record the meeting.",
-    "info.title": "Meeting information",
-    "info.connection": "Connection information",
-    "info.copy": "Copy information",
-    "info.copied": "Copied!",
-    "transcribe.title": "Transcribe",
-    "transcribe.heading": "Transcribe your meeting with AI Assistant",
-    "transcribe.subheading": "Transcribe your meeting without limits.",
-    "transcribe.newDoc": "A new document will be created",
-    "transcribe.emailSent": "The transcription will be sent to the organizer and co-organizers.",
-    "transcribe.language": "Meeting language",
-    "transcribe.alsoRecord": "Also start a recording",
-    "transcribe.start": "Start transcribing the meeting",
-    "transcribe.comingSoon": "Transcription will be available in a future update.",
-    "device.microphone": "Microphone",
-    "device.speaker": "Speaker",
-    "device.camera": "Camera",
-    "device.noMic": "No microphones found",
-    "device.noSpeaker": "No speakers found",
-    "device.noCamera": "No cameras found",
-    "settings": "Settings",
-    "settings.displayName": "Display name",
-    "settings.language": "Language",
-    "settings.micOnJoin": "Mic on join",
-    "settings.camOnJoin": "Camera on join",
-    "settings.theme": "Theme",
-    "settings.theme.light": "Light",
-    "settings.theme.dark": "Dark",
-    "settings.save": "Save",
-    "status.disconnected": "disconnected",
-    "status.connected": "connected",
-    "status.connecting": "connecting",
-    "status.reconnecting": "reconnecting",
-  },
-  fr: {
-    "home.subtitle": "Entrez l'URL de la réunion et votre nom",
-    "home.meetUrl": "URL de la réunion",
-    "home.meetUrl.placeholder": "meet.example.com/ma-reunion",
-    "home.displayName": "Nom d'affichage (optionnel)",
-    "home.displayName.placeholder": "Votre nom",
-    "home.join": "Rejoindre",
-    "home.connecting": "Connexion...",
-    "home.error.noUrl": "Veuillez entrer une URL de réunion",
-    "call.noParticipants": "Aucun autre participant pour le moment",
-    "call.you": "Vous",
-    "chat": "Discussion",
-    "chat.noMessages": "Aucun message pour le moment",
-    "chat.placeholder": "Message",
-    "unknown": "Inconnu",
-    "control.mute": "Couper le micro",
-    "control.unmute": "Activer le micro",
-    "control.audioDevices": "Périphériques audio",
-    "control.camOff": "Désactiver la caméra",
-    "control.camOn": "Activer la caméra",
-    "control.camDevices": "Caméras",
-    "control.lowerHand": "Baisser la main",
-    "control.raiseHand": "Lever la main",
-    "control.participants": "Participants",
-    "control.info": "Infos de la réunion",
-    "control.tools": "Outils de réunion",
-    "control.transcribe": "Transcrire",
-    "control.record": "Enregistrer",
-    "control.leave": "Quitter l'appel",
-    "tools.title": "Outils de réunion",
-    "tools.subtitle": "Accéder à d'avantage d'outils pour améliorer vos réunions.",
-    "tools.transcribe.desc": "Enregistrer la conversation.",
-    "tools.record.desc": "Enregistrer la réunion.",
-    "info.title": "Informations sur la réunion",
-    "info.connection": "Informations de connexions",
-    "info.copy": "Copier les informations",
-    "info.copied": "Copié !",
-    "transcribe.title": "Transcrire",
-    "transcribe.heading": "Transcrivez votre réunion avec l'Assistant IA",
-    "transcribe.subheading": "Transcrivez votre réunion sans limite.",
-    "transcribe.newDoc": "Un nouveau document sera créé",
-    "transcribe.emailSent": "La transcription sera envoyée à l'organisateur et aux coorganisateurs.",
-    "transcribe.language": "Langue de la réunion",
-    "transcribe.alsoRecord": "Démarrer aussi un enregistrement",
-    "transcribe.start": "Commencer à transcrire la réunion",
-    "transcribe.comingSoon": "La transcription sera disponible dans une prochaine mise à jour.",
-    "device.microphone": "Microphone",
-    "device.speaker": "Haut-parleur",
-    "device.camera": "Caméra",
-    "device.noMic": "Aucun micro trouvé",
-    "device.noSpeaker": "Aucun haut-parleur trouvé",
-    "device.noCamera": "Aucune caméra trouvée",
-    "settings": "Paramètres",
-    "settings.displayName": "Nom d'affichage",
-    "settings.language": "Langue",
-    "settings.micOnJoin": "Micro activé en rejoignant",
-    "settings.camOnJoin": "Caméra activée en rejoignant",
-    "settings.theme": "Thème",
-    "settings.theme.light": "Clair",
-    "settings.theme.dark": "Sombre",
-    "settings.save": "Enregistrer",
-    "status.disconnected": "déconnecté",
-    "status.connected": "connecté",
-    "status.connecting": "connexion",
-    "status.reconnecting": "reconnexion",
-  },
-};
+import en from "../../../../i18n/en.json";
+import fr from "../../../../i18n/fr.json";
+import de from "../../../../i18n/de.json";
+import es from "../../../../i18n/es.json";
+import it from "../../../../i18n/it.json";
+import nl from "../../../../i18n/nl.json";
+
+const translations: Record<string, Record<string, string>> = { en, fr, de, es, it, nl };
+const SUPPORTED_LANGS = Object.keys(translations);
+
+function detectSystemLang(): string {
+  const navLang = navigator.language?.split("-")[0];
+  return SUPPORTED_LANGS.includes(navLang) ? navLang : "en";
+}
 
 // ---------------------------------------------------------------------------
 // Logo SVG tricolore
@@ -405,7 +285,7 @@ function HomeView({
       </button>
       <div className="join-form">
         <VisioLogo />
-        <h2>Visio Mobile</h2>
+        <h2>{t("app.title")}</h2>
         <p>{t("home.subtitle")}</p>
         <div className="form-group">
           <label htmlFor="meetUrl">{t("home.meetUrl")}</label>
@@ -1044,8 +924,11 @@ function SettingsModal({
                 onLanguageChange(lang);
               }}
             >
-              <option value="fr">Français</option>
-              <option value="en">English</option>
+              {SUPPORTED_LANGS.map((code) => (
+                <option key={code} value={code}>
+                  {translations[code]["lang." + code]}
+                </option>
+              ))}
             </select>
           </div>
           <div className="settings-section">
@@ -1125,7 +1008,7 @@ export default function App() {
   // Display name (shared between Home and Settings)
   const [displayName, setDisplayName] = useState("");
   // i18n
-  const [lang, setLang] = useState("fr");
+  const [lang, setLang] = useState(detectSystemLang);
   // Theme
   const [theme, setTheme] = useState("light");
 
@@ -1389,7 +1272,7 @@ export default function App() {
     <I18nContext.Provider value={t}>
       {view === "call" && (
         <header>
-          <h1>Visio Mobile</h1>
+          <h1>{t("app.title")}</h1>
           <StatusBadge state={connectionState} />
         </header>
       )}
