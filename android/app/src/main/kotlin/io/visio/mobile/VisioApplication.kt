@@ -2,6 +2,7 @@ package io.visio.mobile
 
 import android.app.Application
 import android.util.Log
+import io.visio.mobile.ui.i18n.Strings
 
 class VisioApplication : Application() {
 
@@ -22,6 +23,7 @@ class VisioApplication : Application() {
         } catch (e: UnsatisfiedLinkError) {
             Log.e("Visio", "nativeInitWebrtc failed: ${e.message}")
         }
+        Strings.init(this)
         VisioManager.initialize(applicationContext)
     }
 }

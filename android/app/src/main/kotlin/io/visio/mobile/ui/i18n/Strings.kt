@@ -1,128 +1,30 @@
 package io.visio.mobile.ui.i18n
 
+import android.content.Context
+import org.json.JSONObject
+
 object Strings {
-    private val translations: Map<String, Map<String, String>> = mapOf(
-        "en" to mapOf(
-            "home.subtitle" to "Enter a meeting URL and your display name",
-            "home.meetUrl" to "Meeting URL",
-            "home.meetUrl.placeholder" to "meet.example.com/my-room",
-            "home.displayName" to "Display Name (optional)",
-            "home.displayName.placeholder" to "Your name",
-            "home.join" to "Join",
-            "home.connecting" to "Connecting...",
-            "home.error.noUrl" to "Please enter a meeting URL",
-            "call.noParticipants" to "No other participants yet",
-            "call.you" to "You",
-            "chat" to "Chat",
-            "chat.noMessages" to "No messages yet",
-            "chat.placeholder" to "Message",
-            "unknown" to "Unknown",
-            "control.mute" to "Mute microphone",
-            "control.unmute" to "Unmute microphone",
-            "control.audioDevices" to "Audio devices",
-            "control.camOff" to "Turn off camera",
-            "control.camOn" to "Turn on camera",
-            "control.camDevices" to "Camera devices",
-            "control.lowerHand" to "Lower hand",
-            "control.raiseHand" to "Raise hand",
-            "control.leave" to "Leave call",
-            "device.microphone" to "Microphone",
-            "device.speaker" to "Speaker",
-            "device.camera" to "Camera",
-            "device.noMic" to "No microphones found",
-            "device.noSpeaker" to "No speakers found",
-            "device.noCamera" to "No cameras found",
-            "settings" to "Settings",
-            "settings.displayName" to "Display name",
-            "settings.language" to "Language",
-            "settings.micOnJoin" to "Mic on join",
-            "settings.camOnJoin" to "Camera on join",
-            "settings.theme" to "Theme",
-            "settings.theme.light" to "Light",
-            "settings.theme.dark" to "Dark",
-            "settings.save" to "Save",
-            "settings.profile" to "Profile",
-            "settings.joinMeeting" to "Join meeting",
-            "status.disconnected" to "Disconnected",
-            "status.connected" to "Connected",
-            "status.connecting" to "Connecting",
-            "status.reconnecting" to "Reconnecting",
-            "audio.source" to "Audio source",
-            "audio.speaker" to "Speaker",
-            "audio.earpiece" to "Earpiece",
-            "audio.bluetooth" to "Bluetooth",
-            "audio.wiredHeadset" to "Wired headset",
-            "audio.wiredHeadphones" to "Wired headphones",
-            "audio.usbHeadset" to "USB headset",
-            "audio.device" to "Audio device",
-            "call.waiting" to "Waiting for participants...",
-            "call.error" to "Error",
-            "call.switchCamera" to "Switch camera",
-            "participants.title" to "Participants",
-            "participants.close" to "Close",
-        ),
-        "fr" to mapOf(
-            "home.subtitle" to "Entrez l'URL de la r\u00e9union et votre nom",
-            "home.meetUrl" to "URL de la r\u00e9union",
-            "home.meetUrl.placeholder" to "meet.example.com/ma-reunion",
-            "home.displayName" to "Nom d'affichage (optionnel)",
-            "home.displayName.placeholder" to "Votre nom",
-            "home.join" to "Rejoindre",
-            "home.connecting" to "Connexion...",
-            "home.error.noUrl" to "Veuillez entrer une URL de r\u00e9union",
-            "call.noParticipants" to "Aucun autre participant pour le moment",
-            "call.you" to "Vous",
-            "chat" to "Discussion",
-            "chat.noMessages" to "Aucun message pour le moment",
-            "chat.placeholder" to "Message",
-            "unknown" to "Inconnu",
-            "control.mute" to "Couper le micro",
-            "control.unmute" to "Activer le micro",
-            "control.audioDevices" to "P\u00e9riph\u00e9riques audio",
-            "control.camOff" to "D\u00e9sactiver la cam\u00e9ra",
-            "control.camOn" to "Activer la cam\u00e9ra",
-            "control.camDevices" to "Cam\u00e9ras",
-            "control.lowerHand" to "Baisser la main",
-            "control.raiseHand" to "Lever la main",
-            "control.leave" to "Quitter l'appel",
-            "device.microphone" to "Microphone",
-            "device.speaker" to "Haut-parleur",
-            "device.camera" to "Cam\u00e9ra",
-            "device.noMic" to "Aucun micro trouv\u00e9",
-            "device.noSpeaker" to "Aucun haut-parleur trouv\u00e9",
-            "device.noCamera" to "Aucune cam\u00e9ra trouv\u00e9e",
-            "settings" to "Param\u00e8tres",
-            "settings.displayName" to "Nom d'affichage",
-            "settings.language" to "Langue",
-            "settings.micOnJoin" to "Micro activ\u00e9 en rejoignant",
-            "settings.camOnJoin" to "Cam\u00e9ra activ\u00e9e en rejoignant",
-            "settings.theme" to "Th\u00e8me",
-            "settings.theme.light" to "Clair",
-            "settings.theme.dark" to "Sombre",
-            "settings.save" to "Enregistrer",
-            "settings.profile" to "Profil",
-            "settings.joinMeeting" to "Rejoindre la r\u00e9union",
-            "status.disconnected" to "D\u00e9connect\u00e9",
-            "status.connected" to "Connect\u00e9",
-            "status.connecting" to "Connexion",
-            "status.reconnecting" to "Reconnexion",
-            "audio.source" to "Source audio",
-            "audio.speaker" to "Haut-parleur",
-            "audio.earpiece" to "\u00c9couteur",
-            "audio.bluetooth" to "Bluetooth",
-            "audio.wiredHeadset" to "Casque filaire",
-            "audio.wiredHeadphones" to "\u00c9couteurs filaires",
-            "audio.usbHeadset" to "Casque USB",
-            "audio.device" to "P\u00e9riph\u00e9rique audio",
-            "call.waiting" to "En attente de participants...",
-            "call.error" to "Erreur",
-            "call.switchCamera" to "Changer de cam\u00e9ra",
-            "participants.title" to "Participants",
-            "participants.close" to "Fermer",
-        ),
-    )
+    private var translations: MutableMap<String, Map<String, String>> = mutableMapOf()
+    val supportedLangs = listOf("en", "fr", "de", "es", "it", "nl")
+
+    fun init(context: Context) {
+        for (lang in supportedLangs) {
+            try {
+                val json = context.assets.open("i18n/$lang.json").bufferedReader().readText()
+                val obj = JSONObject(json)
+                val map = mutableMapOf<String, String>()
+                obj.keys().forEach { key -> map[key] = obj.getString(key) }
+                translations[lang] = map
+            } catch (_: Exception) {}
+        }
+    }
 
     fun t(key: String, lang: String): String {
         return translations[lang]?.get(key) ?: translations["en"]?.get(key) ?: key
+    }
+
+    fun detectSystemLang(): String {
+        val sysLang = java.util.Locale.getDefault().language
+        return if (sysLang in supportedLangs) sysLang else "en"
     }
 }

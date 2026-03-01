@@ -34,6 +34,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.visio.mobile.R
 import io.visio.mobile.VisioManager
+import io.visio.mobile.ui.i18n.Strings
 import io.visio.mobile.ui.theme.VisioColors
 
 @Composable
@@ -43,13 +44,17 @@ fun HomeScreen(
 ) {
     var roomUrl by remember { mutableStateOf("https://meet.example.com/room-name") }
     var username by remember { mutableStateOf("") }
+    var lang by remember { mutableStateOf(Strings.detectSystemLang()) }
 
-    // Pre-fill display name from settings
+    // Pre-fill display name and language from settings
     LaunchedEffect(Unit) {
         try {
             val settings = VisioManager.client.getSettings()
             if (!settings.displayName.isNullOrBlank()) {
                 username = settings.displayName!!
+            }
+            if (!settings.language.isNullOrBlank()) {
+                lang = settings.language!!
             }
         } catch (_: Exception) {}
     }
@@ -70,7 +75,7 @@ fun HomeScreen(
         ) {
             Spacer(modifier = Modifier.size(48.dp)) // balance the gear icon
             Text(
-                text = "Visio Mobile",
+                text = Strings.t("app.title", lang),
                 style = MaterialTheme.typography.headlineLarge,
                 color = VisioColors.White,
                 fontWeight = FontWeight.Bold

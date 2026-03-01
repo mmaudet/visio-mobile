@@ -45,3 +45,9 @@ dependencies {
 
     debugImplementation("androidx.compose.ui:ui-tooling")
 }
+
+tasks.register<Copy>("copyI18nAssets") {
+    from("../../i18n")
+    into("src/main/assets/i18n")
+}
+tasks.named("preBuild") { dependsOn("copyI18nAssets") }

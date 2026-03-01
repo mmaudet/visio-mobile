@@ -35,6 +35,9 @@ Thumbs.db
 android/app/src/main/kotlin/generated/
 ios/VisioMobile/Generated/
 
+# Generated i18n assets (copied from i18n/ at build time)
+android/app/src/main/assets/i18n/
+
 # Worktrees
 .worktrees/
 

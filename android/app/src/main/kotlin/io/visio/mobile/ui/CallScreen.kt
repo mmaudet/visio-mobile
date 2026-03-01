@@ -70,6 +70,7 @@ import io.visio.mobile.R
 import io.visio.mobile.VideoSurfaceView
 import io.visio.mobile.VisioManager
 import io.visio.mobile.ui.i18n.Strings
+import io.visio.mobile.ui.i18n.Strings
 import io.visio.mobile.ui.theme.VisioColors
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -697,7 +698,7 @@ fun ParticipantTile(
             if (participant.isMuted) {
                 Icon(
                     painter = painterResource(R.drawable.ri_mic_off_fill),
-                    contentDescription = "Muted",
+                    contentDescription = Strings.t("accessibility.muted", lang),
                     tint = VisioColors.Error500,
                     modifier = Modifier.size(14.dp)
                 )

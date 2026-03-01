@@ -44,6 +44,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.visio.mobile.R
 import io.visio.mobile.VisioManager
+import io.visio.mobile.ui.i18n.Strings
 import io.visio.mobile.ui.theme.VisioColors
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -57,6 +58,7 @@ fun ChatScreen(
     val messages by VisioManager.chatMessages.collectAsState()
     var inputText by remember { mutableStateOf("") }
     val listState = rememberLazyListState()
+    val lang = VisioManager.currentLang
 
     // Mark chat as open when entering, closed when leaving
     LaunchedEffect(Unit) {
@@ -84,13 +86,13 @@ fun ChatScreen(
         // Top bar
         TopAppBar(
             title = {
-                Text("Chat", color = VisioColors.White)
+                Text(Strings.t("chat", lang), color = VisioColors.White)
             },
             navigationIcon = {
                 IconButton(onClick = onBack) {
                     Icon(
                         painter = painterResource(R.drawable.ri_arrow_left_s_line),
-                        contentDescription = "Back",
+                        contentDescription = Strings.t("accessibility.back", lang),
                         tint = VisioColors.White
                     )
                 }
@@ -168,7 +170,7 @@ fun ChatScreen(
             ) {
                 Icon(
                     painter = painterResource(R.drawable.ri_send_plane_2_fill),
-                    contentDescription = "Send",
+                    contentDescription = Strings.t("accessibility.send", lang),
                     tint = if (inputText.isNotBlank()) VisioColors.Primary500 else VisioColors.Greyscale400,
                     modifier = Modifier.size(24.dp)
                 )

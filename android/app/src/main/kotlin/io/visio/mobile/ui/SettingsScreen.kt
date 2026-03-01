@@ -43,6 +43,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import io.visio.mobile.R
 import io.visio.mobile.VisioManager
+import io.visio.mobile.ui.i18n.Strings
 import io.visio.mobile.ui.theme.VisioColors
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -53,7 +54,7 @@ fun SettingsScreen(
     onBack: () -> Unit
 ) {
     var displayName by remember { mutableStateOf("") }
-    var language by remember { mutableStateOf("fr") }
+    var language by remember { mutableStateOf(Strings.detectSystemLang()) }
     var micOnJoin by remember { mutableStateOf(true) }
     var cameraOnJoin by remember { mutableStateOf(false) }
     val coroutineScope = rememberCoroutineScope()
@@ -63,7 +64,7 @@ fun SettingsScreen(
         try {
             val settings = VisioManager.client.getSettings()
             displayName = settings.displayName ?: ""
-            language = settings.language ?: "fr"
+            language = settings.language ?: Strings.detectSystemLang()
             micOnJoin = settings.micEnabledOnJoin
             cameraOnJoin = settings.cameraEnabledOnJoin
         } catch (_: Exception) {}
@@ -138,9 +139,15 @@ fun SettingsScreen(
             )
 
             // Language section
-            SectionHeader("Language")
-            LanguageOption("Francais", "fr", language) { language = it }
-            LanguageOption("English", "en", language) { language = it }
+            SectionHeader(Strings.t("settings.language", language))
+            Strings.supportedLangs.forEach { code ->
+                LanguageOption(
+                    label = Strings.t("lang.$code", code),
+                    value = code,
+                    selected = language,
+                    onSelect = { language = it }
+                )
+            }
         }
 
         // Save button
