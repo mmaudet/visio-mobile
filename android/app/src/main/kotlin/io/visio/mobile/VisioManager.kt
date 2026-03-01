@@ -24,11 +24,11 @@ object VisioManager : VisioEventListener {
     // IO scope for callbacks that call back into Rust (avoids nested block_on)
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
-    // Camera capture (Camera2 → JNI → NativeVideoSource)
+    // Camera capture (Camera2 -> JNI -> NativeVideoSource)
     private var cameraCapture: CameraCapture? = null
-    // Audio capture (AudioRecord → JNI → NativeAudioSource)
+    // Audio capture (AudioRecord -> JNI -> NativeAudioSource)
     private var audioCapture: AudioCapture? = null
-    // Audio playout (Rust playout buffer → JNI → AudioTrack)
+    // Audio playout (Rust playout buffer -> JNI -> AudioTrack)
     private var audioPlayout: AudioPlayout? = null
     private lateinit var appContext: Context
 
@@ -43,6 +43,18 @@ object VisioManager : VisioEventListener {
 
     private val _activeSpeakers = MutableStateFlow<List<String>>(emptyList())
     val activeSpeakers: StateFlow<List<String>> = _activeSpeakers.asStateFlow()
+
+    // Hand raise: map of participant_sid -> queue position (0 = not raised)
+    private val _handRaisedMap = MutableStateFlow<Map<String, Int>>(emptyMap())
+    val handRaisedMap: StateFlow<Map<String, Int>> = _handRaisedMap.asStateFlow()
+
+    // Unread chat message count
+    private val _unreadCount = MutableStateFlow(0)
+    val unreadCount: StateFlow<Int> = _unreadCount.asStateFlow()
+
+    // Whether local hand is raised
+    private val _isHandRaised = MutableStateFlow(false)
+    val isHandRaised: StateFlow<Boolean> = _isHandRaised.asStateFlow()
 
     private var initialized = false
 
@@ -120,12 +132,21 @@ object VisioManager : VisioEventListener {
                     refreshParticipants()
                     refreshChatMessages()
                 }
+                if (event.state is ConnectionState.Disconnected) {
+                    // Reset state on disconnect
+                    _handRaisedMap.value = emptyMap()
+                    _unreadCount.value = 0
+                    _isHandRaised.value = false
+                }
             }
             is VisioEvent.ParticipantJoined -> {
                 refreshParticipants()
             }
             is VisioEvent.ParticipantLeft -> {
                 refreshParticipants()
+                // Remove from hand raised map
+                val sid = event.participantSid
+                _handRaisedMap.value = _handRaisedMap.value.minus(sid)
             }
             is VisioEvent.TrackMuted -> {
                 refreshParticipants()
@@ -141,6 +162,23 @@ object VisioManager : VisioEventListener {
             }
             is VisioEvent.ChatMessageReceived -> {
                 refreshChatMessages()
+            }
+            is VisioEvent.HandRaisedChanged -> {
+                val sid = event.participantSid
+                val raised = event.raised
+                val position = event.position.toInt()
+                if (raised) {
+                    _handRaisedMap.value = _handRaisedMap.value.plus(sid to position)
+                } else {
+                    _handRaisedMap.value = _handRaisedMap.value.minus(sid)
+                }
+                // Update local hand state — check if this is local participant
+                scope.launch {
+                    _isHandRaised.value = client.isHandRaised()
+                }
+            }
+            is VisioEvent.UnreadCountChanged -> {
+                _unreadCount.value = event.v1.toInt()
             }
             is VisioEvent.TrackSubscribed,
             is VisioEvent.TrackUnsubscribed -> {

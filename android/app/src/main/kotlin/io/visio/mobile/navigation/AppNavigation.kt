@@ -9,6 +9,7 @@ import androidx.navigation.navArgument
 import io.visio.mobile.ui.CallScreen
 import io.visio.mobile.ui.ChatScreen
 import io.visio.mobile.ui.HomeScreen
+import io.visio.mobile.ui.SettingsScreen
 import java.net.URLDecoder
 import java.net.URLEncoder
 
@@ -24,6 +25,9 @@ fun AppNavigation() {
                     val encoded = URLEncoder.encode(roomUrl, "UTF-8")
                     val encodedName = URLEncoder.encode(username.ifBlank { "" }, "UTF-8")
                     navController.navigate("call/$encoded?username=$encodedName")
+                },
+                onSettings = {
+                    navController.navigate("settings")
                 }
             )
         }
@@ -58,6 +62,12 @@ fun AppNavigation() {
 
         composable("chat") {
             ChatScreen(
+                onBack = { navController.popBackStack() }
+            )
+        }
+
+        composable("settings") {
+            SettingsScreen(
                 onBack = { navController.popBackStack() }
             )
         }
