@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Visio Mobile — Bleu-Blanc-Rouge adaptive icon foreground layer.
+     Adaptive icons use a 108dp canvas with 72dp visible area (18dp inset on each side).
+     All coordinates are in the 108dp space. The visible area is the center 72dp. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Video camera body — white rectangle with rounded corners -->
+    <!-- Centered in 108dp canvas, scaled from 1024→108 coordinate space -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M25.1,39.8 L71.4,39.8 C75.6,39.8 79,43.2 79,47.4 L79,83.7 C79,87.9 75.6,91.3 71.4,91.3 L25.1,91.3 C20.9,91.3 17.5,87.9 17.5,83.7 L17.5,47.4 C17.5,43.2 20.9,39.8 25.1,39.8 Z"/>
+
+    <!-- Red play triangle inside camera body — rouge Republique -->
+    <path
+        android:fillColor="#E1000F"
+        android:pathData="M37,49.5 L37,82.5 L50.7,66 Z"/>
+
+    <!-- Camera viewfinder horn — white triangle on right -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M82,46 L82,85.5 L97,65.7 Z"/>
+
+    <!-- Tricolor stripe: Bleu -->
+    <path
+        android:fillColor="#000091"
+        android:pathData="M17.5,87.3 L32.9,87.3 L32.9,91.5 L17.5,91.5 Z"/>
+
+    <!-- Tricolor stripe: Blanc -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M32.9,87.3 L48.4,87.3 L48.4,91.5 L32.9,91.5 Z"/>
+
+    <!-- Tricolor stripe: Rouge -->
+    <path
+        android:fillColor="#E1000F"
+        android:pathData="M48.4,87.3 L63.8,87.3 L63.8,91.5 L48.4,91.5 Z"/>
+</vector>

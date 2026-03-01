@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <!-- Visio Mobile App Icon — Bleu-Blanc-Rouge -->
+  <!-- Background: Bleu Republique #000091 -->
+  <rect width="1024" height="1024" rx="0" ry="0" fill="#000091"/>
+
+  <!-- Video camera body — white rectangle with rounded corners -->
+  <rect x="200" y="340" width="440" height="344" rx="40" ry="40" fill="#FFFFFF"/>
+
+  <!-- Video camera lens/triangle (play-button style) — rouge Republique -->
+  <!-- Positioned inside the white body as a red accent -->
+  <polygon points="350,430 350,594 480,512" fill="#E1000F"/>
+
+  <!-- Camera "horn" / viewfinder triangle on the right side — white -->
+  <polygon points="680,400 680,624 824,520" fill="#FFFFFF" stroke="none"/>
+
+  <!-- Tricolor stripe at bottom — Bleu, Blanc, Rouge -->
+  <rect x="200" y="644" width="147" height="40" rx="0" ry="0" fill="#000091"/>
+  <rect x="347" y="644" width="147" height="40" rx="0" ry="0" fill="#FFFFFF"/>
+  <rect x="494" y="644" width="147" height="40" rx="0" ry="0" fill="#E1000F"/>
+
+  <!-- Bottom-left rounding patch for tricolor -->
+  <rect x="200" y="644" width="40" height="40" fill="#000091"/>
+  <!-- Bottom-right rounding patch for tricolor -->
+  <rect x="601" y="644" width="40" height="40" fill="#E1000F"/>
+</svg>
