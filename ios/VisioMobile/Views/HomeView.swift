@@ -7,6 +7,7 @@ struct HomeView: View {
     @State private var displayName: String = ""
     @State private var navigateToCall: Bool = false
     @State private var showSettings: Bool = false
+    @State private var lang: String = Strings.detectSystemLang()
 
     var body: some View {
         ZStack {
@@ -20,7 +21,7 @@ struct HomeView: View {
                     Image(systemName: "video.fill")
                         .font(.system(size: 48))
                         .foregroundStyle(VisioColors.primary500)
-                    Text("Visio Mobile")
+                    Text(Strings.t("app.title", lang: lang))
                         .font(.largeTitle)
                         .fontWeight(.bold)
                         .foregroundStyle(.white)
@@ -58,7 +59,7 @@ struct HomeView: View {
                 Spacer()
             }
         }
-        .navigationTitle("Visio Mobile")
+        .navigationTitle(Strings.t("app.title", lang: lang))
         .navigationBarTitleDisplayMode(.inline)
         .toolbarColorScheme(.dark, for: .navigationBar)
         .toolbarBackground(VisioColors.primaryDark75, for: .navigationBar)
@@ -84,10 +85,13 @@ struct HomeView: View {
                 .environmentObject(manager)
         }
         .onAppear {
-            // Pre-fill display name from settings
+            // Pre-fill display name and language from settings
             let settings = manager.getSettings()
             if let savedName = settings.displayName, !savedName.isEmpty, displayName.isEmpty {
                 displayName = savedName
+            }
+            if let savedLang = settings.language, !savedLang.isEmpty {
+                lang = savedLang
             }
         }
         .preferredColorScheme(.dark)

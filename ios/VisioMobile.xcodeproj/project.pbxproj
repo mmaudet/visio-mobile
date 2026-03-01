@@ -140,11 +140,41 @@
 		};
 /* End PBXGroup section */
 
+/* Begin PBXShellScriptBuildPhase section */
+		A10007000000000000000002 /* Copy i18n JSON */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+				"$(SRCROOT)/../i18n/en.json",
+				"$(SRCROOT)/../i18n/fr.json",
+				"$(SRCROOT)/../i18n/de.json",
+				"$(SRCROOT)/../i18n/es.json",
+				"$(SRCROOT)/../i18n/it.json",
+				"$(SRCROOT)/../i18n/nl.json",
+			);
+			name = "Copy i18n JSON";
+			outputPaths = (
+				"$(BUILT_PRODUCTS_DIR)/$(PRODUCT_NAME).app/i18n/en.json",
+				"$(BUILT_PRODUCTS_DIR)/$(PRODUCT_NAME).app/i18n/fr.json",
+				"$(BUILT_PRODUCTS_DIR)/$(PRODUCT_NAME).app/i18n/de.json",
+				"$(BUILT_PRODUCTS_DIR)/$(PRODUCT_NAME).app/i18n/es.json",
+				"$(BUILT_PRODUCTS_DIR)/$(PRODUCT_NAME).app/i18n/it.json",
+				"$(BUILT_PRODUCTS_DIR)/$(PRODUCT_NAME).app/i18n/nl.json",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "mkdir -p \"${BUILT_PRODUCTS_DIR}/${PRODUCT_NAME}.app/i18n\"\ncp -R \"${SRCROOT}/../i18n/\"*.json \"${BUILT_PRODUCTS_DIR}/${PRODUCT_NAME}.app/i18n/\"\n";
+		};
+/* End PBXShellScriptBuildPhase section */
+
 /* Begin PBXNativeTarget section */
 		A10006000000000000000001 /* VisioMobile */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = A10008000000000000000001 /* Build configuration list for PBXNativeTarget "VisioMobile" */;
 			buildPhases = (
+				A10007000000000000000002 /* Copy i18n JSON */,
 				A10007000000000000000001 /* Sources */,
 				A10004000000000000000001 /* Frameworks */,
 			);
@@ -174,6 +204,10 @@
 			knownRegions = (
 				en,
 				fr,
+				de,
+				es,
+				it,
+				nl,
 			);
 			mainGroup = A10005000000000000000001;
 			productRefGroup = A10005000000000000000003 /* Products */;

@@ -8,7 +8,7 @@ struct SettingsView: View {
     @State private var displayName: String = ""
     @State private var micOnJoin: Bool = true
     @State private var cameraOnJoin: Bool = false
-    @State private var language: String = "fr"
+    @State private var language: String = Strings.detectSystemLang()
 
     var body: some View {
         NavigationStack {
@@ -23,10 +23,11 @@ struct SettingsView: View {
                     Toggle("Camera enabled", isOn: $cameraOnJoin)
                 }
 
-                Section("Language") {
-                    Picker("Language", selection: $language) {
-                        Text("Francais").tag("fr")
-                        Text("English").tag("en")
+                Section(Strings.t("settings.language", lang: language)) {
+                    Picker(Strings.t("settings.language", lang: language), selection: $language) {
+                        ForEach(Strings.supportedLangs, id: \.self) { code in
+                            Text(Strings.t("lang.\(code)", lang: code)).tag(code)
+                        }
                     }
                     .pickerStyle(.inline)
                     .labelsHidden()
@@ -64,7 +65,7 @@ struct SettingsView: View {
         displayName = settings.displayName ?? ""
         micOnJoin = settings.micEnabledOnJoin
         cameraOnJoin = settings.cameraEnabledOnJoin
-        language = settings.language ?? "fr"
+        language = settings.language ?? Strings.detectSystemLang()
     }
 
     private func save() {
