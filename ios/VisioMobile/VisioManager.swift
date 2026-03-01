@@ -23,7 +23,8 @@ class VisioManager: ObservableObject {
 
     init() {
         // VisioClient() creates a tokio runtime — acceptable to block on main thread at launch.
-        client = VisioClient()
+        let documentsDir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
+        client = VisioClient(dataDir: documentsDir.path)
         client.addListener(listener: self)
     }
 
