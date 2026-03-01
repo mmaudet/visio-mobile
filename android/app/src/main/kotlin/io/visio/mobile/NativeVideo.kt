@@ -23,7 +23,8 @@ object NativeVideo {
         y: ByteBuffer, u: ByteBuffer, v: ByteBuffer,
         yStride: Int, uStride: Int, vStride: Int,
         uPixelStride: Int, vPixelStride: Int,
-        width: Int, height: Int
+        width: Int, height: Int,
+        rotation: Int
     )
 
     /**

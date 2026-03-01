@@ -33,6 +33,8 @@ class CameraCapture(private val context: Context) {
     private var imageReader: ImageReader? = null
     private var handlerThread: HandlerThread? = null
     private var handler: Handler? = null
+    private var sensorOrientation: Int = 0
+    private var isFrontCamera: Boolean = false
     private var running = false
 
     @SuppressLint("MissingPermission") // Caller must check CAMERA permission first
@@ -53,6 +55,11 @@ class CameraCapture(private val context: Context) {
             return
         }
 
+        val chars = cameraManager.getCameraCharacteristics(cameraId)
+        sensorOrientation = chars.get(CameraCharacteristics.SENSOR_ORIENTATION) ?: 0
+        isFrontCamera = chars.get(CameraCharacteristics.LENS_FACING) == CameraCharacteristics.LENS_FACING_FRONT
+        Log.i(TAG, "Camera $cameraId: sensorOrientation=$sensorOrientation, front=$isFrontCamera")
+
         // ImageReader receives YUV_420_888 frames
         imageReader = ImageReader.newInstance(WIDTH, HEIGHT, ImageFormat.YUV_420_888, MAX_IMAGES).apply {
             setOnImageAvailableListener({ reader ->
@@ -72,7 +79,8 @@ class CameraCapture(private val context: Context) {
                         uPlane.pixelStride,
                         vPlane.pixelStride,
                         image.width,
-                        image.height
+                        image.height,
+                        sensorOrientation
                     )
                 } finally {
                     image.close()

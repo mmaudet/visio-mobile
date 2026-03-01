@@ -542,6 +542,7 @@ pub unsafe extern "C" fn Java_io_visio_mobile_NativeVideo_nativePushCameraFrame(
     v_pixel_stride: jni::sys::jint,
     width: jni::sys::jint,
     height: jni::sys::jint,
+    rotation_degrees: jni::sys::jint,
 ) {
     let guard = CAMERA_SOURCE.lock().unwrap();
     let Some(source) = guard.as_ref() else {
@@ -616,8 +617,15 @@ pub unsafe extern "C" fn Java_io_visio_mobile_NativeVideo_nativePushCameraFrame(
         }
     }
 
+    let rotation = match rotation_degrees {
+        90 => VideoRotation::VideoRotation90,
+        180 => VideoRotation::VideoRotation180,
+        270 => VideoRotation::VideoRotation270,
+        _ => VideoRotation::VideoRotation0,
+    };
+
     let frame = VideoFrame {
-        rotation: VideoRotation::VideoRotation0,
+        rotation,
         timestamp_us: 0,
         buffer: i420,
     };
