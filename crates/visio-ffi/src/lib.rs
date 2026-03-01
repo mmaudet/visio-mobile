@@ -248,6 +248,14 @@ impl From<visio_core::Settings> for Settings {
 }
 
 #[derive(Debug, Clone)]
+pub enum RoomValidationResult {
+    Valid { livekit_url: String, token: String },
+    NotFound,
+    InvalidFormat { message: String },
+    NetworkError { message: String },
+}
+
+#[derive(Debug, Clone)]
 pub enum VisioEvent {
     ConnectionStateChanged { state: ConnectionState },
     ParticipantJoined { info: ParticipantInfo },
@@ -606,6 +614,22 @@ impl VisioClient {
 
     pub fn unread_count(&self) -> u32 {
         self.chat.unread_count()
+    }
+
+    pub fn validate_room(&self, url: String, username: Option<String>) -> RoomValidationResult {
+        if let Err(e) = visio_core::AuthService::extract_slug(&url) {
+            return RoomValidationResult::InvalidFormat { message: e.to_string() };
+        }
+        match self.rt.block_on(visio_core::AuthService::validate_room(&url, username.as_deref())) {
+            Ok(token_info) => RoomValidationResult::Valid {
+                livekit_url: token_info.livekit_url,
+                token: token_info.token,
+            },
+            Err(visio_core::VisioError::Auth(msg)) if msg.contains("404") => {
+                RoomValidationResult::NotFound
+            }
+            Err(e) => RoomValidationResult::NetworkError { message: e.to_string() },
+        }
     }
 
     pub fn start_video_renderer(&self, track_sid: String) {

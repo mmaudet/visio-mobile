@@ -91,6 +91,14 @@ callback interface VisioEventListener {
     void on_event(VisioEvent event);
 };
 
+[Enum]
+interface RoomValidationResult {
+    Valid(string livekit_url, string token);
+    NotFound();
+    InvalidFormat(string message);
+    NetworkError(string message);
+};
+
 interface VisioClient {
     constructor(string data_dir);
 
@@ -145,6 +153,8 @@ interface VisioClient {
     void set_chat_open(boolean open);
 
     u32 unread_count();
+
+    RoomValidationResult validate_room(string url, string? username);
 
     void start_video_renderer(string track_sid);
 
