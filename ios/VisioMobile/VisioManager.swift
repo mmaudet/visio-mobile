@@ -68,8 +68,19 @@ class VisioManager: ObservableObject {
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             guard let self else { return }
             do {
+                let settings = self.client.getSettings()
                 try self.client.connect(meetUrl: url, username: username)
-                // Sync initial state after successful connection.
+
+                // Apply mic-on-join setting
+                if settings.micEnabledOnJoin {
+                    try self.client.setMicrophoneEnabled(enabled: true)
+                }
+                // Apply camera-on-join setting
+                if settings.cameraEnabledOnJoin {
+                    try self.client.setCameraEnabled(enabled: true)
+                }
+
+                // Sync state after connection + track publish
                 let parts = self.client.participants()
                 let mic = self.client.isMicrophoneEnabled()
                 let cam = self.client.isCameraEnabled()
@@ -84,6 +95,12 @@ class VisioManager: ObservableObject {
                     self.connectionState = state
                     self.isHandRaised = hand
                     self.errorMessage = nil
+                    // Start camera capture if camera was enabled on join
+                    if cam {
+                        let capture = CameraCapture()
+                        capture.start()
+                        self.cameraCapture = capture
+                    }
                 }
             } catch {
                 DispatchQueue.main.async {

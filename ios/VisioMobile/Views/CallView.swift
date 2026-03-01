@@ -244,18 +244,6 @@ struct CallView: View {
                     .clipShape(RoundedRectangle(cornerRadius: 12))
             }
 
-            // Camera switch (front/back)
-            Button {
-                // Camera switch is a no-op placeholder for now
-            } label: {
-                Image(systemName: "arrow.triangle.2.circlepath.camera")
-                    .font(.system(size: 18, weight: .medium))
-                    .foregroundStyle(.white)
-                    .frame(width: 44, height: 44)
-                    .background(VisioColors.primaryDark100)
-                    .clipShape(RoundedRectangle(cornerRadius: 12))
-            }
-
             // Hand raise
             Button {
                 manager.toggleHandRaise()
@@ -280,7 +268,7 @@ struct CallView: View {
                         .background(VisioColors.primaryDark100)
                         .clipShape(RoundedRectangle(cornerRadius: 12))
 
-                    Text("\(manager.participants.count + 1)")
+                    Text("\(manager.participants.count)")
                         .font(.system(size: 10, weight: .bold))
                         .foregroundStyle(.white)
                         .padding(.horizontal, 4)
