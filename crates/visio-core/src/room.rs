@@ -379,6 +379,7 @@ impl RoomManager {
                         if let livekit::track::RemoteTrack::Video(video_track) = &track {
                             subscribed_tracks.lock().await
                                 .insert(track_sid.clone(), video_track.clone());
+
                         }
                     }
 

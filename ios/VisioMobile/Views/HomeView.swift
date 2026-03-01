@@ -7,35 +7,39 @@ struct HomeView: View {
     @State private var displayName: String = ""
     @State private var navigateToCall: Bool = false
     @State private var showSettings: Bool = false
-    @State private var lang: String = Strings.detectSystemLang()
+
+    private var lang: String { manager.currentLang }
+    private var isDark: Bool { manager.currentTheme == "dark" }
 
     var body: some View {
         ZStack {
-            VisioColors.primaryDark50.ignoresSafeArea()
+            VisioColors.background(dark: isDark).ignoresSafeArea()
 
             VStack(spacing: 32) {
                 Spacer()
 
-                // App branding
+                // App branding with tricolore logo
                 VStack(spacing: 8) {
-                    Image(systemName: "video.fill")
-                        .font(.system(size: 48))
-                        .foregroundStyle(VisioColors.primary500)
+                    VisioLogo(size: 64)
                     Text(Strings.t("app.title", lang: lang))
                         .font(.largeTitle)
                         .fontWeight(.bold)
-                        .foregroundStyle(.white)
+                        .foregroundStyle(VisioColors.onBackground(dark: isDark))
                 }
+
+                Text(Strings.t("home.subtitle", lang: lang))
+                    .font(.subheadline)
+                    .foregroundStyle(VisioColors.secondaryText(dark: isDark))
 
                 // Input fields
                 VStack(spacing: 16) {
-                    TextField("meet.example.com/room-name", text: $roomURL)
+                    TextField(Strings.t("home.meetUrl.placeholder", lang: lang), text: $roomURL)
                         .textFieldStyle(.roundedBorder)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
                         .keyboardType(.URL)
 
-                    TextField("Display name (optional)", text: $displayName)
+                    TextField(Strings.t("home.displayName", lang: lang), text: $displayName)
                         .textFieldStyle(.roundedBorder)
                         .textInputAutocapitalization(.words)
                 }
@@ -45,7 +49,7 @@ struct HomeView: View {
                 Button {
                     navigateToCall = true
                 } label: {
-                    Label("Join", systemImage: "phone.fill")
+                    Label(Strings.t("home.join", lang: lang), systemImage: "phone.fill")
                         .font(.headline)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 12)
@@ -61,8 +65,8 @@ struct HomeView: View {
         }
         .navigationTitle(Strings.t("app.title", lang: lang))
         .navigationBarTitleDisplayMode(.inline)
-        .toolbarColorScheme(.dark, for: .navigationBar)
-        .toolbarBackground(VisioColors.primaryDark75, for: .navigationBar)
+        .toolbarColorScheme(isDark ? .dark : .light, for: .navigationBar)
+        .toolbarBackground(VisioColors.surface(dark: isDark), for: .navigationBar)
         .toolbarBackground(.visible, for: .navigationBar)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
@@ -70,7 +74,7 @@ struct HomeView: View {
                     showSettings = true
                 } label: {
                     Image(systemName: "gearshape.fill")
-                        .foregroundStyle(VisioColors.greyscale400)
+                        .foregroundStyle(VisioColors.secondaryText(dark: isDark))
                 }
             }
         }
@@ -85,16 +89,12 @@ struct HomeView: View {
                 .environmentObject(manager)
         }
         .onAppear {
-            // Pre-fill display name and language from settings
-            let settings = manager.getSettings()
-            if let savedName = settings.displayName, !savedName.isEmpty, displayName.isEmpty {
-                displayName = savedName
-            }
-            if let savedLang = settings.language, !savedLang.isEmpty {
-                lang = savedLang
+            // Pre-fill display name from manager
+            let name = manager.displayName
+            if !name.isEmpty && displayName.isEmpty {
+                displayName = name
             }
         }
-        .preferredColorScheme(.dark)
     }
 }
 

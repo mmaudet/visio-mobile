@@ -7,16 +7,19 @@ struct ChatView: View {
 
     @State private var messageText: String = ""
 
+    private var lang: String { manager.currentLang }
+    private var isDark: Bool { manager.currentTheme == "dark" }
+
     var body: some View {
         ZStack {
-            VisioColors.primaryDark50.ignoresSafeArea()
+            VisioColors.background(dark: isDark).ignoresSafeArea()
 
             VStack(spacing: 0) {
                 // Messages list
                 if manager.chatMessages.isEmpty {
                     Spacer()
-                    Text("No messages yet")
-                        .foregroundStyle(VisioColors.greyscale400)
+                    Text(Strings.t("chat.noMessages", lang: lang))
+                        .foregroundStyle(VisioColors.secondaryText(dark: isDark))
                     Spacer()
                 } else {
                     ScrollViewReader { proxy in
@@ -28,7 +31,8 @@ struct ChatView: View {
                                     MessageBubble(
                                         message: message,
                                         isOwn: isOwn,
-                                        showSender: showSender
+                                        showSender: showSender,
+                                        isDark: isDark
                                     )
                                     .id(message.id)
                                 }
@@ -47,13 +51,13 @@ struct ChatView: View {
 
                 // Input bar
                 HStack(spacing: 12) {
-                    TextField("Message", text: $messageText)
+                    TextField(Strings.t("chat.placeholder", lang: lang), text: $messageText)
                         .textFieldStyle(.plain)
                         .padding(.horizontal, 12)
                         .padding(.vertical, 8)
-                        .background(VisioColors.primaryDark100)
+                        .background(VisioColors.surfaceVariant(dark: isDark))
                         .clipShape(RoundedRectangle(cornerRadius: 20))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(VisioColors.onSurface(dark: isDark))
                         .onSubmit { send() }
 
                     Button {
@@ -61,20 +65,20 @@ struct ChatView: View {
                     } label: {
                         Image(systemName: "paperplane.fill")
                             .font(.system(size: 18, weight: .medium))
-                            .foregroundStyle(messageText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? VisioColors.greyscale400 : VisioColors.primary500)
+                            .foregroundStyle(messageText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? VisioColors.secondaryText(dark: isDark) : VisioColors.primary500)
                             .frame(width: 36, height: 36)
                     }
                     .disabled(messageText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }
                 .padding(.horizontal, 16)
                 .padding(.vertical, 8)
-                .background(VisioColors.primaryDark75)
+                .background(VisioColors.surface(dark: isDark))
             }
         }
-        .navigationTitle("Chat")
+        .navigationTitle(Strings.t("chat", lang: lang))
         .navigationBarTitleDisplayMode(.inline)
-        .toolbarColorScheme(.dark, for: .navigationBar)
-        .toolbarBackground(VisioColors.primaryDark75, for: .navigationBar)
+        .toolbarColorScheme(isDark ? .dark : .light, for: .navigationBar)
+        .toolbarBackground(VisioColors.surface(dark: isDark), for: .navigationBar)
         .toolbarBackground(.visible, for: .navigationBar)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
@@ -82,11 +86,10 @@ struct ChatView: View {
                     dismiss()
                 } label: {
                     Image(systemName: "xmark")
-                        .foregroundStyle(VisioColors.greyscale400)
+                        .foregroundStyle(VisioColors.secondaryText(dark: isDark))
                 }
             }
         }
-        .preferredColorScheme(.dark)
     }
 
     private func send() {
@@ -119,6 +122,7 @@ private struct MessageBubble: View {
     let message: ChatMessage
     let isOwn: Bool
     let showSender: Bool
+    var isDark: Bool = true
 
     var body: some View {
         VStack(alignment: isOwn ? .trailing : .leading, spacing: 2) {
@@ -128,10 +132,10 @@ private struct MessageBubble: View {
                     Text(message.senderName)
                         .font(.caption)
                         .fontWeight(.semibold)
-                        .foregroundStyle(VisioColors.greyscale400)
+                        .foregroundStyle(VisioColors.secondaryText(dark: isDark))
                     Text(formattedTime)
                         .font(.caption2)
-                        .foregroundStyle(VisioColors.greyscale400.opacity(0.7))
+                        .foregroundStyle(VisioColors.secondaryText(dark: isDark).opacity(0.7))
                     if !isOwn { Spacer() }
                 }
                 .padding(.top, 8)
@@ -144,7 +148,7 @@ private struct MessageBubble: View {
                     .foregroundStyle(.white)
                     .padding(.horizontal, 12)
                     .padding(.vertical, 8)
-                    .background(isOwn ? VisioColors.primary500 : VisioColors.primaryDark100)
+                    .background(isOwn ? VisioColors.primary500 : VisioColors.surfaceVariant(dark: isDark))
                     .clipShape(RoundedRectangle(cornerRadius: 12))
                 if !isOwn { Spacer(minLength: 60) }
             }

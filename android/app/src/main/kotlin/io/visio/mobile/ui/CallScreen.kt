@@ -243,7 +243,7 @@ fun CallScreen(
             .fillMaxSize()
             .background(VisioColors.PrimaryDark50)
     ) {
-        Column(modifier = Modifier.fillMaxSize().statusBarsPadding()) {
+        Column(modifier = Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()) {
             // Connection state banner
             ConnectionStateBanner(connectionState, errorMessage)
 
@@ -421,7 +421,7 @@ fun CallScreen(
                 }
             )
 
-            Spacer(modifier = Modifier.height(8.dp).navigationBarsPadding())
+            Spacer(modifier = Modifier.height(8.dp))
         }
     }
 }

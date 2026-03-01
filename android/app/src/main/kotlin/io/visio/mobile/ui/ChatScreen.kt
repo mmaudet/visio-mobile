@@ -10,6 +10,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
@@ -81,12 +83,14 @@ fun ChatScreen(
         modifier = Modifier
             .fillMaxSize()
             .background(VisioColors.PrimaryDark50)
+            .statusBarsPadding()
+            .navigationBarsPadding()
             .imePadding()
     ) {
         // Top bar
         TopAppBar(
             title = {
-                Text(Strings.t("chat", lang), color = VisioColors.White)
+                Text(Strings.t("chat", lang), color = MaterialTheme.colorScheme.onSurface)
             },
             navigationIcon = {
                 IconButton(onClick = onBack) {
@@ -141,7 +145,7 @@ fun ChatScreen(
                 value = inputText,
                 onValueChange = { inputText = it },
                 placeholder = {
-                    Text("Type a message", color = VisioColors.Greyscale400)
+                    Text(Strings.t("chat.placeholder", lang), color = VisioColors.Greyscale400)
                 },
                 modifier = Modifier.weight(1f),
                 singleLine = true,

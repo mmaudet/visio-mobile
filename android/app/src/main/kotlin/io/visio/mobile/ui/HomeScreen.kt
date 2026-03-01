@@ -8,8 +8,10 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -44,25 +46,23 @@ fun HomeScreen(
 ) {
     var roomUrl by remember { mutableStateOf("https://meet.example.com/room-name") }
     var username by remember { mutableStateOf("") }
-    var lang by remember { mutableStateOf(Strings.detectSystemLang()) }
+    val lang = VisioManager.currentLang
+    val isDark = VisioManager.currentTheme == "dark"
 
-    // Pre-fill display name and language from settings
+    // Pre-fill display name from VisioManager observable state
     LaunchedEffect(Unit) {
-        try {
-            val settings = VisioManager.client.getSettings()
-            if (!settings.displayName.isNullOrBlank()) {
-                username = settings.displayName!!
-            }
-            if (!settings.language.isNullOrBlank()) {
-                lang = settings.language!!
-            }
-        } catch (_: Exception) {}
+        val name = VisioManager.displayName
+        if (name.isNotBlank() && username.isEmpty()) {
+            username = name
+        }
     }
 
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(VisioColors.PrimaryDark50)
+            .background(MaterialTheme.colorScheme.background)
+            .statusBarsPadding()
+            .navigationBarsPadding()
             .padding(32.dp),
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally
@@ -74,42 +74,54 @@ fun HomeScreen(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Spacer(modifier = Modifier.size(48.dp)) // balance the gear icon
-            Text(
-                text = Strings.t("app.title", lang),
-                style = MaterialTheme.typography.headlineLarge,
-                color = VisioColors.White,
-                fontWeight = FontWeight.Bold
-            )
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                VisioLogo(size = 64.dp)
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = Strings.t("app.title", lang),
+                    style = MaterialTheme.typography.headlineLarge,
+                    color = MaterialTheme.colorScheme.onBackground,
+                    fontWeight = FontWeight.Bold
+                )
+            }
             IconButton(
                 onClick = onSettings,
                 modifier = Modifier.size(48.dp)
             ) {
                 Icon(
                     painter = painterResource(R.drawable.ri_settings_3_line),
-                    contentDescription = "Settings",
-                    tint = VisioColors.White,
+                    contentDescription = Strings.t("settings", lang),
+                    tint = if (isDark) VisioColors.White else VisioColors.Greyscale400,
                     modifier = Modifier.size(24.dp)
                 )
             }
         }
 
-        Spacer(modifier = Modifier.height(32.dp))
+        Spacer(modifier = Modifier.height(8.dp))
+
+        Text(
+            text = Strings.t("home.subtitle", lang),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f)
+        )
+
+        Spacer(modifier = Modifier.height(24.dp))
 
         TextField(
             value = roomUrl,
             onValueChange = { roomUrl = it },
-            label = { Text("Room URL", color = VisioColors.Greyscale400) },
-            placeholder = { Text("meet.example.com/room-name", color = VisioColors.Greyscale400) },
+            label = { Text(Strings.t("home.meetUrl", lang), color = if (isDark) VisioColors.Greyscale400 else VisioColors.LightTextSecondary) },
+            placeholder = { Text(Strings.t("home.meetUrl.placeholder", lang), color = if (isDark) VisioColors.Greyscale400 else VisioColors.LightTextSecondary) },
             singleLine = true,
             modifier = Modifier.fillMaxWidth(),
             colors = TextFieldDefaults.colors(
-                focusedContainerColor = VisioColors.PrimaryDark100,
-                unfocusedContainerColor = VisioColors.PrimaryDark100,
+                focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
                 cursorColor = VisioColors.Primary500,
-                focusedTextColor = VisioColors.White,
-                unfocusedTextColor = VisioColors.White,
+                focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
                 focusedLabelColor = VisioColors.Primary500,
-                unfocusedLabelColor = VisioColors.Greyscale400,
+                unfocusedLabelColor = if (isDark) VisioColors.Greyscale400 else VisioColors.LightTextSecondary,
                 focusedIndicatorColor = Color.Transparent,
                 unfocusedIndicatorColor = Color.Transparent
             ),
@@ -121,18 +133,18 @@ fun HomeScreen(
         TextField(
             value = username,
             onValueChange = { username = it },
-            label = { Text("Display name (optional)", color = VisioColors.Greyscale400) },
-            placeholder = { Text("Your name", color = VisioColors.Greyscale400) },
+            label = { Text(Strings.t("home.displayName", lang), color = if (isDark) VisioColors.Greyscale400 else VisioColors.LightTextSecondary) },
+            placeholder = { Text(Strings.t("home.displayName.placeholder", lang), color = if (isDark) VisioColors.Greyscale400 else VisioColors.LightTextSecondary) },
             singleLine = true,
             modifier = Modifier.fillMaxWidth(),
             colors = TextFieldDefaults.colors(
-                focusedContainerColor = VisioColors.PrimaryDark100,
-                unfocusedContainerColor = VisioColors.PrimaryDark100,
+                focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
                 cursorColor = VisioColors.Primary500,
-                focusedTextColor = VisioColors.White,
-                unfocusedTextColor = VisioColors.White,
+                focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
                 focusedLabelColor = VisioColors.Primary500,
-                unfocusedLabelColor = VisioColors.Greyscale400,
+                unfocusedLabelColor = if (isDark) VisioColors.Greyscale400 else VisioColors.LightTextSecondary,
                 focusedIndicatorColor = Color.Transparent,
                 unfocusedIndicatorColor = Color.Transparent
             ),
@@ -154,7 +166,7 @@ fun HomeScreen(
             shape = RoundedCornerShape(12.dp)
         ) {
             Text(
-                "Join",
+                Strings.t("home.join", lang),
                 fontSize = 16.sp,
                 modifier = Modifier.padding(vertical = 4.dp)
             )

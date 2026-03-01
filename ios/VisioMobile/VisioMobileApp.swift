@@ -15,7 +15,7 @@ struct VisioMobileApp: App {
                 HomeView()
             }
             .environmentObject(manager)
-            .preferredColorScheme(.dark)
+            .preferredColorScheme(manager.currentTheme == "dark" ? .dark : .light)
         }
     }
 }

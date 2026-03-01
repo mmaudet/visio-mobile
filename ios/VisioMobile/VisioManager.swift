@@ -24,6 +24,9 @@ class VisioManager: ObservableObject {
     @Published var errorMessage: String?
     @Published var videoTrackSids: [String] = []
     @Published var isChatOpen: Bool = false
+    @Published var currentLang: String = "fr"
+    @Published var currentTheme: String = "light"
+    @Published var displayName: String = ""
 
     // MARK: - Private
 
@@ -38,6 +41,12 @@ class VisioManager: ObservableObject {
         let documentsDir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
         client = VisioClient(dataDir: documentsDir.path)
         client.addListener(listener: self)
+
+        // Load persisted settings
+        let settings = client.getSettings()
+        currentLang = settings.language ?? "fr"
+        currentTheme = settings.theme ?? "light"
+        displayName = settings.displayName ?? ""
 
         // Register the video frame callback so Rust can deliver I420 frames to Swift.
         visio_video_set_ios_callback({ width, height, yPtr, yStride, uPtr, uStride, vPtr, vStride, trackSidCStr, userData in
@@ -216,6 +225,7 @@ class VisioManager: ObservableObject {
     }
 
     func setLanguage(_ lang: String?) {
+        if let lang { currentLang = lang }
         client.setLanguage(lang: lang)
     }
 
@@ -225,6 +235,15 @@ class VisioManager: ObservableObject {
 
     func setCameraEnabledOnJoin(_ enabled: Bool) {
         client.setCameraEnabledOnJoin(enabled: enabled)
+    }
+
+    func setTheme(_ theme: String) {
+        currentTheme = theme
+        client.setTheme(theme: theme)
+    }
+
+    func updateDisplayName(_ name: String) {
+        displayName = name
     }
 
     // MARK: - Audio Playout

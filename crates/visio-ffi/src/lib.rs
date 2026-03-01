@@ -418,7 +418,15 @@ impl VisioClient {
         }));
 
         match result {
-            Ok(res) => res,
+            Ok(Ok(())) => {
+                // Store self pointer for JNI video attach/detach
+                #[cfg(target_os = "android")]
+                {
+                    *CLIENT_FOR_VIDEO.lock().unwrap() = self as *const VisioClient as usize;
+                }
+                Ok(())
+            }
+            Ok(Err(e)) => Err(e),
             Err(panic_info) => {
                 let msg = if let Some(s) = panic_info.downcast_ref::<&str>() {
                     s.to_string()
@@ -602,7 +610,7 @@ impl VisioClient {
         let track = self.rt.block_on(self.room_manager.get_video_track(&track_sid));
         if let Some(video_track) = track {
             visio_log(&format!("VISIO FFI: starting video renderer for {track_sid}"));
-            visio_video::start_track_renderer(track_sid, video_track, std::ptr::null_mut());
+            visio_video::start_track_renderer(track_sid, video_track, std::ptr::null_mut(), Some(self.rt.handle().clone()));
         } else {
             visio_log(&format!("VISIO FFI: no video track found for {track_sid}"));
         }
@@ -627,6 +635,11 @@ use livekit::webrtc::audio_source::native::NativeAudioSource;
 /// Kotlin class can pull decoded remote audio via JNI.
 #[cfg(target_os = "android")]
 static PLAYOUT_BUFFER: StdMutex<Option<Arc<visio_core::AudioPlayoutBuffer>>> = StdMutex::new(None);
+
+/// Global VisioClient pointer (as usize) for JNI video attach/detach.
+/// Set in `connect()` so the JNI attachSurface can look up video tracks.
+#[cfg(target_os = "android")]
+static CLIENT_FOR_VIDEO: StdMutex<usize> = StdMutex::new(0);
 
 /// Stores the NativeVideoSource after `set_camera_enabled(true)` publishes
 /// the camera track. The Android CameraCapture Kotlin class pushes YUV frames
@@ -1041,7 +1054,7 @@ pub unsafe extern "C" fn visio_attach_video_surface(
         .block_on(client.room_manager.get_video_track(&sid_str));
     match track {
         Some(video_track) => {
-            visio_video::start_track_renderer(sid_str, video_track, surface);
+            visio_video::start_track_renderer(sid_str, video_track, surface, Some(client.rt.handle().clone()));
             0
         }
         None => {
@@ -1071,6 +1084,103 @@ pub unsafe extern "C" fn visio_detach_video_surface(
     };
     visio_video::stop_track_renderer(sid_str);
     0
+}
+
+// ── JNI: video surface attach/detach for Android ────────────────────
+
+/// JNI: NativeVideo.attachSurface(trackSid: String, surface: Surface)
+/// Gets the ANativeWindow from the Java Surface, looks up the video track
+/// from the stored VisioClient, and starts the renderer.
+#[cfg(target_os = "android")]
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn Java_io_visio_mobile_NativeVideo_attachSurface(
+    env: *mut jni::sys::JNIEnv,
+    _class: jni::sys::jobject,
+    track_sid_jstr: jni::sys::jstring,
+    surface_obj: jni::sys::jobject,
+) {
+    use jni::objects::{JObject, JString};
+
+    let mut jni_env = match unsafe { jni::JNIEnv::from_raw(env) } {
+        Ok(e) => e,
+        Err(_) => return,
+    };
+
+    // Extract track_sid String
+    let jstr = unsafe { JString::from_raw(track_sid_jstr) };
+    let track_sid: String = match jni_env.get_string(&jstr) {
+        Ok(s) => s.into(),
+        Err(_) => return,
+    };
+
+    // Get ANativeWindow from Surface
+    let surface = unsafe { JObject::from_raw(surface_obj) };
+    let native_window = unsafe {
+        ndk_sys::ANativeWindow_fromSurface(env as *mut _, surface.as_raw() as *mut _)
+    };
+    if native_window.is_null() {
+        visio_log("VISIO JNI: ANativeWindow_fromSurface returned null");
+        return;
+    }
+
+    visio_log(&format!("VISIO JNI: attachSurface track={track_sid}"));
+
+    // Get client pointer
+    let client_addr = *CLIENT_FOR_VIDEO.lock().unwrap();
+    if client_addr == 0 {
+        visio_log("VISIO JNI: no client pointer stored, cannot attach surface");
+        unsafe { ndk_sys::ANativeWindow_release(native_window) };
+        return;
+    }
+
+    let client = unsafe { &*(client_addr as *const VisioClient) };
+    visio_log("VISIO JNI: about to block_on get_video_track");
+    let track = client
+        .rt
+        .block_on(client.room_manager.get_video_track(&track_sid));
+    visio_log(&format!("VISIO JNI: block_on done, track found={}", track.is_some()));
+
+    match track {
+        Some(video_track) => {
+            visio_log(&format!("VISIO JNI: calling start_track_renderer for {track_sid}"));
+            visio_video::start_track_renderer(
+                track_sid.clone(),
+                video_track,
+                native_window as *mut std::ffi::c_void,
+                Some(client.rt.handle().clone()),
+            );
+            visio_log(&format!("VISIO JNI: start_track_renderer returned for {track_sid}"));
+        }
+        None => {
+            visio_log(&format!("VISIO JNI: no video track found for {track_sid}"));
+            unsafe { ndk_sys::ANativeWindow_release(native_window) };
+        }
+    }
+}
+
+/// JNI: NativeVideo.detachSurface(trackSid: String)
+#[cfg(target_os = "android")]
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn Java_io_visio_mobile_NativeVideo_detachSurface(
+    env: *mut jni::sys::JNIEnv,
+    _class: jni::sys::jobject,
+    track_sid_jstr: jni::sys::jstring,
+) {
+    use jni::objects::JString;
+
+    let mut jni_env = match unsafe { jni::JNIEnv::from_raw(env) } {
+        Ok(e) => e,
+        Err(_) => return,
+    };
+
+    let jstr = unsafe { JString::from_raw(track_sid_jstr) };
+    let track_sid: String = match jni_env.get_string(&jstr) {
+        Ok(s) => s.into(),
+        Err(_) => return,
+    };
+
+    visio_log(&format!("VISIO JNI: detachSurface track={track_sid}"));
+    visio_video::stop_track_renderer(&track_sid);
 }
 
 #[cfg(test)]

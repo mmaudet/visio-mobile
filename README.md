@@ -59,32 +59,72 @@ Native video conferencing client for [La Suite Meet](https://meet.numerique.gouv
 
 ## Building
 
-### Desktop (macOS)
+### Desktop (macOS / Linux / Windows)
 
 ```bash
-cd crates/visio-desktop
-cargo tauri dev
+# Dev mode (frontend hot-reload + Rust backend)
+cd crates/visio-desktop/frontend && npm install
+cd crates/visio-desktop && cargo tauri dev
+
+# Production build
+cd crates/visio-desktop/frontend && npm run build
+cd crates/visio-desktop && cargo tauri build
 ```
+
+The frontend dev server runs on `http://localhost:5173` (Vite). Tauri proxies to it in dev mode. The i18n JSON files are imported at build time — no runtime fetch needed.
 
 ### Android
 
 ```bash
-# Build Rust libraries
+# 1. Build Rust libraries for arm64
 bash scripts/build-android.sh
 
-# Open in Android Studio and run
+# 2. Build APK (i18n JSON files are auto-copied to assets/ by Gradle)
 cd android && ./gradlew assembleDebug
+
+# 3. Install on device/emulator
+adb install app/build/outputs/apk/debug/app-debug.apk
 ```
+
+The Gradle `copyI18nAssets` task runs automatically before build, copying `i18n/*.json` into `src/main/assets/i18n/`.
 
 ### iOS
 
 ```bash
-# Build Rust libraries (device or sim)
-bash scripts/build-ios.sh sim    # or: bash scripts/build-ios.sh device
+# 1. Build Rust libraries
+bash scripts/build-ios.sh sim      # for simulator (aarch64-apple-ios-sim)
+bash scripts/build-ios.sh device   # for physical device (aarch64-apple-ios)
 
-# Open in Xcode and run
+# 2. Open and run in Xcode
 open ios/VisioMobile.xcodeproj
 ```
+
+The Xcode "Copy i18n JSON" build phase copies `i18n/*.json` into the app bundle automatically. Select your target device in Xcode and hit Run.
+
+## Internationalization (i18n)
+
+The app supports **6 languages**: English, French, German, Spanish, Italian, and Dutch.
+
+Translations are stored as shared JSON files in the `i18n/` directory at the project root. Each platform loads these files at startup — there is a single source of truth for all strings across Desktop, Android, and iOS.
+
+```
+i18n/
+  en.json    # English (reference — 92 keys)
+  fr.json    # Français
+  de.json    # Deutsch
+  es.json    # Español
+  it.json    # Italiano
+  nl.json    # Nederlands
+```
+
+**Adding a new language:** Create a new `i18n/<code>.json` file with all 92 keys translated. Then add the language code to `SUPPORTED_LANGS` (Desktop `App.tsx`), `supportedLangs` (Android `Strings.kt`, iOS `Strings.swift`).
+
+**Adding a new key:** Add the key to all 6 JSON files. Use `t("key")` (Desktop), `Strings.t("key", lang)` (Android/iOS) in the UI code.
+
+**Platform integration:**
+- **Desktop** — Static JSON imports in `App.tsx`, bundled by Vite at build time
+- **Android** — Gradle `copyI18nAssets` task copies JSON to `assets/i18n/` before build, loaded via `Strings.init(context)` in `VisioApplication`
+- **iOS** — Xcode "Copy i18n JSON" build phase copies JSON into the app bundle, loaded via `Strings.initialize()` in `VisioMobileApp.init()`
 
 ## Running tests
 
@@ -95,6 +135,7 @@ cargo test -p visio-core
 ## Project structure
 
 ```
+i18n/               Shared translation JSON files (6 languages)
 crates/
   visio-core/       Shared Rust core (room, auth, chat, controls, settings)
   visio-video/      Video rendering (I420, renderer registry)

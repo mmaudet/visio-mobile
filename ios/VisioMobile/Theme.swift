@@ -1,8 +1,9 @@
 import SwiftUI
 
-// MARK: - Meet Dark Theme Palette
+// MARK: - Meet Theme Palette (Dynamic Light/Dark)
 
 enum VisioColors {
+    // Dark palette
     static let primaryDark50 = Color(hex: 0x161622)
     static let primaryDark75 = Color(hex: 0x222234)
     static let primaryDark100 = Color(hex: 0x2D2D46)
@@ -12,6 +13,24 @@ enum VisioColors {
     static let error200 = Color(hex: 0x6C302E)
     static let error500 = Color(hex: 0xEF413D)
     static let handRaise = Color(hex: 0xFDE047)
+
+    // Light palette
+    static let lightBackground = Color.white
+    static let lightSurface = Color(hex: 0xF5F5F7)
+    static let lightSurfaceVariant = Color(hex: 0xE8E8ED)
+    static let lightOnBackground = Color(hex: 0x1D1D1F)
+    static let lightBorder = Color(hex: 0xD1D1D6)
+    static let lightTextSecondary = Color(hex: 0x6E6E73)
+    static let lightErrorBg = Color(hex: 0xFDE8E7)
+
+    // Dynamic resolution based on theme
+    static func background(dark: Bool) -> Color { dark ? primaryDark50 : lightBackground }
+    static func surface(dark: Bool) -> Color { dark ? primaryDark75 : lightSurface }
+    static func surfaceVariant(dark: Bool) -> Color { dark ? primaryDark100 : lightSurfaceVariant }
+    static func onBackground(dark: Bool) -> Color { dark ? .white : lightOnBackground }
+    static func onSurface(dark: Bool) -> Color { dark ? .white : lightOnBackground }
+    static func secondaryText(dark: Bool) -> Color { dark ? greyscale400 : lightTextSecondary }
+    static func border(dark: Bool) -> Color { dark ? greyscale400 : lightBorder }
 }
 
 extension Color {

@@ -1,12 +1,16 @@
 package io.visio.mobile
 
 import android.content.Context
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import android.util.Log
 import kotlinx.coroutines.launch
 import uniffi.visio.ChatMessage
 import uniffi.visio.ConnectionState
@@ -56,6 +60,14 @@ object VisioManager : VisioEventListener {
     private val _isHandRaised = MutableStateFlow(false)
     val isHandRaised: StateFlow<Boolean> = _isHandRaised.asStateFlow()
 
+    // Observable state for language, theme, display name
+    var currentLang by mutableStateOf("fr")
+        private set
+    var currentTheme by mutableStateOf("light")
+        private set
+    var displayName by mutableStateOf("")
+        private set
+
     private var initialized = false
 
     fun initialize(context: Context) {
@@ -64,7 +76,28 @@ object VisioManager : VisioEventListener {
         val dataDir = context.filesDir.absolutePath
         _client = VisioClient(dataDir)
         _client.addListener(this)
+        // Load persisted settings
+        try {
+            val settings = _client.getSettings()
+            currentLang = settings.language ?: "fr"
+            currentTheme = settings.theme ?: "light"
+            displayName = settings.displayName ?: ""
+        } catch (_: Exception) {}
         initialized = true
+    }
+
+    fun setTheme(theme: String) {
+        currentTheme = theme
+        scope.launch { client.setTheme(theme) }
+    }
+
+    fun setLanguage(lang: String) {
+        currentLang = lang
+        scope.launch { client.setLanguage(lang) }
+    }
+
+    fun updateDisplayName(name: String) {
+        displayName = name
     }
 
     /**
@@ -117,7 +150,15 @@ object VisioManager : VisioEventListener {
     }
 
     private fun refreshParticipants() {
-        scope.launch { _participants.value = client.participants() }
+        scope.launch {
+            val list = client.participants()
+            list.forEach { p ->
+                if (p.hasVideo) {
+                    Log.d("VISIO", "Participant ${p.sid} (${p.name}): hasVideo=true trackSid=${p.videoTrackSid}")
+                }
+            }
+            _participants.value = list
+        }
     }
 
     private fun refreshChatMessages() {
@@ -178,11 +219,16 @@ object VisioManager : VisioEventListener {
                 }
             }
             is VisioEvent.UnreadCountChanged -> {
-                _unreadCount.value = event.v1.toInt()
+                _unreadCount.value = event.count.toInt()
             }
-            is VisioEvent.TrackSubscribed,
+            is VisioEvent.TrackSubscribed -> {
+                val info = event.info
+                Log.d("VISIO", "TrackSubscribed: participant=${info.participantSid} kind=${info.kind} source=${info.source} trackSid=${info.sid}")
+                refreshParticipants()
+            }
             is VisioEvent.TrackUnsubscribed -> {
-                // No-op for now; video rendering handled separately
+                Log.d("VISIO", "TrackUnsubscribed: trackSid=${event.trackSid}")
+                refreshParticipants()
             }
         }
     }

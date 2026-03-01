@@ -10,11 +10,12 @@ import android.os.Bundle
 import android.util.Rational
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.ui.Modifier
 import io.visio.mobile.navigation.AppNavigation
-import io.visio.mobile.ui.theme.VisioColors
 import io.visio.mobile.ui.theme.VisioTheme
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -52,6 +53,7 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        enableEdgeToEdge()
         super.onCreate(savedInstanceState)
 
         val filter = IntentFilter().apply {
@@ -65,10 +67,11 @@ class MainActivity : ComponentActivity() {
         }
 
         setContent {
-            VisioTheme {
+            val isDark = VisioManager.currentTheme == "dark"
+            VisioTheme(darkTheme = isDark) {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
-                    color = VisioColors.PrimaryDark50
+                    color = MaterialTheme.colorScheme.background
                 ) {
                     AppNavigation()
                 }

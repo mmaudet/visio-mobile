@@ -85,6 +85,7 @@ impl VisioEventListener for DesktopEventListener {
                             sid,
                             video_track,
                             std::ptr::null_mut(),
+                            None,
                         );
                     }
                 });

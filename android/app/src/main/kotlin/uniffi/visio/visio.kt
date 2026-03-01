@@ -773,6 +773,22 @@ internal open class UniffiVTableCallbackInterfaceVisioEventListener(
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 // For large crates we prevent `MethodTooLargeException` (see #2340)
 // N.B. the name of the extension is very misleading, since it is 
 // rather `InterfaceTooLargeException`, caused by too many methods 
@@ -806,15 +822,23 @@ fun uniffi_visio_ffi_checksum_method_visioclient_get_settings(
 ): Short
 fun uniffi_visio_ffi_checksum_method_visioclient_is_camera_enabled(
 ): Short
+fun uniffi_visio_ffi_checksum_method_visioclient_is_hand_raised(
+): Short
 fun uniffi_visio_ffi_checksum_method_visioclient_is_microphone_enabled(
 ): Short
+fun uniffi_visio_ffi_checksum_method_visioclient_lower_hand(
+): Short
 fun uniffi_visio_ffi_checksum_method_visioclient_participants(
+): Short
+fun uniffi_visio_ffi_checksum_method_visioclient_raise_hand(
 ): Short
 fun uniffi_visio_ffi_checksum_method_visioclient_send_chat_message(
 ): Short
 fun uniffi_visio_ffi_checksum_method_visioclient_set_camera_enabled(
 ): Short
 fun uniffi_visio_ffi_checksum_method_visioclient_set_camera_enabled_on_join(
+): Short
+fun uniffi_visio_ffi_checksum_method_visioclient_set_chat_open(
 ): Short
 fun uniffi_visio_ffi_checksum_method_visioclient_set_display_name(
 ): Short
@@ -823,6 +847,14 @@ fun uniffi_visio_ffi_checksum_method_visioclient_set_language(
 fun uniffi_visio_ffi_checksum_method_visioclient_set_mic_enabled_on_join(
 ): Short
 fun uniffi_visio_ffi_checksum_method_visioclient_set_microphone_enabled(
+): Short
+fun uniffi_visio_ffi_checksum_method_visioclient_set_theme(
+): Short
+fun uniffi_visio_ffi_checksum_method_visioclient_start_video_renderer(
+): Short
+fun uniffi_visio_ffi_checksum_method_visioclient_stop_video_renderer(
+): Short
+fun uniffi_visio_ffi_checksum_method_visioclient_unread_count(
 ): Short
 fun uniffi_visio_ffi_checksum_constructor_visioclient_new(
 ): Short
@@ -900,15 +932,23 @@ fun uniffi_visio_ffi_fn_method_visioclient_get_settings(`ptr`: Pointer,uniffi_ou
 ): RustBuffer.ByValue
 fun uniffi_visio_ffi_fn_method_visioclient_is_camera_enabled(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
 ): Byte
+fun uniffi_visio_ffi_fn_method_visioclient_is_hand_raised(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
+): Byte
 fun uniffi_visio_ffi_fn_method_visioclient_is_microphone_enabled(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
 ): Byte
+fun uniffi_visio_ffi_fn_method_visioclient_lower_hand(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
+): Unit
 fun uniffi_visio_ffi_fn_method_visioclient_participants(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
 ): RustBuffer.ByValue
+fun uniffi_visio_ffi_fn_method_visioclient_raise_hand(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
+): Unit
 fun uniffi_visio_ffi_fn_method_visioclient_send_chat_message(`ptr`: Pointer,`text`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
 ): RustBuffer.ByValue
 fun uniffi_visio_ffi_fn_method_visioclient_set_camera_enabled(`ptr`: Pointer,`enabled`: Byte,uniffi_out_err: UniffiRustCallStatus, 
 ): Unit
 fun uniffi_visio_ffi_fn_method_visioclient_set_camera_enabled_on_join(`ptr`: Pointer,`enabled`: Byte,uniffi_out_err: UniffiRustCallStatus, 
+): Unit
+fun uniffi_visio_ffi_fn_method_visioclient_set_chat_open(`ptr`: Pointer,`open`: Byte,uniffi_out_err: UniffiRustCallStatus, 
 ): Unit
 fun uniffi_visio_ffi_fn_method_visioclient_set_display_name(`ptr`: Pointer,`name`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
 ): Unit
@@ -918,6 +958,14 @@ fun uniffi_visio_ffi_fn_method_visioclient_set_mic_enabled_on_join(`ptr`: Pointe
 ): Unit
 fun uniffi_visio_ffi_fn_method_visioclient_set_microphone_enabled(`ptr`: Pointer,`enabled`: Byte,uniffi_out_err: UniffiRustCallStatus, 
 ): Unit
+fun uniffi_visio_ffi_fn_method_visioclient_set_theme(`ptr`: Pointer,`theme`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+): Unit
+fun uniffi_visio_ffi_fn_method_visioclient_start_video_renderer(`ptr`: Pointer,`trackSid`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+): Unit
+fun uniffi_visio_ffi_fn_method_visioclient_stop_video_renderer(`ptr`: Pointer,`trackSid`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+): Unit
+fun uniffi_visio_ffi_fn_method_visioclient_unread_count(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
+): Int
 fun uniffi_visio_ffi_fn_init_callback_vtable_visioeventlistener(`vtable`: UniffiVTableCallbackInterfaceVisioEventListener,
 ): Unit
 fun uniffi_visio_ffi_fn_func_init_logging(uniffi_out_err: UniffiRustCallStatus, 
@@ -1075,10 +1123,19 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if (lib.uniffi_visio_ffi_checksum_method_visioclient_is_camera_enabled() != 23394.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
+    if (lib.uniffi_visio_ffi_checksum_method_visioclient_is_hand_raised() != 47789.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
     if (lib.uniffi_visio_ffi_checksum_method_visioclient_is_microphone_enabled() != 33466.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
+    if (lib.uniffi_visio_ffi_checksum_method_visioclient_lower_hand() != 53728.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
     if (lib.uniffi_visio_ffi_checksum_method_visioclient_participants() != 38029.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_visio_ffi_checksum_method_visioclient_raise_hand() != 37998.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_visio_ffi_checksum_method_visioclient_send_chat_message() != 33280.toShort()) {
@@ -1088,6 +1145,9 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_visio_ffi_checksum_method_visioclient_set_camera_enabled_on_join() != 27341.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_visio_ffi_checksum_method_visioclient_set_chat_open() != 417.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_visio_ffi_checksum_method_visioclient_set_display_name() != 36622.toShort()) {
@@ -1100,6 +1160,18 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_visio_ffi_checksum_method_visioclient_set_microphone_enabled() != 607.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_visio_ffi_checksum_method_visioclient_set_theme() != 58689.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_visio_ffi_checksum_method_visioclient_start_video_renderer() != 53000.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_visio_ffi_checksum_method_visioclient_stop_video_renderer() != 45318.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_visio_ffi_checksum_method_visioclient_unread_count() != 7178.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_visio_ffi_checksum_constructor_visioclient_new() != 10250.toShort()) {
@@ -1525,15 +1597,23 @@ public interface VisioClientInterface {
     
     fun `isCameraEnabled`(): kotlin.Boolean
     
+    fun `isHandRaised`(): kotlin.Boolean
+    
     fun `isMicrophoneEnabled`(): kotlin.Boolean
     
+    fun `lowerHand`()
+    
     fun `participants`(): List<ParticipantInfo>
+    
+    fun `raiseHand`()
     
     fun `sendChatMessage`(`text`: kotlin.String): ChatMessage
     
     fun `setCameraEnabled`(`enabled`: kotlin.Boolean)
     
     fun `setCameraEnabledOnJoin`(`enabled`: kotlin.Boolean)
+    
+    fun `setChatOpen`(`open`: kotlin.Boolean)
     
     fun `setDisplayName`(`name`: kotlin.String?)
     
@@ -1542,6 +1622,14 @@ public interface VisioClientInterface {
     fun `setMicEnabledOnJoin`(`enabled`: kotlin.Boolean)
     
     fun `setMicrophoneEnabled`(`enabled`: kotlin.Boolean)
+    
+    fun `setTheme`(`theme`: kotlin.String)
+    
+    fun `startVideoRenderer`(`trackSid`: kotlin.String)
+    
+    fun `stopVideoRenderer`(`trackSid`: kotlin.String)
+    
+    fun `unreadCount`(): kotlin.UInt
     
     companion object
 }
@@ -1729,6 +1817,18 @@ open class VisioClient: Disposable, AutoCloseable, VisioClientInterface
     }
     
 
+    override fun `isHandRaised`(): kotlin.Boolean {
+            return FfiConverterBoolean.lift(
+    callWithPointer {
+    uniffiRustCall() { _status ->
+    UniffiLib.INSTANCE.uniffi_visio_ffi_fn_method_visioclient_is_hand_raised(
+        it, _status)
+}
+    }
+    )
+    }
+    
+
     override fun `isMicrophoneEnabled`(): kotlin.Boolean {
             return FfiConverterBoolean.lift(
     callWithPointer {
@@ -1741,6 +1841,18 @@ open class VisioClient: Disposable, AutoCloseable, VisioClientInterface
     }
     
 
+    
+    @Throws(VisioException::class)override fun `lowerHand`()
+        = 
+    callWithPointer {
+    uniffiRustCallWithError(VisioException) { _status ->
+    UniffiLib.INSTANCE.uniffi_visio_ffi_fn_method_visioclient_lower_hand(
+        it, _status)
+}
+    }
+    
+    
+
     override fun `participants`(): List<ParticipantInfo> {
             return FfiConverterSequenceTypeParticipantInfo.lift(
     callWithPointer {
@@ -1751,6 +1863,18 @@ open class VisioClient: Disposable, AutoCloseable, VisioClientInterface
     }
     )
     }
+    
+
+    
+    @Throws(VisioException::class)override fun `raiseHand`()
+        = 
+    callWithPointer {
+    uniffiRustCallWithError(VisioException) { _status ->
+    UniffiLib.INSTANCE.uniffi_visio_ffi_fn_method_visioclient_raise_hand(
+        it, _status)
+}
+    }
+    
     
 
     
@@ -1784,6 +1908,17 @@ open class VisioClient: Disposable, AutoCloseable, VisioClientInterface
     uniffiRustCall() { _status ->
     UniffiLib.INSTANCE.uniffi_visio_ffi_fn_method_visioclient_set_camera_enabled_on_join(
         it, FfiConverterBoolean.lower(`enabled`),_status)
+}
+    }
+    
+    
+
+    override fun `setChatOpen`(`open`: kotlin.Boolean)
+        = 
+    callWithPointer {
+    uniffiRustCall() { _status ->
+    UniffiLib.INSTANCE.uniffi_visio_ffi_fn_method_visioclient_set_chat_open(
+        it, FfiConverterBoolean.lower(`open`),_status)
 }
     }
     
@@ -1832,6 +1967,51 @@ open class VisioClient: Disposable, AutoCloseable, VisioClientInterface
 }
     }
     
+    
+
+    override fun `setTheme`(`theme`: kotlin.String)
+        = 
+    callWithPointer {
+    uniffiRustCall() { _status ->
+    UniffiLib.INSTANCE.uniffi_visio_ffi_fn_method_visioclient_set_theme(
+        it, FfiConverterString.lower(`theme`),_status)
+}
+    }
+    
+    
+
+    override fun `startVideoRenderer`(`trackSid`: kotlin.String)
+        = 
+    callWithPointer {
+    uniffiRustCall() { _status ->
+    UniffiLib.INSTANCE.uniffi_visio_ffi_fn_method_visioclient_start_video_renderer(
+        it, FfiConverterString.lower(`trackSid`),_status)
+}
+    }
+    
+    
+
+    override fun `stopVideoRenderer`(`trackSid`: kotlin.String)
+        = 
+    callWithPointer {
+    uniffiRustCall() { _status ->
+    UniffiLib.INSTANCE.uniffi_visio_ffi_fn_method_visioclient_stop_video_renderer(
+        it, FfiConverterString.lower(`trackSid`),_status)
+}
+    }
+    
+    
+
+    override fun `unreadCount`(): kotlin.UInt {
+            return FfiConverterUInt.lift(
+    callWithPointer {
+    uniffiRustCall() { _status ->
+    UniffiLib.INSTANCE.uniffi_visio_ffi_fn_method_visioclient_unread_count(
+        it, _status)
+}
+    }
+    )
+    }
     
 
     
@@ -1972,7 +2152,8 @@ data class Settings (
     var `displayName`: kotlin.String?, 
     var `language`: kotlin.String?, 
     var `micEnabledOnJoin`: kotlin.Boolean, 
-    var `cameraEnabledOnJoin`: kotlin.Boolean
+    var `cameraEnabledOnJoin`: kotlin.Boolean, 
+    var `theme`: kotlin.String
 ) {
     
     companion object
@@ -1988,6 +2169,7 @@ public object FfiConverterTypeSettings: FfiConverterRustBuffer<Settings> {
             FfiConverterOptionalString.read(buf),
             FfiConverterBoolean.read(buf),
             FfiConverterBoolean.read(buf),
+            FfiConverterString.read(buf),
         )
     }
 
@@ -1995,7 +2177,8 @@ public object FfiConverterTypeSettings: FfiConverterRustBuffer<Settings> {
             FfiConverterOptionalString.allocationSize(value.`displayName`) +
             FfiConverterOptionalString.allocationSize(value.`language`) +
             FfiConverterBoolean.allocationSize(value.`micEnabledOnJoin`) +
-            FfiConverterBoolean.allocationSize(value.`cameraEnabledOnJoin`)
+            FfiConverterBoolean.allocationSize(value.`cameraEnabledOnJoin`) +
+            FfiConverterString.allocationSize(value.`theme`)
     )
 
     override fun write(value: Settings, buf: ByteBuffer) {
@@ -2003,6 +2186,7 @@ public object FfiConverterTypeSettings: FfiConverterRustBuffer<Settings> {
             FfiConverterOptionalString.write(value.`language`, buf)
             FfiConverterBoolean.write(value.`micEnabledOnJoin`, buf)
             FfiConverterBoolean.write(value.`cameraEnabledOnJoin`, buf)
+            FfiConverterString.write(value.`theme`, buf)
     }
 }
 
@@ -2432,6 +2616,18 @@ sealed class VisioEvent {
         companion object
     }
     
+    data class HandRaisedChanged(
+        val `participantSid`: kotlin.String, 
+        val `raised`: kotlin.Boolean, 
+        val `position`: kotlin.UInt) : VisioEvent() {
+        companion object
+    }
+    
+    data class UnreadCountChanged(
+        val `count`: kotlin.UInt) : VisioEvent() {
+        companion object
+    }
+    
 
     
     companion object
@@ -2475,6 +2671,14 @@ public object FfiConverterTypeVisioEvent : FfiConverterRustBuffer<VisioEvent>{
                 )
             10 -> VisioEvent.ChatMessageReceived(
                 FfiConverterTypeChatMessage.read(buf),
+                )
+            11 -> VisioEvent.HandRaisedChanged(
+                FfiConverterString.read(buf),
+                FfiConverterBoolean.read(buf),
+                FfiConverterUInt.read(buf),
+                )
+            12 -> VisioEvent.UnreadCountChanged(
+                FfiConverterUInt.read(buf),
                 )
             else -> throw RuntimeException("invalid enum value, something is very wrong!!")
         }
@@ -2554,6 +2758,22 @@ public object FfiConverterTypeVisioEvent : FfiConverterRustBuffer<VisioEvent>{
                 + FfiConverterTypeChatMessage.allocationSize(value.`message`)
             )
         }
+        is VisioEvent.HandRaisedChanged -> {
+            // Add the size for the Int that specifies the variant plus the size needed for all fields
+            (
+                4UL
+                + FfiConverterString.allocationSize(value.`participantSid`)
+                + FfiConverterBoolean.allocationSize(value.`raised`)
+                + FfiConverterUInt.allocationSize(value.`position`)
+            )
+        }
+        is VisioEvent.UnreadCountChanged -> {
+            // Add the size for the Int that specifies the variant plus the size needed for all fields
+            (
+                4UL
+                + FfiConverterUInt.allocationSize(value.`count`)
+            )
+        }
     }
 
     override fun write(value: VisioEvent, buf: ByteBuffer) {
@@ -2609,6 +2829,18 @@ public object FfiConverterTypeVisioEvent : FfiConverterRustBuffer<VisioEvent>{
             is VisioEvent.ChatMessageReceived -> {
                 buf.putInt(10)
                 FfiConverterTypeChatMessage.write(value.`message`, buf)
+                Unit
+            }
+            is VisioEvent.HandRaisedChanged -> {
+                buf.putInt(11)
+                FfiConverterString.write(value.`participantSid`, buf)
+                FfiConverterBoolean.write(value.`raised`, buf)
+                FfiConverterUInt.write(value.`position`, buf)
+                Unit
+            }
+            is VisioEvent.UnreadCountChanged -> {
+                buf.putInt(12)
+                FfiConverterUInt.write(value.`count`, buf)
                 Unit
             }
         }.let { /* this makes the `when` an expression, which ensures it is exhaustive */ }

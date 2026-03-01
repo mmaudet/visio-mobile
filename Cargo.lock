@@ -5573,6 +5573,7 @@ dependencies = [
  "jni",
  "libwebrtc",
  "livekit",
+ "ndk-sys 0.6.0+11769913",
  "thiserror 2.0.18",
  "tokio",
  "tracing",

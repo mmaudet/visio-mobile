@@ -11,12 +11,23 @@ use std::sync::{Mutex, OnceLock};
 use futures_util::StreamExt;
 use livekit::prelude::*;
 use livekit::webrtc::video_stream::native::NativeVideoStream;
-use tokio::runtime::Runtime;
+use tokio::runtime::{Handle, Runtime};
 use tokio::sync::watch;
 use tokio::task::JoinHandle;
 
 #[cfg(target_os = "android")]
 mod android;
+
+#[cfg(target_os = "android")]
+fn android_log(msg: &str) {
+    use std::ffi::CString;
+    let tag = CString::new("VISIO_VIDEO").unwrap();
+    let text = CString::new(msg).unwrap_or_else(|_| CString::new("(invalid)").unwrap());
+    unsafe {
+        unsafe extern "C" { fn __android_log_write(prio: i32, tag: *const std::ffi::c_char, text: *const std::ffi::c_char) -> i32; }
+        __android_log_write(4, tag.as_ptr(), text.as_ptr());
+    }
+}
 
 #[cfg(target_os = "ios")]
 mod ios;
@@ -87,10 +98,16 @@ fn runtime() -> &'static Runtime {
 /// `surface` is an opaque platform handle (ANativeWindow*, CVPixelBufferPool*,
 /// or a callback pointer on desktop). Ownership is NOT transferred — the
 /// caller must keep the surface alive until `stop_track_renderer` is called.
+///
+/// If `rt_handle` is provided, the frame loop is spawned on that runtime.
+/// Otherwise it falls back to visio-video's internal runtime. Callers should
+/// pass the application runtime handle to avoid cross-runtime issues (e.g.
+/// on Android where NativeVideoStream may not yield frames on a separate runtime).
 pub fn start_track_renderer(
     track_sid: String,
     track: RemoteVideoTrack,
     surface: *mut c_void,
+    rt_handle: Option<Handle>,
 ) {
     // If there is already a renderer for this track, stop it first.
     stop_track_renderer(&track_sid);
@@ -98,7 +115,10 @@ pub fn start_track_renderer(
     let (cancel_tx, cancel_rx) = watch::channel(false);
     let sid = track_sid.clone();
 
-    let handle = runtime().spawn(frame_loop(sid, track, SurfacePtr(surface), cancel_rx));
+    let handle = match rt_handle {
+        Some(h) => h.spawn(frame_loop(sid, track, SurfacePtr(surface), cancel_rx)),
+        None => runtime().spawn(frame_loop(sid, track, SurfacePtr(surface), cancel_rx)),
+    };
 
     let renderer = TrackRenderer {
         cancel_tx,
@@ -134,10 +154,22 @@ async fn frame_loop(
     surface: SurfacePtr,
     mut cancel_rx: watch::Receiver<bool>,
 ) {
+    #[cfg(target_os = "android")]
+    android_log(&format!("VISIO VIDEO: frame_loop started for track={track_sid}, enabled={}, muted={}",
+        track.is_enabled(), track.is_muted()));
     tracing::info!(track_sid = %track_sid, "frame_loop started");
 
     let rtc_track = track.rtc_track();
+    #[cfg(target_os = "android")]
+    android_log(&format!("VISIO VIDEO: creating NativeVideoStream for track={track_sid}"));
     let mut stream = NativeVideoStream::new(rtc_track);
+    #[cfg(target_os = "android")]
+    android_log(&format!("VISIO VIDEO: NativeVideoStream created, waiting for frames track={track_sid}"));
+
+    #[cfg(target_os = "android")]
+    let mut android_frame_count: u64 = 0;
+    #[cfg(target_os = "android")]
+    let mut android_poll_count: u64 = 0;
 
     // Desktop: only render every Nth frame to save CPU.
     #[cfg(any(target_os = "macos", target_os = "linux", target_os = "windows"))]
@@ -146,8 +178,17 @@ async fn frame_loop(
     loop {
         tokio::select! {
             _ = cancel_rx.changed() => {
+                #[cfg(target_os = "android")]
+                android_log(&format!("VISIO VIDEO: frame_loop cancelled track={track_sid}"));
                 tracing::info!(track_sid = %track_sid, "frame_loop cancelled");
                 break;
+            }
+            _ = tokio::time::sleep(std::time::Duration::from_secs(3)) => {
+                #[cfg(target_os = "android")]
+                {
+                    android_poll_count += 1;
+                    android_log(&format!("VISIO VIDEO: still waiting for frames track={track_sid} (poll #{android_poll_count}, got {android_frame_count} frames so far)"));
+                }
             }
             frame_opt = stream.next() => {
                 match frame_opt {
@@ -155,6 +196,10 @@ async fn frame_loop(
                         // --- Android ---
                         #[cfg(target_os = "android")]
                         {
+                            android_frame_count += 1;
+                            if android_frame_count == 1 || android_frame_count % 100 == 0 {
+                                android_log(&format!("VISIO VIDEO: frame #{android_frame_count} track={track_sid} {}x{}", frame.buffer.width(), frame.buffer.height()));
+                            }
                             android::render_frame(&frame, surface.0, &track_sid);
                         }
 
@@ -178,6 +223,8 @@ async fn frame_loop(
                         }
                     }
                     None => {
+                        #[cfg(target_os = "android")]
+                        android_log(&format!("VISIO VIDEO: stream ended (None) track={track_sid}, total frames={android_frame_count}"));
                         tracing::info!(track_sid = %track_sid, "video stream ended");
                         break;
                     }
