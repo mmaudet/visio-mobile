@@ -232,6 +232,7 @@ pub struct Settings {
     pub language: Option<String>,
     pub mic_enabled_on_join: bool,
     pub camera_enabled_on_join: bool,
+    pub theme: String,
 }
 
 impl From<visio_core::Settings> for Settings {
@@ -241,6 +242,7 @@ impl From<visio_core::Settings> for Settings {
             language: s.language,
             mic_enabled_on_join: s.mic_enabled_on_join,
             camera_enabled_on_join: s.camera_enabled_on_join,
+            theme: s.theme,
         }
     }
 }
@@ -568,6 +570,10 @@ impl VisioClient {
 
     pub fn set_camera_enabled_on_join(&self, enabled: bool) {
         self.settings.set_camera_enabled_on_join(enabled);
+    }
+
+    pub fn set_theme(&self, theme: String) {
+        self.settings.set_theme(theme);
     }
 
     pub fn raise_hand(&self) -> Result<(), VisioError> {

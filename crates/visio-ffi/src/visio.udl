@@ -59,6 +59,7 @@ dictionary Settings {
     string? language;
     boolean mic_enabled_on_join;
     boolean camera_enabled_on_join;
+    string theme;
 };
 
 [Enum]
@@ -130,6 +131,8 @@ interface VisioClient {
     void set_mic_enabled_on_join(boolean enabled);
 
     void set_camera_enabled_on_join(boolean enabled);
+
+    void set_theme(string theme);
 
     [Throws=VisioError]
     void raise_hand();

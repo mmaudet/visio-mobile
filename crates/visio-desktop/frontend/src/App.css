@@ -1,30 +1,43 @@
 /* ---------------------------------------------------------------------------
-   Visio Mobile Desktop — Meet Dark Theme
+   Visio Mobile Desktop — Light / Dark Theme
    --------------------------------------------------------------------------- */
 
 :root {
-  --color-primary-dark-50: #161622;
-  --color-primary-dark-75: #222234;
-  --color-primary-dark-100: #2D2D46;
-  --color-primary-dark-300: #5A5A8F;
-  --color-primary-500: #6A6AF4;
-  --color-greyscale-400: #929292;
-  --color-error-200: #6C302E;
-  --color-error-500: #EF413D;
-  --color-error-600: #EE6A66;
-  --color-hand-raise: #fde047;
-  --color-white: #FFFFFF;
-  --color-success: #2ecc71;
-  --color-warning: #f39c12;
+  --bg: #FFFFFF;
+  --bg-secondary: #F5F5F7;
+  --bg-tertiary: #E8E8ED;
+  --border: #D1D1D6;
+  --text: #1D1D1F;
+  --text-secondary: #6E6E73;
+  --text-tertiary: #8E8E93;
+  --accent: #6A6AF4;
+  --error-bg: #FECDD3;
+  --error: #EF413D;
+  --error-text: #DC2626;
+  --hand-raise: #fde047;
+  --success: #2ecc71;
+  --warning: #f39c12;
   --radius: 8px;
+}
+
+[data-theme="dark"] {
+  --bg: #161622;
+  --bg-secondary: #222234;
+  --bg-tertiary: #2D2D46;
+  --border: #2D2D46;
+  --text: #FFFFFF;
+  --text-secondary: #929292;
+  --text-tertiary: #5A5A8F;
+  --error-bg: #6C302E;
+  --error-text: #EE6A66;
 }
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
 
 body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  background: var(--color-primary-dark-50);
-  color: var(--color-white);
+  background: var(--bg);
+  color: var(--text);
   min-height: 100vh;
   display: flex;
   flex-direction: column;
@@ -39,12 +52,12 @@ body {
 /* -- Header ---------------------------------------------------------------- */
 
 header {
-  background: var(--color-primary-dark-75);
+  background: var(--bg-secondary);
   padding: 10px 20px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  border-bottom: 1px solid var(--color-primary-dark-100);
+  border-bottom: 1px solid var(--border);
   flex-shrink: 0;
 }
 
@@ -58,19 +71,19 @@ header h1 {
   font-size: 0.7rem;
   padding: 3px 10px;
   border-radius: 12px;
-  background: var(--color-primary-dark-100);
-  color: var(--color-greyscale-400);
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
 }
 
 .status-badge.connected {
   background: rgba(46, 204, 113, 0.15);
-  color: var(--color-success);
+  color: var(--success);
 }
 
 .status-badge.connecting,
 .status-badge.reconnecting {
   background: rgba(243, 156, 18, 0.15);
-  color: var(--color-warning);
+  color: var(--warning);
 }
 
 /* -- Main ------------------------------------------------------------------ */
@@ -103,6 +116,13 @@ main {
   max-width: 360px;
 }
 
+.home-logo {
+  display: block;
+  width: 64px;
+  height: 64px;
+  margin: 0 auto 16px;
+}
+
 .join-form h2 {
   font-size: 1.3rem;
   margin-bottom: 6px;
@@ -110,7 +130,7 @@ main {
 }
 
 .join-form p {
-  color: var(--color-greyscale-400);
+  color: var(--text-secondary);
   font-size: 0.85rem;
   text-align: center;
   margin-bottom: 24px;
@@ -123,28 +143,28 @@ main {
 .form-group label {
   display: block;
   font-size: 0.8rem;
-  color: var(--color-greyscale-400);
+  color: var(--text-secondary);
   margin-bottom: 6px;
 }
 
 .form-group input {
   width: 100%;
   padding: 10px 14px;
-  border: 1px solid var(--color-primary-dark-100);
+  border: 1px solid var(--border);
   border-radius: var(--radius);
-  background: var(--color-primary-dark-75);
-  color: var(--color-white);
+  background: var(--bg-secondary);
+  color: var(--text);
   font-size: 0.9rem;
   outline: none;
   transition: border-color 0.2s;
 }
 
 .form-group input:focus {
-  border-color: var(--color-primary-500);
+  border-color: var(--accent);
 }
 
 .form-group input::placeholder {
-  color: var(--color-primary-dark-300);
+  color: var(--text-tertiary);
 }
 
 /* -- Buttons --------------------------------------------------------------- */
@@ -168,7 +188,7 @@ main {
 }
 
 .btn-primary {
-  background: var(--color-primary-500);
+  background: var(--accent);
   color: #fff;
   width: 100%;
 }
@@ -178,7 +198,7 @@ main {
 }
 
 .error-msg {
-  color: var(--color-error-500);
+  color: var(--error);
   font-size: 0.8rem;
   margin-top: 12px;
   text-align: center;
@@ -193,7 +213,7 @@ main {
   right: 16px;
   background: none;
   border: none;
-  color: var(--color-greyscale-400);
+  color: var(--text-secondary);
   cursor: pointer;
   padding: 6px;
   border-radius: 50%;
@@ -204,8 +224,8 @@ main {
 }
 
 .settings-gear:hover {
-  color: var(--color-white);
-  background: var(--color-primary-dark-100);
+  color: var(--text);
+  background: var(--bg-tertiary);
 }
 
 /* -- Call ------------------------------------------------------------------- */
@@ -240,7 +260,7 @@ main {
   overflow: hidden;
   background: #000;
   z-index: 10;
-  border: 2px solid var(--color-primary-dark-100);
+  border: 2px solid var(--border);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
 }
 
@@ -326,7 +346,7 @@ main {
   position: relative;
   border-radius: var(--radius);
   overflow: hidden;
-  background: var(--color-primary-dark-75);
+  background: var(--bg-secondary);
   cursor: pointer;
   transition: box-shadow 200ms ease-in-out, border-color 200ms ease-in-out;
   border: 2px solid transparent;
@@ -336,7 +356,7 @@ main {
 }
 
 .tile-active-speaker {
-  border-color: var(--color-primary-500);
+  border-color: var(--accent);
   box-shadow: 0 0 12px rgba(106, 106, 244, 0.5);
 }
 
@@ -373,7 +393,7 @@ main {
   padding: 4px 8px;
   background: rgba(0, 0, 0, 0.6);
   font-size: 12px;
-  color: var(--color-white);
+  color: #fff;
 }
 
 .tile-name {
@@ -387,7 +407,7 @@ main {
   display: flex;
   align-items: center;
   gap: 2px;
-  background: var(--color-hand-raise);
+  background: var(--hand-raise);
   color: black;
   padding: 1px 6px;
   border-radius: 10px;
@@ -396,7 +416,7 @@ main {
 }
 
 .tile-muted-icon {
-  color: var(--color-error-500);
+  color: var(--error);
   display: flex;
   align-items: center;
 }
@@ -412,20 +432,20 @@ main {
 
 .bar {
   width: 3px;
-  background: var(--color-primary-dark-300);
+  background: var(--text-tertiary);
   border-radius: 1px;
   transition: background 0.2s;
 }
 
 .bar-active {
-  background: var(--color-success);
+  background: var(--success);
 }
 
 /* -- Empty State ----------------------------------------------------------- */
 
 .empty-state {
   text-align: center;
-  color: var(--color-greyscale-400);
+  color: var(--text-secondary);
   font-size: 0.9rem;
   padding: 40px 0;
 }
@@ -436,8 +456,8 @@ main {
   display: flex;
   gap: 12px;
   padding: 14px 20px;
-  background: var(--color-primary-dark-75);
-  border-top: 1px solid var(--color-primary-dark-100);
+  background: var(--bg-secondary);
+  border-top: 1px solid var(--border);
   justify-content: center;
   align-items: center;
   flex-shrink: 0;
@@ -459,27 +479,27 @@ main {
   align-items: center;
   justify-content: center;
   transition: background 0.2s, transform 0.1s;
-  background: var(--color-primary-dark-100);
-  color: var(--color-white);
+  background: var(--bg-tertiary);
+  color: var(--text);
   position: relative;
 }
 
 .control-btn:hover {
-  background: var(--color-primary-dark-300);
+  background: var(--text-tertiary);
 }
 
 .control-btn-off {
-  background: var(--color-error-200);
-  color: var(--color-error-600);
+  background: var(--error-bg);
+  color: var(--error-text);
 }
 
 .control-btn-off:hover {
-  background: var(--color-error-500);
-  color: var(--color-white);
+  background: var(--error);
+  color: #fff;
 }
 
 .control-btn-hand {
-  background: var(--color-hand-raise);
+  background: var(--hand-raise);
   color: #000;
 }
 
@@ -488,7 +508,7 @@ main {
 }
 
 .control-btn-hangup {
-  background: var(--color-error-500);
+  background: var(--error);
   color: #fff;
 }
 
@@ -498,7 +518,7 @@ main {
 
 .control-chevron {
   width: 28px;
-  border-left: 1px solid rgba(255, 255, 255, 0.1);
+  border-left: 1px solid rgba(128, 128, 128, 0.2);
 }
 
 /* -- Unread Badge ---------------------------------------------------------- */
@@ -510,7 +530,7 @@ main {
   min-width: 18px;
   height: 18px;
   border-radius: 9px;
-  background: var(--color-error-500);
+  background: var(--error);
   color: white;
   font-size: 10px;
   font-weight: 700;
@@ -527,14 +547,14 @@ main {
   bottom: 80px;
   left: 50%;
   transform: translateX(-50%);
-  background: var(--color-primary-dark-75);
-  border: 1px solid var(--color-primary-dark-100);
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: 12px;
   min-width: 260px;
   max-width: 360px;
   z-index: 100;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
 }
 
 .device-section {
@@ -549,7 +569,7 @@ main {
   font-size: 0.7rem;
   text-transform: uppercase;
   letter-spacing: 1px;
-  color: var(--color-greyscale-400);
+  color: var(--text-secondary);
   margin-bottom: 6px;
 }
 
@@ -561,16 +581,16 @@ main {
   border-radius: 4px;
   cursor: pointer;
   font-size: 0.82rem;
-  color: var(--color-white);
+  color: var(--text);
   transition: background 0.15s;
 }
 
 .device-option:hover {
-  background: var(--color-primary-dark-100);
+  background: var(--bg-tertiary);
 }
 
 .device-option input[type="radio"] {
-  accent-color: var(--color-primary-500);
+  accent-color: var(--accent);
 }
 
 /* -- Chat Sidebar ---------------------------------------------------------- */
@@ -581,10 +601,10 @@ main {
   top: 0;
   bottom: 0;
   width: 358px;
-  background: var(--color-primary-dark-75);
+  background: var(--bg-secondary);
   display: flex;
   flex-direction: column;
-  border-left: 1px solid var(--color-primary-dark-100);
+  border-left: 1px solid var(--border);
   animation: slide-in 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   z-index: 20;
 }
@@ -599,7 +619,7 @@ main {
   align-items: center;
   justify-content: space-between;
   padding: 12px 16px;
-  border-bottom: 1px solid var(--color-primary-dark-100);
+  border-bottom: 1px solid var(--border);
   font-weight: 500;
   font-size: 0.95rem;
 }
@@ -607,7 +627,7 @@ main {
 .chat-close {
   background: none;
   border: none;
-  color: var(--color-greyscale-400);
+  color: var(--text-secondary);
   cursor: pointer;
   padding: 4px;
   border-radius: 4px;
@@ -616,8 +636,8 @@ main {
 }
 
 .chat-close:hover {
-  color: var(--color-white);
-  background: var(--color-primary-dark-100);
+  color: var(--text);
+  background: var(--bg-tertiary);
 }
 
 .chat-messages {
@@ -634,7 +654,7 @@ main {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--color-greyscale-400);
+  color: var(--text-secondary);
   font-size: 0.85rem;
 }
 
@@ -642,19 +662,19 @@ main {
   padding: 8px 12px;
   border-radius: 12px;
   max-width: 85%;
-  background: var(--color-primary-dark-100);
+  background: var(--bg-tertiary);
   word-break: break-word;
 }
 
 .chat-bubble-own {
-  background: var(--color-primary-500);
+  background: var(--accent);
   align-self: flex-end;
   margin-left: auto;
 }
 
 .chat-sender {
   font-size: 0.7rem;
-  color: var(--color-greyscale-400);
+  color: var(--text-secondary);
   margin-bottom: 2px;
 }
 
@@ -665,7 +685,7 @@ main {
 
 .chat-time {
   font-size: 0.6rem;
-  color: var(--color-primary-dark-300);
+  color: var(--text-tertiary);
   margin-top: 2px;
 }
 
@@ -673,26 +693,26 @@ main {
   display: flex;
   gap: 8px;
   padding: 10px 16px;
-  border-top: 1px solid var(--color-primary-dark-100);
+  border-top: 1px solid var(--border);
 }
 
 .chat-input {
   flex: 1;
   padding: 8px 14px;
-  border: 1px solid var(--color-primary-dark-100);
+  border: 1px solid var(--border);
   border-radius: 20px;
-  background: var(--color-primary-dark-50);
-  color: var(--color-white);
+  background: var(--bg);
+  color: var(--text);
   font-size: 0.85rem;
   outline: none;
 }
 
 .chat-input:focus {
-  border-color: var(--color-primary-500);
+  border-color: var(--accent);
 }
 
 .chat-input::placeholder {
-  color: var(--color-primary-dark-300);
+  color: var(--text-tertiary);
 }
 
 .chat-send {
@@ -700,7 +720,7 @@ main {
   height: 36px;
   border-radius: 50%;
   border: none;
-  background: var(--color-primary-500);
+  background: var(--accent);
   color: #fff;
   cursor: pointer;
   display: flex;
@@ -724,7 +744,7 @@ main {
 .modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.6);
+  background: rgba(0, 0, 0, 0.4);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -732,12 +752,12 @@ main {
 }
 
 .settings-modal {
-  background: var(--color-primary-dark-75);
-  border: 1px solid var(--color-primary-dark-100);
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
   border-radius: 12px;
   width: 360px;
   max-width: 90vw;
-  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.3);
 }
 
 .settings-header {
@@ -745,7 +765,7 @@ main {
   align-items: center;
   justify-content: space-between;
   padding: 16px 20px;
-  border-bottom: 1px solid var(--color-primary-dark-100);
+  border-bottom: 1px solid var(--border);
   font-weight: 600;
   font-size: 1rem;
 }
@@ -753,7 +773,7 @@ main {
 .settings-header button {
   background: none;
   border: none;
-  color: var(--color-greyscale-400);
+  color: var(--text-secondary);
   cursor: pointer;
   padding: 4px;
   border-radius: 4px;
@@ -762,8 +782,8 @@ main {
 }
 
 .settings-header button:hover {
-  color: var(--color-white);
-  background: var(--color-primary-dark-100);
+  color: var(--text);
+  background: var(--bg-tertiary);
 }
 
 .settings-body {
@@ -782,31 +802,31 @@ main {
 
 .settings-label {
   font-size: 0.85rem;
-  color: var(--color-greyscale-400);
+  color: var(--text-secondary);
   white-space: nowrap;
 }
 
 .settings-input {
   flex: 1;
   padding: 8px 12px;
-  border: 1px solid var(--color-primary-dark-100);
+  border: 1px solid var(--border);
   border-radius: var(--radius);
-  background: var(--color-primary-dark-50);
-  color: var(--color-white);
+  background: var(--bg);
+  color: var(--text);
   font-size: 0.85rem;
   outline: none;
 }
 
 .settings-input:focus {
-  border-color: var(--color-primary-500);
+  border-color: var(--accent);
 }
 
 .settings-section select {
   padding: 8px 12px;
-  border: 1px solid var(--color-primary-dark-100);
+  border: 1px solid var(--border);
   border-radius: var(--radius);
-  background: var(--color-primary-dark-50);
-  color: var(--color-white);
+  background: var(--bg);
+  color: var(--text);
   font-size: 0.85rem;
   outline: none;
 }
@@ -814,14 +834,14 @@ main {
 .settings-section input[type="checkbox"] {
   width: 18px;
   height: 18px;
-  accent-color: var(--color-primary-500);
+  accent-color: var(--accent);
   cursor: pointer;
 }
 
 .settings-save {
   margin: 0 20px 20px;
   padding: 10px;
-  background: var(--color-primary-500);
+  background: var(--accent);
   color: white;
   border: none;
   border-radius: var(--radius);

@@ -35,7 +35,7 @@ impl HandRaiseManager {
     /// Sets the `handRaised` participant attribute to the current timestamp,
     /// matching the LaSuite Meet protocol for interoperability.
     pub async fn raise_hand(&self) -> Result<(), VisioError> {
-        let timestamp = chrono::Utc::now().timestamp().to_string();
+        let timestamp = chrono::Utc::now().timestamp_millis().to_string();
         self.room
             .local_participant()
             .set_attributes(HashMap::from([("handRaised".to_string(), timestamp.clone())]))

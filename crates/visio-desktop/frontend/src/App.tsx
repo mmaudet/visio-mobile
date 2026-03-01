@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, createContext, useContext } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import {
@@ -52,6 +52,147 @@ interface Settings {
   language: string | null;
   mic_enabled_on_join: boolean;
   camera_enabled_on_join: boolean;
+  theme: string;
+}
+
+// ---------------------------------------------------------------------------
+// i18n
+// ---------------------------------------------------------------------------
+
+type TFunction = (key: string) => string;
+const I18nContext = createContext<TFunction>((key) => key);
+function useT() {
+  return useContext(I18nContext);
+}
+
+const translations: Record<string, Record<string, string>> = {
+  en: {
+    "home.subtitle": "Enter a meeting URL and your display name",
+    "home.meetUrl": "Meeting URL",
+    "home.meetUrl.placeholder": "meet.example.com/my-room",
+    "home.displayName": "Display Name (optional)",
+    "home.displayName.placeholder": "Your name",
+    "home.join": "Join",
+    "home.connecting": "Connecting...",
+    "home.error.noUrl": "Please enter a meeting URL",
+    "call.noParticipants": "No other participants yet",
+    "call.you": "You",
+    "chat": "Chat",
+    "chat.noMessages": "No messages yet",
+    "chat.placeholder": "Message",
+    "unknown": "Unknown",
+    "control.mute": "Mute microphone",
+    "control.unmute": "Unmute microphone",
+    "control.audioDevices": "Audio devices",
+    "control.camOff": "Turn off camera",
+    "control.camOn": "Turn on camera",
+    "control.camDevices": "Camera devices",
+    "control.lowerHand": "Lower hand",
+    "control.raiseHand": "Raise hand",
+    "control.leave": "Leave call",
+    "device.microphone": "Microphone",
+    "device.speaker": "Speaker",
+    "device.camera": "Camera",
+    "device.noMic": "No microphones found",
+    "device.noSpeaker": "No speakers found",
+    "device.noCamera": "No cameras found",
+    "settings": "Settings",
+    "settings.displayName": "Display name",
+    "settings.language": "Language",
+    "settings.micOnJoin": "Mic on join",
+    "settings.camOnJoin": "Camera on join",
+    "settings.theme": "Theme",
+    "settings.theme.light": "Light",
+    "settings.theme.dark": "Dark",
+    "settings.save": "Save",
+    "status.disconnected": "disconnected",
+    "status.connected": "connected",
+    "status.connecting": "connecting",
+    "status.reconnecting": "reconnecting",
+  },
+  fr: {
+    "home.subtitle": "Entrez l'URL de la réunion et votre nom",
+    "home.meetUrl": "URL de la réunion",
+    "home.meetUrl.placeholder": "meet.example.com/ma-reunion",
+    "home.displayName": "Nom d'affichage (optionnel)",
+    "home.displayName.placeholder": "Votre nom",
+    "home.join": "Rejoindre",
+    "home.connecting": "Connexion...",
+    "home.error.noUrl": "Veuillez entrer une URL de réunion",
+    "call.noParticipants": "Aucun autre participant pour le moment",
+    "call.you": "Vous",
+    "chat": "Discussion",
+    "chat.noMessages": "Aucun message pour le moment",
+    "chat.placeholder": "Message",
+    "unknown": "Inconnu",
+    "control.mute": "Couper le micro",
+    "control.unmute": "Activer le micro",
+    "control.audioDevices": "Périphériques audio",
+    "control.camOff": "Désactiver la caméra",
+    "control.camOn": "Activer la caméra",
+    "control.camDevices": "Caméras",
+    "control.lowerHand": "Baisser la main",
+    "control.raiseHand": "Lever la main",
+    "control.leave": "Quitter l'appel",
+    "device.microphone": "Microphone",
+    "device.speaker": "Haut-parleur",
+    "device.camera": "Caméra",
+    "device.noMic": "Aucun micro trouvé",
+    "device.noSpeaker": "Aucun haut-parleur trouvé",
+    "device.noCamera": "Aucune caméra trouvée",
+    "settings": "Paramètres",
+    "settings.displayName": "Nom d'affichage",
+    "settings.language": "Langue",
+    "settings.micOnJoin": "Micro activé en rejoignant",
+    "settings.camOnJoin": "Caméra activée en rejoignant",
+    "settings.theme": "Thème",
+    "settings.theme.light": "Clair",
+    "settings.theme.dark": "Sombre",
+    "settings.save": "Enregistrer",
+    "status.disconnected": "déconnecté",
+    "status.connected": "connecté",
+    "status.connecting": "connexion",
+    "status.reconnecting": "reconnexion",
+  },
+};
+
+// ---------------------------------------------------------------------------
+// Logo SVG tricolore
+// ---------------------------------------------------------------------------
+
+function VisioLogo({ size = 64 }: { size?: number }) {
+  // Camera body: 64×54 (ratio ~1.19), centered at x=52
+  // Wifi arcs: 3 concentric arcs (r=10,17,24) centered at (52,62), pointing up
+  // Stripe: same width as camera body (64), centered on same axis
+  const stripeX = 20;
+  const thirdW = 64 / 3;
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 128 128"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      className="home-logo"
+    >
+      {/* Camera body */}
+      <rect x="20" y="26" width="64" height="54" rx="10" fill="#000091" />
+      {/* Camera lens notch */}
+      <path d="M84 44 L108 32 L108 74 L84 62 Z" fill="#000091" />
+      {/* Wifi dot */}
+      <circle cx="52" cy="62" r="3" fill="#fff" />
+      {/* Wifi arc — small (r=10) */}
+      <path d="M45 55 A10 10 0 0 1 59 55" stroke="#fff" strokeWidth="3" strokeLinecap="round" fill="none" />
+      {/* Wifi arc — medium (r=17) */}
+      <path d="M40 50 A17 17 0 0 1 64 50" stroke="#fff" strokeWidth="3" strokeLinecap="round" fill="none" />
+      {/* Wifi arc — large (r=24) */}
+      <path d="M35 45 A24 24 0 0 1 69 45" stroke="#fff" strokeWidth="3" strokeLinecap="round" fill="none" />
+      {/* Tricolore stripe — centered under camera body */}
+      <rect x={stripeX} y="92" width={thirdW} height="9" rx="3" fill="#000091" />
+      <rect x={stripeX + thirdW} y="92" width={thirdW} height="9" fill="#FFFFFF" stroke="#D1D1D6" strokeWidth="0.5" />
+      <rect x={stripeX + thirdW * 2} y="92" width={thirdW} height="9" rx="3" fill="#E1000F" />
+    </svg>
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -80,7 +221,9 @@ function formatTime(timestampMs: number): string {
 // ---------------------------------------------------------------------------
 
 function StatusBadge({ state }: { state: string }) {
-  return <span className={`status-badge ${state}`}>{state}</span>;
+  const t = useT();
+  const key = `status.${state}`;
+  return <span className={`status-badge ${state}`}>{t(key)}</span>;
 }
 
 // -- Connection Quality Bars ------------------------------------------------
@@ -116,7 +259,8 @@ function ParticipantTile({
   isActiveSpeaker,
   handRaisePosition,
 }: ParticipantTileProps) {
-  const displayName = participant.name || participant.identity || "Unknown";
+  const t = useT();
+  const displayName = participant.name || participant.identity || t("unknown");
   const initials = getInitials(displayName);
   const hue = getHue(displayName);
 
@@ -163,33 +307,29 @@ function ParticipantTile({
 function HomeView({
   onJoin,
   onOpenSettings,
+  displayName,
+  onDisplayNameChange,
 }: {
   onJoin: (meetUrl: string, username: string | null) => void;
   onOpenSettings: () => void;
+  displayName: string;
+  onDisplayNameChange: (name: string) => void;
 }) {
+  const t = useT();
   const [meetUrl, setMeetUrl] = useState("");
-  const [username, setUsername] = useState("");
   const [error, setError] = useState("");
   const [joining, setJoining] = useState(false);
-
-  useEffect(() => {
-    invoke<Settings>("get_settings")
-      .then((s) => {
-        if (s.display_name) setUsername(s.display_name);
-      })
-      .catch(() => {});
-  }, []);
 
   const handleJoin = async () => {
     const url = meetUrl.trim();
     if (!url) {
-      setError("Please enter a meeting URL");
+      setError(t("home.error.noUrl"));
       return;
     }
     setError("");
     setJoining(true);
     try {
-      const uname = username.trim() || null;
+      const uname = displayName.trim() || null;
       await invoke("set_display_name", { name: uname });
       await invoke("connect", { meetUrl: url, username: uname });
       onJoin(url, uname);
@@ -209,14 +349,15 @@ function HomeView({
         <RiSettings3Line size={24} />
       </button>
       <div className="join-form">
+        <VisioLogo />
         <h2>Visio Mobile</h2>
-        <p>Enter a meeting URL and your display name</p>
+        <p>{t("home.subtitle")}</p>
         <div className="form-group">
-          <label htmlFor="meetUrl">Meeting URL</label>
+          <label htmlFor="meetUrl">{t("home.meetUrl")}</label>
           <input
             id="meetUrl"
             type="text"
-            placeholder="meet.example.com/my-room"
+            placeholder={t("home.meetUrl.placeholder")}
             autoComplete="off"
             value={meetUrl}
             onChange={(e) => setMeetUrl(e.target.value)}
@@ -224,19 +365,19 @@ function HomeView({
           />
         </div>
         <div className="form-group">
-          <label htmlFor="username">Display Name (optional)</label>
+          <label htmlFor="username">{t("home.displayName")}</label>
           <input
             id="username"
             type="text"
-            placeholder="Your name"
+            placeholder={t("home.displayName.placeholder")}
             autoComplete="off"
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
+            value={displayName}
+            onChange={(e) => onDisplayNameChange(e.target.value)}
             onKeyDown={handleKeyDown}
           />
         </div>
         <button className="btn btn-primary" disabled={joining} onClick={handleJoin}>
-          {joining ? "Connecting..." : "Join"}
+          {joining ? t("home.connecting") : t("home.join")}
         </button>
         <div className="error-msg">{error}</div>
       </div>
@@ -301,6 +442,7 @@ function CallView({
   onSelectAudioInput: (id: string) => void;
   onSelectVideoInput: (id: string) => void;
 }) {
+  const t = useT();
   const [focusedParticipant, setFocusedParticipant] = useState<string | null>(null);
   const [chatInput, setChatInput] = useState("");
   const chatScrollRef = useRef<HTMLDivElement>(null);
@@ -331,7 +473,7 @@ function CallView({
             src={`data:image/jpeg;base64,${localFrame}`}
             alt="self-view"
           />
-          <span className="self-label">You</span>
+          <span className="self-label">{t("call.you")}</span>
         </div>
       )}
 
@@ -363,7 +505,7 @@ function CallView({
         ) : (
           <div className={`video-grid video-grid-${gridCount}`}>
             {participants.length === 0 ? (
-              <div className="empty-state">No other participants yet</div>
+              <div className="empty-state">{t("call.noParticipants")}</div>
             ) : (
               participants.map((p) => (
                 <div key={p.sid} onClick={() => setFocusedParticipant(p.sid)}>
@@ -383,14 +525,14 @@ function CallView({
       {showChat && (
         <div className="chat-sidebar">
           <div className="chat-header">
-            <span>Chat</span>
+            <span>{t("chat")}</span>
             <button className="chat-close" onClick={onToggleChat}>
               <RiCloseLine size={20} />
             </button>
           </div>
           <div className="chat-messages" ref={chatScrollRef}>
             {messages.length === 0 ? (
-              <div className="chat-empty">No messages yet</div>
+              <div className="chat-empty">{t("chat.noMessages")}</div>
             ) : (
               messages.map((m, i) => {
                 const showName =
@@ -399,7 +541,7 @@ function CallView({
                   <div key={m.id} className="chat-bubble">
                     {showName && (
                       <div className="chat-sender">
-                        {m.sender_name || "Unknown"}
+                        {m.sender_name || t("unknown")}
                       </div>
                     )}
                     <div className="chat-text">{m.text}</div>
@@ -415,7 +557,7 @@ function CallView({
               value={chatInput}
               onChange={(e) => setChatInput(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && sendMessage()}
-              placeholder="Message"
+              placeholder={t("chat.placeholder")}
             />
             <button
               className="chat-send"
@@ -435,7 +577,7 @@ function CallView({
           <button
             className={`control-btn ${micEnabled ? "" : "control-btn-off"}`}
             onClick={onToggleMic}
-            title={micEnabled ? "Mute microphone" : "Unmute microphone"}
+            title={micEnabled ? t("control.mute") : t("control.unmute")}
             style={{ borderRadius: "8px 0 0 8px" }}
           >
             {micEnabled ? <RiMicLine size={20} /> : <RiMicOffLine size={20} />}
@@ -443,7 +585,7 @@ function CallView({
           <button
             className={`control-btn control-chevron ${micEnabled ? "" : "control-btn-off"}`}
             onClick={onShowMicPicker}
-            title="Audio devices"
+            title={t("control.audioDevices")}
             style={{ borderRadius: "0 8px 8px 0" }}
           >
             <RiArrowUpSLine size={16} />
@@ -455,7 +597,7 @@ function CallView({
           <button
             className={`control-btn ${camEnabled ? "" : "control-btn-off"}`}
             onClick={onToggleCam}
-            title={camEnabled ? "Turn off camera" : "Turn on camera"}
+            title={camEnabled ? t("control.camOff") : t("control.camOn")}
             style={{ borderRadius: "8px 0 0 8px" }}
           >
             {camEnabled ? (
@@ -467,7 +609,7 @@ function CallView({
           <button
             className={`control-btn control-chevron ${camEnabled ? "" : "control-btn-off"}`}
             onClick={onShowCamPicker}
-            title="Camera devices"
+            title={t("control.camDevices")}
             style={{ borderRadius: "0 8px 8px 0" }}
           >
             <RiArrowUpSLine size={16} />
@@ -478,7 +620,7 @@ function CallView({
         <button
           className={`control-btn ${isHandRaised ? "control-btn-hand" : ""}`}
           onClick={onToggleHandRaise}
-          title={isHandRaised ? "Lower hand" : "Raise hand"}
+          title={isHandRaised ? t("control.lowerHand") : t("control.raiseHand")}
         >
           <RiHand size={20} />
         </button>
@@ -487,7 +629,7 @@ function CallView({
         <button
           className={`control-btn ${showChat ? "control-btn-hand" : ""}`}
           onClick={onToggleChat}
-          title="Chat"
+          title={t("chat")}
         >
           <RiChat1Line size={20} />
           {unreadCount > 0 && (
@@ -501,7 +643,7 @@ function CallView({
         <button
           className="control-btn control-btn-hangup"
           onClick={onHangUp}
-          title="Leave call"
+          title={t("control.leave")}
         >
           <RiPhoneFill size={20} />
         </button>
@@ -511,7 +653,7 @@ function CallView({
       {showMicPicker && (
         <div className="device-picker">
           <div className="device-section">
-            <div className="device-section-title">Microphone</div>
+            <div className="device-section-title">{t("device.microphone")}</div>
             {audioInputs.map((d) => (
               <label key={d.deviceId} className="device-option">
                 <input
@@ -520,26 +662,26 @@ function CallView({
                   checked={selectedAudioInput === d.deviceId}
                   onChange={() => onSelectAudioInput(d.deviceId)}
                 />
-                {d.label || "Microphone"}
+                {d.label || t("device.microphone")}
               </label>
             ))}
             {audioInputs.length === 0 && (
               <div style={{ fontSize: "0.8rem", color: "#929292", padding: "4px 8px" }}>
-                No microphones found
+                {t("device.noMic")}
               </div>
             )}
           </div>
           <div className="device-section">
-            <div className="device-section-title">Speaker</div>
+            <div className="device-section-title">{t("device.speaker")}</div>
             {audioOutputs.map((d) => (
               <label key={d.deviceId} className="device-option">
                 <input type="radio" name="audioOutput" />
-                {d.label || "Speaker"}
+                {d.label || t("device.speaker")}
               </label>
             ))}
             {audioOutputs.length === 0 && (
               <div style={{ fontSize: "0.8rem", color: "#929292", padding: "4px 8px" }}>
-                No speakers found
+                {t("device.noSpeaker")}
               </div>
             )}
           </div>
@@ -550,7 +692,7 @@ function CallView({
       {showCamPicker && (
         <div className="device-picker">
           <div className="device-section">
-            <div className="device-section-title">Camera</div>
+            <div className="device-section-title">{t("device.camera")}</div>
             {videoInputs.map((d) => (
               <label key={d.deviceId} className="device-option">
                 <input
@@ -559,12 +701,12 @@ function CallView({
                   checked={selectedVideoInput === d.deviceId}
                   onChange={() => onSelectVideoInput(d.deviceId)}
                 />
-                {d.label || "Camera"}
+                {d.label || t("device.camera")}
               </label>
             ))}
             {videoInputs.length === 0 && (
               <div style={{ fontSize: "0.8rem", color: "#929292", padding: "4px 8px" }}>
-                No cameras found
+                {t("device.noCamera")}
               </div>
             )}
           </div>
@@ -578,34 +720,45 @@ function CallView({
 
 function SettingsModal({
   onClose,
+  onLanguageChange,
+  onThemeChange,
+  onDisplayNameChange,
+  initialDisplayName,
 }: {
   onClose: () => void;
+  onLanguageChange: (lang: string) => void;
+  onThemeChange: (theme: string) => void;
+  onDisplayNameChange: (name: string) => void;
+  initialDisplayName: string;
 }) {
+  const t = useT();
   const [form, setForm] = useState({
-    displayName: "",
+    displayName: initialDisplayName,
     language: "fr",
     micOnJoin: true,
     cameraOnJoin: false,
+    theme: "light",
   });
 
   useEffect(() => {
     invoke<Settings>("get_settings")
       .then((s) => {
-        setForm({
-          displayName: s.display_name || "",
+        setForm((prev) => ({
+          ...prev,
           language: s.language || "fr",
           micOnJoin: s.mic_enabled_on_join ?? true,
           cameraOnJoin: s.camera_enabled_on_join ?? false,
-        });
+          theme: s.theme || "light",
+        }));
       })
       .catch(() => {});
   }, []);
 
   const save = async () => {
     await invoke("set_display_name", { name: form.displayName || null });
-    await invoke("set_language", { lang: form.language || null });
     await invoke("set_mic_enabled_on_join", { enabled: form.micOnJoin });
     await invoke("set_camera_enabled_on_join", { enabled: form.cameraOnJoin });
+    onDisplayNameChange(form.displayName);
     onClose();
   };
 
@@ -613,14 +766,14 @@ function SettingsModal({
     <div className="modal-overlay" onClick={onClose}>
       <div className="settings-modal" onClick={(e) => e.stopPropagation()}>
         <div className="settings-header">
-          <span>Settings</span>
+          <span>{t("settings")}</span>
           <button onClick={onClose}>
             <RiCloseLine size={20} />
           </button>
         </div>
         <div className="settings-body">
           <div className="settings-section">
-            <label className="settings-label">Display name</label>
+            <label className="settings-label">{t("settings.displayName")}</label>
             <input
               className="settings-input"
               value={form.displayName}
@@ -630,19 +783,37 @@ function SettingsModal({
             />
           </div>
           <div className="settings-section">
-            <label className="settings-label">Language</label>
+            <label className="settings-label">{t("settings.language")}</label>
             <select
               value={form.language}
-              onChange={(e) =>
-                setForm({ ...form, language: e.target.value })
-              }
+              onChange={(e) => {
+                const lang = e.target.value;
+                setForm({ ...form, language: lang });
+                invoke("set_language", { lang: lang || null });
+                onLanguageChange(lang);
+              }}
             >
-              <option value="fr">Francais</option>
+              <option value="fr">Français</option>
               <option value="en">English</option>
             </select>
           </div>
           <div className="settings-section">
-            <label className="settings-label">Mic on join</label>
+            <label className="settings-label">{t("settings.theme")}</label>
+            <select
+              value={form.theme}
+              onChange={(e) => {
+                const theme = e.target.value;
+                setForm({ ...form, theme });
+                invoke("set_theme", { theme });
+                onThemeChange(theme);
+              }}
+            >
+              <option value="light">{t("settings.theme.light")}</option>
+              <option value="dark">{t("settings.theme.dark")}</option>
+            </select>
+          </div>
+          <div className="settings-section">
+            <label className="settings-label">{t("settings.micOnJoin")}</label>
             <input
               type="checkbox"
               checked={form.micOnJoin}
@@ -652,7 +823,7 @@ function SettingsModal({
             />
           </div>
           <div className="settings-section">
-            <label className="settings-label">Camera on join</label>
+            <label className="settings-label">{t("settings.camOnJoin")}</label>
             <input
               type="checkbox"
               checked={form.cameraOnJoin}
@@ -663,7 +834,7 @@ function SettingsModal({
           </div>
         </div>
         <button className="settings-save" onClick={save}>
-          Save
+          {t("settings.save")}
         </button>
       </div>
     </div>
@@ -693,6 +864,34 @@ export default function App() {
   const [showMicPicker, setShowMicPicker] = useState(false);
   const [showCamPicker, setShowCamPicker] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+
+  // Display name (shared between Home and Settings)
+  const [displayName, setDisplayName] = useState("");
+  // i18n
+  const [lang, setLang] = useState("fr");
+  // Theme
+  const [theme, setTheme] = useState("light");
+
+  const t = useCallback(
+    (key: string) => translations[lang]?.[key] ?? translations.en[key] ?? key,
+    [lang]
+  );
+
+  // Load settings on mount
+  useEffect(() => {
+    invoke<Settings>("get_settings")
+      .then((s) => {
+        if (s.display_name) setDisplayName(s.display_name);
+        if (s.language) setLang(s.language);
+        if (s.theme) setTheme(s.theme);
+      })
+      .catch(() => {});
+  }, []);
+
+  // Apply theme to document
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+  }, [theme]);
 
   // Device enumeration
   const [audioInputs, setAudioInputs] = useState<MediaDeviceInfo[]>([]);
@@ -917,7 +1116,7 @@ export default function App() {
 
   // ---- Render -------------------------------------------------------------
   return (
-    <>
+    <I18nContext.Provider value={t}>
       <header>
         <h1>Visio Mobile</h1>
         <StatusBadge state={connectionState} />
@@ -927,6 +1126,8 @@ export default function App() {
           <HomeView
             onJoin={handleJoin}
             onOpenSettings={() => setShowSettings(true)}
+            displayName={displayName}
+            onDisplayNameChange={setDisplayName}
           />
         )}
         {view === "call" && (
@@ -967,8 +1168,14 @@ export default function App() {
         )}
       </main>
       {showSettings && (
-        <SettingsModal onClose={() => setShowSettings(false)} />
+        <SettingsModal
+          onClose={() => setShowSettings(false)}
+          onLanguageChange={(l) => setLang(l)}
+          onThemeChange={(t) => setTheme(t)}
+          onDisplayNameChange={setDisplayName}
+          initialDisplayName={displayName}
+        />
       )}
-    </>
+    </I18nContext.Provider>
   );
 }

@@ -13,6 +13,12 @@ pub struct Settings {
     pub mic_enabled_on_join: bool,
     #[serde(default)]
     pub camera_enabled_on_join: bool,
+    #[serde(default = "default_theme")]
+    pub theme: String,
+}
+
+fn default_theme() -> String {
+    "light".to_string()
 }
 
 fn default_true() -> bool {
@@ -26,6 +32,7 @@ impl Default for Settings {
             language: None,
             mic_enabled_on_join: true,
             camera_enabled_on_join: false,
+            theme: "light".to_string(),
         }
     }
 }
@@ -66,6 +73,11 @@ impl SettingsStore {
 
     pub fn set_camera_enabled_on_join(&self, enabled: bool) {
         self.settings.lock().unwrap().camera_enabled_on_join = enabled;
+        self.save();
+    }
+
+    pub fn set_theme(&self, theme: String) {
+        self.settings.lock().unwrap().theme = theme;
         self.save();
     }
 
@@ -169,6 +181,19 @@ mod tests {
         fs::write(dir.path().join("settings.json"), "not json!!!").unwrap();
         let store = SettingsStore::new(path);
         assert_eq!(store.get(), Settings::default());
+    }
+
+    #[test]
+    fn test_set_theme_persists() {
+        let dir = temp_dir();
+        let path = dir.path().to_str().unwrap();
+        {
+            let store = SettingsStore::new(path);
+            assert_eq!(store.get().theme, "light");
+            store.set_theme("dark".to_string());
+        }
+        let store = SettingsStore::new(path);
+        assert_eq!(store.get().theme, "dark");
     }
 
     #[test]

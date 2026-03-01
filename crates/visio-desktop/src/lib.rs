@@ -304,6 +304,7 @@ fn get_settings(state: tauri::State<'_, VisioState>) -> Result<serde_json::Value
         "language": s.language,
         "mic_enabled_on_join": s.mic_enabled_on_join,
         "camera_enabled_on_join": s.camera_enabled_on_join,
+        "theme": s.theme,
     }))
 }
 
@@ -325,6 +326,11 @@ fn set_mic_enabled_on_join(state: tauri::State<'_, VisioState>, enabled: bool) {
 #[tauri::command]
 fn set_camera_enabled_on_join(state: tauri::State<'_, VisioState>, enabled: bool) {
     state.settings.set_camera_enabled_on_join(enabled);
+}
+
+#[tauri::command]
+fn set_theme(state: tauri::State<'_, VisioState>, theme: String) {
+    state.settings.set_theme(theme);
 }
 
 #[tauri::command]
@@ -440,6 +446,7 @@ pub fn run() {
             set_language,
             set_mic_enabled_on_join,
             set_camera_enabled_on_join,
+            set_theme,
             raise_hand,
             lower_hand,
             is_hand_raised,
