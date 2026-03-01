@@ -38,6 +38,11 @@ impl RoomManager {
         self.emitter.add_listener(listener);
     }
 
+    /// Create MeetingControls bound to this room.
+    pub fn controls(&self) -> crate::controls::MeetingControls {
+        crate::controls::MeetingControls::new(self.room.clone(), self.emitter.clone())
+    }
+
     /// Get current connection state.
     pub async fn connection_state(&self) -> ConnectionState {
         self.connection_state.lock().await.clone()
