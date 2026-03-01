@@ -13,6 +13,12 @@ pub enum VisioEvent {
     ActiveSpeakersChanged(Vec<String>), // participant SIDs
     ConnectionQualityChanged { participant_sid: String, quality: ConnectionQuality },
     ChatMessageReceived(ChatMessage),
+    HandRaisedChanged {
+        participant_sid: String,
+        raised: bool,
+        position: u32,
+    },
+    UnreadCountChanged(u32),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

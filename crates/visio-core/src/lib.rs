@@ -9,6 +9,7 @@ pub mod chat;
 pub mod controls;
 pub mod errors;
 pub mod events;
+pub mod hand_raise;
 pub mod participants;
 pub mod room;
 pub mod settings;
@@ -21,6 +22,7 @@ pub use events::{
     ChatMessage, ConnectionQuality, ConnectionState, EventEmitter, ParticipantInfo, TrackInfo,
     TrackKind, TrackSource, VisioEvent, VisioEventListener,
 };
+pub use hand_raise::HandRaiseManager;
 pub use participants::ParticipantManager;
 pub use room::RoomManager;
 pub use audio_playout::AudioPlayoutBuffer;
