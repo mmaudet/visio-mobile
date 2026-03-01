@@ -8,7 +8,7 @@ use std::sync::OnceLock;
 
 use image::codecs::jpeg::JpegEncoder;
 use image::{ImageBuffer, Rgb};
-use livekit::webrtc::prelude::BoxVideoFrame;
+use livekit::webrtc::prelude::{BoxVideoFrame, VideoBuffer};
 
 /// Callback type: (track_sid, base64_data, data_len, width, height, user_data)
 type FrameCallback = unsafe extern "C" fn(
@@ -48,25 +48,22 @@ pub unsafe extern "C" fn visio_video_set_desktop_callback(
     });
 }
 
-/// Render a single I420 frame by converting to JPEG and calling the callback.
-pub(crate) fn render_frame(
-    frame: &BoxVideoFrame,
-    _surface: *mut c_void,
+/// Encode I420 planes to JPEG base64 and deliver via the registered callback.
+fn encode_and_deliver(
+    y_data: &[u8],
+    stride_y: u32,
+    u_data: &[u8],
+    stride_u: u32,
+    v_data: &[u8],
+    stride_v: u32,
+    width: u32,
+    height: u32,
     track_sid: &str,
 ) {
     let Some(cb) = CALLBACK.get() else {
-        tracing::warn!("desktop render_frame: no callback registered");
+        tracing::warn!("desktop render: no callback registered");
         return;
     };
-
-    let buffer = &frame.buffer;
-    let width = buffer.width();
-    let height = buffer.height();
-
-    // Convert to I420 for plane access (handles Native buffers too).
-    let i420 = buffer.to_i420();
-    let (y_data, u_data, v_data) = i420.data();
-    let (stride_y, stride_u, stride_v) = i420.strides();
 
     let w = width as usize;
     let h = height as usize;
@@ -122,4 +119,43 @@ pub(crate) fn render_frame(
             cb.user_data,
         );
     }
+}
+
+/// Render a single I420 frame by converting to JPEG and calling the callback.
+pub(crate) fn render_frame(
+    frame: &BoxVideoFrame,
+    _surface: *mut c_void,
+    track_sid: &str,
+) {
+    let buffer = &frame.buffer;
+    let width = buffer.width();
+    let height = buffer.height();
+
+    // Convert to I420 for plane access (handles Native buffers too).
+    let i420 = buffer.to_i420();
+    let (y_data, u_data, v_data) = i420.data();
+    let (stride_y, stride_u, stride_v) = i420.strides();
+
+    encode_and_deliver(
+        y_data, stride_y, u_data, stride_u, v_data, stride_v,
+        width, height, track_sid,
+    );
+}
+
+/// Render a local I420 buffer (e.g. camera self-view) through the desktop callback.
+///
+/// Called from visio-desktop's camera capture module to show self-view.
+pub fn render_local_i420(
+    i420: &livekit::webrtc::prelude::I420Buffer,
+    track_sid: &str,
+) {
+    let width = i420.width();
+    let height = i420.height();
+    let (y_data, u_data, v_data) = i420.data();
+    let (stride_y, stride_u, stride_v) = i420.strides();
+
+    encode_and_deliver(
+        y_data, stride_y, u_data, stride_u, v_data, stride_v,
+        width, height, track_sid,
+    );
 }

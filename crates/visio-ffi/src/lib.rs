@@ -16,6 +16,67 @@ use visio_core::{
 
 uniffi::include_scaffolding!("visio");
 
+// ── Android WebRTC initialization ────────────────────────────────────
+//
+// Must be called from Kotlin AFTER System.loadLibrary, before connect().
+// webrtc::InitAndroid needs a valid JNI class loader context, which is
+// NOT available inside JNI_OnLoad.
+
+#[cfg(target_os = "android")]
+#[unsafe(no_mangle)]
+pub extern "C" fn Java_io_visio_mobile_VisioManager_nativeInitWebrtc(
+    env: *mut std::ffi::c_void,
+    _class: *mut std::ffi::c_void,
+) {
+    visio_log("VISIO FFI: nativeInitWebrtc called");
+    // Get JavaVM from JNIEnv
+    let env = unsafe { jni::JNIEnv::from_raw(env as *mut jni::sys::JNIEnv) }
+        .expect("nativeInitWebrtc: invalid JNIEnv");
+    let jvm = env.get_java_vm().expect("nativeInitWebrtc: failed to get JavaVM");
+
+    libwebrtc::android::initialize_android(&jvm);
+
+    // Prevent Drop from calling DestroyJavaVM
+    std::mem::forget(jvm);
+    visio_log("VISIO FFI: WebRTC initialized successfully");
+}
+
+// ── Android logcat helper ────────────────────────────────────────────
+
+/// Write a message to logcat on Android, or stderr on other platforms.
+fn visio_log(msg: &str) {
+    #[cfg(target_os = "android")]
+    {
+        use std::ffi::CString;
+        unsafe extern "C" {
+            fn __android_log_write(prio: i32, tag: *const std::ffi::c_char, text: *const std::ffi::c_char) -> i32;
+        }
+        let tag = CString::new("VISIO_FFI").unwrap();
+        let text = CString::new(msg).unwrap_or_else(|_| CString::new("(invalid utf8)").unwrap());
+        unsafe { __android_log_write(4 /* INFO */, tag.as_ptr(), text.as_ptr()); }
+    }
+    #[cfg(not(target_os = "android"))]
+    eprintln!("{msg}");
+}
+
+// ── Namespace functions ──────────────────────────────────────────────
+
+/// Initialize tracing/logging. Call once from the host before using VisioClient.
+/// On Android, stderr goes to logcat for debuggable builds.
+fn init_logging() {
+    use std::sync::Once;
+    static INIT: Once = Once::new();
+    INIT.call_once(|| {
+        tracing_subscriber::fmt()
+            .with_env_filter(
+                tracing_subscriber::EnvFilter::try_from_default_env()
+                    .unwrap_or_else(|_| "visio_core=debug,visio_ffi=debug,visio_video=info".parse().unwrap()),
+            )
+            .with_ansi(false)
+            .init();
+    });
+}
+
 // ── FFI-safe type conversions ──────────────────────────────────────────
 
 #[derive(Debug, Clone)]
@@ -210,26 +271,27 @@ impl From<CoreVisioEvent> for VisioEvent {
 
 #[derive(Debug, thiserror::Error)]
 pub enum VisioError {
-    #[error("Connection error")]
-    Connection,
-    #[error("Room error")]
-    Room,
-    #[error("Auth error")]
-    Auth,
-    #[error("HTTP error")]
-    Http,
-    #[error("Invalid URL")]
-    InvalidUrl,
+    #[error("Connection error: {msg}")]
+    Connection { msg: String },
+    #[error("Room error: {msg}")]
+    Room { msg: String },
+    #[error("Auth error: {msg}")]
+    Auth { msg: String },
+    #[error("HTTP error: {msg}")]
+    Http { msg: String },
+    #[error("Invalid URL: {msg}")]
+    InvalidUrl { msg: String },
 }
 
 impl From<visio_core::VisioError> for VisioError {
     fn from(e: visio_core::VisioError) -> Self {
+        tracing::error!("VisioError: {e}");
         match e {
-            visio_core::VisioError::Connection(_) => Self::Connection,
-            visio_core::VisioError::Room(_) => Self::Room,
-            visio_core::VisioError::Auth(_) => Self::Auth,
-            visio_core::VisioError::Http(_) => Self::Http,
-            visio_core::VisioError::InvalidUrl(_) => Self::InvalidUrl,
+            visio_core::VisioError::Connection(msg) => Self::Connection { msg },
+            visio_core::VisioError::Room(msg) => Self::Room { msg },
+            visio_core::VisioError::Auth(msg) => Self::Auth { msg },
+            visio_core::VisioError::Http(msg) => Self::Http { msg },
+            visio_core::VisioError::InvalidUrl(msg) => Self::InvalidUrl { msg },
         }
     }
 }
@@ -263,11 +325,14 @@ pub struct VisioClient {
 
 impl VisioClient {
     pub fn new() -> Self {
+        visio_log("VISIO FFI: VisioClient::new() called");
         let rt = tokio::runtime::Runtime::new().expect("failed to create tokio runtime");
+        visio_log("VISIO FFI: tokio runtime created successfully");
         let room_manager = visio_core::RoomManager::new();
         let controls = room_manager.controls();
         let chat = room_manager.chat();
 
+        visio_log("VISIO FFI: VisioClient::new() completed");
         Self {
             room_manager,
             controls,
@@ -277,12 +342,36 @@ impl VisioClient {
     }
 
     pub fn connect(&self, meet_url: String, username: Option<String>) -> Result<(), VisioError> {
-        self.rt.block_on(async {
-            self.room_manager
-                .connect(&meet_url, username.as_deref())
-                .await
-                .map_err(VisioError::from)
-        })
+        visio_log(&format!("VISIO FFI: connect() entered, url={meet_url}"));
+
+        // Wrap in catch_unwind to prevent panics from crossing FFI boundary (UB → SIGSEGV).
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            visio_log("VISIO FFI: about to call block_on");
+            let res = self.rt.block_on(async {
+                visio_log("VISIO FFI: inside block_on async block");
+                self.room_manager
+                    .connect(&meet_url, username.as_deref())
+                    .await
+                    .map_err(VisioError::from)
+            });
+            visio_log(&format!("VISIO FFI: block_on completed, success={}", res.is_ok()));
+            res
+        }));
+
+        match result {
+            Ok(res) => res,
+            Err(panic_info) => {
+                let msg = if let Some(s) = panic_info.downcast_ref::<&str>() {
+                    s.to_string()
+                } else if let Some(s) = panic_info.downcast_ref::<String>() {
+                    s.clone()
+                } else {
+                    "unknown panic".to_string()
+                };
+                visio_log(&format!("VISIO FFI: connect() PANIC caught: {msg}"));
+                Err(VisioError::Connection { msg: format!("panic in connect: {msg}") })
+            }
+        }
     }
 
     pub fn disconnect(&self) {
@@ -429,4 +518,34 @@ pub unsafe extern "C" fn visio_detach_video_surface(
     };
     visio_video::stop_track_renderer(sid_str);
     0
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_visioclient_new_and_connect_smoke() {
+        let client = VisioClient::new();
+        eprintln!("TEST: VisioClient created successfully");
+
+        let result = client.connect(
+            "https://meet.linagora.com/test-desktop-debug".to_string(),
+            Some("desktop-test".to_string()),
+        );
+
+        match &result {
+            Ok(()) => eprintln!("TEST: connect() succeeded (unexpected but ok)"),
+            Err(e) => eprintln!("TEST: connect() returned error (expected): {e}"),
+        }
+
+        eprintln!("TEST: no crash - connect() returned normally");
+    }
+
+    #[test]
+    fn test_block_on_works() {
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let result = rt.block_on(async { 42 });
+        assert_eq!(result, 42);
+    }
 }

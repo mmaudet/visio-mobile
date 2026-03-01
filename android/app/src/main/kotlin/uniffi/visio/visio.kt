@@ -375,7 +375,7 @@ private fun findLibraryName(componentName: String): String {
     if (libOverride != null) {
         return libOverride
     }
-    return "uniffi_visio"
+    return "visio_ffi"
 }
 
 private inline fun <reified Lib : Library> loadIndirect(
@@ -761,6 +761,8 @@ internal open class UniffiVTableCallbackInterfaceVisioEventListener(
 
 
 
+
+
 // For large crates we prevent `MethodTooLargeException` (see #2340)
 // N.B. the name of the extension is very misleading, since it is 
 // rather `InterfaceTooLargeException`, caused by too many methods 
@@ -776,7 +778,9 @@ internal open class UniffiVTableCallbackInterfaceVisioEventListener(
 // when the library is loaded.
 internal interface IntegrityCheckingUniffiLib : Library {
     // Integrity check functions only
-    fun uniffi_visio_ffi_checksum_method_visioclient_active_speakers(
+    fun uniffi_visio_ffi_checksum_func_init_logging(
+): Short
+fun uniffi_visio_ffi_checksum_method_visioclient_active_speakers(
 ): Short
 fun uniffi_visio_ffi_checksum_method_visioclient_add_listener(
 ): Short
@@ -885,6 +889,8 @@ fun uniffi_visio_ffi_fn_method_visioclient_set_camera_enabled(`ptr`: Pointer,`en
 fun uniffi_visio_ffi_fn_method_visioclient_set_microphone_enabled(`ptr`: Pointer,`enabled`: Byte,uniffi_out_err: UniffiRustCallStatus, 
 ): Unit
 fun uniffi_visio_ffi_fn_init_callback_vtable_visioeventlistener(`vtable`: UniffiVTableCallbackInterfaceVisioEventListener,
+): Unit
+fun uniffi_visio_ffi_fn_func_init_logging(uniffi_out_err: UniffiRustCallStatus, 
 ): Unit
 fun ffi_visio_ffi_rustbuffer_alloc(`size`: Long,uniffi_out_err: UniffiRustCallStatus, 
 ): RustBuffer.ByValue
@@ -1012,6 +1018,9 @@ private fun uniffiCheckContractApiVersion(lib: IntegrityCheckingUniffiLib) {
 }
 @Suppress("UNUSED_PARAMETER")
 private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
+    if (lib.uniffi_visio_ffi_checksum_func_init_logging() != 52772.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
     if (lib.uniffi_visio_ffi_checksum_method_visioclient_active_speakers() != 15815.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
@@ -1802,6 +1811,7 @@ data class ParticipantInfo (
     var `name`: kotlin.String?, 
     var `isMuted`: kotlin.Boolean, 
     var `hasVideo`: kotlin.Boolean, 
+    var `videoTrackSid`: kotlin.String?, 
     var `connectionQuality`: ConnectionQuality
 ) {
     
@@ -1819,6 +1829,7 @@ public object FfiConverterTypeParticipantInfo: FfiConverterRustBuffer<Participan
             FfiConverterOptionalString.read(buf),
             FfiConverterBoolean.read(buf),
             FfiConverterBoolean.read(buf),
+            FfiConverterOptionalString.read(buf),
             FfiConverterTypeConnectionQuality.read(buf),
         )
     }
@@ -1829,6 +1840,7 @@ public object FfiConverterTypeParticipantInfo: FfiConverterRustBuffer<Participan
             FfiConverterOptionalString.allocationSize(value.`name`) +
             FfiConverterBoolean.allocationSize(value.`isMuted`) +
             FfiConverterBoolean.allocationSize(value.`hasVideo`) +
+            FfiConverterOptionalString.allocationSize(value.`videoTrackSid`) +
             FfiConverterTypeConnectionQuality.allocationSize(value.`connectionQuality`)
     )
 
@@ -1838,6 +1850,7 @@ public object FfiConverterTypeParticipantInfo: FfiConverterRustBuffer<Participan
             FfiConverterOptionalString.write(value.`name`, buf)
             FfiConverterBoolean.write(value.`isMuted`, buf)
             FfiConverterBoolean.write(value.`hasVideo`, buf)
+            FfiConverterOptionalString.write(value.`videoTrackSid`, buf)
             FfiConverterTypeConnectionQuality.write(value.`connectionQuality`, buf)
     }
 }
@@ -2072,22 +2085,54 @@ public object FfiConverterTypeTrackSource: FfiConverterRustBuffer<TrackSource> {
 
 
 
-sealed class VisioException(message: String): kotlin.Exception(message) {
+sealed class VisioException: kotlin.Exception() {
+    
+    class Connection(
         
-        class Connection(message: String) : VisioException(message)
+        val `msg`: kotlin.String
+        ) : VisioException() {
+        override val message
+            get() = "msg=${ `msg` }"
+    }
+    
+    class Room(
         
-        class Room(message: String) : VisioException(message)
+        val `msg`: kotlin.String
+        ) : VisioException() {
+        override val message
+            get() = "msg=${ `msg` }"
+    }
+    
+    class Auth(
         
-        class Auth(message: String) : VisioException(message)
+        val `msg`: kotlin.String
+        ) : VisioException() {
+        override val message
+            get() = "msg=${ `msg` }"
+    }
+    
+    class Http(
         
-        class Http(message: String) : VisioException(message)
+        val `msg`: kotlin.String
+        ) : VisioException() {
+        override val message
+            get() = "msg=${ `msg` }"
+    }
+    
+    class InvalidUrl(
         
-        class InvalidUrl(message: String) : VisioException(message)
-        
+        val `msg`: kotlin.String
+        ) : VisioException() {
+        override val message
+            get() = "msg=${ `msg` }"
+    }
+    
 
     companion object ErrorHandler : UniffiRustCallStatusErrorHandler<VisioException> {
         override fun lift(error_buf: RustBuffer.ByValue): VisioException = FfiConverterTypeVisioError.lift(error_buf)
     }
+
+    
 }
 
 /**
@@ -2096,41 +2141,82 @@ sealed class VisioException(message: String): kotlin.Exception(message) {
 public object FfiConverterTypeVisioError : FfiConverterRustBuffer<VisioException> {
     override fun read(buf: ByteBuffer): VisioException {
         
-            return when(buf.getInt()) {
-            1 -> VisioException.Connection(FfiConverterString.read(buf))
-            2 -> VisioException.Room(FfiConverterString.read(buf))
-            3 -> VisioException.Auth(FfiConverterString.read(buf))
-            4 -> VisioException.Http(FfiConverterString.read(buf))
-            5 -> VisioException.InvalidUrl(FfiConverterString.read(buf))
+
+        return when(buf.getInt()) {
+            1 -> VisioException.Connection(
+                FfiConverterString.read(buf),
+                )
+            2 -> VisioException.Room(
+                FfiConverterString.read(buf),
+                )
+            3 -> VisioException.Auth(
+                FfiConverterString.read(buf),
+                )
+            4 -> VisioException.Http(
+                FfiConverterString.read(buf),
+                )
+            5 -> VisioException.InvalidUrl(
+                FfiConverterString.read(buf),
+                )
             else -> throw RuntimeException("invalid error enum value, something is very wrong!!")
         }
-        
     }
 
     override fun allocationSize(value: VisioException): ULong {
-        return 4UL
+        return when(value) {
+            is VisioException.Connection -> (
+                // Add the size for the Int that specifies the variant plus the size needed for all fields
+                4UL
+                + FfiConverterString.allocationSize(value.`msg`)
+            )
+            is VisioException.Room -> (
+                // Add the size for the Int that specifies the variant plus the size needed for all fields
+                4UL
+                + FfiConverterString.allocationSize(value.`msg`)
+            )
+            is VisioException.Auth -> (
+                // Add the size for the Int that specifies the variant plus the size needed for all fields
+                4UL
+                + FfiConverterString.allocationSize(value.`msg`)
+            )
+            is VisioException.Http -> (
+                // Add the size for the Int that specifies the variant plus the size needed for all fields
+                4UL
+                + FfiConverterString.allocationSize(value.`msg`)
+            )
+            is VisioException.InvalidUrl -> (
+                // Add the size for the Int that specifies the variant plus the size needed for all fields
+                4UL
+                + FfiConverterString.allocationSize(value.`msg`)
+            )
+        }
     }
 
     override fun write(value: VisioException, buf: ByteBuffer) {
         when(value) {
             is VisioException.Connection -> {
                 buf.putInt(1)
+                FfiConverterString.write(value.`msg`, buf)
                 Unit
             }
             is VisioException.Room -> {
                 buf.putInt(2)
+                FfiConverterString.write(value.`msg`, buf)
                 Unit
             }
             is VisioException.Auth -> {
                 buf.putInt(3)
+                FfiConverterString.write(value.`msg`, buf)
                 Unit
             }
             is VisioException.Http -> {
                 buf.putInt(4)
+                FfiConverterString.write(value.`msg`, buf)
                 Unit
             }
             is VisioException.InvalidUrl -> {
                 buf.putInt(5)
+                FfiConverterString.write(value.`msg`, buf)
                 Unit
             }
         }.let { /* this makes the `when` an expression, which ensures it is exhaustive */ }
@@ -2547,5 +2633,13 @@ public object FfiConverterSequenceTypeParticipantInfo: FfiConverterRustBuffer<Li
             FfiConverterTypeParticipantInfo.write(it, buf)
         }
     }
+} fun `initLogging`()
+        = 
+    uniffiRustCall() { _status ->
+    UniffiLib.INSTANCE.uniffi_visio_ffi_fn_func_init_logging(
+        _status)
 }
+    
+    
+
 

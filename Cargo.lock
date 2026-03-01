@@ -5372,6 +5372,10 @@ dependencies = [
 name = "visio-desktop"
 version = "0.1.0"
 dependencies = [
+ "block2",
+ "livekit",
+ "objc2",
+ "objc2-foundation",
  "serde",
  "serde_json",
  "tauri",
@@ -5387,9 +5391,12 @@ dependencies = [
 name = "visio-ffi"
 version = "0.1.0"
 dependencies = [
+ "jni",
+ "libwebrtc",
  "thiserror 2.0.18",
  "tokio",
  "tracing",
+ "tracing-subscriber",
  "uniffi",
  "visio-core",
  "visio-video",

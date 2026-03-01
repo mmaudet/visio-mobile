@@ -187,6 +187,37 @@ main {
   min-height: 1.2em;
 }
 
+/* -- Self-view ------------------------------------------------------------- */
+
+.self-view {
+  position: relative;
+  width: 120px;
+  height: 90px;
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: #000;
+  margin-bottom: 12px;
+  border: 2px solid var(--border);
+}
+
+.self-view .self-video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transform: scaleX(-1); /* mirror */
+}
+
+.self-label {
+  position: absolute;
+  bottom: 4px;
+  left: 6px;
+  font-size: 0.6rem;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.5);
+  padding: 1px 5px;
+  border-radius: 3px;
+}
+
 /* -- Call ------------------------------------------------------------------- */
 
 #call {

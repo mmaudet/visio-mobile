@@ -171,9 +171,21 @@ function CallView({
   onHangUp: () => void;
   onOpenChat: () => void;
 }) {
+  const localFrame = videoFrames.get("local-camera");
+
   return (
     <div id="call" className="section active">
       <div className="call-content">
+        {camEnabled && localFrame && (
+          <div className="self-view">
+            <img
+              className="video-frame self-video"
+              src={`data:image/jpeg;base64,${localFrame}`}
+              alt="self-view"
+            />
+            <span className="self-label">You</span>
+          </div>
+        )}
         <div className="section-label">Participants</div>
         {participants.length === 0 ? (
           <div className="empty-state">No other participants yet</div>

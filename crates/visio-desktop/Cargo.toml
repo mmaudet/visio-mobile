@@ -7,12 +7,18 @@ license.workspace = true
 [dependencies]
 visio-core = { path = "../visio-core" }
 visio-video = { path = "../visio-video" }
+livekit = { workspace = true }
 tauri = { version = "2", features = [] }
 tokio = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2 = "0.6"
+objc2-foundation = { version = "0.3", features = ["NSObject", "NSString"] }
+block2 = "0.6"
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }

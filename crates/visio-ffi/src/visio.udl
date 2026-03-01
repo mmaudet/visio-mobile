@@ -1,4 +1,6 @@
-namespace visio {};
+namespace visio {
+    void init_logging();
+};
 
 [Enum]
 interface ConnectionState {
@@ -67,12 +69,12 @@ interface VisioEvent {
 };
 
 [Error]
-enum VisioError {
-    "Connection",
-    "Room",
-    "Auth",
-    "Http",
-    "InvalidUrl",
+interface VisioError {
+    Connection(string msg);
+    Room(string msg);
+    Auth(string msg);
+    Http(string msg);
+    InvalidUrl(string msg);
 };
 
 callback interface VisioEventListener {

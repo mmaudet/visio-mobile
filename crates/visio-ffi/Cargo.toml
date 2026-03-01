@@ -5,7 +5,7 @@ edition.workspace = true
 license.workspace = true
 
 [lib]
-crate-type = ["cdylib", "staticlib"]
+crate-type = ["lib", "cdylib", "staticlib"]
 
 [dependencies]
 visio-core = { path = "../visio-core" }
@@ -14,6 +14,11 @@ uniffi = { workspace = true }
 tokio = { workspace = true }
 thiserror = { workspace = true }
 tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+
+[target.'cfg(target_os = "android")'.dependencies]
+jni = "0.21"
+libwebrtc = "0.3.26"
 
 [build-dependencies]
 uniffi = { workspace = true, features = ["build"] }

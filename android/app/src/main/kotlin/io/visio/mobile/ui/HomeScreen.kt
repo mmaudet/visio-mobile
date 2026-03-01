@@ -24,8 +24,8 @@ import androidx.compose.ui.unit.dp
 fun HomeScreen(
     onJoin: (roomUrl: String, username: String) -> Unit
 ) {
-    var roomUrl by remember { mutableStateOf("") }
-    var username by remember { mutableStateOf("") }
+    var roomUrl by remember { mutableStateOf("https://meet.linagora.com/jxo-bpyk-qfd") }
+    var username by remember { mutableStateOf("Android-v2") }
 
     Column(
         modifier = Modifier

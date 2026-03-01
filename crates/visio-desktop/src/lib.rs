@@ -7,6 +7,9 @@ use visio_core::{
     VisioEventListener,
 };
 
+#[cfg(target_os = "macos")]
+mod camera_macos;
+
 // ---------------------------------------------------------------------------
 // Global AppHandle for the C video callback
 // ---------------------------------------------------------------------------
@@ -48,6 +51,8 @@ struct VisioState {
     room: Arc<Mutex<RoomManager>>,
     controls: Arc<Mutex<MeetingControls>>,
     chat: Arc<Mutex<ChatService>>,
+    #[cfg(target_os = "macos")]
+    camera_capture: std::sync::Mutex<Option<camera_macos::MacCameraCapture>>,
 }
 
 // ---------------------------------------------------------------------------
@@ -178,12 +183,29 @@ async fn toggle_camera(
     if enabled {
         // Publish camera track if not yet published
         if controls.video_source().await.is_none() {
-            let _source = controls
+            let source = controls
                 .publish_camera()
                 .await
                 .map_err(|e| e.to_string())?;
             tracing::info!("camera track published via toggle_camera");
-            // TODO: start native camera capture and feed frames into _source
+
+            // Start native camera capture
+            #[cfg(target_os = "macos")]
+            {
+                let capture = camera_macos::MacCameraCapture::start(source)
+                    .map_err(|e| format!("camera capture: {e}"))?;
+                let mut cam = state.camera_capture.lock().unwrap();
+                *cam = Some(capture);
+            }
+        }
+    } else {
+        // Stop camera capture when disabling
+        #[cfg(target_os = "macos")]
+        {
+            let mut cam = state.camera_capture.lock().unwrap();
+            if let Some(mut capture) = cam.take() {
+                capture.stop();
+            }
         }
     }
     controls
@@ -268,6 +290,8 @@ pub fn run() {
         room: room_arc,
         controls: Arc::new(Mutex::new(controls)),
         chat: Arc::new(Mutex::new(chat)),
+        #[cfg(target_os = "macos")]
+        camera_capture: std::sync::Mutex::new(None),
     };
 
     tauri::Builder::default()

@@ -27,6 +27,9 @@ mod desktop;
 #[cfg(any(target_os = "macos", target_os = "linux", target_os = "windows"))]
 pub use desktop::visio_video_set_desktop_callback;
 
+#[cfg(any(target_os = "macos", target_os = "linux", target_os = "windows"))]
+pub use desktop::render_local_i420;
+
 // ---------------------------------------------------------------------------
 // Send-able surface pointer wrapper
 // ---------------------------------------------------------------------------
