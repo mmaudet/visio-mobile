@@ -128,6 +128,28 @@ impl VisioEventListener for DesktopEventListener {
 // ---------------------------------------------------------------------------
 
 #[tauri::command]
+async fn validate_room(
+    _state: tauri::State<'_, VisioState>,
+    url: String,
+    username: Option<String>,
+) -> Result<serde_json::Value, String> {
+    if let Err(e) = visio_core::AuthService::extract_slug(&url) {
+        return Ok(serde_json::json!({ "status": "invalid_format", "message": e.to_string() }));
+    }
+    match visio_core::AuthService::validate_room(&url, username.as_deref()).await {
+        Ok(token_info) => Ok(serde_json::json!({
+            "status": "valid",
+            "livekit_url": token_info.livekit_url,
+            "token": token_info.token,
+        })),
+        Err(visio_core::VisioError::Auth(msg)) if msg.contains("404") => {
+            Ok(serde_json::json!({ "status": "not_found" }))
+        }
+        Err(e) => Ok(serde_json::json!({ "status": "error", "message": e.to_string() })),
+    }
+}
+
+#[tauri::command]
 async fn connect(
     state: tauri::State<'_, VisioState>,
     meet_url: String,
@@ -463,6 +485,7 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            validate_room,
             connect,
             disconnect,
             get_connection_state,
