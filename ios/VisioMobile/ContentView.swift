@@ -1,17 +1,16 @@
 import SwiftUI
 
+/// Legacy placeholder view — kept for reference.
+/// The app now uses HomeView as the root content.
 struct ContentView: View {
     var body: some View {
-        VStack(spacing: 16) {
-            Text("Visio")
-                .font(.largeTitle)
-                .fontWeight(.bold)
-            Text("Phase 0 — iOS skeleton")
-                .foregroundColor(.secondary)
-        }
+        HomeView()
     }
 }
 
 #Preview {
-    ContentView()
+    NavigationStack {
+        ContentView()
+            .environmentObject(VisioManager())
+    }
 }

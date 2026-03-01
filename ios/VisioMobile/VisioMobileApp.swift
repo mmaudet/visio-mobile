@@ -2,9 +2,14 @@ import SwiftUI
 
 @main
 struct VisioMobileApp: App {
+    @StateObject private var manager = VisioManager()
+
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            NavigationStack {
+                HomeView()
+            }
+            .environmentObject(manager)
         }
     }
 }
