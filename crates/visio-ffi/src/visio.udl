@@ -73,6 +73,8 @@ interface VisioEvent {
     ActiveSpeakersChanged(sequence<string> participant_sids);
     ConnectionQualityChanged(string participant_sid, ConnectionQuality quality);
     ChatMessageReceived(ChatMessage message);
+    HandRaisedChanged(string participant_sid, boolean raised, u32 position);
+    UnreadCountChanged(u32 count);
 };
 
 [Error]
@@ -128,6 +130,18 @@ interface VisioClient {
     void set_mic_enabled_on_join(boolean enabled);
 
     void set_camera_enabled_on_join(boolean enabled);
+
+    [Throws=VisioError]
+    void raise_hand();
+
+    [Throws=VisioError]
+    void lower_hand();
+
+    boolean is_hand_raised();
+
+    void set_chat_open(boolean open);
+
+    u32 unread_count();
 
     void start_video_renderer(string track_sid);
 

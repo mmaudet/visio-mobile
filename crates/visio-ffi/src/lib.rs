@@ -257,6 +257,8 @@ pub enum VisioEvent {
     ActiveSpeakersChanged { participant_sids: Vec<String> },
     ConnectionQualityChanged { participant_sid: String, quality: ConnectionQuality },
     ChatMessageReceived { message: ChatMessage },
+    HandRaisedChanged { participant_sid: String, raised: bool, position: u32 },
+    UnreadCountChanged { count: u32 },
 }
 
 impl From<CoreVisioEvent> for VisioEvent {
@@ -291,6 +293,12 @@ impl From<CoreVisioEvent> for VisioEvent {
             }
             CoreVisioEvent::ChatMessageReceived(m) => {
                 Self::ChatMessageReceived { message: m.into() }
+            }
+            CoreVisioEvent::HandRaisedChanged { participant_sid, raised, position } => {
+                Self::HandRaisedChanged { participant_sid, raised, position }
+            }
+            CoreVisioEvent::UnreadCountChanged(count) => {
+                Self::UnreadCountChanged { count }
             }
         }
     }
@@ -560,6 +568,28 @@ impl VisioClient {
 
     pub fn set_camera_enabled_on_join(&self, enabled: bool) {
         self.settings.set_camera_enabled_on_join(enabled);
+    }
+
+    pub fn raise_hand(&self) -> Result<(), VisioError> {
+        self.rt.block_on(self.room_manager.raise_hand())
+            .map_err(VisioError::from)
+    }
+
+    pub fn lower_hand(&self) -> Result<(), VisioError> {
+        self.rt.block_on(self.room_manager.lower_hand())
+            .map_err(VisioError::from)
+    }
+
+    pub fn is_hand_raised(&self) -> bool {
+        self.rt.block_on(self.room_manager.is_hand_raised())
+    }
+
+    pub fn set_chat_open(&self, open: bool) {
+        self.chat.set_chat_open(open);
+    }
+
+    pub fn unread_count(&self) -> u32 {
+        self.chat.unread_count()
     }
 
     pub fn start_video_renderer(&self, track_sid: String) {
