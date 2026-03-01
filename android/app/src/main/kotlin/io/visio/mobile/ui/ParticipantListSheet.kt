@@ -51,11 +51,13 @@ fun ParticipantListSheet(
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false)
 
-    // Total count = remote participants + local user
-    val totalCount = participants.size + 1
+    val totalCount = participants.size
 
-    // Sort remote participants: hand raised first (by position), then alphabetically
-    val sorted = participants.sortedWith(
+    // The first participant is the local user (prepended by Rust).
+    // Sort remaining participants: hand raised first, then alphabetically.
+    val localP = participants.firstOrNull()
+    val remoteParticipants = participants.drop(1)
+    val sorted = remoteParticipants.sortedWith(
         compareByDescending<ParticipantInfo> { handRaisedMap[it.sid] != null }
             .thenBy { handRaisedMap[it.sid] ?: Int.MAX_VALUE }
             .thenBy { (it.name ?: it.identity).lowercase() }
@@ -98,16 +100,20 @@ fun ParticipantListSheet(
             verticalArrangement = Arrangement.spacedBy(2.dp)
         ) {
             // Local participant (always first)
-            item(key = "local") {
-                val name = localDisplayName.ifBlank { Strings.t("call.you", lang) }
-                ParticipantRow(
-                    name = name,
-                    suffix = "(${Strings.t("call.you", lang)})",
-                    isMuted = !localMicEnabled,
-                    hasVideo = localCameraEnabled,
-                    handRaisePosition = if (localIsHandRaised) 1 else 0,
-                    qualityName = "Excellent"
-                )
+            if (localP != null) {
+                item(key = localP.sid) {
+                    val name = localDisplayName.ifBlank {
+                        localP.name ?: Strings.t("call.you", lang)
+                    }
+                    ParticipantRow(
+                        name = name,
+                        suffix = "(${Strings.t("call.you", lang)})",
+                        isMuted = !localMicEnabled,
+                        hasVideo = localCameraEnabled,
+                        handRaisePosition = if (localIsHandRaised) 1 else 0,
+                        qualityName = "Excellent"
+                    )
+                }
             }
 
             // Remote participants

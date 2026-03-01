@@ -104,8 +104,8 @@ fun CallScreen(
 
     val context = LocalContext.current
     val lang = VisioManager.currentLang
-    var micEnabled by remember { mutableStateOf(true) }
-    var cameraEnabled by remember { mutableStateOf(true) }
+    var micEnabled by remember { mutableStateOf(false) }
+    var cameraEnabled by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var showAudioSheet by remember { mutableStateOf(false) }
     var showParticipantList by remember { mutableStateOf(false) }
@@ -168,9 +168,23 @@ fun CallScreen(
                     return@withContext
                 }
                 val user = username.ifBlank { null }
+                val settings = VisioManager.client.getSettings()
                 VisioManager.client.connect(roomUrl, user)
                 VisioManager.startAudioPlayout()
+
+                // Apply mic-on-join setting
+                if (settings.micEnabledOnJoin) {
+                    VisioManager.client.setMicrophoneEnabled(true)
+                    VisioManager.startAudioCapture()
+                }
                 micEnabled = VisioManager.client.isMicrophoneEnabled()
+
+                // Apply camera-on-join setting
+                if (settings.cameraEnabledOnJoin) {
+                    VisioManager.client.setCameraEnabled(true)
+                    VisioManager.startCameraCapture()
+                    VisioManager.refreshParticipantsPublic()
+                }
                 cameraEnabled = VisioManager.client.isCameraEnabled()
             } catch (e: Exception) {
                 errorMessage = e.message ?: "Connection failed"
@@ -338,7 +352,7 @@ fun CallScreen(
                 cameraEnabled = cameraEnabled,
                 isHandRaised = isHandRaised,
                 unreadCount = unreadCount,
-                participantCount = participants.size + 1,
+                participantCount = participants.size,
                 lang = lang,
                 onToggleMic = {
                     val newState = !micEnabled
