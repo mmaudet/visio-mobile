@@ -22,6 +22,7 @@ libwebrtc = "0.3.26"
 
 [build-dependencies]
 uniffi = { workspace = true, features = ["build"] }
+webrtc-sys-build = "0.3"
 
 [features]
 default = []

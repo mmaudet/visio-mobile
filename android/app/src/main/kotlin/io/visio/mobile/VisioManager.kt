@@ -1,8 +1,12 @@
 package io.visio.mobile
 
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 import uniffi.visio.ChatMessage
 import uniffi.visio.ConnectionState
 import uniffi.visio.ParticipantInfo
@@ -12,11 +16,11 @@ import uniffi.visio.VisioEventListener
 
 object VisioManager : VisioEventListener {
 
-    init {
-        System.loadLibrary("visio_ffi")
-    }
-
+    // Library loaded and WebRTC initialized by VisioApplication.onCreate()
     val client: VisioClient = VisioClient()
+
+    // IO scope for callbacks that call back into Rust (avoids nested block_on)
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     private val _connectionState = MutableStateFlow<ConnectionState>(ConnectionState.Disconnected)
     val connectionState: StateFlow<ConnectionState> = _connectionState.asStateFlow()
@@ -35,11 +39,11 @@ object VisioManager : VisioEventListener {
     }
 
     private fun refreshParticipants() {
-        _participants.value = client.participants()
+        scope.launch { _participants.value = client.participants() }
     }
 
     private fun refreshChatMessages() {
-        _chatMessages.value = client.chatMessages()
+        scope.launch { _chatMessages.value = client.chatMessages() }
     }
 
     override fun onEvent(event: VisioEvent) {

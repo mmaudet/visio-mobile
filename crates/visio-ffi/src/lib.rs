@@ -24,7 +24,7 @@ uniffi::include_scaffolding!("visio");
 
 #[cfg(target_os = "android")]
 #[unsafe(no_mangle)]
-pub extern "C" fn Java_io_visio_mobile_VisioManager_nativeInitWebrtc(
+pub extern "C" fn Java_io_visio_mobile_VisioApplication_nativeInitWebrtc(
     env: *mut std::ffi::c_void,
     _class: *mut std::ffi::c_void,
 ) {

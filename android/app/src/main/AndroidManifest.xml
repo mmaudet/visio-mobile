@@ -8,6 +8,7 @@
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
 
     <application
+        android:name=".VisioApplication"
         android:label="Visio"
         android:theme="@style/Theme.VisioMobile"
         android:supportsRtl="true">

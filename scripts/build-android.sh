@@ -13,6 +13,16 @@ mkdir -p android/app/src/main/jniLibs/arm64-v8a
 cp target/aarch64-linux-android/release/libvisio_ffi.so android/app/src/main/jniLibs/arm64-v8a/
 cp target/aarch64-linux-android/release/libvisio_video.so android/app/src/main/jniLibs/arm64-v8a/
 
+echo "==> Copying libwebrtc.jar to app/libs..."
+mkdir -p android/app/libs
+WEBRTC_JAR=$(find target/release/build -name "libwebrtc.jar" -path "*/android-arm64-release/*" 2>/dev/null | head -1)
+if [ -n "$WEBRTC_JAR" ]; then
+    cp "$WEBRTC_JAR" android/app/libs/
+    echo "    Found: $WEBRTC_JAR"
+else
+    echo "    WARNING: libwebrtc.jar not found in build artifacts"
+fi
+
 echo "==> Building APK..."
 cd android
 ./gradlew assembleDebug
