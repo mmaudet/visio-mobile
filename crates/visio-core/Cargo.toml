@@ -17,6 +17,7 @@ livekit-api = { workspace = true }
 reqwest = { workspace = true }
 urlencoding = { workspace = true }
 futures-util = { workspace = true }
+regex = "1"
 
 [dev-dependencies]
 tempfile = "3"

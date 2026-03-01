@@ -73,6 +73,35 @@ impl AuthService {
         })
     }
 
+    /// Extract and validate the room slug from user input.
+    /// Accepts full URL (`https://meet.example.com/abc-defg-hij`) or bare slug (`abc-defg-hij`).
+    /// Slug format: 3 lowercase + dash + 4 lowercase + dash + 3 lowercase.
+    pub fn extract_slug(input: &str) -> Result<String, VisioError> {
+        let input = input.trim().trim_end_matches('/');
+        let candidate = if input.contains('/') {
+            input.rsplit('/').next().unwrap_or("")
+        } else {
+            input
+        };
+        let re = regex::Regex::new(r"^[a-z]{3}-[a-z]{4}-[a-z]{3}$").unwrap();
+        if re.is_match(candidate) {
+            Ok(candidate.to_string())
+        } else {
+            Err(VisioError::InvalidUrl(format!(
+                "invalid room slug format: '{candidate}'"
+            )))
+        }
+    }
+
+    /// Validate a room URL by calling the Meet API.
+    /// Returns Ok(TokenInfo) if the room exists, Err otherwise.
+    pub async fn validate_room(
+        meet_url: &str,
+        username: Option<&str>,
+    ) -> Result<TokenInfo, VisioError> {
+        Self::request_token(meet_url, username).await
+    }
+
     /// Parse a Meet URL into (instance, room_slug).
     fn parse_meet_url(url: &str) -> Result<(String, String), VisioError> {
         let url = url
@@ -124,5 +153,32 @@ mod tests {
     fn parse_meet_url_invalid() {
         assert!(AuthService::parse_meet_url("invalid").is_err());
         assert!(AuthService::parse_meet_url("").is_err());
+    }
+
+    #[test]
+    fn extract_slug_from_full_url() {
+        let slug = AuthService::extract_slug("https://meet.linagora.com/dpd-jffv-trg").unwrap();
+        assert_eq!(slug, "dpd-jffv-trg");
+    }
+
+    #[test]
+    fn extract_slug_from_bare_slug() {
+        let slug = AuthService::extract_slug("dpd-jffv-trg").unwrap();
+        assert_eq!(slug, "dpd-jffv-trg");
+    }
+
+    #[test]
+    fn extract_slug_invalid_format() {
+        assert!(AuthService::extract_slug("hello").is_err());
+        assert!(AuthService::extract_slug("").is_err());
+        assert!(AuthService::extract_slug("abc-defg-hi").is_err());
+        assert!(AuthService::extract_slug("ABC-DEFG-HIJ").is_err());
+    }
+
+    #[test]
+    fn extract_slug_from_url_with_trailing_slash() {
+        let slug =
+            AuthService::extract_slug("https://meet.example.com/abc-defg-hij/").unwrap();
+        assert_eq!(slug, "abc-defg-hij");
     }
 }
