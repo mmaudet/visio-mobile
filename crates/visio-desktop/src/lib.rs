@@ -3,7 +3,7 @@ use tokio::sync::Mutex;
 
 use tauri::{AppHandle, Emitter};
 use visio_core::{
-    ChatService, MeetingControls, RoomManager, TrackInfo, TrackKind, VisioEvent,
+    ChatService, MeetingControls, RoomManager, SettingsStore, TrackInfo, TrackKind, VisioEvent,
     VisioEventListener,
 };
 
@@ -51,6 +51,7 @@ struct VisioState {
     room: Arc<Mutex<RoomManager>>,
     controls: Arc<Mutex<MeetingControls>>,
     chat: Arc<Mutex<ChatService>>,
+    settings: SettingsStore,
     #[cfg(target_os = "macos")]
     camera_capture: std::sync::Mutex<Option<camera_macos::MacCameraCapture>>,
 }
@@ -251,6 +252,37 @@ async fn get_messages(
     Ok(result)
 }
 
+#[tauri::command]
+fn get_settings(state: tauri::State<'_, VisioState>) -> Result<serde_json::Value, String> {
+    let s = state.settings.get();
+    Ok(serde_json::json!({
+        "display_name": s.display_name,
+        "language": s.language,
+        "mic_enabled_on_join": s.mic_enabled_on_join,
+        "camera_enabled_on_join": s.camera_enabled_on_join,
+    }))
+}
+
+#[tauri::command]
+fn set_display_name(state: tauri::State<'_, VisioState>, name: Option<String>) {
+    state.settings.set_display_name(name);
+}
+
+#[tauri::command]
+fn set_language(state: tauri::State<'_, VisioState>, lang: Option<String>) {
+    state.settings.set_language(lang);
+}
+
+#[tauri::command]
+fn set_mic_enabled_on_join(state: tauri::State<'_, VisioState>, enabled: bool) {
+    state.settings.set_mic_enabled_on_join(enabled);
+}
+
+#[tauri::command]
+fn set_camera_enabled_on_join(state: tauri::State<'_, VisioState>, enabled: bool) {
+    state.settings.set_camera_enabled_on_join(enabled);
+}
+
 // ---------------------------------------------------------------------------
 // Entry point
 // ---------------------------------------------------------------------------
@@ -263,6 +295,12 @@ pub fn run() {
             }),
         )
         .init();
+
+    let data_dir = dirs::data_dir()
+        .unwrap_or_else(|| std::path::PathBuf::from("."))
+        .join("io.visio.desktop");
+    std::fs::create_dir_all(&data_dir).ok();
+    let settings = SettingsStore::new(data_dir.to_str().unwrap());
 
     let room_manager = RoomManager::new();
     let controls = room_manager.controls();
@@ -290,6 +328,7 @@ pub fn run() {
         room: room_arc,
         controls: Arc::new(Mutex::new(controls)),
         chat: Arc::new(Mutex::new(chat)),
+        settings,
         #[cfg(target_os = "macos")]
         camera_capture: std::sync::Mutex::new(None),
     };
@@ -321,6 +360,11 @@ pub fn run() {
             toggle_camera,
             send_chat,
             get_messages,
+            get_settings,
+            set_display_name,
+            set_language,
+            set_mic_enabled_on_join,
+            set_camera_enabled_on_join,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

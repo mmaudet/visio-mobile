@@ -5374,6 +5374,7 @@ name = "visio-desktop"
 version = "0.1.0"
 dependencies = [
  "block2",
+ "dirs",
  "livekit",
  "objc2",
  "objc2-foundation",
