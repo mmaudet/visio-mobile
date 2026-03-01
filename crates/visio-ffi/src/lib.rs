@@ -354,3 +354,77 @@ impl VisioClient {
         self.room_manager.add_listener(bridge);
     }
 }
+
+// ── C FFI: video attach / detach ─────────────────────────────────────
+
+/// Attach a native surface for video rendering.
+///
+/// Called from native code (Kotlin JNI / Swift C interop) to start
+/// rendering frames from a subscribed video track onto a platform surface.
+///
+/// `client_ptr` must be a valid pointer to a `VisioClient` (obtained by
+/// converting an `Arc<VisioClient>` via `Arc::into_raw`). The caller
+/// retains ownership — this function does **not** consume the pointer.
+///
+/// # Safety
+/// - `client_ptr` must point to a live `VisioClient`.
+/// - `track_sid` must be a valid null-terminated UTF-8 C string.
+/// - `surface` must be a valid platform surface handle that outlives the
+///   renderer (until `visio_detach_video_surface` is called).
+///
+/// Returns 0 on success, -1 on invalid arguments, -2 if the track is not
+/// found.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn visio_attach_video_surface(
+    client_ptr: *const VisioClient,
+    track_sid: *const std::ffi::c_char,
+    surface: *mut std::ffi::c_void,
+) -> i32 {
+    if client_ptr.is_null() || track_sid.is_null() || surface.is_null() {
+        return -1;
+    }
+
+    let client = unsafe { &*client_ptr };
+    let sid = unsafe { std::ffi::CStr::from_ptr(track_sid) };
+    let sid_str = match sid.to_str() {
+        Ok(s) => s.to_string(),
+        Err(_) => return -1,
+    };
+
+    // Look up the track from the room manager
+    let track = client
+        .rt
+        .block_on(client.room_manager.get_video_track(&sid_str));
+    match track {
+        Some(video_track) => {
+            visio_video::start_track_renderer(sid_str, video_track, surface);
+            0
+        }
+        None => {
+            tracing::warn!("no video track found for SID {sid_str}");
+            -2
+        }
+    }
+}
+
+/// Detach the video surface for a track, stopping frame rendering.
+///
+/// # Safety
+/// `track_sid` must be a valid null-terminated UTF-8 C string.
+///
+/// Returns 0 on success, -1 on invalid arguments.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn visio_detach_video_surface(
+    track_sid: *const std::ffi::c_char,
+) -> i32 {
+    if track_sid.is_null() {
+        return -1;
+    }
+    let sid = unsafe { std::ffi::CStr::from_ptr(track_sid) };
+    let sid_str = match sid.to_str() {
+        Ok(s) => s,
+        Err(_) => return -1,
+    };
+    visio_video::stop_track_renderer(sid_str);
+    0
+}

@@ -9,9 +9,11 @@ crate-type = ["cdylib", "staticlib"]
 
 [dependencies]
 visio-core = { path = "../visio-core" }
+visio-video = { path = "../visio-video" }
 uniffi = { workspace = true }
 tokio = { workspace = true }
 thiserror = { workspace = true }
+tracing = { workspace = true }
 
 [build-dependencies]
 uniffi = { workspace = true, features = ["build"] }
