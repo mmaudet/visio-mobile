@@ -11,5 +11,8 @@ serde_json = { workspace = true }
 tracing = { workspace = true }
 thiserror = { workspace = true }
 uuid = { workspace = true }
-livekit = { workspace = true }
+livekit = { workspace = true, features = ["rustls-tls-webpki-roots"] }
 livekit-api = { workspace = true }
+reqwest = { workspace = true }
+urlencoding = { workspace = true }
+futures-util = { workspace = true }

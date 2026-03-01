@@ -23,3 +23,6 @@ uuid = { version = "1", features = ["v4"] }
 livekit = "=0.7.32"
 livekit-api = "0.4"
 uniffi = "0.29"
+reqwest = { version = "0.12", features = ["json"] }
+urlencoding = "2"
+futures-util = "0.3"
