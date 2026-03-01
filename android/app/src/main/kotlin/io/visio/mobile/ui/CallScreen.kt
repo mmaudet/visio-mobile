@@ -58,9 +58,18 @@ fun CallScreen(
     var cameraEnabled by remember { mutableStateOf(true) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
 
-    LaunchedEffect(roomUrl) {
+    // Use Unit key so this only fires once per CallScreen composition,
+    // not on every back-navigation from ChatScreen.
+    LaunchedEffect(Unit) {
         withContext(Dispatchers.IO) {
             try {
+                // Only connect if not already connected (prevents double sessions)
+                val state = VisioManager.connectionState.value
+                if (state is ConnectionState.Connected || state is ConnectionState.Connecting) {
+                    micEnabled = VisioManager.client.isMicrophoneEnabled()
+                    cameraEnabled = VisioManager.client.isCameraEnabled()
+                    return@withContext
+                }
                 val user = username.ifBlank { null }
                 VisioManager.client.connect(roomUrl, user)
                 micEnabled = VisioManager.client.isMicrophoneEnabled()

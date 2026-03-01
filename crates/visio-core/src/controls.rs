@@ -137,50 +137,78 @@ impl MeetingControls {
     }
 
     /// Toggle the microphone on/off.
+    ///
+    /// If enabling and no microphone track has been published yet,
+    /// automatically publishes one first.
     pub async fn set_microphone_enabled(&self, enabled: bool) -> Result<(), VisioError> {
-        let room = self.room.lock().await;
-        let room = room
-            .as_ref()
-            .ok_or_else(|| VisioError::Room("not connected".into()))?;
+        {
+            let room = self.room.lock().await;
+            let room = room
+                .as_ref()
+                .ok_or_else(|| VisioError::Room("not connected".into()))?;
 
-        let local = room.local_participant();
-        for (_, pub_) in local.track_publications() {
-            if pub_.source() == LkTrackSource::Microphone {
-                if enabled {
-                    pub_.unmute();
-                } else {
-                    pub_.mute();
+            let local = room.local_participant();
+            let has_mic_track = local
+                .track_publications()
+                .values()
+                .any(|p| p.source() == LkTrackSource::Microphone);
+
+            if has_mic_track {
+                for (_, pub_) in local.track_publications() {
+                    if pub_.source() == LkTrackSource::Microphone {
+                        if enabled { pub_.unmute(); } else { pub_.mute(); }
+                        break;
+                    }
                 }
-                break;
+                *self.mic_enabled.lock().await = enabled;
+                tracing::info!("microphone enabled: {enabled}");
+                return Ok(());
             }
         }
-
-        *self.mic_enabled.lock().await = enabled;
-        tracing::info!("microphone enabled: {enabled}");
+        // No mic track yet — publish if enabling, otherwise just update state.
+        if enabled {
+            self.publish_microphone().await?;
+        } else {
+            *self.mic_enabled.lock().await = false;
+        }
         Ok(())
     }
 
     /// Toggle the camera on/off.
+    ///
+    /// If enabling and no camera track has been published yet,
+    /// automatically publishes one first.
     pub async fn set_camera_enabled(&self, enabled: bool) -> Result<(), VisioError> {
-        let room = self.room.lock().await;
-        let room = room
-            .as_ref()
-            .ok_or_else(|| VisioError::Room("not connected".into()))?;
+        {
+            let room = self.room.lock().await;
+            let room = room
+                .as_ref()
+                .ok_or_else(|| VisioError::Room("not connected".into()))?;
 
-        let local = room.local_participant();
-        for (_, pub_) in local.track_publications() {
-            if pub_.source() == LkTrackSource::Camera {
-                if enabled {
-                    pub_.unmute();
-                } else {
-                    pub_.mute();
+            let local = room.local_participant();
+            let has_camera_track = local
+                .track_publications()
+                .values()
+                .any(|p| p.source() == LkTrackSource::Camera);
+
+            if has_camera_track {
+                for (_, pub_) in local.track_publications() {
+                    if pub_.source() == LkTrackSource::Camera {
+                        if enabled { pub_.unmute(); } else { pub_.mute(); }
+                        break;
+                    }
                 }
-                break;
+                *self.camera_enabled.lock().await = enabled;
+                tracing::info!("camera enabled: {enabled}");
+                return Ok(());
             }
         }
-
-        *self.camera_enabled.lock().await = enabled;
-        tracing::info!("camera enabled: {enabled}");
+        // No camera track yet — publish if enabling, otherwise just update state.
+        if enabled {
+            self.publish_camera().await?;
+        } else {
+            *self.camera_enabled.lock().await = false;
+        }
         Ok(())
     }
 
