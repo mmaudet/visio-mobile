@@ -102,3 +102,73 @@ impl EventEmitter {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    struct CountingListener {
+        count: Arc<AtomicUsize>,
+    }
+
+    impl VisioEventListener for CountingListener {
+        fn on_event(&self, _event: VisioEvent) {
+            self.count.fetch_add(1, Ordering::SeqCst);
+        }
+    }
+
+    #[test]
+    fn emitter_dispatches_to_listener() {
+        let emitter = EventEmitter::new();
+        let count = Arc::new(AtomicUsize::new(0));
+        let listener = Arc::new(CountingListener { count: count.clone() });
+
+        emitter.add_listener(listener);
+        emitter.emit(VisioEvent::ConnectionStateChanged(ConnectionState::Connected));
+
+        assert_eq!(count.load(Ordering::SeqCst), 1);
+    }
+
+    #[test]
+    fn emitter_dispatches_to_multiple_listeners() {
+        let emitter = EventEmitter::new();
+        let count1 = Arc::new(AtomicUsize::new(0));
+        let count2 = Arc::new(AtomicUsize::new(0));
+
+        emitter.add_listener(Arc::new(CountingListener { count: count1.clone() }));
+        emitter.add_listener(Arc::new(CountingListener { count: count2.clone() }));
+
+        emitter.emit(VisioEvent::ConnectionStateChanged(ConnectionState::Connected));
+
+        assert_eq!(count1.load(Ordering::SeqCst), 1);
+        assert_eq!(count2.load(Ordering::SeqCst), 1);
+    }
+
+    struct EventCapture {
+        events: Arc<std::sync::Mutex<Vec<VisioEvent>>>,
+    }
+
+    impl VisioEventListener for EventCapture {
+        fn on_event(&self, event: VisioEvent) {
+            self.events.lock().unwrap().push(event);
+        }
+    }
+
+    #[test]
+    fn emitter_delivers_correct_events() {
+        let emitter = EventEmitter::new();
+        let events = Arc::new(std::sync::Mutex::new(Vec::new()));
+        let listener = Arc::new(EventCapture { events: events.clone() });
+
+        emitter.add_listener(listener);
+        emitter.emit(VisioEvent::ParticipantLeft("p1".to_string()));
+
+        let captured = events.lock().unwrap();
+        assert_eq!(captured.len(), 1);
+        match &captured[0] {
+            VisioEvent::ParticipantLeft(sid) => assert_eq!(sid, "p1"),
+            _ => panic!("expected ParticipantLeft"),
+        }
+    }
+}
