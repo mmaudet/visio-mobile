@@ -1,27 +1,34 @@
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use livekit::prelude::*;
+use livekit::data_stream::StreamTextOptions;
 
 use crate::errors::VisioError;
 use crate::events::{ChatMessage, EventEmitter, VisioEvent};
+
+/// Shared message store between RoomManager event loop and ChatService.
+pub type MessageStore = Arc<Mutex<Vec<ChatMessage>>>;
+
+/// The topic used by LiveKit Meet / LaSuite Meet for chat messages.
+const CHAT_TOPIC: &str = "lk.chat";
 
 /// Manages chat messaging via LiveKit data channels.
 pub struct ChatService {
     room: Arc<Mutex<Option<Arc<Room>>>>,
     emitter: EventEmitter,
-    messages: Arc<Mutex<Vec<ChatMessage>>>,
+    messages: MessageStore,
 }
 
 impl ChatService {
-    pub fn new(room: Arc<Mutex<Option<Arc<Room>>>>, emitter: EventEmitter) -> Self {
+    pub fn new(room: Arc<Mutex<Option<Arc<Room>>>>, emitter: EventEmitter, messages: MessageStore) -> Self {
         Self {
             room,
             emitter,
-            messages: Arc::new(Mutex::new(Vec::new())),
+            messages,
         }
     }
 
-    /// Send a chat message to all participants.
+    /// Send a chat message to all participants using the Stream API (lk.chat topic).
     pub async fn send_message(&self, text: &str) -> Result<ChatMessage, VisioError> {
         let room = self.room.lock().await;
         let room = room
@@ -30,17 +37,22 @@ impl ChatService {
 
         let local = room.local_participant();
 
-        let lk_msg = local
-            .send_chat_message(text.to_string(), None, None)
+        let options = StreamTextOptions {
+            topic: CHAT_TOPIC.to_string(),
+            ..Default::default()
+        };
+
+        let info = local
+            .send_text(text, options)
             .await
             .map_err(|e| VisioError::Room(format!("send chat: {e}")))?;
 
         let msg = ChatMessage {
-            id: lk_msg.id,
+            id: info.id,
             sender_sid: local.sid().to_string(),
             sender_name: local.name().to_string(),
-            text: lk_msg.message,
-            timestamp_ms: lk_msg.timestamp as u64,
+            text: text.to_string(),
+            timestamp_ms: info.timestamp.timestamp_millis() as u64,
         };
 
         self.messages.lock().await.push(msg.clone());

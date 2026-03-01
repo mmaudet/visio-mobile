@@ -8,12 +8,14 @@ use livekit::track::{
     TrackSource as LkTrackSource,
 };
 use livekit::participant::ConnectionQuality as LkConnectionQuality;
+use livekit::data_stream::StreamReader;
 
 use crate::auth::AuthService;
+use crate::chat::MessageStore;
 use crate::errors::VisioError;
 use crate::events::{
-    ConnectionQuality, ConnectionState, EventEmitter, ParticipantInfo, TrackInfo, TrackKind,
-    TrackSource, VisioEvent, VisioEventListener,
+    ChatMessage, ConnectionQuality, ConnectionState, EventEmitter, ParticipantInfo, TrackInfo,
+    TrackKind, TrackSource, VisioEvent, VisioEventListener,
 };
 use crate::participants::ParticipantManager;
 
@@ -24,6 +26,7 @@ pub struct RoomManager {
     participants: Arc<Mutex<ParticipantManager>>,
     connection_state: Arc<Mutex<ConnectionState>>,
     subscribed_tracks: Arc<Mutex<HashMap<String, RemoteVideoTrack>>>,
+    messages: MessageStore,
 }
 
 impl RoomManager {
@@ -34,6 +37,7 @@ impl RoomManager {
             participants: Arc::new(Mutex::new(ParticipantManager::new())),
             connection_state: Arc::new(Mutex::new(ConnectionState::Disconnected)),
             subscribed_tracks: Arc::new(Mutex::new(HashMap::new())),
+            messages: Arc::new(Mutex::new(Vec::new())),
         }
     }
 
@@ -49,7 +53,7 @@ impl RoomManager {
 
     /// Create a ChatService bound to this room.
     pub fn chat(&self) -> crate::chat::ChatService {
-        crate::chat::ChatService::new(self.room.clone(), self.emitter.clone())
+        crate::chat::ChatService::new(self.room.clone(), self.emitter.clone(), self.messages.clone())
     }
 
     /// Get current connection state.
@@ -141,9 +145,10 @@ impl RoomManager {
         let connection_state = self.connection_state.clone();
         let room_ref = self.room.clone();
         let subscribed_tracks = self.subscribed_tracks.clone();
+        let messages = self.messages.clone();
 
         tokio::spawn(async move {
-            Self::event_loop(events, emitter, participants, connection_state, room_ref, subscribed_tracks).await;
+            Self::event_loop(events, emitter, participants, connection_state, room_ref, subscribed_tracks, messages).await;
         });
 
         Ok(())
@@ -159,6 +164,7 @@ impl RoomManager {
         }
         self.participants.lock().await.clear();
         self.subscribed_tracks.lock().await.clear();
+        self.messages.lock().await.clear();
         self.set_connection_state(ConnectionState::Disconnected).await;
     }
 
@@ -212,6 +218,7 @@ impl RoomManager {
         connection_state: Arc<Mutex<ConnectionState>>,
         room_ref: Arc<Mutex<Option<Arc<Room>>>>,
         subscribed_tracks: Arc<Mutex<HashMap<String, RemoteVideoTrack>>>,
+        messages: MessageStore,
     ) {
         let mut reconnect_attempt: u32 = 0;
 
@@ -242,6 +249,7 @@ impl RoomManager {
                     emitter.emit(VisioEvent::ConnectionStateChanged(ConnectionState::Disconnected));
                     participants.lock().await.clear();
                     subscribed_tracks.lock().await.clear();
+                    messages.lock().await.clear();
                     *room_ref.lock().await = None;
                     break;
                 }
@@ -369,6 +377,7 @@ impl RoomManager {
                 }
 
                 RoomEvent::ChatMessage { message, participant, .. } => {
+                    tracing::info!("ChatMessage received: id={} text={}", message.id, message.message);
                     let sender_sid = participant
                         .as_ref()
                         .map(|p| p.sid().to_string())
@@ -378,18 +387,118 @@ impl RoomManager {
                         .map(|p| p.name().to_string())
                         .unwrap_or_default();
 
-                    let msg = crate::events::ChatMessage {
+                    let msg = ChatMessage {
                         id: message.id,
                         sender_sid,
                         sender_name,
                         text: message.message,
                         timestamp_ms: message.timestamp as u64,
                     };
+                    messages.lock().await.push(msg.clone());
                     emitter.emit(VisioEvent::ChatMessageReceived(msg));
                 }
 
+                RoomEvent::TextStreamOpened { reader, topic, participant_identity } => {
+                    if topic == "lk.chat" {
+                        let messages = messages.clone();
+                        let emitter = emitter.clone();
+                        let room_ref = room_ref.clone();
+                        let identity = participant_identity.to_string();
+
+                        tokio::spawn(async move {
+                            let reader = reader.take();
+                            if reader.is_none() {
+                                tracing::warn!("TextStreamOpened: reader already taken");
+                                return;
+                            }
+                            let reader = reader.unwrap();
+                            let stream_id = reader.info().id.clone();
+                            let timestamp_ms = reader.info().timestamp.timestamp_millis() as u64;
+
+                            match reader.read_all().await {
+                                Ok(text) => {
+                                    // Look up participant name from room
+                                    let sender_name = {
+                                        let room = room_ref.lock().await;
+                                        room.as_ref()
+                                            .and_then(|r| {
+                                                r.remote_participants()
+                                                    .values()
+                                                    .find(|p| p.identity().to_string() == identity)
+                                                    .map(|p| p.name().to_string())
+                                            })
+                                            .unwrap_or_else(|| identity.clone())
+                                    };
+
+                                    let msg = ChatMessage {
+                                        id: stream_id,
+                                        sender_sid: identity,
+                                        sender_name,
+                                        text,
+                                        timestamp_ms,
+                                    };
+                                    tracing::info!("Chat via TextStream: from={} text={}", msg.sender_name, msg.text);
+                                    messages.lock().await.push(msg.clone());
+                                    emitter.emit(VisioEvent::ChatMessageReceived(msg));
+                                }
+                                Err(e) => {
+                                    tracing::warn!("Failed to read chat text stream: {e}");
+                                }
+                            }
+                        });
+                    } else {
+                        tracing::debug!("TextStreamOpened: topic={topic} (ignored)");
+                    }
+                }
+
+                RoomEvent::DataReceived { payload, topic, kind, participant } => {
+                    let psid = participant
+                        .as_ref()
+                        .map(|p| p.sid().to_string())
+                        .unwrap_or_default();
+                    let topic_str = topic.as_deref().unwrap_or("none");
+                    tracing::debug!(
+                        "DataReceived: from={psid} topic={topic_str} kind={kind:?} len={}",
+                        payload.len()
+                    );
+
+                    // Legacy fallback: chat messages via DataReceived with topic "lk-chat-topic"
+                    // New clients send both Stream + legacy; "ignoreLegacy" flag means
+                    // the TextStreamOpened handler already processed it.
+                    if topic_str == "lk-chat-topic" {
+                        if let Ok(text) = std::str::from_utf8(&payload) {
+                            if let Ok(json) = serde_json::from_str::<serde_json::Value>(text) {
+                                // Skip if sender uses Stream API (we handle it in TextStreamOpened)
+                                if json["ignoreLegacy"].as_bool() == Some(true) {
+                                    tracing::debug!("Skipping legacy DataReceived (ignoreLegacy=true)");
+                                    continue;
+                                }
+
+                                let sender_name = participant
+                                    .as_ref()
+                                    .map(|p| p.name().to_string())
+                                    .unwrap_or_default();
+
+                                let msg = ChatMessage {
+                                    id: json["id"].as_str().unwrap_or("").to_string(),
+                                    sender_sid: psid.clone(),
+                                    sender_name,
+                                    text: json["message"].as_str().unwrap_or("").to_string(),
+                                    timestamp_ms: json["timestamp"].as_u64().unwrap_or(0),
+                                };
+
+                                if !msg.text.is_empty() {
+                                    tracing::info!("Chat via DataReceived: from={psid} text={}", msg.text);
+                                    messages.lock().await.push(msg.clone());
+                                    emitter.emit(VisioEvent::ChatMessageReceived(msg));
+                                }
+                            }
+                        }
+                    }
+                }
+
                 _ => {
-                    // Ignore other events for now
+                    tracing::debug!("unhandled room event: {event:?}");
                 }
             }
         }
