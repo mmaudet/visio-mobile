@@ -3,7 +3,7 @@
 //! Provides a VisioClient object that wraps RoomManager, MeetingControls,
 //! and ChatService into a single FFI-safe interface.
 
-use std::sync::Arc;
+use std::sync::{Arc, Mutex as StdMutex};
 use visio_core::{
     self,
     events::{
@@ -430,7 +430,24 @@ impl VisioClient {
             self.controls
                 .set_camera_enabled(enabled)
                 .await
-                .map_err(VisioError::from)
+                .map_err(VisioError::from)?;
+
+            // On Android, store/clear the video source for the Camera2 → JNI pipeline
+            #[cfg(target_os = "android")]
+            {
+                let mut guard = CAMERA_SOURCE.lock().unwrap();
+                if enabled {
+                    if let Some(source) = self.controls.video_source().await {
+                        visio_log("VISIO FFI: camera source stored for JNI pipeline");
+                        *guard = Some(source);
+                    }
+                } else {
+                    visio_log("VISIO FFI: camera source cleared");
+                    *guard = None;
+                }
+            }
+
+            Ok(())
         })
     }
 
@@ -486,6 +503,140 @@ impl VisioClient {
     pub fn set_camera_enabled_on_join(&self, enabled: bool) {
         self.settings.set_camera_enabled_on_join(enabled);
     }
+}
+
+// ── Global camera video source (for Android Camera2 → Rust pipeline) ─
+
+#[cfg(target_os = "android")]
+use livekit::webrtc::prelude::*;
+#[cfg(target_os = "android")]
+use livekit::webrtc::video_source::native::NativeVideoSource;
+
+/// Stores the NativeVideoSource after `set_camera_enabled(true)` publishes
+/// the camera track. The Android CameraCapture Kotlin class pushes YUV frames
+/// into this source via JNI → `visio_push_camera_frame()`.
+#[cfg(target_os = "android")]
+static CAMERA_SOURCE: StdMutex<Option<NativeVideoSource>> = StdMutex::new(None);
+
+/// Receive a YUV_420_888 frame from the Android Camera2 pipeline and feed it
+/// into the LiveKit NativeVideoSource.
+///
+/// Called from Kotlin via JNI on the ImageReader callback thread.
+/// ByteBuffer parameters are direct buffers from `Image.Plane.getBuffer()`.
+///
+/// # Safety
+/// - `env` must be a valid JNI environment pointer.
+/// - `y_buf`, `u_buf`, `v_buf` must be valid direct ByteBuffer jobjects.
+#[cfg(target_os = "android")]
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn Java_io_visio_mobile_NativeVideo_nativePushCameraFrame(
+    env: *mut jni::sys::JNIEnv,
+    _class: jni::sys::jobject,
+    y_buf: jni::sys::jobject,
+    u_buf: jni::sys::jobject,
+    v_buf: jni::sys::jobject,
+    y_stride: jni::sys::jint,
+    u_stride: jni::sys::jint,
+    v_stride: jni::sys::jint,
+    u_pixel_stride: jni::sys::jint,
+    v_pixel_stride: jni::sys::jint,
+    width: jni::sys::jint,
+    height: jni::sys::jint,
+) {
+    let guard = CAMERA_SOURCE.lock().unwrap();
+    let Some(source) = guard.as_ref() else {
+        return;
+    };
+
+    // Get direct buffer addresses from ByteBuffer objects
+    let jni_env = unsafe { jni::JNIEnv::from_raw(env) }.expect("invalid JNIEnv");
+
+    let y_ptr = unsafe {
+        jni_env.get_direct_buffer_address(&jni::objects::JByteBuffer::from_raw(y_buf))
+    };
+    let u_ptr = unsafe {
+        jni_env.get_direct_buffer_address(&jni::objects::JByteBuffer::from_raw(u_buf))
+    };
+    let v_ptr = unsafe {
+        jni_env.get_direct_buffer_address(&jni::objects::JByteBuffer::from_raw(v_buf))
+    };
+
+    let (Ok(y_ptr), Ok(u_ptr), Ok(v_ptr)) = (y_ptr, u_ptr, v_ptr) else {
+        return;
+    };
+
+    let w = width as u32;
+    let h = height as u32;
+    let ys = y_stride as usize;
+    let us = u_stride as usize;
+    let vs = v_stride as usize;
+    let ups = u_pixel_stride as usize;
+    let vps = v_pixel_stride as usize;
+    let wu = w as usize;
+    let hu = h as usize;
+    let chroma_h = hu / 2;
+    let chroma_w = wu / 2;
+
+    let mut i420 = I420Buffer::new(w, h);
+    let strides = i420.strides();
+    let (y_dst, u_dst, v_dst) = i420.data_mut();
+
+    // Copy Y plane row-by-row (Y always has pixelStride=1)
+    for row in 0..hu {
+        let src = unsafe { std::slice::from_raw_parts(y_ptr.add(row * ys), wu) };
+        let dst_start = row * strides.0 as usize;
+        y_dst[dst_start..dst_start + wu].copy_from_slice(src);
+    }
+
+    // Copy U plane — handle pixelStride (1 = planar I420, 2 = semi-planar NV12)
+    for row in 0..chroma_h {
+        let row_base = unsafe { u_ptr.add(row * us) };
+        let dst_start = row * strides.1 as usize;
+        if ups == 1 {
+            let src = unsafe { std::slice::from_raw_parts(row_base, chroma_w) };
+            u_dst[dst_start..dst_start + chroma_w].copy_from_slice(src);
+        } else {
+            for col in 0..chroma_w {
+                u_dst[dst_start + col] = unsafe { *row_base.add(col * ups) };
+            }
+        }
+    }
+
+    // Copy V plane — same pixel stride handling
+    for row in 0..chroma_h {
+        let row_base = unsafe { v_ptr.add(row * vs) };
+        let dst_start = row * strides.2 as usize;
+        if vps == 1 {
+            let src = unsafe { std::slice::from_raw_parts(row_base, chroma_w) };
+            v_dst[dst_start..dst_start + chroma_w].copy_from_slice(src);
+        } else {
+            for col in 0..chroma_w {
+                v_dst[dst_start + col] = unsafe { *row_base.add(col * vps) };
+            }
+        }
+    }
+
+    let frame = VideoFrame {
+        rotation: VideoRotation::VideoRotation0,
+        timestamp_us: 0,
+        buffer: i420,
+    };
+    source.capture_frame(&frame);
+
+    // Prevent Drop from calling DestroyJavaVM
+    std::mem::forget(jni_env);
+}
+
+/// Clear the global camera source (called when camera is disabled).
+#[cfg(target_os = "android")]
+#[unsafe(no_mangle)]
+pub extern "C" fn Java_io_visio_mobile_NativeVideo_nativeStopCameraCapture(
+    _env: *mut jni::sys::JNIEnv,
+    _class: jni::sys::jobject,
+) {
+    visio_log("VISIO FFI: nativeStopCameraCapture — clearing camera source");
+    let mut guard = CAMERA_SOURCE.lock().unwrap();
+    *guard = None;
 }
 
 // ── C FFI: video attach / detach ─────────────────────────────────────

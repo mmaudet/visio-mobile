@@ -29,7 +29,12 @@ import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import android.Manifest
+import android.content.pm.PackageManager
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -38,7 +43,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
 import io.visio.mobile.VisioManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -54,9 +61,30 @@ fun CallScreen(
     val connectionState by VisioManager.connectionState.collectAsState()
     val participants by VisioManager.participants.collectAsState()
 
+    val context = LocalContext.current
     var micEnabled by remember { mutableStateOf(true) }
     var cameraEnabled by remember { mutableStateOf(true) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
+
+    // Camera permission launcher
+    val cameraPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) {
+            try {
+                VisioManager.client.setCameraEnabled(true)
+                VisioManager.startCameraCapture()
+                cameraEnabled = true
+            } catch (_: Exception) {}
+        }
+    }
+
+    // Stop camera capture when leaving the call screen
+    DisposableEffect(Unit) {
+        onDispose {
+            VisioManager.stopCameraCapture()
+        }
+    }
 
     // Use Unit key so this only fires once per CallScreen composition,
     // not on every back-navigation from ChatScreen.
@@ -106,8 +134,24 @@ fun CallScreen(
                     IconButton(onClick = {
                         try {
                             val newState = !cameraEnabled
-                            VisioManager.client.setCameraEnabled(newState)
-                            cameraEnabled = newState
+                            if (newState) {
+                                // Check / request CAMERA permission before enabling
+                                val hasPermission = ContextCompat.checkSelfPermission(
+                                    context, Manifest.permission.CAMERA
+                                ) == PackageManager.PERMISSION_GRANTED
+
+                                if (hasPermission) {
+                                    VisioManager.client.setCameraEnabled(true)
+                                    VisioManager.startCameraCapture()
+                                    cameraEnabled = true
+                                } else {
+                                    cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+                                }
+                            } else {
+                                VisioManager.stopCameraCapture()
+                                VisioManager.client.setCameraEnabled(false)
+                                cameraEnabled = false
+                            }
                         } catch (_: Exception) {}
                     }) {
                         Icon(
@@ -127,6 +171,7 @@ fun CallScreen(
                     // Hang up
                     FilledIconButton(
                         onClick = {
+                            VisioManager.stopCameraCapture()
                             VisioManager.client.disconnect()
                             onHangUp()
                         },

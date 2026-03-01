@@ -24,6 +24,10 @@ object VisioManager : VisioEventListener {
     // IO scope for callbacks that call back into Rust (avoids nested block_on)
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
+    // Camera capture (Camera2 → JNI → NativeVideoSource)
+    private var cameraCapture: CameraCapture? = null
+    private lateinit var appContext: Context
+
     private val _connectionState = MutableStateFlow<ConnectionState>(ConnectionState.Disconnected)
     val connectionState: StateFlow<ConnectionState> = _connectionState.asStateFlow()
 
@@ -40,10 +44,28 @@ object VisioManager : VisioEventListener {
 
     fun initialize(context: Context) {
         if (initialized) return
+        appContext = context.applicationContext
         val dataDir = context.filesDir.absolutePath
         _client = VisioClient(dataDir)
         _client.addListener(this)
         initialized = true
+    }
+
+    /**
+     * Start Camera2 capture. Call after setCameraEnabled(true) succeeds
+     * and CAMERA permission has been granted.
+     */
+    fun startCameraCapture() {
+        if (cameraCapture != null) return
+        cameraCapture = CameraCapture(appContext).also { it.start() }
+    }
+
+    /**
+     * Stop Camera2 capture. Call when camera is disabled or room disconnects.
+     */
+    fun stopCameraCapture() {
+        cameraCapture?.stop()
+        cameraCapture = null
     }
 
     private fun refreshParticipants() {

@@ -19,6 +19,7 @@ tracing-subscriber = { workspace = true }
 [target.'cfg(target_os = "android")'.dependencies]
 jni = "0.21"
 libwebrtc = "0.3.26"
+livekit = { workspace = true, features = ["rustls-tls-webpki-roots"] }
 
 [build-dependencies]
 uniffi = { workspace = true, features = ["build"] }
