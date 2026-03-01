@@ -1,5 +1,6 @@
 package io.visio.mobile
 
+import android.content.Context
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -17,7 +18,8 @@ import uniffi.visio.VisioEventListener
 object VisioManager : VisioEventListener {
 
     // Library loaded and WebRTC initialized by VisioApplication.onCreate()
-    val client: VisioClient = VisioClient()
+    private lateinit var _client: VisioClient
+    val client: VisioClient get() = _client
 
     // IO scope for callbacks that call back into Rust (avoids nested block_on)
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -34,8 +36,14 @@ object VisioManager : VisioEventListener {
     private val _activeSpeakers = MutableStateFlow<List<String>>(emptyList())
     val activeSpeakers: StateFlow<List<String>> = _activeSpeakers.asStateFlow()
 
-    fun initialize() {
-        client.addListener(this)
+    private var initialized = false
+
+    fun initialize(context: Context) {
+        if (initialized) return
+        val dataDir = context.filesDir.absolutePath
+        _client = VisioClient(dataDir)
+        _client.addListener(this)
+        initialized = true
     }
 
     private fun refreshParticipants() {

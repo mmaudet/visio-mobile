@@ -12,7 +12,6 @@ import io.visio.mobile.navigation.AppNavigation
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        VisioManager.initialize()
         setContent {
             MaterialTheme {
                 Surface(

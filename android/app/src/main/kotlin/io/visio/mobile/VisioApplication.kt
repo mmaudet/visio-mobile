@@ -22,5 +22,6 @@ class VisioApplication : Application() {
         } catch (e: UnsatisfiedLinkError) {
             Log.e("Visio", "nativeInitWebrtc failed: ${e.message}")
         }
+        VisioManager.initialize(applicationContext)
     }
 }
