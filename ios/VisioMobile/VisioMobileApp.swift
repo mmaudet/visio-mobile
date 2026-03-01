@@ -2,7 +2,8 @@ import SwiftUI
 
 @main
 struct VisioMobileApp: App {
-    @StateObject private var manager = VisioManager()
+    // Use the shared singleton so CallKit can access it
+    @ObservedObject private var manager = VisioManager.shared
 
     var body: some Scene {
         WindowGroup {
@@ -10,6 +11,7 @@ struct VisioMobileApp: App {
                 HomeView()
             }
             .environmentObject(manager)
+            .preferredColorScheme(.dark)
         }
     }
 }

@@ -6,6 +6,10 @@ import visioFFI
 /// Conforms to VisioEventListener to receive room events from Rust.
 class VisioManager: ObservableObject {
 
+    // MARK: - Shared singleton (for CallKit access)
+
+    static let shared = VisioManager()
+
     // MARK: - Published state
 
     @Published var connectionState: ConnectionState = .disconnected
@@ -14,19 +18,23 @@ class VisioManager: ObservableObject {
     @Published var chatMessages: [ChatMessage] = []
     @Published var isMicEnabled: Bool = false
     @Published var isCameraEnabled: Bool = false
+    @Published var isHandRaised: Bool = false
+    @Published var handRaisedMap: [String: Int] = [:]  // sid -> position
+    @Published var unreadCount: Int = 0
     @Published var errorMessage: String?
     @Published var videoTrackSids: [String] = []
+    @Published var isChatOpen: Bool = false
 
     // MARK: - Private
 
-    private let client: VisioClient
+    let client: VisioClient
     private var audioPlayout: AudioPlayout?
     private var cameraCapture: CameraCapture?
 
     // MARK: - Init
 
     init() {
-        // VisioClient() creates a tokio runtime — acceptable to block on main thread at launch.
+        // VisioClient() creates a tokio runtime -- acceptable to block on main thread at launch.
         let documentsDir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
         client = VisioClient(dataDir: documentsDir.path)
         client.addListener(listener: self)
@@ -58,12 +66,14 @@ class VisioManager: ObservableObject {
                 let cam = self.client.isCameraEnabled()
                 let msgs = self.client.chatMessages()
                 let state = self.client.connectionState()
+                let hand = self.client.isHandRaised()
                 DispatchQueue.main.async {
                     self.participants = parts
                     self.isMicEnabled = mic
                     self.isCameraEnabled = cam
                     self.chatMessages = msgs
                     self.connectionState = state
+                    self.isHandRaised = hand
                     self.errorMessage = nil
                 }
             } catch {
@@ -95,20 +105,28 @@ class VisioManager: ObservableObject {
                 self.chatMessages = []
                 self.isMicEnabled = false
                 self.isCameraEnabled = false
+                self.isHandRaised = false
+                self.handRaisedMap = [:]
+                self.unreadCount = 0
                 self.errorMessage = nil
                 self.videoTrackSids = []
+                self.isChatOpen = false
             }
         }
     }
 
     func toggleMic() {
         let newValue = !isMicEnabled
+        setMicEnabled(newValue)
+    }
+
+    func setMicEnabled(_ enabled: Bool) {
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             guard let self else { return }
             do {
-                try self.client.setMicrophoneEnabled(enabled: newValue)
+                try self.client.setMicrophoneEnabled(enabled: enabled)
                 DispatchQueue.main.async {
-                    self.isMicEnabled = newValue
+                    self.isMicEnabled = enabled
                 }
             } catch {
                 DispatchQueue.main.async {
@@ -143,6 +161,32 @@ class VisioManager: ObservableObject {
         }
     }
 
+    func toggleHandRaise() {
+        let shouldRaise = !isHandRaised
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            guard let self else { return }
+            do {
+                if shouldRaise {
+                    try self.client.raiseHand()
+                } else {
+                    try self.client.lowerHand()
+                }
+            } catch {
+                DispatchQueue.main.async {
+                    self.errorMessage = "Hand raise failed: \(error.localizedDescription)"
+                }
+            }
+        }
+    }
+
+    func setChatOpen(_ open: Bool) {
+        isChatOpen = open
+        client.setChatOpen(open: open)
+        if open {
+            unreadCount = 0
+        }
+    }
+
     func sendMessage(_ text: String) {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
@@ -159,6 +203,28 @@ class VisioManager: ObservableObject {
                 }
             }
         }
+    }
+
+    // MARK: - Settings
+
+    func getSettings() -> Settings {
+        return client.getSettings()
+    }
+
+    func setDisplayName(_ name: String?) {
+        client.setDisplayName(name: name)
+    }
+
+    func setLanguage(_ lang: String?) {
+        client.setLanguage(lang: lang)
+    }
+
+    func setMicEnabledOnJoin(_ enabled: Bool) {
+        client.setMicEnabledOnJoin(enabled: enabled)
+    }
+
+    func setCameraEnabledOnJoin(_ enabled: Bool) {
+        client.setCameraEnabledOnJoin(enabled: enabled)
     }
 
     // MARK: - Audio Playout
@@ -188,7 +254,6 @@ extension VisioManager: VisioEventListener {
                 self.connectionState = state
 
             case .participantJoined(let info):
-                // Replace if already present, otherwise append.
                 if let idx = self.participants.firstIndex(where: { $0.sid == info.sid }) {
                     self.participants[idx] = info
                 } else {
@@ -197,6 +262,7 @@ extension VisioManager: VisioEventListener {
 
             case .participantLeft(let sid):
                 self.participants.removeAll { $0.sid == sid }
+                self.handRaisedMap.removeValue(forKey: sid)
 
             case .trackMuted(let sid, _):
                 if let idx = self.participants.firstIndex(where: { $0.sid == sid }) {
@@ -233,7 +299,6 @@ extension VisioManager: VisioEventListener {
                     if !self.videoTrackSids.contains(sid) {
                         self.videoTrackSids.append(sid)
                     }
-                    // Start renderer on background queue (blocks on tokio).
                     DispatchQueue.global(qos: .userInitiated).async { [weak self] in
                         self?.client.startVideoRenderer(trackSid: sid)
                     }
@@ -245,6 +310,21 @@ extension VisioManager: VisioEventListener {
                 DispatchQueue.global(qos: .userInitiated).async { [weak self] in
                     self?.client.stopVideoRenderer(trackSid: trackSid)
                 }
+
+            case .handRaisedChanged(let participantSid, let raised, let position):
+                if raised {
+                    self.handRaisedMap[participantSid] = Int(position)
+                } else {
+                    self.handRaisedMap.removeValue(forKey: participantSid)
+                }
+                // Update local hand raise state
+                let localSid = self.participants.first?.sid  // first is usually local
+                if participantSid == localSid || self.client.isHandRaised() != self.isHandRaised {
+                    self.isHandRaised = self.client.isHandRaised()
+                }
+
+            case .unreadCountChanged(let count):
+                self.unreadCount = Int(count)
             }
         }
     }
