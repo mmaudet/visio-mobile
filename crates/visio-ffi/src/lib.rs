@@ -217,6 +217,25 @@ impl From<CoreChatMessage> for ChatMessage {
 }
 
 #[derive(Debug, Clone)]
+pub struct Settings {
+    pub display_name: Option<String>,
+    pub language: Option<String>,
+    pub mic_enabled_on_join: bool,
+    pub camera_enabled_on_join: bool,
+}
+
+impl From<visio_core::Settings> for Settings {
+    fn from(s: visio_core::Settings) -> Self {
+        Self {
+            display_name: s.display_name,
+            language: s.language,
+            mic_enabled_on_join: s.mic_enabled_on_join,
+            camera_enabled_on_join: s.camera_enabled_on_join,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
 pub enum VisioEvent {
     ConnectionStateChanged { state: ConnectionState },
     ParticipantJoined { info: ParticipantInfo },
@@ -320,14 +339,16 @@ pub struct VisioClient {
     room_manager: visio_core::RoomManager,
     controls: visio_core::MeetingControls,
     chat: visio_core::ChatService,
+    settings: visio_core::SettingsStore,
     rt: tokio::runtime::Runtime,
 }
 
 impl VisioClient {
-    pub fn new() -> Self {
+    pub fn new(data_dir: String) -> Self {
         visio_log("VISIO FFI: VisioClient::new() called");
         let rt = tokio::runtime::Runtime::new().expect("failed to create tokio runtime");
         visio_log("VISIO FFI: tokio runtime created successfully");
+        let settings = visio_core::SettingsStore::new(&data_dir);
         let room_manager = visio_core::RoomManager::new();
         let controls = room_manager.controls();
         let chat = room_manager.chat();
@@ -337,6 +358,7 @@ impl VisioClient {
             room_manager,
             controls,
             chat,
+            settings,
             rt,
         }
     }
@@ -444,6 +466,26 @@ impl VisioClient {
         });
         self.room_manager.add_listener(bridge);
     }
+
+    pub fn get_settings(&self) -> Settings {
+        self.settings.get().into()
+    }
+
+    pub fn set_display_name(&self, name: Option<String>) {
+        self.settings.set_display_name(name);
+    }
+
+    pub fn set_language(&self, lang: Option<String>) {
+        self.settings.set_language(lang);
+    }
+
+    pub fn set_mic_enabled_on_join(&self, enabled: bool) {
+        self.settings.set_mic_enabled_on_join(enabled);
+    }
+
+    pub fn set_camera_enabled_on_join(&self, enabled: bool) {
+        self.settings.set_camera_enabled_on_join(enabled);
+    }
 }
 
 // ── C FFI: video attach / detach ─────────────────────────────────────
@@ -526,7 +568,8 @@ mod tests {
 
     #[test]
     fn test_visioclient_new_and_connect_smoke() {
-        let client = VisioClient::new();
+        let dir = std::env::temp_dir().join("visio-test");
+        let client = VisioClient::new(dir.to_str().unwrap().to_string());
         eprintln!("TEST: VisioClient created successfully");
 
         let result = client.connect(

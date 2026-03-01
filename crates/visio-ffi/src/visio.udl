@@ -54,6 +54,13 @@ dictionary ChatMessage {
     u64 timestamp_ms;
 };
 
+dictionary Settings {
+    string? display_name;
+    string? language;
+    boolean mic_enabled_on_join;
+    boolean camera_enabled_on_join;
+};
+
 [Enum]
 interface VisioEvent {
     ConnectionStateChanged(ConnectionState state);
@@ -82,7 +89,7 @@ callback interface VisioEventListener {
 };
 
 interface VisioClient {
-    constructor();
+    constructor(string data_dir);
 
     [Throws=VisioError]
     void connect(string meet_url, string? username);
@@ -111,4 +118,14 @@ interface VisioClient {
     sequence<ChatMessage> chat_messages();
 
     void add_listener(VisioEventListener listener);
+
+    Settings get_settings();
+
+    void set_display_name(string? name);
+
+    void set_language(string? lang);
+
+    void set_mic_enabled_on_join(boolean enabled);
+
+    void set_camera_enabled_on_join(boolean enabled);
 };
