@@ -16,21 +16,21 @@ Native video conferencing client for [La Suite Meet](https://meet.numerique.gouv
 ## Architecture
 
 ```
-┌─────────────┐  ┌─────────────┐  ┌──────────────┐
+┌──────────────┐  ┌─────────────┐  ┌──────────────┐
 │   Android    │  │     iOS     │  │   Desktop    │
-│  Compose UI  │  │  SwiftUI    │  │  Tauri + React│
+│  Compose UI  │  │  SwiftUI    │  │ Tauri + React│
 └──────┬───────┘  └──────┬──────┘  └──────┬───────┘
        │ UniFFI          │ UniFFI         │ Tauri cmds
        ▼                 ▼                ▼
 ┌──────────────────────────────────────────────────┐
-│                  visio-ffi                        │
+│                  visio-ffi                       │
 │        UniFFI bindings + C FFI (video/audio)     │
 ├──────────────────────────────────────────────────┤
-│                  visio-core                       │
+│                  visio-core                      │
 │   RoomManager · AuthService · ChatService        │
 │   MeetingControls · ParticipantManager           │
 ├──────────────────────────────────────────────────┤
-│                  visio-video                      │
+│                  visio-video                     │
 │   I420 renderer registry · platform renderers    │
 ├──────────────────────────────────────────────────┤
 │            LiveKit Rust SDK (0.7.32)             │
