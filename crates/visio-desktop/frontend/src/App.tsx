@@ -76,6 +76,13 @@ function VideoTile({ trackSid, frames }: { trackSid: string; frames: Map<string,
 
 // -- Home View --------------------------------------------------------------
 
+interface Settings {
+  display_name: string | null;
+  language: string | null;
+  mic_enabled_on_join: boolean;
+  camera_enabled_on_join: boolean;
+}
+
 function HomeView({
   onJoin,
 }: {
@@ -85,6 +92,13 @@ function HomeView({
   const [username, setUsername] = useState("");
   const [error, setError] = useState("");
   const [joining, setJoining] = useState(false);
+
+  // Load saved display name from settings on mount
+  useEffect(() => {
+    invoke<Settings>("get_settings").then((s) => {
+      if (s.display_name) setUsername(s.display_name);
+    }).catch(() => {});
+  }, []);
 
   const handleJoin = async () => {
     const url = meetUrl.trim();
@@ -96,6 +110,8 @@ function HomeView({
     setJoining(true);
     try {
       const uname = username.trim() || null;
+      // Save display name to settings for next time
+      await invoke("set_display_name", { name: uname });
       await invoke("connect", { meetUrl: url, username: uname });
       onJoin(url, uname);
     } catch (e) {
