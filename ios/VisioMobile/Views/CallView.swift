@@ -12,11 +12,15 @@ struct CallView: View {
 
     @State private var showChat: Bool = false
     @State private var showAudioDevices: Bool = false
+    @State private var showParticipantList: Bool = false
     @State private var focusedParticipant: String? = nil
+
+    private var lang: String { manager.currentLang }
+    private var isDark: Bool { manager.currentTheme == "dark" }
 
     var body: some View {
         ZStack {
-            VisioColors.primaryDark50.ignoresSafeArea()
+            VisioColors.background(dark: isDark).ignoresSafeArea()
 
             VStack(spacing: 0) {
                 // Connection state banner
@@ -37,9 +41,9 @@ struct CallView: View {
                     Spacer()
                     VStack(spacing: 12) {
                         ProgressView()
-                            .tint(.white)
-                        Text("Waiting for participants...")
-                            .foregroundStyle(VisioColors.greyscale400)
+                            .tint(isDark ? .white : VisioColors.primary500)
+                        Text(Strings.t("call.waiting", lang: lang))
+                            .foregroundStyle(VisioColors.secondaryText(dark: isDark))
                     }
                     Spacer()
                 } else if let focused = focusedParticipant,
@@ -55,11 +59,11 @@ struct CallView: View {
                 controlBar
             }
         }
-        .navigationTitle("Call")
+        .navigationTitle(Strings.t("call.title", lang: lang))
         .navigationBarTitleDisplayMode(.inline)
         .navigationBarBackButtonHidden(true)
-        .toolbarColorScheme(.dark, for: .navigationBar)
-        .toolbarBackground(VisioColors.primaryDark75, for: .navigationBar)
+        .toolbarColorScheme(isDark ? .dark : .light, for: .navigationBar)
+        .toolbarBackground(VisioColors.surface(dark: isDark), for: .navigationBar)
         .toolbarBackground(.visible, for: .navigationBar)
         .fullScreenCover(isPresented: $showChat) {
             NavigationStack {
@@ -69,8 +73,14 @@ struct CallView: View {
             .onAppear { manager.setChatOpen(true) }
             .onDisappear { manager.setChatOpen(false) }
         }
+        .sheet(isPresented: $showParticipantList) {
+            ParticipantListSheet()
+                .environmentObject(manager)
+                .presentationDetents([.medium, .large])
+        }
         .sheet(isPresented: $showAudioDevices) {
             AudioDeviceSheet()
+                .environmentObject(manager)
                 .presentationDetents([.medium])
         }
         .onAppear {
@@ -89,7 +99,6 @@ struct CallView: View {
                 PiPManager.shared.stop()
             }
         }
-        .preferredColorScheme(.dark)
     }
 
     // MARK: - Grid Layout
@@ -105,7 +114,8 @@ struct CallView: View {
                     ParticipantTile(
                         participant: participant,
                         isActiveSpeaker: manager.activeSpeakers.contains(participant.sid),
-                        handRaisePosition: manager.handRaisedMap[participant.sid] ?? 0
+                        handRaisePosition: manager.handRaisedMap[participant.sid] ?? 0,
+                        isDark: isDark
                     )
                     .aspectRatio(16.0 / 9.0, contentMode: .fit)
                     .onTapGesture {
@@ -128,7 +138,8 @@ struct CallView: View {
                 participant: focused,
                 large: true,
                 isActiveSpeaker: manager.activeSpeakers.contains(focused.sid),
-                handRaisePosition: manager.handRaisedMap[focused.sid] ?? 0
+                handRaisePosition: manager.handRaisedMap[focused.sid] ?? 0,
+                isDark: isDark
             )
             .onTapGesture {
                 withAnimation(.easeInOut(duration: 0.2)) {
@@ -145,7 +156,8 @@ struct CallView: View {
                             ParticipantTile(
                                 participant: p,
                                 isActiveSpeaker: manager.activeSpeakers.contains(p.sid),
-                                handRaisePosition: manager.handRaisedMap[p.sid] ?? 0
+                                handRaisePosition: manager.handRaisedMap[p.sid] ?? 0,
+                                isDark: isDark
                             )
                             .frame(width: 160, height: 120)
                             .onTapGesture {
@@ -169,11 +181,11 @@ struct CallView: View {
     private var connectionBanner: some View {
         switch manager.connectionState {
         case .connecting:
-            bannerView(text: "Connecting...", color: .orange)
+            bannerView(text: "\(Strings.t("status.connecting", lang: lang))...", color: .orange)
         case .reconnecting(let attempt):
-            bannerView(text: "Reconnecting (attempt \(attempt))...", color: .orange)
+            bannerView(text: "\(Strings.t("status.reconnecting", lang: lang)) (\(attempt))...", color: .orange)
         case .disconnected:
-            bannerView(text: "Disconnected", color: VisioColors.greyscale400)
+            bannerView(text: Strings.t("status.disconnected", lang: lang), color: VisioColors.greyscale400)
         case .connected:
             EmptyView()
         }
@@ -235,7 +247,6 @@ struct CallView: View {
             // Camera switch (front/back)
             Button {
                 // Camera switch is a no-op placeholder for now
-                // Would need CameraCapture to support position switching
             } label: {
                 Image(systemName: "arrow.triangle.2.circlepath.camera")
                     .font(.system(size: 18, weight: .medium))
@@ -255,6 +266,29 @@ struct CallView: View {
                     .frame(width: 44, height: 44)
                     .background(manager.isHandRaised ? VisioColors.handRaise : VisioColors.primaryDark100)
                     .clipShape(RoundedRectangle(cornerRadius: 12))
+            }
+
+            // Participants with count badge
+            Button {
+                showParticipantList = true
+            } label: {
+                ZStack(alignment: .topTrailing) {
+                    Image(systemName: "person.2.fill")
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundStyle(.white)
+                        .frame(width: 44, height: 44)
+                        .background(VisioColors.primaryDark100)
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
+
+                    Text("\(manager.participants.count + 1)")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 4)
+                        .padding(.vertical, 1)
+                        .background(VisioColors.primary500)
+                        .clipShape(Capsule())
+                        .offset(x: 4, y: -4)
+                }
             }
 
             // Chat with unread badge
@@ -297,7 +331,7 @@ struct CallView: View {
             }
         }
         .padding(12)
-        .background(VisioColors.primaryDark75)
+        .background(VisioColors.surface(dark: isDark))
         .clipShape(RoundedRectangle(cornerRadius: 16))
         .padding(.horizontal, 12)
         .padding(.bottom, 8)
@@ -311,6 +345,7 @@ struct ParticipantTile: View {
     var large: Bool = false
     var isActiveSpeaker: Bool = false
     var handRaisePosition: Int = 0
+    var isDark: Bool = true
 
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -334,7 +369,7 @@ struct ParticipantTile: View {
 
     private var avatarView: some View {
         ZStack {
-            VisioColors.primaryDark50
+            VisioColors.background(dark: isDark)
 
             Circle()
                 .fill(Color(hue: nameHue, saturation: 0.5, brightness: 0.35))
@@ -433,16 +468,19 @@ struct ParticipantTile: View {
 // MARK: - Audio Device Sheet
 
 struct AudioDeviceSheet: View {
+    @EnvironmentObject private var manager: VisioManager
     @State private var availableInputs: [AVAudioSessionPortDescription] = []
     @State private var currentInput: AVAudioSessionPortDescription?
     @Environment(\.dismiss) private var dismiss
+
+    private var lang: String { manager.currentLang }
+    private var isDark: Bool { manager.currentTheme == "dark" }
 
     var body: some View {
         NavigationStack {
             List {
                 // Built-in speaker option (always available)
                 Button {
-                    // Setting preferred input to nil selects built-in speaker
                     try? AVAudioSession.sharedInstance().setPreferredInput(nil)
                     currentInput = nil
                     dismiss()
@@ -450,8 +488,8 @@ struct AudioDeviceSheet: View {
                     HStack {
                         Image(systemName: "speaker.wave.2.fill")
                             .foregroundStyle(VisioColors.primary500)
-                        Text("iPhone Speaker")
-                            .foregroundStyle(.white)
+                        Text(Strings.t("audio.speaker", lang: lang))
+                            .foregroundStyle(VisioColors.onSurface(dark: isDark))
                         Spacer()
                         if currentInput == nil {
                             Image(systemName: "checkmark")
@@ -469,7 +507,7 @@ struct AudioDeviceSheet: View {
                             Image(systemName: iconForPort(port))
                                 .foregroundStyle(VisioColors.primary500)
                             Text(port.portName)
-                                .foregroundStyle(.white)
+                                .foregroundStyle(VisioColors.onSurface(dark: isDark))
                             Spacer()
                             if port.uid == currentInput?.uid {
                                 Image(systemName: "checkmark")
@@ -480,21 +518,20 @@ struct AudioDeviceSheet: View {
                 }
             }
             .scrollContentBackground(.hidden)
-            .background(VisioColors.primaryDark50)
-            .navigationTitle("Audio Source")
+            .background(VisioColors.background(dark: isDark))
+            .navigationTitle(Strings.t("audio.source", lang: lang))
             .navigationBarTitleDisplayMode(.inline)
-            .toolbarColorScheme(.dark, for: .navigationBar)
-            .toolbarBackground(VisioColors.primaryDark75, for: .navigationBar)
+            .toolbarColorScheme(isDark ? .dark : .light, for: .navigationBar)
+            .toolbarBackground(VisioColors.surface(dark: isDark), for: .navigationBar)
             .toolbarBackground(.visible, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("Done") { dismiss() }
+                    Button(Strings.t("audio.done", lang: lang)) { dismiss() }
                         .foregroundStyle(VisioColors.primary500)
                 }
             }
         }
         .onAppear { loadDevices() }
-        .preferredColorScheme(.dark)
     }
 
     private func loadDevices() {

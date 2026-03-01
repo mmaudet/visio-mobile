@@ -82,6 +82,32 @@ impl RoomManager {
         self.participants.lock().await.participants().to_vec()
     }
 
+    /// Get local participant info (for self-view tile).
+    pub async fn local_participant_info(&self) -> Option<ParticipantInfo> {
+        let room = self.room.lock().await;
+        let room = room.as_ref()?;
+        let local = room.local_participant();
+        let name = {
+            let n = local.name().to_string();
+            if n.is_empty() { None } else { Some(n) }
+        };
+        let has_video = local.track_publications().values().any(|pub_| {
+            pub_.kind() == LkTrackKind::Video
+        });
+        let is_muted = local.track_publications().values().any(|pub_| {
+            pub_.kind() == LkTrackKind::Audio && pub_.is_muted()
+        });
+        Some(ParticipantInfo {
+            sid: local.sid().to_string(),
+            identity: local.identity().to_string(),
+            name,
+            is_muted,
+            has_video,
+            video_track_sid: if has_video { Some("local-camera".to_string()) } else { None },
+            connection_quality: ConnectionQuality::Excellent,
+        })
+    }
+
     /// Get current active speakers.
     pub async fn active_speakers(&self) -> Vec<String> {
         self.participants.lock().await.active_speakers().to_vec()
@@ -238,25 +264,23 @@ impl RoomManager {
             if n.is_empty() { None } else { Some(n) }
         };
 
-        let has_video = p.track_publications().values().any(|pub_| {
-            pub_.kind() == LkTrackKind::Video
-        });
-
+        // Only use publication metadata for audio mute state.
+        // Video state (has_video / video_track_sid) is set exclusively by
+        // TrackSubscribed events to avoid a race where the UI creates a
+        // VideoSurfaceView before the track is actually subscribed, leading
+        // to a permanent black tile (attachSurface finds no track in the
+        // subscribed_tracks registry).
         let is_muted = p.track_publications().values().any(|pub_| {
             pub_.kind() == LkTrackKind::Audio && pub_.is_muted()
         });
-
-        let video_track_sid = p.track_publications().values()
-            .find(|pub_| pub_.kind() == LkTrackKind::Video)
-            .map(|pub_| pub_.sid().to_string());
 
         ParticipantInfo {
             sid: p.sid().to_string(),
             identity: p.identity().to_string(),
             name,
             is_muted,
-            has_video,
-            video_track_sid,
+            has_video: false,
+            video_track_sid: None,
             connection_quality: ConnectionQuality::Good,
         }
     }

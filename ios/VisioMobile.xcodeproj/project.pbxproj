@@ -18,6 +18,8 @@
 		A10001000000000000000009 /* VideoLayerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10002000000000000000009 /* VideoLayerView.swift */; };
 		A1000100000000000000000A /* visio.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000200000000000000000A /* visio.swift */; };
 		A1000100000000000000000E /* CameraCapture.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10002000000000000000012 /* CameraCapture.swift */; };
+		A1000100000000000000000F /* ParticipantListSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10002000000000000000013 /* ParticipantListSheet.swift */; };
+		A10001000000000000000010 /* Strings.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10002000000000000000014 /* Strings.swift */; };
 		A1000100000000000000000B /* libvisio_ffi.a in Frameworks */ = {isa = PBXBuildFile; fileRef = A1000200000000000000000B /* libvisio_ffi.a */; };
 		A1000100000000000000000C /* libvisio_video.a in Frameworks */ = {isa = PBXBuildFile; fileRef = A1000200000000000000000C /* libvisio_video.a */; };
 		A1000100000000000000000D /* libresolv.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = A1000200000000000000000D /* libresolv.tbd */; };
@@ -42,6 +44,8 @@
 		A10002000000000000000010 /* visioFFI.modulemap */ = {isa = PBXFileReference; lastKnownFileType = "sourcecode.module-map"; path = visioFFI.modulemap; sourceTree = "<group>"; };
 		A10002000000000000000011 /* visio_native.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = visio_native.h; sourceTree = "<group>"; };
 		A10002000000000000000012 /* CameraCapture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraCapture.swift; sourceTree = "<group>"; };
+		A10002000000000000000013 /* ParticipantListSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParticipantListSheet.swift; sourceTree = "<group>"; };
+		A10002000000000000000014 /* Strings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Strings.swift; sourceTree = "<group>"; };
 		A10003000000000000000001 /* VisioMobile.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = VisioMobile.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -77,6 +81,7 @@
 				A10002000000000000000004 /* AudioPlayout.swift */,
 				A10002000000000000000005 /* VideoFrameRouter.swift */,
 				A10002000000000000000012 /* CameraCapture.swift */,
+				A10005000000000000000007 /* i18n */,
 				A10005000000000000000004 /* Views */,
 				A10005000000000000000006 /* Generated */,
 				A1000200000000000000000E /* Info.plist */,
@@ -99,6 +104,7 @@
 				A10002000000000000000007 /* CallView.swift */,
 				A10002000000000000000008 /* ChatView.swift */,
 				A10002000000000000000009 /* VideoLayerView.swift */,
+				A10002000000000000000013 /* ParticipantListSheet.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -122,6 +128,14 @@
 				A10002000000000000000011 /* visio_native.h */,
 			);
 			path = Generated;
+			sourceTree = "<group>";
+		};
+		A10005000000000000000007 /* i18n */ = {
+			isa = PBXGroup;
+			children = (
+				A10002000000000000000014 /* Strings.swift */,
+			);
+			path = i18n;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -187,6 +201,8 @@
 				A10001000000000000000009 /* VideoLayerView.swift in Sources */,
 				A1000100000000000000000A /* visio.swift in Sources */,
 				A1000100000000000000000E /* CameraCapture.swift in Sources */,
+				A1000100000000000000000F /* ParticipantListSheet.swift in Sources */,
+				A10001000000000000000010 /* Strings.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

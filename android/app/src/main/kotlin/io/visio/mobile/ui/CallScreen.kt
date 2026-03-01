@@ -21,8 +21,10 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -62,9 +64,12 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import io.visio.mobile.R
+import io.visio.mobile.VideoSurfaceView
 import io.visio.mobile.VisioManager
+import io.visio.mobile.ui.i18n.Strings
 import io.visio.mobile.ui.theme.VisioColors
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -98,10 +103,12 @@ fun CallScreen(
     val isHandRaised by VisioManager.isHandRaised.collectAsState()
 
     val context = LocalContext.current
+    val lang = VisioManager.currentLang
     var micEnabled by remember { mutableStateOf(true) }
     var cameraEnabled by remember { mutableStateOf(true) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var showAudioSheet by remember { mutableStateOf(false) }
+    var showParticipantList by remember { mutableStateOf(false) }
     var focusedParticipantSid by remember { mutableStateOf<String?>(null) }
 
     val coroutineScope = rememberCoroutineScope()
@@ -201,6 +208,20 @@ fun CallScreen(
         return
     }
 
+    // Participant list bottom sheet
+    if (showParticipantList) {
+        ParticipantListSheet(
+            participants = participants,
+            localDisplayName = username,
+            localMicEnabled = micEnabled,
+            localCameraEnabled = cameraEnabled,
+            localIsHandRaised = isHandRaised,
+            handRaisedMap = handRaisedMap,
+            lang = lang,
+            onDismiss = { showParticipantList = false }
+        )
+    }
+
     // Audio device bottom sheet
     if (showAudioSheet) {
         AudioDeviceSheet(
@@ -221,7 +242,7 @@ fun CallScreen(
             .fillMaxSize()
             .background(VisioColors.PrimaryDark50)
     ) {
-        Column(modifier = Modifier.fillMaxSize()) {
+        Column(modifier = Modifier.fillMaxSize().statusBarsPadding()) {
             // Connection state banner
             ConnectionStateBanner(connectionState, errorMessage)
 
@@ -317,6 +338,8 @@ fun CallScreen(
                 cameraEnabled = cameraEnabled,
                 isHandRaised = isHandRaised,
                 unreadCount = unreadCount,
+                participantCount = participants.size + 1,
+                lang = lang,
                 onToggleMic = {
                     val newState = !micEnabled
                     if (newState) {
@@ -386,6 +409,7 @@ fun CallScreen(
                         } catch (_: Exception) {}
                     }
                 },
+                onParticipants = { showParticipantList = true },
                 onChat = onChatOpen,
                 onHangUp = {
                     VisioManager.stopCameraCapture()
@@ -396,7 +420,7 @@ fun CallScreen(
                 }
             )
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(8.dp).navigationBarsPadding())
         }
     }
 }
@@ -407,11 +431,14 @@ private fun ControlBar(
     cameraEnabled: Boolean,
     isHandRaised: Boolean,
     unreadCount: Int,
+    participantCount: Int,
+    lang: String,
     onToggleMic: () -> Unit,
     onAudioPicker: () -> Unit,
     onToggleCamera: () -> Unit,
     onSwitchCamera: () -> Unit,
     onToggleHandRaise: () -> Unit,
+    onParticipants: () -> Unit,
     onChat: () -> Unit,
     onHangUp: () -> Unit
 ) {
@@ -441,7 +468,7 @@ private fun ControlBar(
                     painter = painterResource(
                         if (micEnabled) R.drawable.ri_mic_line else R.drawable.ri_mic_off_line
                     ),
-                    contentDescription = if (micEnabled) "Mute" else "Unmute",
+                    contentDescription = if (micEnabled) Strings.t("control.mute", lang) else Strings.t("control.unmute", lang),
                     tint = VisioColors.White,
                     modifier = Modifier.size(20.dp)
                 )
@@ -452,7 +479,7 @@ private fun ControlBar(
             ) {
                 Icon(
                     painter = painterResource(R.drawable.ri_arrow_up_s_line),
-                    contentDescription = "Audio devices",
+                    contentDescription = Strings.t("control.audioDevices", lang),
                     tint = VisioColors.White,
                     modifier = Modifier.size(16.dp)
                 )
@@ -473,7 +500,7 @@ private fun ControlBar(
                 painter = painterResource(
                     if (cameraEnabled) R.drawable.ri_video_on_line else R.drawable.ri_video_off_line
                 ),
-                contentDescription = if (cameraEnabled) "Disable camera" else "Enable camera",
+                contentDescription = if (cameraEnabled) Strings.t("control.camOff", lang) else Strings.t("control.camOn", lang),
                 tint = VisioColors.White,
                 modifier = Modifier.size(20.dp)
             )
@@ -488,7 +515,7 @@ private fun ControlBar(
         ) {
             Icon(
                 painter = painterResource(R.drawable.ri_camera_switch_line),
-                contentDescription = "Switch camera",
+                contentDescription = Strings.t("call.switchCamera", lang),
                 tint = VisioColors.White,
                 modifier = Modifier.size(20.dp)
             )
@@ -506,10 +533,41 @@ private fun ControlBar(
         ) {
             Icon(
                 painter = painterResource(R.drawable.ri_hand),
-                contentDescription = "Raise hand",
+                contentDescription = if (isHandRaised) Strings.t("control.lowerHand", lang) else Strings.t("control.raiseHand", lang),
                 tint = if (isHandRaised) Color.Black else VisioColors.White,
                 modifier = Modifier.size(20.dp)
             )
+        }
+
+        // Participants with count badge
+        IconButton(
+            onClick = onParticipants,
+            modifier = Modifier
+                .size(44.dp)
+                .background(VisioColors.PrimaryDark100, RoundedCornerShape(8.dp))
+        ) {
+            BadgedBox(
+                badge = {
+                    if (participantCount > 0) {
+                        Badge(
+                            containerColor = VisioColors.Primary500,
+                            contentColor = VisioColors.White
+                        ) {
+                            Text(
+                                text = "$participantCount",
+                                fontSize = 10.sp
+                            )
+                        }
+                    }
+                }
+            ) {
+                Icon(
+                    painter = painterResource(R.drawable.ri_group_line),
+                    contentDescription = Strings.t("participants.title", lang),
+                    tint = VisioColors.White,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
         }
 
         // Chat with unread badge
@@ -536,7 +594,7 @@ private fun ControlBar(
             ) {
                 Icon(
                     painter = painterResource(R.drawable.ri_chat_1_line),
-                    contentDescription = "Chat",
+                    contentDescription = Strings.t("chat", lang),
                     tint = VisioColors.White,
                     modifier = Modifier.size(20.dp)
                 )
@@ -552,7 +610,7 @@ private fun ControlBar(
         ) {
             Icon(
                 painter = painterResource(R.drawable.ri_phone_fill),
-                contentDescription = "Hang up",
+                contentDescription = Strings.t("control.leave", lang),
                 tint = VisioColors.White,
                 modifier = Modifier.size(20.dp)
             )
@@ -596,24 +654,32 @@ fun ParticipantTile(
             .background(VisioColors.PrimaryDark50)
             .clickable(onClick = onClick)
     ) {
-        // Avatar fallback (no video surface in this composable — VideoSurfaceView is separate)
-        Box(
-            modifier = Modifier.fillMaxSize(),
-            contentAlignment = Alignment.Center
-        ) {
+        // Video surface or avatar fallback
+        if (participant.hasVideo && participant.videoTrackSid != null) {
+            val trackSid = participant.videoTrackSid!!
+            AndroidView(
+                factory = { ctx -> VideoSurfaceView(ctx, trackSid) },
+                modifier = Modifier.fillMaxSize()
+            )
+        } else {
             Box(
-                modifier = Modifier
-                    .size(64.dp)
-                    .clip(CircleShape)
-                    .background(avatarColor),
+                modifier = Modifier.fillMaxSize(),
                 contentAlignment = Alignment.Center
             ) {
-                Text(
-                    text = initials,
-                    color = VisioColors.White,
-                    fontSize = 24.sp,
-                    fontWeight = FontWeight.Bold
-                )
+                Box(
+                    modifier = Modifier
+                        .size(64.dp)
+                        .clip(CircleShape)
+                        .background(avatarColor),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = initials,
+                        color = VisioColors.White,
+                        fontSize = 24.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
             }
         }
 
@@ -705,6 +771,7 @@ private fun ConnectionQualityBars(quality: String) {
 
 @Composable
 private fun ConnectionStateBanner(state: ConnectionState, errorMessage: String?) {
+    val lang = VisioManager.currentLang
     when {
         errorMessage != null -> {
             Box(
@@ -714,7 +781,7 @@ private fun ConnectionStateBanner(state: ConnectionState, errorMessage: String?)
                     .padding(12.dp)
             ) {
                 Text(
-                    text = "Error: $errorMessage",
+                    text = "${Strings.t("call.error", lang)}: $errorMessage",
                     color = VisioColors.Error500,
                     style = MaterialTheme.typography.bodyMedium
                 )
@@ -731,9 +798,9 @@ private fun ConnectionStateBanner(state: ConnectionState, errorMessage: String?)
                     color = VisioColors.Primary500
                 )
                 Text(
-                    "Connecting...",
+                    "${Strings.t("status.connecting", lang)}...",
                     style = MaterialTheme.typography.bodyMedium,
-                    color = VisioColors.White
+                    color = MaterialTheme.colorScheme.onBackground
                 )
             }
         }
@@ -748,9 +815,9 @@ private fun ConnectionStateBanner(state: ConnectionState, errorMessage: String?)
                     color = VisioColors.Primary500
                 )
                 Text(
-                    "Reconnecting (attempt ${state.attempt})...",
+                    "${Strings.t("status.reconnecting", lang)} (${state.attempt})...",
                     style = MaterialTheme.typography.bodyMedium,
-                    color = VisioColors.White
+                    color = MaterialTheme.colorScheme.onBackground
                 )
             }
         }
@@ -782,13 +849,15 @@ fun AudioDeviceSheet(
 
     val sheetState = rememberModalBottomSheetState()
 
+    val lang = VisioManager.currentLang
+
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
         containerColor = VisioColors.PrimaryDark75
     ) {
         Text(
-            text = "Audio source",
+            text = Strings.t("audio.source", lang),
             style = MaterialTheme.typography.titleMedium,
             color = VisioColors.White,
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
@@ -796,7 +865,7 @@ fun AudioDeviceSheet(
 
         devices.forEach { device ->
             val label = device.productName?.toString()?.ifBlank { null }
-                ?: audioDeviceTypeName(device.type)
+                ?: audioDeviceTypeName(device.type, lang)
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -816,13 +885,13 @@ fun AudioDeviceSheet(
     }
 }
 
-private fun audioDeviceTypeName(type: Int): String = when (type) {
-    AudioDeviceInfo.TYPE_BUILTIN_SPEAKER -> "Speaker"
-    AudioDeviceInfo.TYPE_BUILTIN_EARPIECE -> "Earpiece"
-    AudioDeviceInfo.TYPE_BLUETOOTH_A2DP -> "Bluetooth"
-    AudioDeviceInfo.TYPE_BLUETOOTH_SCO -> "Bluetooth"
-    AudioDeviceInfo.TYPE_WIRED_HEADSET -> "Wired headset"
-    AudioDeviceInfo.TYPE_WIRED_HEADPHONES -> "Wired headphones"
-    AudioDeviceInfo.TYPE_USB_HEADSET -> "USB headset"
-    else -> "Audio device"
+private fun audioDeviceTypeName(type: Int, lang: String): String = when (type) {
+    AudioDeviceInfo.TYPE_BUILTIN_SPEAKER -> Strings.t("audio.speaker", lang)
+    AudioDeviceInfo.TYPE_BUILTIN_EARPIECE -> Strings.t("audio.earpiece", lang)
+    AudioDeviceInfo.TYPE_BLUETOOTH_A2DP -> Strings.t("audio.bluetooth", lang)
+    AudioDeviceInfo.TYPE_BLUETOOTH_SCO -> Strings.t("audio.bluetooth", lang)
+    AudioDeviceInfo.TYPE_WIRED_HEADSET -> Strings.t("audio.wiredHeadset", lang)
+    AudioDeviceInfo.TYPE_WIRED_HEADPHONES -> Strings.t("audio.wiredHeadphones", lang)
+    AudioDeviceInfo.TYPE_USB_HEADSET -> Strings.t("audio.usbHeadset", lang)
+    else -> Strings.t("audio.device", lang)
 }
