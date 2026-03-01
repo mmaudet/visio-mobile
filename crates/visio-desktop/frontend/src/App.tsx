@@ -14,6 +14,7 @@ interface Participant {
   name: string | null;
   is_muted: boolean;
   has_video: boolean;
+  video_track_sid: string | null;
   connection_quality: string;
 }
 
@@ -182,9 +183,9 @@ function CallView({
               const displayName = p.name || p.identity || "Unknown";
               return (
                 <li key={p.sid} className="participant-item">
-                  {p.has_video ? (
+                  {p.has_video && p.video_track_sid ? (
                     <div className="participant-video-wrapper">
-                      <VideoTile trackSid={p.sid} frames={videoFrames} />
+                      <VideoTile trackSid={p.video_track_sid} frames={videoFrames} />
                       <div className="participant-avatar-overlay">
                         {getInitials(displayName)}
                       </div>

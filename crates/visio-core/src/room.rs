@@ -74,6 +74,11 @@ impl RoomManager {
         self.subscribed_tracks.lock().await.get(track_sid).cloned()
     }
 
+    /// Get all currently subscribed video track SIDs.
+    pub async fn video_track_sids(&self) -> Vec<String> {
+        self.subscribed_tracks.lock().await.keys().cloned().collect()
+    }
+
     /// Connect to a room using the Meet API.
     ///
     /// Calls the Meet API to get a token, then connects to the LiveKit room.
@@ -185,12 +190,17 @@ impl RoomManager {
             pub_.kind() == LkTrackKind::Audio && pub_.is_muted()
         });
 
+        let video_track_sid = p.track_publications().values()
+            .find(|pub_| pub_.kind() == LkTrackKind::Video)
+            .map(|pub_| pub_.sid().to_string());
+
         ParticipantInfo {
             sid: p.sid().to_string(),
             identity: p.identity().to_string(),
             name,
             is_muted,
             has_video,
+            video_track_sid,
             connection_quality: ConnectionQuality::Good,
         }
     }
@@ -263,6 +273,7 @@ impl RoomManager {
                         if let Some(p) = pm.participant_mut(&psid) {
                             if track_kind == TrackKind::Video {
                                 p.has_video = true;
+                                p.video_track_sid = Some(track_sid.clone());
                             }
                         }
                     }
@@ -293,6 +304,7 @@ impl RoomManager {
                         let mut pm = participants.lock().await;
                         if let Some(p) = pm.participant_mut(&psid) {
                             p.has_video = false;
+                            p.video_track_sid = None;
                         }
                         subscribed_tracks.lock().await.remove(&track_sid);
                     }

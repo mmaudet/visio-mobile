@@ -97,6 +97,7 @@ pub struct ParticipantInfo {
     pub name: Option<String>,
     pub is_muted: bool,
     pub has_video: bool,
+    pub video_track_sid: Option<String>,
     pub connection_quality: ConnectionQuality,
 }
 
@@ -108,6 +109,7 @@ impl From<CoreParticipantInfo> for ParticipantInfo {
             name: p.name,
             is_muted: p.is_muted,
             has_video: p.has_video,
+            video_track_sid: p.video_track_sid,
             connection_quality: p.connection_quality.into(),
         }
     }

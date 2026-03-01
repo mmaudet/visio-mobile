@@ -83,6 +83,7 @@ mod tests {
             name: Some(name.to_string()),
             is_muted: false,
             has_video: false,
+            video_track_sid: None,
             connection_quality: ConnectionQuality::Good,
         }
     }

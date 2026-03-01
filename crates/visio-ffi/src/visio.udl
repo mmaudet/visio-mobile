@@ -33,6 +33,7 @@ dictionary ParticipantInfo {
     string? name;
     boolean is_muted;
     boolean has_video;
+    string? video_track_sid;
     ConnectionQuality connection_quality;
 };
 

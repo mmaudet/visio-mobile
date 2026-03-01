@@ -30,6 +30,7 @@ pub struct ParticipantInfo {
     pub name: Option<String>,
     pub is_muted: bool,
     pub has_video: bool,
+    pub video_track_sid: Option<String>,
     pub connection_quality: ConnectionQuality,
 }
 

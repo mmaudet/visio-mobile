@@ -55,6 +55,7 @@ pub(crate) fn render_frame(
     track_sid: &str,
 ) {
     let Some(cb) = CALLBACK.get() else {
+        tracing::warn!("desktop render_frame: no callback registered");
         return;
     };
 
