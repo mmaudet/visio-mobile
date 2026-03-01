@@ -35,5 +35,8 @@ Thumbs.db
 android/app/src/main/kotlin/generated/
 ios/VisioMobile/Generated/
 
+# Worktrees
+.worktrees/
+
 # AI assistant context
 CLAUDE.md
