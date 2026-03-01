@@ -300,7 +300,7 @@ impl MacCameraCapture {
         };
 
         let _: () = unsafe {
-            msg_send![&*output, setSampleBufferDelegate: &*delegate queue: queue]
+            msg_send![&*output, setSampleBufferDelegate: &*delegate, queue: queue]
         };
 
         // --- Add input and output to session ---
