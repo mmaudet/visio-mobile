@@ -411,9 +411,6 @@ fun CallScreen(
                         }
                     }
                 },
-                onSwitchCamera = {
-                    // Camera switch (front/back) - placeholder
-                },
                 onToggleHandRaise = {
                     coroutineScope.launch(Dispatchers.IO) {
                         try {
@@ -452,7 +449,6 @@ private fun ControlBar(
     onToggleMic: () -> Unit,
     onAudioPicker: () -> Unit,
     onToggleCamera: () -> Unit,
-    onSwitchCamera: () -> Unit,
     onToggleHandRaise: () -> Unit,
     onParticipants: () -> Unit,
     onChat: () -> Unit,
@@ -517,21 +513,6 @@ private fun ControlBar(
                     if (cameraEnabled) R.drawable.ri_video_on_line else R.drawable.ri_video_off_line
                 ),
                 contentDescription = if (cameraEnabled) Strings.t("control.camOff", lang) else Strings.t("control.camOn", lang),
-                tint = VisioColors.White,
-                modifier = Modifier.size(20.dp)
-            )
-        }
-
-        // Camera switch (front/back)
-        IconButton(
-            onClick = onSwitchCamera,
-            modifier = Modifier
-                .size(44.dp)
-                .background(VisioColors.PrimaryDark100, RoundedCornerShape(8.dp))
-        ) {
-            Icon(
-                painter = painterResource(R.drawable.ri_camera_switch_line),
-                contentDescription = Strings.t("call.switchCamera", lang),
                 tint = VisioColors.White,
                 modifier = Modifier.size(20.dp)
             )
