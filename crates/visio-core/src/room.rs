@@ -1,7 +1,9 @@
+use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use livekit::prelude::{Room, RoomEvent, RoomOptions, RemoteParticipant};
 use livekit::track::{
+    RemoteVideoTrack,
     TrackKind as LkTrackKind,
     TrackSource as LkTrackSource,
 };
@@ -21,6 +23,7 @@ pub struct RoomManager {
     emitter: EventEmitter,
     participants: Arc<Mutex<ParticipantManager>>,
     connection_state: Arc<Mutex<ConnectionState>>,
+    subscribed_tracks: Arc<Mutex<HashMap<String, RemoteVideoTrack>>>,
 }
 
 impl RoomManager {
@@ -30,6 +33,7 @@ impl RoomManager {
             emitter: EventEmitter::new(),
             participants: Arc::new(Mutex::new(ParticipantManager::new())),
             connection_state: Arc::new(Mutex::new(ConnectionState::Disconnected)),
+            subscribed_tracks: Arc::new(Mutex::new(HashMap::new())),
         }
     }
 
@@ -61,6 +65,13 @@ impl RoomManager {
     /// Get current active speakers.
     pub async fn active_speakers(&self) -> Vec<String> {
         self.participants.lock().await.active_speakers().to_vec()
+    }
+
+    /// Get a subscribed remote video track by its SID.
+    ///
+    /// Returns `None` if the track is not currently subscribed.
+    pub async fn get_video_track(&self, track_sid: &str) -> Option<RemoteVideoTrack> {
+        self.subscribed_tracks.lock().await.get(track_sid).cloned()
     }
 
     /// Connect to a room using the Meet API.
@@ -124,9 +135,10 @@ impl RoomManager {
         let participants = self.participants.clone();
         let connection_state = self.connection_state.clone();
         let room_ref = self.room.clone();
+        let subscribed_tracks = self.subscribed_tracks.clone();
 
         tokio::spawn(async move {
-            Self::event_loop(events, emitter, participants, connection_state, room_ref).await;
+            Self::event_loop(events, emitter, participants, connection_state, room_ref, subscribed_tracks).await;
         });
 
         Ok(())
@@ -141,6 +153,7 @@ impl RoomManager {
             }
         }
         self.participants.lock().await.clear();
+        self.subscribed_tracks.lock().await.clear();
         self.set_connection_state(ConnectionState::Disconnected).await;
     }
 
@@ -188,6 +201,7 @@ impl RoomManager {
         participants: Arc<Mutex<ParticipantManager>>,
         connection_state: Arc<Mutex<ConnectionState>>,
         room_ref: Arc<Mutex<Option<Arc<Room>>>>,
+        subscribed_tracks: Arc<Mutex<HashMap<String, RemoteVideoTrack>>>,
     ) {
         let mut reconnect_attempt: u32 = 0;
 
@@ -217,6 +231,7 @@ impl RoomManager {
                     *connection_state.lock().await = ConnectionState::Disconnected;
                     emitter.emit(VisioEvent::ConnectionStateChanged(ConnectionState::Disconnected));
                     participants.lock().await.clear();
+                    subscribed_tracks.lock().await.clear();
                     *room_ref.lock().await = None;
                     break;
                 }
@@ -241,6 +256,7 @@ impl RoomManager {
                     };
 
                     let psid = participant.sid().to_string();
+                    let track_sid = track.sid().to_string();
 
                     {
                         let mut pm = participants.lock().await;
@@ -251,8 +267,16 @@ impl RoomManager {
                         }
                     }
 
+                    // Store video tracks in the registry for later retrieval
+                    if track_kind == TrackKind::Video {
+                        if let livekit::track::RemoteTrack::Video(video_track) = &track {
+                            subscribed_tracks.lock().await
+                                .insert(track_sid.clone(), video_track.clone());
+                        }
+                    }
+
                     let info = TrackInfo {
-                        sid: track.sid().to_string(),
+                        sid: track_sid,
                         participant_sid: psid,
                         kind: track_kind,
                         source,
@@ -262,6 +286,7 @@ impl RoomManager {
 
                 RoomEvent::TrackUnsubscribed { track, publication, participant } => {
                     let psid = participant.sid().to_string();
+                    let track_sid = track.sid().to_string();
                     let is_video = publication.kind() == LkTrackKind::Video;
 
                     if is_video {
@@ -269,9 +294,10 @@ impl RoomManager {
                         if let Some(p) = pm.participant_mut(&psid) {
                             p.has_video = false;
                         }
+                        subscribed_tracks.lock().await.remove(&track_sid);
                     }
 
-                    emitter.emit(VisioEvent::TrackUnsubscribed(track.sid().to_string()));
+                    emitter.emit(VisioEvent::TrackUnsubscribed(track_sid));
                 }
 
                 RoomEvent::TrackMuted { participant, publication } => {
