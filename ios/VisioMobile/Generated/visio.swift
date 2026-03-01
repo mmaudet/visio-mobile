@@ -517,6 +517,8 @@ public protocol VisioClientProtocol: AnyObject, Sendable {
     
     func disconnect() 
     
+    func getSettings()  -> Settings
+    
     func isCameraEnabled()  -> Bool
     
     func isMicrophoneEnabled()  -> Bool
@@ -527,7 +529,19 @@ public protocol VisioClientProtocol: AnyObject, Sendable {
     
     func setCameraEnabled(enabled: Bool) throws 
     
+    func setCameraEnabledOnJoin(enabled: Bool) 
+    
+    func setDisplayName(name: String?) 
+    
+    func setLanguage(lang: String?) 
+    
+    func setMicEnabledOnJoin(enabled: Bool) 
+    
     func setMicrophoneEnabled(enabled: Bool) throws 
+    
+    func startVideoRenderer(trackSid: String) 
+    
+    func stopVideoRenderer(trackSid: String) 
     
 }
 open class VisioClient: VisioClientProtocol, @unchecked Sendable {
@@ -569,10 +583,11 @@ open class VisioClient: VisioClientProtocol, @unchecked Sendable {
     public func uniffiClonePointer() -> UnsafeMutableRawPointer {
         return try! rustCall { uniffi_visio_ffi_fn_clone_visioclient(self.pointer, $0) }
     }
-public convenience init() {
+public convenience init(dataDir: String) {
     let pointer =
         try! rustCall() {
-    uniffi_visio_ffi_fn_constructor_visioclient_new($0
+    uniffi_visio_ffi_fn_constructor_visioclient_new(
+        FfiConverterString.lower(dataDir),$0
     )
 }
     self.init(unsafeFromRawPointer: pointer)
@@ -631,6 +646,13 @@ open func disconnect()  {try! rustCall() {
 }
 }
     
+open func getSettings() -> Settings  {
+    return try!  FfiConverterTypeSettings_lift(try! rustCall() {
+    uniffi_visio_ffi_fn_method_visioclient_get_settings(self.uniffiClonePointer(),$0
+    )
+})
+}
+    
 open func isCameraEnabled() -> Bool  {
     return try!  FfiConverterBool.lift(try! rustCall() {
     uniffi_visio_ffi_fn_method_visioclient_is_camera_enabled(self.uniffiClonePointer(),$0
@@ -667,9 +689,51 @@ open func setCameraEnabled(enabled: Bool)throws   {try rustCallWithError(FfiConv
 }
 }
     
+open func setCameraEnabledOnJoin(enabled: Bool)  {try! rustCall() {
+    uniffi_visio_ffi_fn_method_visioclient_set_camera_enabled_on_join(self.uniffiClonePointer(),
+        FfiConverterBool.lower(enabled),$0
+    )
+}
+}
+    
+open func setDisplayName(name: String?)  {try! rustCall() {
+    uniffi_visio_ffi_fn_method_visioclient_set_display_name(self.uniffiClonePointer(),
+        FfiConverterOptionString.lower(name),$0
+    )
+}
+}
+    
+open func setLanguage(lang: String?)  {try! rustCall() {
+    uniffi_visio_ffi_fn_method_visioclient_set_language(self.uniffiClonePointer(),
+        FfiConverterOptionString.lower(lang),$0
+    )
+}
+}
+    
+open func setMicEnabledOnJoin(enabled: Bool)  {try! rustCall() {
+    uniffi_visio_ffi_fn_method_visioclient_set_mic_enabled_on_join(self.uniffiClonePointer(),
+        FfiConverterBool.lower(enabled),$0
+    )
+}
+}
+    
 open func setMicrophoneEnabled(enabled: Bool)throws   {try rustCallWithError(FfiConverterTypeVisioError_lift) {
     uniffi_visio_ffi_fn_method_visioclient_set_microphone_enabled(self.uniffiClonePointer(),
         FfiConverterBool.lower(enabled),$0
+    )
+}
+}
+    
+open func startVideoRenderer(trackSid: String)  {try! rustCall() {
+    uniffi_visio_ffi_fn_method_visioclient_start_video_renderer(self.uniffiClonePointer(),
+        FfiConverterString.lower(trackSid),$0
+    )
+}
+}
+    
+open func stopVideoRenderer(trackSid: String)  {try! rustCall() {
+    uniffi_visio_ffi_fn_method_visioclient_stop_video_renderer(self.uniffiClonePointer(),
+        FfiConverterString.lower(trackSid),$0
     )
 }
 }
@@ -830,16 +894,18 @@ public struct ParticipantInfo {
     public var name: String?
     public var isMuted: Bool
     public var hasVideo: Bool
+    public var videoTrackSid: String?
     public var connectionQuality: ConnectionQuality
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    public init(sid: String, identity: String, name: String?, isMuted: Bool, hasVideo: Bool, connectionQuality: ConnectionQuality) {
+    public init(sid: String, identity: String, name: String?, isMuted: Bool, hasVideo: Bool, videoTrackSid: String?, connectionQuality: ConnectionQuality) {
         self.sid = sid
         self.identity = identity
         self.name = name
         self.isMuted = isMuted
         self.hasVideo = hasVideo
+        self.videoTrackSid = videoTrackSid
         self.connectionQuality = connectionQuality
     }
 }
@@ -866,6 +932,9 @@ extension ParticipantInfo: Equatable, Hashable {
         if lhs.hasVideo != rhs.hasVideo {
             return false
         }
+        if lhs.videoTrackSid != rhs.videoTrackSid {
+            return false
+        }
         if lhs.connectionQuality != rhs.connectionQuality {
             return false
         }
@@ -878,6 +947,7 @@ extension ParticipantInfo: Equatable, Hashable {
         hasher.combine(name)
         hasher.combine(isMuted)
         hasher.combine(hasVideo)
+        hasher.combine(videoTrackSid)
         hasher.combine(connectionQuality)
     }
 }
@@ -896,6 +966,7 @@ public struct FfiConverterTypeParticipantInfo: FfiConverterRustBuffer {
                 name: FfiConverterOptionString.read(from: &buf), 
                 isMuted: FfiConverterBool.read(from: &buf), 
                 hasVideo: FfiConverterBool.read(from: &buf), 
+                videoTrackSid: FfiConverterOptionString.read(from: &buf), 
                 connectionQuality: FfiConverterTypeConnectionQuality.read(from: &buf)
         )
     }
@@ -906,6 +977,7 @@ public struct FfiConverterTypeParticipantInfo: FfiConverterRustBuffer {
         FfiConverterOptionString.write(value.name, into: &buf)
         FfiConverterBool.write(value.isMuted, into: &buf)
         FfiConverterBool.write(value.hasVideo, into: &buf)
+        FfiConverterOptionString.write(value.videoTrackSid, into: &buf)
         FfiConverterTypeConnectionQuality.write(value.connectionQuality, into: &buf)
     }
 }
@@ -923,6 +995,92 @@ public func FfiConverterTypeParticipantInfo_lift(_ buf: RustBuffer) throws -> Pa
 #endif
 public func FfiConverterTypeParticipantInfo_lower(_ value: ParticipantInfo) -> RustBuffer {
     return FfiConverterTypeParticipantInfo.lower(value)
+}
+
+
+public struct Settings {
+    public var displayName: String?
+    public var language: String?
+    public var micEnabledOnJoin: Bool
+    public var cameraEnabledOnJoin: Bool
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(displayName: String?, language: String?, micEnabledOnJoin: Bool, cameraEnabledOnJoin: Bool) {
+        self.displayName = displayName
+        self.language = language
+        self.micEnabledOnJoin = micEnabledOnJoin
+        self.cameraEnabledOnJoin = cameraEnabledOnJoin
+    }
+}
+
+#if compiler(>=6)
+extension Settings: Sendable {}
+#endif
+
+
+extension Settings: Equatable, Hashable {
+    public static func ==(lhs: Settings, rhs: Settings) -> Bool {
+        if lhs.displayName != rhs.displayName {
+            return false
+        }
+        if lhs.language != rhs.language {
+            return false
+        }
+        if lhs.micEnabledOnJoin != rhs.micEnabledOnJoin {
+            return false
+        }
+        if lhs.cameraEnabledOnJoin != rhs.cameraEnabledOnJoin {
+            return false
+        }
+        return true
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(displayName)
+        hasher.combine(language)
+        hasher.combine(micEnabledOnJoin)
+        hasher.combine(cameraEnabledOnJoin)
+    }
+}
+
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeSettings: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> Settings {
+        return
+            try Settings(
+                displayName: FfiConverterOptionString.read(from: &buf), 
+                language: FfiConverterOptionString.read(from: &buf), 
+                micEnabledOnJoin: FfiConverterBool.read(from: &buf), 
+                cameraEnabledOnJoin: FfiConverterBool.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: Settings, into buf: inout [UInt8]) {
+        FfiConverterOptionString.write(value.displayName, into: &buf)
+        FfiConverterOptionString.write(value.language, into: &buf)
+        FfiConverterBool.write(value.micEnabledOnJoin, into: &buf)
+        FfiConverterBool.write(value.cameraEnabledOnJoin, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeSettings_lift(_ buf: RustBuffer) throws -> Settings {
+    return try FfiConverterTypeSettings.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeSettings_lower(_ value: Settings) -> RustBuffer {
+    return FfiConverterTypeSettings.lower(value)
 }
 
 
@@ -1341,16 +1499,16 @@ public enum VisioError: Swift.Error {
 
     
     
-    case Connection(message: String)
-    
-    case Room(message: String)
-    
-    case Auth(message: String)
-    
-    case Http(message: String)
-    
-    case InvalidUrl(message: String)
-    
+    case Connection(msg: String
+    )
+    case Room(msg: String
+    )
+    case Auth(msg: String
+    )
+    case Http(msg: String
+    )
+    case InvalidUrl(msg: String
+    )
 }
 
 
@@ -1368,27 +1526,22 @@ public struct FfiConverterTypeVisioError: FfiConverterRustBuffer {
 
         
         case 1: return .Connection(
-            message: try FfiConverterString.read(from: &buf)
-        )
-        
+            msg: try FfiConverterString.read(from: &buf)
+            )
         case 2: return .Room(
-            message: try FfiConverterString.read(from: &buf)
-        )
-        
+            msg: try FfiConverterString.read(from: &buf)
+            )
         case 3: return .Auth(
-            message: try FfiConverterString.read(from: &buf)
-        )
-        
+            msg: try FfiConverterString.read(from: &buf)
+            )
         case 4: return .Http(
-            message: try FfiConverterString.read(from: &buf)
-        )
-        
+            msg: try FfiConverterString.read(from: &buf)
+            )
         case 5: return .InvalidUrl(
-            message: try FfiConverterString.read(from: &buf)
-        )
-        
+            msg: try FfiConverterString.read(from: &buf)
+            )
 
-        default: throw UniffiInternalError.unexpectedEnumCase
+         default: throw UniffiInternalError.unexpectedEnumCase
         }
     }
 
@@ -1398,18 +1551,31 @@ public struct FfiConverterTypeVisioError: FfiConverterRustBuffer {
         
 
         
-        case .Connection(_ /* message is ignored*/):
-            writeInt(&buf, Int32(1))
-        case .Room(_ /* message is ignored*/):
-            writeInt(&buf, Int32(2))
-        case .Auth(_ /* message is ignored*/):
-            writeInt(&buf, Int32(3))
-        case .Http(_ /* message is ignored*/):
-            writeInt(&buf, Int32(4))
-        case .InvalidUrl(_ /* message is ignored*/):
-            writeInt(&buf, Int32(5))
-
         
+        case let .Connection(msg):
+            writeInt(&buf, Int32(1))
+            FfiConverterString.write(msg, into: &buf)
+            
+        
+        case let .Room(msg):
+            writeInt(&buf, Int32(2))
+            FfiConverterString.write(msg, into: &buf)
+            
+        
+        case let .Auth(msg):
+            writeInt(&buf, Int32(3))
+            FfiConverterString.write(msg, into: &buf)
+            
+        
+        case let .Http(msg):
+            writeInt(&buf, Int32(4))
+            FfiConverterString.write(msg, into: &buf)
+            
+        
+        case let .InvalidUrl(msg):
+            writeInt(&buf, Int32(5))
+            FfiConverterString.write(msg, into: &buf)
+            
         }
     }
 }
@@ -1817,6 +1983,11 @@ fileprivate struct FfiConverterSequenceTypeParticipantInfo: FfiConverterRustBuff
         return seq
     }
 }
+public func initLogging()  {try! rustCall() {
+    uniffi_visio_ffi_fn_func_init_logging($0
+    )
+}
+}
 
 private enum InitializationResult {
     case ok
@@ -1832,6 +2003,9 @@ private let initializationResult: InitializationResult = {
     let scaffolding_contract_version = ffi_visio_ffi_uniffi_contract_version()
     if bindings_contract_version != scaffolding_contract_version {
         return InitializationResult.contractVersionMismatch
+    }
+    if (uniffi_visio_ffi_checksum_func_init_logging() != 52772) {
+        return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_visio_ffi_checksum_method_visioclient_active_speakers() != 15815) {
         return InitializationResult.apiChecksumMismatch
@@ -1851,6 +2025,9 @@ private let initializationResult: InitializationResult = {
     if (uniffi_visio_ffi_checksum_method_visioclient_disconnect() != 52651) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_visio_ffi_checksum_method_visioclient_get_settings() != 24786) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_visio_ffi_checksum_method_visioclient_is_camera_enabled() != 23394) {
         return InitializationResult.apiChecksumMismatch
     }
@@ -1866,10 +2043,28 @@ private let initializationResult: InitializationResult = {
     if (uniffi_visio_ffi_checksum_method_visioclient_set_camera_enabled() != 34139) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_visio_ffi_checksum_method_visioclient_set_camera_enabled_on_join() != 27341) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_visio_ffi_checksum_method_visioclient_set_display_name() != 36622) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_visio_ffi_checksum_method_visioclient_set_language() != 63924) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_visio_ffi_checksum_method_visioclient_set_mic_enabled_on_join() != 39099) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_visio_ffi_checksum_method_visioclient_set_microphone_enabled() != 607) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_visio_ffi_checksum_constructor_visioclient_new() != 14725) {
+    if (uniffi_visio_ffi_checksum_method_visioclient_start_video_renderer() != 53000) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_visio_ffi_checksum_method_visioclient_stop_video_renderer() != 45318) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_visio_ffi_checksum_constructor_visioclient_new() != 10250) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_visio_ffi_checksum_method_visioeventlistener_on_event() != 7818) {

@@ -278,8 +278,7 @@ void uniffi_visio_ffi_fn_free_visioclient(void*_Nonnull ptr, RustCallStatus *_No
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_FN_CONSTRUCTOR_VISIOCLIENT_NEW
 #define UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_FN_CONSTRUCTOR_VISIOCLIENT_NEW
-void*_Nonnull uniffi_visio_ffi_fn_constructor_visioclient_new(RustCallStatus *_Nonnull out_status
-    
+void*_Nonnull uniffi_visio_ffi_fn_constructor_visioclient_new(RustBuffer data_dir, RustCallStatus *_Nonnull out_status
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_FN_METHOD_VISIOCLIENT_ACTIVE_SPEAKERS
@@ -312,6 +311,11 @@ RustBuffer uniffi_visio_ffi_fn_method_visioclient_connection_state(void*_Nonnull
 void uniffi_visio_ffi_fn_method_visioclient_disconnect(void*_Nonnull ptr, RustCallStatus *_Nonnull out_status
 );
 #endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_FN_METHOD_VISIOCLIENT_GET_SETTINGS
+#define UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_FN_METHOD_VISIOCLIENT_GET_SETTINGS
+RustBuffer uniffi_visio_ffi_fn_method_visioclient_get_settings(void*_Nonnull ptr, RustCallStatus *_Nonnull out_status
+);
+#endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_FN_METHOD_VISIOCLIENT_IS_CAMERA_ENABLED
 #define UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_FN_METHOD_VISIOCLIENT_IS_CAMERA_ENABLED
 int8_t uniffi_visio_ffi_fn_method_visioclient_is_camera_enabled(void*_Nonnull ptr, RustCallStatus *_Nonnull out_status
@@ -337,14 +341,50 @@ RustBuffer uniffi_visio_ffi_fn_method_visioclient_send_chat_message(void*_Nonnul
 void uniffi_visio_ffi_fn_method_visioclient_set_camera_enabled(void*_Nonnull ptr, int8_t enabled, RustCallStatus *_Nonnull out_status
 );
 #endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_FN_METHOD_VISIOCLIENT_SET_CAMERA_ENABLED_ON_JOIN
+#define UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_FN_METHOD_VISIOCLIENT_SET_CAMERA_ENABLED_ON_JOIN
+void uniffi_visio_ffi_fn_method_visioclient_set_camera_enabled_on_join(void*_Nonnull ptr, int8_t enabled, RustCallStatus *_Nonnull out_status
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_FN_METHOD_VISIOCLIENT_SET_DISPLAY_NAME
+#define UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_FN_METHOD_VISIOCLIENT_SET_DISPLAY_NAME
+void uniffi_visio_ffi_fn_method_visioclient_set_display_name(void*_Nonnull ptr, RustBuffer name, RustCallStatus *_Nonnull out_status
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_FN_METHOD_VISIOCLIENT_SET_LANGUAGE
+#define UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_FN_METHOD_VISIOCLIENT_SET_LANGUAGE
+void uniffi_visio_ffi_fn_method_visioclient_set_language(void*_Nonnull ptr, RustBuffer lang, RustCallStatus *_Nonnull out_status
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_FN_METHOD_VISIOCLIENT_SET_MIC_ENABLED_ON_JOIN
+#define UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_FN_METHOD_VISIOCLIENT_SET_MIC_ENABLED_ON_JOIN
+void uniffi_visio_ffi_fn_method_visioclient_set_mic_enabled_on_join(void*_Nonnull ptr, int8_t enabled, RustCallStatus *_Nonnull out_status
+);
+#endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_FN_METHOD_VISIOCLIENT_SET_MICROPHONE_ENABLED
 #define UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_FN_METHOD_VISIOCLIENT_SET_MICROPHONE_ENABLED
 void uniffi_visio_ffi_fn_method_visioclient_set_microphone_enabled(void*_Nonnull ptr, int8_t enabled, RustCallStatus *_Nonnull out_status
 );
 #endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_FN_METHOD_VISIOCLIENT_START_VIDEO_RENDERER
+#define UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_FN_METHOD_VISIOCLIENT_START_VIDEO_RENDERER
+void uniffi_visio_ffi_fn_method_visioclient_start_video_renderer(void*_Nonnull ptr, RustBuffer track_sid, RustCallStatus *_Nonnull out_status
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_FN_METHOD_VISIOCLIENT_STOP_VIDEO_RENDERER
+#define UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_FN_METHOD_VISIOCLIENT_STOP_VIDEO_RENDERER
+void uniffi_visio_ffi_fn_method_visioclient_stop_video_renderer(void*_Nonnull ptr, RustBuffer track_sid, RustCallStatus *_Nonnull out_status
+);
+#endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_FN_INIT_CALLBACK_VTABLE_VISIOEVENTLISTENER
 #define UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_FN_INIT_CALLBACK_VTABLE_VISIOEVENTLISTENER
 void uniffi_visio_ffi_fn_init_callback_vtable_visioeventlistener(const UniffiVTableCallbackInterfaceVisioEventListener* _Nonnull vtable
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_FN_FUNC_INIT_LOGGING
+#define UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_FN_FUNC_INIT_LOGGING
+void uniffi_visio_ffi_fn_func_init_logging(RustCallStatus *_Nonnull out_status
+    
 );
 #endif
 #ifndef UNIFFI_FFIDEF_FFI_VISIO_FFI_RUSTBUFFER_ALLOC
@@ -627,6 +667,12 @@ void ffi_visio_ffi_rust_future_free_void(uint64_t handle
 void ffi_visio_ffi_rust_future_complete_void(uint64_t handle, RustCallStatus *_Nonnull out_status
 );
 #endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_CHECKSUM_FUNC_INIT_LOGGING
+#define UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_CHECKSUM_FUNC_INIT_LOGGING
+uint16_t uniffi_visio_ffi_checksum_func_init_logging(void
+    
+);
+#endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_CHECKSUM_METHOD_VISIOCLIENT_ACTIVE_SPEAKERS
 #define UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_CHECKSUM_METHOD_VISIOCLIENT_ACTIVE_SPEAKERS
 uint16_t uniffi_visio_ffi_checksum_method_visioclient_active_speakers(void
@@ -663,6 +709,12 @@ uint16_t uniffi_visio_ffi_checksum_method_visioclient_disconnect(void
     
 );
 #endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_CHECKSUM_METHOD_VISIOCLIENT_GET_SETTINGS
+#define UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_CHECKSUM_METHOD_VISIOCLIENT_GET_SETTINGS
+uint16_t uniffi_visio_ffi_checksum_method_visioclient_get_settings(void
+    
+);
+#endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_CHECKSUM_METHOD_VISIOCLIENT_IS_CAMERA_ENABLED
 #define UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_CHECKSUM_METHOD_VISIOCLIENT_IS_CAMERA_ENABLED
 uint16_t uniffi_visio_ffi_checksum_method_visioclient_is_camera_enabled(void
@@ -693,9 +745,45 @@ uint16_t uniffi_visio_ffi_checksum_method_visioclient_set_camera_enabled(void
     
 );
 #endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_CHECKSUM_METHOD_VISIOCLIENT_SET_CAMERA_ENABLED_ON_JOIN
+#define UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_CHECKSUM_METHOD_VISIOCLIENT_SET_CAMERA_ENABLED_ON_JOIN
+uint16_t uniffi_visio_ffi_checksum_method_visioclient_set_camera_enabled_on_join(void
+    
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_CHECKSUM_METHOD_VISIOCLIENT_SET_DISPLAY_NAME
+#define UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_CHECKSUM_METHOD_VISIOCLIENT_SET_DISPLAY_NAME
+uint16_t uniffi_visio_ffi_checksum_method_visioclient_set_display_name(void
+    
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_CHECKSUM_METHOD_VISIOCLIENT_SET_LANGUAGE
+#define UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_CHECKSUM_METHOD_VISIOCLIENT_SET_LANGUAGE
+uint16_t uniffi_visio_ffi_checksum_method_visioclient_set_language(void
+    
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_CHECKSUM_METHOD_VISIOCLIENT_SET_MIC_ENABLED_ON_JOIN
+#define UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_CHECKSUM_METHOD_VISIOCLIENT_SET_MIC_ENABLED_ON_JOIN
+uint16_t uniffi_visio_ffi_checksum_method_visioclient_set_mic_enabled_on_join(void
+    
+);
+#endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_CHECKSUM_METHOD_VISIOCLIENT_SET_MICROPHONE_ENABLED
 #define UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_CHECKSUM_METHOD_VISIOCLIENT_SET_MICROPHONE_ENABLED
 uint16_t uniffi_visio_ffi_checksum_method_visioclient_set_microphone_enabled(void
+    
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_CHECKSUM_METHOD_VISIOCLIENT_START_VIDEO_RENDERER
+#define UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_CHECKSUM_METHOD_VISIOCLIENT_START_VIDEO_RENDERER
+uint16_t uniffi_visio_ffi_checksum_method_visioclient_start_video_renderer(void
+    
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_CHECKSUM_METHOD_VISIOCLIENT_STOP_VIDEO_RENDERER
+#define UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_CHECKSUM_METHOD_VISIOCLIENT_STOP_VIDEO_RENDERER
+uint16_t uniffi_visio_ffi_checksum_method_visioclient_stop_video_renderer(void
     
 );
 #endif

@@ -7,63 +7,132 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		E10000010000000000000001 /* VisioMobileApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = E10000020000000000000001 /* VisioMobileApp.swift */; };
-		E10000010000000000000002 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E10000020000000000000002 /* ContentView.swift */; };
+		A10001000000000000000001 /* VisioMobileApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10002000000000000000001 /* VisioMobileApp.swift */; };
+		A10001000000000000000002 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10002000000000000000002 /* ContentView.swift */; };
+		A10001000000000000000003 /* VisioManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10002000000000000000003 /* VisioManager.swift */; };
+		A10001000000000000000004 /* AudioPlayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10002000000000000000004 /* AudioPlayout.swift */; };
+		A10001000000000000000005 /* VideoFrameRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10002000000000000000005 /* VideoFrameRouter.swift */; };
+		A10001000000000000000006 /* HomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10002000000000000000006 /* HomeView.swift */; };
+		A10001000000000000000007 /* CallView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10002000000000000000007 /* CallView.swift */; };
+		A10001000000000000000008 /* ChatView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10002000000000000000008 /* ChatView.swift */; };
+		A10001000000000000000009 /* VideoLayerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10002000000000000000009 /* VideoLayerView.swift */; };
+		A1000100000000000000000A /* visio.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000200000000000000000A /* visio.swift */; };
+		A1000100000000000000000E /* CameraCapture.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10002000000000000000012 /* CameraCapture.swift */; };
+		A1000100000000000000000B /* libvisio_ffi.a in Frameworks */ = {isa = PBXBuildFile; fileRef = A1000200000000000000000B /* libvisio_ffi.a */; };
+		A1000100000000000000000C /* libvisio_video.a in Frameworks */ = {isa = PBXBuildFile; fileRef = A1000200000000000000000C /* libvisio_video.a */; };
+		A1000100000000000000000D /* libresolv.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = A1000200000000000000000D /* libresolv.tbd */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
-		E10000020000000000000001 /* VisioMobileApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VisioMobileApp.swift; sourceTree = "<group>"; };
-		E10000020000000000000002 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
-		E10000020000000000000003 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
-		E10000030000000000000001 /* VisioMobile.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = VisioMobile.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		A10002000000000000000001 /* VisioMobileApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VisioMobileApp.swift; sourceTree = "<group>"; };
+		A10002000000000000000002 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		A10002000000000000000003 /* VisioManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VisioManager.swift; sourceTree = "<group>"; };
+		A10002000000000000000004 /* AudioPlayout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioPlayout.swift; sourceTree = "<group>"; };
+		A10002000000000000000005 /* VideoFrameRouter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoFrameRouter.swift; sourceTree = "<group>"; };
+		A10002000000000000000006 /* HomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeView.swift; sourceTree = "<group>"; };
+		A10002000000000000000007 /* CallView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CallView.swift; sourceTree = "<group>"; };
+		A10002000000000000000008 /* ChatView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatView.swift; sourceTree = "<group>"; };
+		A10002000000000000000009 /* VideoLayerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoLayerView.swift; sourceTree = "<group>"; };
+		A1000200000000000000000A /* visio.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = visio.swift; sourceTree = "<group>"; };
+		A1000200000000000000000B /* libvisio_ffi.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libvisio_ffi.a; path = "../target/aarch64-apple-ios-sim/release/libvisio_ffi.a"; sourceTree = "<group>"; };
+		A1000200000000000000000C /* libvisio_video.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libvisio_video.a; path = "../target/aarch64-apple-ios-sim/release/libvisio_video.a"; sourceTree = "<group>"; };
+		A1000200000000000000000D /* libresolv.tbd */ = {isa = PBXFileReference; lastKnownFileType = "sourcecode.text-based-dylib-definition"; name = libresolv.tbd; path = usr/lib/libresolv.tbd; sourceTree = SDKROOT; };
+		A1000200000000000000000E /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		A1000200000000000000000F /* visioFFI.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = visioFFI.h; sourceTree = "<group>"; };
+		A10002000000000000000010 /* visioFFI.modulemap */ = {isa = PBXFileReference; lastKnownFileType = "sourcecode.module-map"; path = visioFFI.modulemap; sourceTree = "<group>"; };
+		A10002000000000000000011 /* visio_native.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = visio_native.h; sourceTree = "<group>"; };
+		A10002000000000000000012 /* CameraCapture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraCapture.swift; sourceTree = "<group>"; };
+		A10003000000000000000001 /* VisioMobile.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = VisioMobile.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
-		E10000040000000000000001 /* Frameworks */ = {
+		A10004000000000000000001 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A1000100000000000000000B /* libvisio_ffi.a in Frameworks */,
+				A1000100000000000000000C /* libvisio_video.a in Frameworks */,
+				A1000100000000000000000D /* libresolv.tbd in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
-		E10000050000000000000001 = {
+		A10005000000000000000001 = {
 			isa = PBXGroup;
 			children = (
-				E10000050000000000000002 /* VisioMobile */,
-				E10000050000000000000003 /* Products */,
+				A10005000000000000000002 /* VisioMobile */,
+				A10005000000000000000005 /* Frameworks */,
+				A10005000000000000000003 /* Products */,
 			);
 			sourceTree = "<group>";
 		};
-		E10000050000000000000002 /* VisioMobile */ = {
+		A10005000000000000000002 /* VisioMobile */ = {
 			isa = PBXGroup;
 			children = (
-				E10000020000000000000001 /* VisioMobileApp.swift */,
-				E10000020000000000000002 /* ContentView.swift */,
-				E10000020000000000000003 /* Info.plist */,
+				A10002000000000000000001 /* VisioMobileApp.swift */,
+				A10002000000000000000002 /* ContentView.swift */,
+				A10002000000000000000003 /* VisioManager.swift */,
+				A10002000000000000000004 /* AudioPlayout.swift */,
+				A10002000000000000000005 /* VideoFrameRouter.swift */,
+				A10002000000000000000012 /* CameraCapture.swift */,
+				A10005000000000000000004 /* Views */,
+				A10005000000000000000006 /* Generated */,
+				A1000200000000000000000E /* Info.plist */,
 			);
 			path = VisioMobile;
 			sourceTree = "<group>";
 		};
-		E10000050000000000000003 /* Products */ = {
+		A10005000000000000000003 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				E10000030000000000000001 /* VisioMobile.app */,
+				A10003000000000000000001 /* VisioMobile.app */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		A10005000000000000000004 /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				A10002000000000000000006 /* HomeView.swift */,
+				A10002000000000000000007 /* CallView.swift */,
+				A10002000000000000000008 /* ChatView.swift */,
+				A10002000000000000000009 /* VideoLayerView.swift */,
+			);
+			path = Views;
+			sourceTree = "<group>";
+		};
+		A10005000000000000000005 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				A1000200000000000000000B /* libvisio_ffi.a */,
+				A1000200000000000000000C /* libvisio_video.a */,
+				A1000200000000000000000D /* libresolv.tbd */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		A10005000000000000000006 /* Generated */ = {
+			isa = PBXGroup;
+			children = (
+				A1000200000000000000000A /* visio.swift */,
+				A1000200000000000000000F /* visioFFI.h */,
+				A10002000000000000000010 /* visioFFI.modulemap */,
+				A10002000000000000000011 /* visio_native.h */,
+			);
+			path = Generated;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		E10000060000000000000001 /* VisioMobile */ = {
+		A10006000000000000000001 /* VisioMobile */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = E10000080000000000000001 /* Build configuration list for PBXNativeTarget "VisioMobile" */;
+			buildConfigurationList = A10008000000000000000001 /* Build configuration list for PBXNativeTarget "VisioMobile" */;
 			buildPhases = (
-				E10000070000000000000001 /* Sources */,
-				E10000040000000000000001 /* Frameworks */,
+				A10007000000000000000001 /* Sources */,
+				A10004000000000000000001 /* Frameworks */,
 			);
 			buildRules = (
 			);
@@ -71,20 +140,20 @@
 			);
 			name = VisioMobile;
 			productName = VisioMobile;
-			productReference = E10000030000000000000001 /* VisioMobile.app */;
+			productReference = A10003000000000000000001 /* VisioMobile.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
-		E10000090000000000000001 /* Project object */ = {
+		A10009000000000000000001 /* Project object */ = {
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
 				LastSwiftUpdateCheck = 1500;
 				LastUpgradeCheck = 1500;
 			};
-			buildConfigurationList = E10000080000000000000002 /* Build configuration list for PBXProject "VisioMobile" */;
+			buildConfigurationList = A10008000000000000000002 /* Build configuration list for PBXProject "VisioMobile" */;
 			compatibilityVersion = "Xcode 14.0";
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
@@ -92,30 +161,39 @@
 				en,
 				fr,
 			);
-			mainGroup = E10000050000000000000001;
-			productRefGroup = E10000050000000000000003 /* Products */;
+			mainGroup = A10005000000000000000001;
+			productRefGroup = A10005000000000000000003 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				E10000060000000000000001 /* VisioMobile */,
+				A10006000000000000000001 /* VisioMobile */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXSourcesBuildPhase section */
-		E10000070000000000000001 /* Sources */ = {
+		A10007000000000000000001 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				E10000010000000000000001 /* VisioMobileApp.swift in Sources */,
-				E10000010000000000000002 /* ContentView.swift in Sources */,
+				A10001000000000000000001 /* VisioMobileApp.swift in Sources */,
+				A10001000000000000000002 /* ContentView.swift in Sources */,
+				A10001000000000000000003 /* VisioManager.swift in Sources */,
+				A10001000000000000000004 /* AudioPlayout.swift in Sources */,
+				A10001000000000000000005 /* VideoFrameRouter.swift in Sources */,
+				A10001000000000000000006 /* HomeView.swift in Sources */,
+				A10001000000000000000007 /* CallView.swift in Sources */,
+				A10001000000000000000008 /* ChatView.swift in Sources */,
+				A10001000000000000000009 /* VideoLayerView.swift in Sources */,
+				A1000100000000000000000A /* visio.swift in Sources */,
+				A1000100000000000000000E /* CameraCapture.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin XCBuildConfiguration section */
-		E1000000A000000000000001 /* Debug */ = {
+		A1000A00000000000000001 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
@@ -129,15 +207,22 @@
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				LIBRARY_SEARCH_PATHS = "$(PROJECT_DIR)/../target/aarch64-apple-ios-sim/release";
 				MARKETING_VERSION = 0.1.0;
+				OTHER_LDFLAGS = (
+					"-lvisio_ffi",
+					"-lvisio_video",
+					"-ObjC",
+				);
 				PRODUCT_BUNDLE_IDENTIFIER = io.visio.mobile;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				OTHER_SWIFT_FLAGS = "-Xcc -fmodule-map-file=$(PROJECT_DIR)/VisioMobile/Generated/visioFFI.modulemap";
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
 			name = Debug;
 		};
-		E1000000A000000000000002 /* Release */ = {
+		A1000A00000000000000002 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
@@ -151,15 +236,22 @@
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				LIBRARY_SEARCH_PATHS = "$(PROJECT_DIR)/../target/aarch64-apple-ios-sim/release";
 				MARKETING_VERSION = 0.1.0;
+				OTHER_LDFLAGS = (
+					"-lvisio_ffi",
+					"-lvisio_video",
+					"-ObjC",
+				);
 				PRODUCT_BUNDLE_IDENTIFIER = io.visio.mobile;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				OTHER_SWIFT_FLAGS = "-Xcc -fmodule-map-file=$(PROJECT_DIR)/VisioMobile/Generated/visioFFI.modulemap";
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
 			name = Release;
 		};
-		E1000000B000000000000001 /* Debug */ = {
+		A1000B00000000000000001 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
@@ -191,7 +283,7 @@
 			};
 			name = Debug;
 		};
-		E1000000B000000000000002 /* Release */ = {
+		A1000B00000000000000002 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
@@ -220,20 +312,20 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		E10000080000000000000001 /* Build configuration list for PBXNativeTarget "VisioMobile" */ = {
+		A10008000000000000000001 /* Build configuration list for PBXNativeTarget "VisioMobile" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				E1000000A000000000000001 /* Debug */,
-				E1000000A000000000000002 /* Release */,
+				A1000A00000000000000001 /* Debug */,
+				A1000A00000000000000002 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		E10000080000000000000002 /* Build configuration list for PBXProject "VisioMobile" */ = {
+		A10008000000000000000002 /* Build configuration list for PBXProject "VisioMobile" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				E1000000B000000000000001 /* Debug */,
-				E1000000B000000000000002 /* Release */,
+				A1000B00000000000000001 /* Debug */,
+				A1000B00000000000000002 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
@@ -241,5 +333,5 @@
 /* End XCConfigurationList section */
 
 	};
-	rootObject = E10000090000000000000001 /* Project object */;
+	rootObject = A10009000000000000000001 /* Project object */;
 }

@@ -24,6 +24,11 @@ struct CallView: View {
                     .background(Color.red)
             }
 
+            // Video grid for participants with active video tracks
+            if !manager.videoTrackSids.isEmpty {
+                videoGrid
+            }
+
             // Participants list
             if manager.participants.isEmpty {
                 Spacer()
@@ -55,7 +60,33 @@ struct CallView: View {
         .onAppear {
             let name = displayName.isEmpty ? nil : displayName
             manager.connect(url: roomURL, username: name)
+            manager.startAudioPlayout()
         }
+        .onDisappear {
+            manager.stopAudioPlayout()
+        }
+    }
+
+    // MARK: - Video Grid
+
+    @ViewBuilder
+    private var videoGrid: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                ForEach(manager.videoTrackSids, id: \.self) { trackSid in
+                    VideoLayerView(trackSid: trackSid)
+                        .frame(width: 200, height: 150)
+                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 8)
+                                .stroke(Color.secondary.opacity(0.3), lineWidth: 1)
+                        )
+                }
+            }
+            .padding(.horizontal, 12)
+        }
+        .frame(height: 166)
+        .padding(.vertical, 4)
     }
 
     // MARK: - Connection Banner

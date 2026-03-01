@@ -8,10 +8,15 @@ struct VideoLayerView: UIViewRepresentable {
         let view = VideoDisplayView()
         view.trackSid = trackSid
         view.setupDisplayLayer()
+        VideoFrameRouter.shared.register(trackSid: trackSid, view: view)
         return view
     }
 
     func updateUIView(_ uiView: VideoDisplayView, context: Context) {}
+
+    static func dismantleUIView(_ uiView: VideoDisplayView, coordinator: ()) {
+        VideoFrameRouter.shared.unregister(trackSid: uiView.trackSid)
+    }
 }
 
 class VideoDisplayView: UIView {
@@ -31,9 +36,7 @@ class VideoDisplayView: UIView {
         displayLayer = layer
     }
 
-    /// Called from the Rust video callback to enqueue a frame.
-    /// In production, this receives CVPixelBuffer from the Rust callback
-    /// and wraps it in a CMSampleBuffer for display.
+    /// Called from VideoFrameRouter on the main thread to enqueue a frame.
     func enqueueSampleBuffer(_ sampleBuffer: CMSampleBuffer) {
         displayLayer?.enqueue(sampleBuffer)
     }

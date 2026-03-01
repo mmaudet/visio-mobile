@@ -55,7 +55,17 @@ fn visio_log(msg: &str) {
         let text = CString::new(msg).unwrap_or_else(|_| CString::new("(invalid utf8)").unwrap());
         unsafe { __android_log_write(4 /* INFO */, tag.as_ptr(), text.as_ptr()); }
     }
-    #[cfg(not(target_os = "android"))]
+    #[cfg(target_os = "ios")]
+    {
+        // Use syslog so messages appear in `xcrun simctl spawn ... log show`
+        use std::ffi::CString;
+        unsafe extern "C" {
+            fn syslog(priority: i32, message: *const std::ffi::c_char, ...);
+        }
+        let text = CString::new(msg).unwrap_or_else(|_| CString::new("(invalid utf8)").unwrap());
+        unsafe { syslog(6 /* LOG_INFO */, text.as_ptr()); }
+    }
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
     eprintln!("{msg}");
 }
 
@@ -359,6 +369,14 @@ impl VisioClient {
             visio_log("VISIO FFI: playout buffer stored for Android audio output");
         }
 
+        // Store playout buffer for iOS C FFI audio pull
+        #[cfg(target_os = "ios")]
+        {
+            let buf = room_manager.playout_buffer();
+            *PLAYOUT_BUFFER_IOS.lock().unwrap() = Some(buf);
+            visio_log("VISIO FFI: playout buffer stored for iOS audio output");
+        }
+
         let controls = room_manager.controls();
         let chat = room_manager.chat();
 
@@ -472,6 +490,21 @@ impl VisioClient {
                 }
             }
 
+            // On iOS, store/clear the video source for the AVCaptureSession → C FFI pipeline
+            #[cfg(target_os = "ios")]
+            {
+                let mut guard = CAMERA_SOURCE_IOS.lock().unwrap();
+                if enabled {
+                    if let Some(source) = self.controls.video_source().await {
+                        visio_log("VISIO FFI: camera source stored for iOS capture pipeline");
+                        *guard = Some(source);
+                    }
+                } else {
+                    visio_log("VISIO FFI: camera source cleared");
+                    *guard = None;
+                }
+            }
+
             Ok(())
         })
     }
@@ -527,6 +560,21 @@ impl VisioClient {
 
     pub fn set_camera_enabled_on_join(&self, enabled: bool) {
         self.settings.set_camera_enabled_on_join(enabled);
+    }
+
+    pub fn start_video_renderer(&self, track_sid: String) {
+        let track = self.rt.block_on(self.room_manager.get_video_track(&track_sid));
+        if let Some(video_track) = track {
+            visio_log(&format!("VISIO FFI: starting video renderer for {track_sid}"));
+            visio_video::start_track_renderer(track_sid, video_track, std::ptr::null_mut());
+        } else {
+            visio_log(&format!("VISIO FFI: no video track found for {track_sid}"));
+        }
+    }
+
+    pub fn stop_video_renderer(&self, track_sid: String) {
+        visio_log(&format!("VISIO FFI: stopping video renderer for {track_sid}"));
+        visio_video::stop_track_renderer(&track_sid);
     }
 }
 
@@ -806,6 +854,113 @@ pub unsafe extern "C" fn Java_io_visio_mobile_NativeVideo_nativePullAudioPlaybac
 
     std::mem::forget(jni_env);
     pulled
+}
+
+// ── iOS: statics for audio playout + camera capture ──────────────────
+
+/// Stores the AudioPlayoutBuffer from RoomManager so the iOS AudioPlayout
+/// Swift class can pull decoded remote audio via C FFI.
+#[cfg(target_os = "ios")]
+static PLAYOUT_BUFFER_IOS: StdMutex<Option<Arc<visio_core::AudioPlayoutBuffer>>> = StdMutex::new(None);
+
+/// Stores the NativeVideoSource after `set_camera_enabled(true)` publishes
+/// the camera track. The iOS CameraCapture Swift class pushes I420 frames
+/// into this source via C FFI → `visio_push_ios_camera_frame()`.
+#[cfg(target_os = "ios")]
+static CAMERA_SOURCE_IOS: StdMutex<Option<livekit::webrtc::video_source::native::NativeVideoSource>> = StdMutex::new(None);
+
+/// Pull decoded remote audio samples from the playout buffer.
+///
+/// Called from Swift's AVAudioSourceNode render callback. Fills the provided
+/// buffer with PCM i16 samples. Returns the number of samples actually
+/// available (rest is filled with silence by AudioPlayoutBuffer::pull_samples).
+///
+/// # Safety
+/// - `buffer` must point to a valid i16 array of at least `capacity` elements.
+#[cfg(target_os = "ios")]
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn visio_pull_audio_playback(buffer: *mut i16, capacity: u32) -> i32 {
+    let guard = PLAYOUT_BUFFER_IOS.lock().unwrap();
+    let Some(playout) = guard.as_ref() else { return 0 };
+    let playout = playout.clone();
+    drop(guard);
+
+    let out = unsafe { std::slice::from_raw_parts_mut(buffer, capacity as usize) };
+    playout.pull_samples(out) as i32
+}
+
+/// Push an I420 video frame from the iOS camera into the LiveKit NativeVideoSource.
+///
+/// # Safety
+/// All pointers must be valid for the given dimensions and strides.
+#[cfg(target_os = "ios")]
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn visio_push_ios_camera_frame(
+    y_ptr: *const u8, y_stride: u32,
+    u_ptr: *const u8, u_stride: u32,
+    v_ptr: *const u8, v_stride: u32,
+    width: u32, height: u32,
+) {
+    use livekit::webrtc::prelude::*;
+    use std::sync::atomic::{AtomicU64, Ordering};
+    static IOS_FRAME_COUNT: AtomicU64 = AtomicU64::new(0);
+
+    // Clone source and drop guard immediately (same pattern as visio_pull_audio_playback).
+    let source = {
+        let guard = CAMERA_SOURCE_IOS.lock().unwrap();
+        match guard.as_ref() {
+            Some(s) => s.clone(),
+            None => {
+                let n = IOS_FRAME_COUNT.fetch_add(1, Ordering::Relaxed);
+                if n % 30 == 0 {
+                    visio_log(&format!("visio_push_ios_camera_frame: no source (frame #{})", n));
+                }
+                return;
+            },
+        }
+    };
+
+    let n = IOS_FRAME_COUNT.fetch_add(1, Ordering::Relaxed);
+    if n % 30 == 0 {
+        visio_log(&format!(
+            "visio_push_ios_camera_frame: pushing frame #{} ({}x{})",
+            n, width, height
+        ));
+    }
+
+    let mut i420 = I420Buffer::new(width, height);
+    let strides = i420.strides();
+    let (y_dst, u_dst, v_dst) = i420.data_mut();
+    let w = width as usize;
+    let h = height as usize;
+    let chroma_h = h / 2;
+    let chroma_w = w / 2;
+
+    // Copy Y plane
+    for row in 0..h {
+        let src = unsafe { std::slice::from_raw_parts(y_ptr.add(row * y_stride as usize), w) };
+        let dst_start = row * strides.0 as usize;
+        y_dst[dst_start..dst_start + w].copy_from_slice(src);
+    }
+    // Copy U plane
+    for row in 0..chroma_h {
+        let src = unsafe { std::slice::from_raw_parts(u_ptr.add(row * u_stride as usize), chroma_w) };
+        let dst_start = row * strides.1 as usize;
+        u_dst[dst_start..dst_start + chroma_w].copy_from_slice(src);
+    }
+    // Copy V plane
+    for row in 0..chroma_h {
+        let src = unsafe { std::slice::from_raw_parts(v_ptr.add(row * v_stride as usize), chroma_w) };
+        let dst_start = row * strides.2 as usize;
+        v_dst[dst_start..dst_start + chroma_w].copy_from_slice(src);
+    }
+
+    let frame = VideoFrame {
+        rotation: VideoRotation::VideoRotation0,
+        timestamp_us: 0,
+        buffer: i420,
+    };
+    source.capture_frame(&frame);
 }
 
 // ── C FFI: video attach / detach ─────────────────────────────────────

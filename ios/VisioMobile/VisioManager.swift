@@ -1,5 +1,6 @@
 import Foundation
 import SwiftUI
+import visioFFI
 
 /// Central state manager for the Visio app, backed by UniFFI-generated VisioClient.
 /// Conforms to VisioEventListener to receive room events from Rust.
@@ -14,10 +15,13 @@ class VisioManager: ObservableObject {
     @Published var isMicEnabled: Bool = false
     @Published var isCameraEnabled: Bool = false
     @Published var errorMessage: String?
+    @Published var videoTrackSids: [String] = []
 
     // MARK: - Private
 
     private let client: VisioClient
+    private var audioPlayout: AudioPlayout?
+    private var cameraCapture: CameraCapture?
 
     // MARK: - Init
 
@@ -26,6 +30,19 @@ class VisioManager: ObservableObject {
         let documentsDir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
         client = VisioClient(dataDir: documentsDir.path)
         client.addListener(listener: self)
+
+        // Register the video frame callback so Rust can deliver I420 frames to Swift.
+        visio_video_set_ios_callback({ width, height, yPtr, yStride, uPtr, uStride, vPtr, vStride, trackSidCStr, userData in
+            guard let yPtr, let uPtr, let vPtr, let trackSidCStr else { return }
+            let trackSid = String(cString: trackSidCStr)
+            VideoFrameRouter.shared.deliverFrame(
+                width: width, height: height,
+                yPtr: yPtr, yStride: yStride,
+                uPtr: uPtr, uStride: uStride,
+                vPtr: vPtr, vStride: vStride,
+                trackSid: trackSid
+            )
+        }, nil)
     }
 
     // MARK: - Public API
@@ -58,6 +75,16 @@ class VisioManager: ObservableObject {
     }
 
     func disconnect() {
+        stopAudioPlayout()
+        cameraCapture?.stop()
+        cameraCapture = nil
+        // Stop all video renderers
+        let sids = videoTrackSids
+        for sid in sids {
+            DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+                self?.client.stopVideoRenderer(trackSid: sid)
+            }
+        }
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             guard let self else { return }
             self.client.disconnect()
@@ -69,6 +96,7 @@ class VisioManager: ObservableObject {
                 self.isMicEnabled = false
                 self.isCameraEnabled = false
                 self.errorMessage = nil
+                self.videoTrackSids = []
             }
         }
     }
@@ -98,6 +126,14 @@ class VisioManager: ObservableObject {
                 try self.client.setCameraEnabled(enabled: newValue)
                 DispatchQueue.main.async {
                     self.isCameraEnabled = newValue
+                    if newValue {
+                        let capture = CameraCapture()
+                        capture.start()
+                        self.cameraCapture = capture
+                    } else {
+                        self.cameraCapture?.stop()
+                        self.cameraCapture = nil
+                    }
                 }
             } catch {
                 DispatchQueue.main.async {
@@ -123,6 +159,20 @@ class VisioManager: ObservableObject {
                 }
             }
         }
+    }
+
+    // MARK: - Audio Playout
+
+    func startAudioPlayout() {
+        guard audioPlayout == nil else { return }
+        let playout = AudioPlayout()
+        playout.start()
+        audioPlayout = playout
+    }
+
+    func stopAudioPlayout() {
+        audioPlayout?.stop()
+        audioPlayout = nil
     }
 }
 
@@ -177,9 +227,24 @@ extension VisioManager: VisioEventListener {
                     self.chatMessages.append(message)
                 }
 
-            case .trackSubscribed, .trackUnsubscribed:
-                // Video track handling will be added in a later phase.
-                break
+            case .trackSubscribed(let info):
+                if info.kind == .video {
+                    let sid = info.sid
+                    if !self.videoTrackSids.contains(sid) {
+                        self.videoTrackSids.append(sid)
+                    }
+                    // Start renderer on background queue (blocks on tokio).
+                    DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+                        self?.client.startVideoRenderer(trackSid: sid)
+                    }
+                }
+
+            case .trackUnsubscribed(let trackSid):
+                self.videoTrackSids.removeAll { $0 == trackSid }
+                VideoFrameRouter.shared.unregister(trackSid: trackSid)
+                DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+                    self?.client.stopVideoRenderer(trackSid: trackSid)
+                }
             }
         }
     }

@@ -128,4 +128,8 @@ interface VisioClient {
     void set_mic_enabled_on_join(boolean enabled);
 
     void set_camera_enabled_on_join(boolean enabled);
+
+    void start_video_renderer(string track_sid);
+
+    void stop_video_renderer(string track_sid);
 };
