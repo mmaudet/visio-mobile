@@ -34,10 +34,14 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import io.visio.mobile.R
 import io.visio.mobile.VisioManager
 import io.visio.mobile.ui.i18n.Strings
 import io.visio.mobile.ui.theme.VisioColors
+import uniffi.visio.RoomValidationResult
 
 @Composable
 fun HomeScreen(
@@ -48,6 +52,32 @@ fun HomeScreen(
     var username by remember { mutableStateOf("") }
     val lang = VisioManager.currentLang
     val isDark = VisioManager.currentTheme == "dark"
+    var roomStatus by remember { mutableStateOf("idle") }
+    val slugRegex = remember { Regex("^[a-z]{3}-[a-z]{4}-[a-z]{3}$") }
+
+    LaunchedEffect(roomUrl) {
+        val trimmed = roomUrl.trim().trimEnd('/')
+        val candidate = if ('/' in trimmed) trimmed.substringAfterLast('/') else trimmed
+        if (!slugRegex.matches(candidate)) {
+            roomStatus = "idle"
+            return@LaunchedEffect
+        }
+        roomStatus = "checking"
+        delay(500)
+        try {
+            val result = withContext(Dispatchers.IO) {
+                VisioManager.client.validateRoom(roomUrl.trim(), username.trim().ifEmpty { null })
+            }
+            roomStatus = when (result) {
+                is RoomValidationResult.Valid -> "valid"
+                is RoomValidationResult.NotFound -> "not_found"
+                is RoomValidationResult.InvalidFormat -> "idle"
+                is RoomValidationResult.NetworkError -> "error"
+            }
+        } catch (_: Exception) {
+            roomStatus = "error"
+        }
+    }
 
     // Pre-fill display name from VisioManager observable state
     LaunchedEffect(Unit) {
@@ -128,6 +158,27 @@ fun HomeScreen(
             shape = RoundedCornerShape(12.dp)
         )
 
+        when (roomStatus) {
+            "checking" -> Text(
+                Strings.t("home.room.checking", lang),
+                style = MaterialTheme.typography.bodySmall,
+                color = VisioColors.Greyscale400,
+                modifier = Modifier.fillMaxWidth().padding(top = 4.dp)
+            )
+            "valid" -> Text(
+                Strings.t("home.room.valid", lang),
+                style = MaterialTheme.typography.bodySmall,
+                color = Color(0xFF18753C),
+                modifier = Modifier.fillMaxWidth().padding(top = 4.dp)
+            )
+            "not_found" -> Text(
+                Strings.t("home.room.notFound", lang),
+                style = MaterialTheme.typography.bodySmall,
+                color = Color(0xFFE1000F),
+                modifier = Modifier.fillMaxWidth().padding(top = 4.dp)
+            )
+        }
+
         Spacer(modifier = Modifier.height(16.dp))
 
         TextField(
@@ -155,7 +206,7 @@ fun HomeScreen(
 
         Button(
             onClick = { onJoin(roomUrl.trim(), username.trim()) },
-            enabled = roomUrl.isNotBlank(),
+            enabled = roomStatus == "valid",
             modifier = Modifier.fillMaxWidth(),
             colors = ButtonDefaults.buttonColors(
                 containerColor = VisioColors.Primary500,
