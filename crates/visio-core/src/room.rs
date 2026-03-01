@@ -20,6 +20,7 @@ use crate::events::{
     ChatMessage, ConnectionQuality, ConnectionState, EventEmitter, ParticipantInfo, TrackInfo,
     TrackKind, TrackSource, VisioEvent, VisioEventListener,
 };
+use crate::hand_raise::HandRaiseManager;
 use crate::participants::ParticipantManager;
 
 /// Manages the lifecycle of a LiveKit room connection.
@@ -31,6 +32,7 @@ pub struct RoomManager {
     subscribed_tracks: Arc<Mutex<HashMap<String, RemoteVideoTrack>>>,
     messages: MessageStore,
     playout_buffer: Arc<AudioPlayoutBuffer>,
+    hand_raise: Arc<Mutex<Option<HandRaiseManager>>>,
 }
 
 impl RoomManager {
@@ -43,6 +45,7 @@ impl RoomManager {
             subscribed_tracks: Arc::new(Mutex::new(HashMap::new())),
             messages: Arc::new(Mutex::new(Vec::new())),
             playout_buffer: Arc::new(AudioPlayoutBuffer::new()),
+            hand_raise: Arc::new(Mutex::new(None)),
         }
     }
 
@@ -149,6 +152,12 @@ impl RoomManager {
         // Store room reference
         *self.room.lock().await = Some(room.clone());
 
+        // Initialize HandRaiseManager now that we have a room
+        {
+            let hm = HandRaiseManager::new(room.clone(), self.emitter.clone());
+            *self.hand_raise.lock().await = Some(hm);
+        }
+
         // Update state to connected
         self.set_connection_state(ConnectionState::Connected).await;
 
@@ -160,9 +169,10 @@ impl RoomManager {
         let subscribed_tracks = self.subscribed_tracks.clone();
         let messages = self.messages.clone();
         let playout_buffer = self.playout_buffer.clone();
+        let hand_raise = self.hand_raise.clone();
 
         tokio::spawn(async move {
-            Self::event_loop(events, emitter, participants, connection_state, room_ref, subscribed_tracks, messages, playout_buffer).await;
+            Self::event_loop(events, emitter, participants, connection_state, room_ref, subscribed_tracks, messages, playout_buffer, hand_raise).await;
         });
 
         Ok(())
@@ -180,7 +190,32 @@ impl RoomManager {
         self.subscribed_tracks.lock().await.clear();
         self.messages.lock().await.clear();
         self.playout_buffer.clear();
+        // Clear hand raise state
+        if let Some(hm) = self.hand_raise.lock().await.take() {
+            hm.clear().await;
+        }
         self.set_connection_state(ConnectionState::Disconnected).await;
+    }
+
+    /// Raise the local participant's hand.
+    pub async fn raise_hand(&self) -> Result<(), VisioError> {
+        let hm = self.hand_raise.lock().await;
+        hm.as_ref().ok_or(VisioError::Room("not connected".into()))?.raise_hand().await
+    }
+
+    /// Lower the local participant's hand.
+    pub async fn lower_hand(&self) -> Result<(), VisioError> {
+        let hm = self.hand_raise.lock().await;
+        hm.as_ref().ok_or(VisioError::Room("not connected".into()))?.lower_hand().await
+    }
+
+    /// Check if the local participant's hand is currently raised.
+    pub async fn is_hand_raised(&self) -> bool {
+        let hm = self.hand_raise.lock().await;
+        match hm.as_ref() {
+            Some(hm) => hm.is_hand_raised().await,
+            None => false,
+        }
     }
 
     async fn set_connection_state(&self, state: ConnectionState) {
@@ -235,6 +270,7 @@ impl RoomManager {
         subscribed_tracks: Arc<Mutex<HashMap<String, RemoteVideoTrack>>>,
         messages: MessageStore,
         playout_buffer: Arc<AudioPlayoutBuffer>,
+        hand_raise: Arc<Mutex<Option<HandRaiseManager>>>,
     ) {
         let mut reconnect_attempt: u32 = 0;
         // Track active audio stream tasks so they get cancelled on disconnect
@@ -269,6 +305,10 @@ impl RoomManager {
                     subscribed_tracks.lock().await.clear();
                     messages.lock().await.clear();
                     playout_buffer.clear();
+                    // Clear hand raise state
+                    if let Some(hm) = hand_raise.lock().await.take() {
+                        hm.clear().await;
+                    }
                     // Stop all audio playout streams
                     for (sid, handle) in audio_stream_tasks.drain() {
                         handle.abort();
@@ -406,7 +446,18 @@ impl RoomManager {
                 RoomEvent::ActiveSpeakersChanged { speakers } => {
                     let sids: Vec<String> = speakers.iter().map(|p| p.sid().to_string()).collect();
                     participants.lock().await.set_active_speakers(sids.clone());
+                    // Auto-lower hand if local participant is speaking with hand raised
+                    if let Some(hm) = hand_raise.lock().await.as_ref() {
+                        hm.start_auto_lower(sids.clone());
+                    }
                     emitter.emit(VisioEvent::ActiveSpeakersChanged(sids));
+                }
+
+                RoomEvent::ParticipantAttributesChanged { participant, changed_attributes } => {
+                    let psid = participant.sid().to_string();
+                    if let Some(hm) = hand_raise.lock().await.as_ref() {
+                        hm.handle_participant_attributes(psid, &changed_attributes).await;
+                    }
                 }
 
                 RoomEvent::ConnectionQualityChanged { quality, participant } => {
