@@ -13,8 +13,8 @@
     "withGlobalTauri": true,
     "windows": [
       {
-        "title": "Visio",
-        "width": 420,
+        "title": "Visio Mobile",
+        "width": 960,
         "height": 720,
         "minWidth": 320,
         "minHeight": 480

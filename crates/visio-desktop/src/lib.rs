@@ -63,11 +63,11 @@ struct VisioState {
 // Event listener — auto-starts/stops video renderers
 // ---------------------------------------------------------------------------
 
-struct VideoAutoStarter {
+struct DesktopEventListener {
     room: Arc<Mutex<RoomManager>>,
 }
 
-impl VisioEventListener for VideoAutoStarter {
+impl VisioEventListener for DesktopEventListener {
     fn on_event(&self, event: VisioEvent) {
         match event {
             VisioEvent::TrackSubscribed(TrackInfo {
@@ -92,6 +92,27 @@ impl VisioEventListener for VideoAutoStarter {
             VisioEvent::TrackUnsubscribed(track_sid) => {
                 tracing::info!("auto-stopping video renderer for track {track_sid}");
                 visio_video::stop_track_renderer(&track_sid);
+            }
+            VisioEvent::HandRaisedChanged {
+                participant_sid,
+                raised,
+                position,
+            } => {
+                if let Some(app) = APP_HANDLE.get() {
+                    let _ = app.emit(
+                        "hand-raised-changed",
+                        serde_json::json!({
+                            "participantSid": participant_sid,
+                            "raised": raised,
+                            "position": position,
+                        }),
+                    );
+                }
+            }
+            VisioEvent::UnreadCountChanged(count) => {
+                if let Some(app) = APP_HANDLE.get() {
+                    let _ = app.emit("unread-count-changed", count);
+                }
             }
             _ => {}
         }
@@ -362,7 +383,7 @@ pub fn run() {
 
     // Register event listener for auto-starting video renderers
     {
-        let listener = Arc::new(VideoAutoStarter {
+        let listener = Arc::new(DesktopEventListener {
             room: room_arc.clone(),
         });
         // We need to add the listener while we can still access room_manager

@@ -1,12 +1,26 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import {
+  RiMicLine,
+  RiMicOffLine,
+  RiMicOffFill,
+  RiVideoOnLine,
+  RiVideoOffLine,
+  RiArrowUpSLine,
+  RiHand,
+  RiChat1Line,
+  RiPhoneFill,
+  RiCloseLine,
+  RiSendPlane2Fill,
+  RiSettings3Line,
+} from "@remixicon/react";
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
-type View = "home" | "call" | "chat";
+type View = "home" | "call";
 
 interface Participant {
   sid: string;
@@ -33,6 +47,13 @@ interface VideoFrame {
   height: number;
 }
 
+interface Settings {
+  display_name: string | null;
+  language: string | null;
+  mic_enabled_on_join: boolean;
+  camera_enabled_on_join: boolean;
+}
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -42,6 +63,10 @@ function getInitials(name: string | null | undefined): string {
   const parts = name.trim().split(/\s+/);
   if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
   return name.substring(0, 2).toUpperCase();
+}
+
+function getHue(name: string | null | undefined): number {
+  return [...(name || "")].reduce((h, c) => h + c.charCodeAt(0), 0) % 360;
 }
 
 function formatTime(timestampMs: number): string {
@@ -58,46 +83,101 @@ function StatusBadge({ state }: { state: string }) {
   return <span className={`status-badge ${state}`}>{state}</span>;
 }
 
-// -- Video Tile -------------------------------------------------------------
+// -- Connection Quality Bars ------------------------------------------------
 
-function VideoTile({ trackSid, frames }: { trackSid: string; frames: Map<string, string> }) {
-  const src = frames.get(trackSid);
-  if (!src) {
-    return null;
-  }
+function ConnectionQualityBars({ quality }: { quality: string }) {
+  const bars =
+    quality === "Excellent" ? 3 : quality === "Good" ? 2 : quality === "Poor" ? 1 : 0;
   return (
-    <img
-      className="video-frame"
-      src={`data:image/jpeg;base64,${src}`}
-      alt="video"
-    />
+    <div className="connection-bars">
+      {[1, 2, 3].map((i) => (
+        <div
+          key={i}
+          className={`bar ${i <= bars ? "bar-active" : ""}`}
+          style={{ height: `${i * 4 + 2}px` }}
+        />
+      ))}
+    </div>
+  );
+}
+
+// -- Participant Tile -------------------------------------------------------
+
+interface ParticipantTileProps {
+  participant: Participant;
+  videoFrames: Map<string, string>;
+  isActiveSpeaker?: boolean;
+  handRaisePosition?: number;
+}
+
+function ParticipantTile({
+  participant,
+  videoFrames,
+  isActiveSpeaker,
+  handRaisePosition,
+}: ParticipantTileProps) {
+  const displayName = participant.name || participant.identity || "Unknown";
+  const initials = getInitials(displayName);
+  const hue = getHue(displayName);
+
+  const videoSrc = participant.video_track_sid
+    ? videoFrames.get(participant.video_track_sid)
+    : undefined;
+
+  return (
+    <div className={`tile ${isActiveSpeaker ? "tile-active-speaker" : ""}`}>
+      {videoSrc ? (
+        <img
+          className="tile-video"
+          src={`data:image/jpeg;base64,${videoSrc}`}
+          alt=""
+        />
+      ) : (
+        <div
+          className="tile-avatar"
+          style={{ background: `hsl(${hue}, 50%, 35%)` }}
+        >
+          <span className="tile-initials">{initials}</span>
+        </div>
+      )}
+      <div className="tile-metadata">
+        {participant.is_muted && (
+          <span className="tile-muted-icon">
+            <RiMicOffFill size={14} />
+          </span>
+        )}
+        {handRaisePosition != null && handRaisePosition > 0 && (
+          <span className="tile-hand-badge">
+            <RiHand size={12} /> {handRaisePosition}
+          </span>
+        )}
+        <span className="tile-name">{displayName}</span>
+        <ConnectionQualityBars quality={participant.connection_quality} />
+      </div>
+    </div>
   );
 }
 
 // -- Home View --------------------------------------------------------------
 
-interface Settings {
-  display_name: string | null;
-  language: string | null;
-  mic_enabled_on_join: boolean;
-  camera_enabled_on_join: boolean;
-}
-
 function HomeView({
   onJoin,
+  onOpenSettings,
 }: {
   onJoin: (meetUrl: string, username: string | null) => void;
+  onOpenSettings: () => void;
 }) {
   const [meetUrl, setMeetUrl] = useState("");
   const [username, setUsername] = useState("");
   const [error, setError] = useState("");
   const [joining, setJoining] = useState(false);
 
-  // Load saved display name from settings on mount
   useEffect(() => {
-    invoke<Settings>("get_settings").then((s) => {
-      if (s.display_name) setUsername(s.display_name);
-    }).catch(() => {});
+    invoke<Settings>("get_settings")
+      .then((s) => {
+        if (s.display_name) setUsername(s.display_name);
+      })
+      .catch(() => {});
   }, []);
 
   const handleJoin = async () => {
@@ -110,7 +190,6 @@ function HomeView({
     setJoining(true);
     try {
       const uname = username.trim() || null;
-      // Save display name to settings for next time
       await invoke("set_display_name", { name: uname });
       await invoke("connect", { meetUrl: url, username: uname });
       onJoin(url, uname);
@@ -126,8 +205,11 @@ function HomeView({
 
   return (
     <div id="home" className="section active">
+      <button className="settings-gear" onClick={onOpenSettings}>
+        <RiSettings3Line size={24} />
+      </button>
       <div className="join-form">
-        <h2>Join a Room</h2>
+        <h2>Visio Mobile</h2>
         <p>Enter a meeting URL and your display name</p>
         <div className="form-group">
           <label htmlFor="meetUrl">Meeting URL</label>
@@ -153,11 +235,7 @@ function HomeView({
             onKeyDown={handleKeyDown}
           />
         </div>
-        <button
-          className="btn btn-primary"
-          disabled={joining}
-          onClick={handleJoin}
-        >
+        <button className="btn btn-primary" disabled={joining} onClick={handleJoin}>
           {joining ? "Connecting..." : "Join"}
         </button>
         <div className="error-msg">{error}</div>
@@ -173,175 +251,419 @@ function CallView({
   micEnabled,
   camEnabled,
   videoFrames,
+  messages,
+  handRaisedMap,
+  isHandRaised,
+  unreadCount,
+  showChat,
   onToggleMic,
   onToggleCam,
   onHangUp,
-  onOpenChat,
+  onToggleHandRaise,
+  onToggleChat,
+  onSendChat,
+  onShowMicPicker,
+  onShowCamPicker,
+  showMicPicker,
+  showCamPicker,
+  audioInputs,
+  audioOutputs,
+  videoInputs,
+  selectedAudioInput,
+  selectedVideoInput,
+  onSelectAudioInput,
+  onSelectVideoInput,
 }: {
   participants: Participant[];
   micEnabled: boolean;
   camEnabled: boolean;
   videoFrames: Map<string, string>;
+  messages: ChatMessage[];
+  handRaisedMap: Record<string, number>;
+  isHandRaised: boolean;
+  unreadCount: number;
+  showChat: boolean;
   onToggleMic: () => void;
   onToggleCam: () => void;
   onHangUp: () => void;
-  onOpenChat: () => void;
+  onToggleHandRaise: () => void;
+  onToggleChat: () => void;
+  onSendChat: (text: string) => void;
+  onShowMicPicker: () => void;
+  onShowCamPicker: () => void;
+  showMicPicker: boolean;
+  showCamPicker: boolean;
+  audioInputs: MediaDeviceInfo[];
+  audioOutputs: MediaDeviceInfo[];
+  videoInputs: MediaDeviceInfo[];
+  selectedAudioInput: string;
+  selectedVideoInput: string;
+  onSelectAudioInput: (id: string) => void;
+  onSelectVideoInput: (id: string) => void;
 }) {
+  const [focusedParticipant, setFocusedParticipant] = useState<string | null>(null);
+  const [chatInput, setChatInput] = useState("");
+  const chatScrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (chatScrollRef.current) {
+      chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight;
+    }
+  }, [messages.length]);
+
+  const sendMessage = () => {
+    const text = chatInput.trim();
+    if (!text) return;
+    setChatInput("");
+    onSendChat(text);
+  };
+
   const localFrame = videoFrames.get("local-camera");
+  const gridCount = Math.min(participants.length, 9);
 
   return (
     <div id="call" className="section active">
-      <div className="call-content">
-        {camEnabled && localFrame && (
-          <div className="self-view">
-            <img
-              className="video-frame self-video"
-              src={`data:image/jpeg;base64,${localFrame}`}
-              alt="self-view"
-            />
-            <span className="self-label">You</span>
+      {/* Self-view PiP */}
+      {camEnabled && localFrame && (
+        <div className={`self-view ${showChat ? "with-chat" : ""}`}>
+          <img
+            className="self-video"
+            src={`data:image/jpeg;base64,${localFrame}`}
+            alt="self-view"
+          />
+          <span className="self-label">You</span>
+        </div>
+      )}
+
+      {/* Main video area */}
+      <div className={`call-content ${showChat ? "with-chat" : ""}`}>
+        {focusedParticipant && participants.find((p) => p.sid === focusedParticipant) ? (
+          <div className="focus-layout">
+            <div className="focus-main" onClick={() => setFocusedParticipant(null)}>
+              <ParticipantTile
+                participant={participants.find((p) => p.sid === focusedParticipant)!}
+                videoFrames={videoFrames}
+                handRaisePosition={handRaisedMap[focusedParticipant]}
+              />
+            </div>
+            <div className="focus-strip">
+              {participants
+                .filter((p) => p.sid !== focusedParticipant)
+                .map((p) => (
+                  <div key={p.sid} onClick={() => setFocusedParticipant(p.sid)}>
+                    <ParticipantTile
+                      participant={p}
+                      videoFrames={videoFrames}
+                      handRaisePosition={handRaisedMap[p.sid]}
+                    />
+                  </div>
+                ))}
+            </div>
+          </div>
+        ) : (
+          <div className={`video-grid video-grid-${gridCount}`}>
+            {participants.length === 0 ? (
+              <div className="empty-state">No other participants yet</div>
+            ) : (
+              participants.map((p) => (
+                <div key={p.sid} onClick={() => setFocusedParticipant(p.sid)}>
+                  <ParticipantTile
+                    participant={p}
+                    videoFrames={videoFrames}
+                    handRaisePosition={handRaisedMap[p.sid]}
+                  />
+                </div>
+              ))
+            )}
           </div>
         )}
-        <div className="section-label">Participants</div>
-        {participants.length === 0 ? (
-          <div className="empty-state">No other participants yet</div>
-        ) : (
-          <ul className="participant-list">
-            {participants.map((p) => {
-              const displayName = p.name || p.identity || "Unknown";
-              return (
-                <li key={p.sid} className="participant-item">
-                  {p.has_video && p.video_track_sid ? (
-                    <div className="participant-video-wrapper">
-                      <VideoTile trackSid={p.video_track_sid} frames={videoFrames} />
-                      <div className="participant-avatar-overlay">
-                        {getInitials(displayName)}
+      </div>
+
+      {/* Chat sidebar */}
+      {showChat && (
+        <div className="chat-sidebar">
+          <div className="chat-header">
+            <span>Chat</span>
+            <button className="chat-close" onClick={onToggleChat}>
+              <RiCloseLine size={20} />
+            </button>
+          </div>
+          <div className="chat-messages" ref={chatScrollRef}>
+            {messages.length === 0 ? (
+              <div className="chat-empty">No messages yet</div>
+            ) : (
+              messages.map((m, i) => {
+                const showName =
+                  i === 0 || messages[i - 1].sender_sid !== m.sender_sid;
+                return (
+                  <div key={m.id} className="chat-bubble">
+                    {showName && (
+                      <div className="chat-sender">
+                        {m.sender_name || "Unknown"}
                       </div>
-                    </div>
-                  ) : (
-                    <div className="participant-avatar">
-                      {getInitials(displayName)}
-                    </div>
-                  )}
-                  <div className="participant-info">
-                    <div className="participant-name">{displayName}</div>
-                    <div className="participant-status">
-                      {p.connection_quality}
-                    </div>
-                  </div>
-                  <div className="participant-icons">
-                    {p.is_muted && (
-                      <span className="icon-muted">Muted</span>
                     )}
-                    {p.has_video && (
-                      <span className="icon-video">Video</span>
-                    )}
+                    <div className="chat-text">{m.text}</div>
+                    <div className="chat-time">{formatTime(m.timestamp_ms)}</div>
                   </div>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </div>
-      <div className="call-controls">
+                );
+              })
+            )}
+          </div>
+          <div className="chat-input-bar">
+            <input
+              className="chat-input"
+              value={chatInput}
+              onChange={(e) => setChatInput(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && sendMessage()}
+              placeholder="Message"
+            />
+            <button
+              className="chat-send"
+              onClick={sendMessage}
+              disabled={!chatInput.trim()}
+            >
+              <RiSendPlane2Fill size={18} />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Control bar */}
+      <div className="control-bar">
+        {/* Mic group */}
+        <div className="control-group">
+          <button
+            className={`control-btn ${micEnabled ? "" : "control-btn-off"}`}
+            onClick={onToggleMic}
+            title={micEnabled ? "Mute microphone" : "Unmute microphone"}
+            style={{ borderRadius: "8px 0 0 8px" }}
+          >
+            {micEnabled ? <RiMicLine size={20} /> : <RiMicOffLine size={20} />}
+          </button>
+          <button
+            className={`control-btn control-chevron ${micEnabled ? "" : "control-btn-off"}`}
+            onClick={onShowMicPicker}
+            title="Audio devices"
+            style={{ borderRadius: "0 8px 8px 0" }}
+          >
+            <RiArrowUpSLine size={16} />
+          </button>
+        </div>
+
+        {/* Camera group */}
+        <div className="control-group">
+          <button
+            className={`control-btn ${camEnabled ? "" : "control-btn-off"}`}
+            onClick={onToggleCam}
+            title={camEnabled ? "Turn off camera" : "Turn on camera"}
+            style={{ borderRadius: "8px 0 0 8px" }}
+          >
+            {camEnabled ? (
+              <RiVideoOnLine size={20} />
+            ) : (
+              <RiVideoOffLine size={20} />
+            )}
+          </button>
+          <button
+            className={`control-btn control-chevron ${camEnabled ? "" : "control-btn-off"}`}
+            onClick={onShowCamPicker}
+            title="Camera devices"
+            style={{ borderRadius: "0 8px 8px 0" }}
+          >
+            <RiArrowUpSLine size={16} />
+          </button>
+        </div>
+
+        {/* Hand raise */}
         <button
-          className={`ctrl-btn ${micEnabled ? "active" : "off"}`}
-          title="Toggle microphone"
-          onClick={onToggleMic}
+          className={`control-btn ${isHandRaised ? "control-btn-hand" : ""}`}
+          onClick={onToggleHandRaise}
+          title={isHandRaised ? "Lower hand" : "Raise hand"}
         >
-          Mic
+          <RiHand size={20} />
         </button>
+
+        {/* Chat */}
         <button
-          className={`ctrl-btn ${camEnabled ? "active" : "off"}`}
-          title="Toggle camera"
-          onClick={onToggleCam}
+          className={`control-btn ${showChat ? "control-btn-hand" : ""}`}
+          onClick={onToggleChat}
+          title="Chat"
         >
-          Cam
+          <RiChat1Line size={20} />
+          {unreadCount > 0 && (
+            <span className="unread-badge">
+              {unreadCount > 9 ? "9+" : unreadCount}
+            </span>
+          )}
         </button>
+
+        {/* Hangup */}
         <button
-          className="ctrl-btn chat-toggle"
-          title="Open chat"
-          onClick={onOpenChat}
-        >
-          Chat
-        </button>
-        <button
-          className="ctrl-btn hangup"
-          title="Leave call"
+          className="control-btn control-btn-hangup"
           onClick={onHangUp}
+          title="Leave call"
         >
-          End
+          <RiPhoneFill size={20} />
         </button>
       </div>
+
+      {/* Mic device picker */}
+      {showMicPicker && (
+        <div className="device-picker">
+          <div className="device-section">
+            <div className="device-section-title">Microphone</div>
+            {audioInputs.map((d) => (
+              <label key={d.deviceId} className="device-option">
+                <input
+                  type="radio"
+                  name="audioInput"
+                  checked={selectedAudioInput === d.deviceId}
+                  onChange={() => onSelectAudioInput(d.deviceId)}
+                />
+                {d.label || "Microphone"}
+              </label>
+            ))}
+            {audioInputs.length === 0 && (
+              <div style={{ fontSize: "0.8rem", color: "#929292", padding: "4px 8px" }}>
+                No microphones found
+              </div>
+            )}
+          </div>
+          <div className="device-section">
+            <div className="device-section-title">Speaker</div>
+            {audioOutputs.map((d) => (
+              <label key={d.deviceId} className="device-option">
+                <input type="radio" name="audioOutput" />
+                {d.label || "Speaker"}
+              </label>
+            ))}
+            {audioOutputs.length === 0 && (
+              <div style={{ fontSize: "0.8rem", color: "#929292", padding: "4px 8px" }}>
+                No speakers found
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Camera device picker */}
+      {showCamPicker && (
+        <div className="device-picker">
+          <div className="device-section">
+            <div className="device-section-title">Camera</div>
+            {videoInputs.map((d) => (
+              <label key={d.deviceId} className="device-option">
+                <input
+                  type="radio"
+                  name="videoInput"
+                  checked={selectedVideoInput === d.deviceId}
+                  onChange={() => onSelectVideoInput(d.deviceId)}
+                />
+                {d.label || "Camera"}
+              </label>
+            ))}
+            {videoInputs.length === 0 && (
+              <div style={{ fontSize: "0.8rem", color: "#929292", padding: "4px 8px" }}>
+                No cameras found
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
-// -- Chat View --------------------------------------------------------------
+// -- Settings Modal ---------------------------------------------------------
 
-function ChatView({
-  messages,
-  onBack,
-  onSend,
+function SettingsModal({
+  onClose,
 }: {
-  messages: ChatMessage[];
-  onBack: () => void;
-  onSend: (text: string) => void;
+  onClose: () => void;
 }) {
-  const [input, setInput] = useState("");
-  const listRef = useRef<HTMLDivElement>(null);
+  const [form, setForm] = useState({
+    displayName: "",
+    language: "fr",
+    micOnJoin: true,
+    cameraOnJoin: false,
+  });
 
   useEffect(() => {
-    if (listRef.current) {
-      listRef.current.scrollTop = listRef.current.scrollHeight;
-    }
-  }, [messages.length]);
+    invoke<Settings>("get_settings")
+      .then((s) => {
+        setForm({
+          displayName: s.display_name || "",
+          language: s.language || "fr",
+          micOnJoin: s.mic_enabled_on_join ?? true,
+          cameraOnJoin: s.camera_enabled_on_join ?? false,
+        });
+      })
+      .catch(() => {});
+  }, []);
 
-  const handleSend = () => {
-    const text = input.trim();
-    if (!text) return;
-    setInput("");
-    onSend(text);
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter") handleSend();
+  const save = async () => {
+    await invoke("set_display_name", { name: form.displayName || null });
+    await invoke("set_language", { lang: form.language || null });
+    await invoke("set_mic_enabled_on_join", { enabled: form.micOnJoin });
+    await invoke("set_camera_enabled_on_join", { enabled: form.cameraOnJoin });
+    onClose();
   };
 
   return (
-    <div id="chat" className="section active">
-      <div className="chat-header">
-        <button className="back-btn" onClick={onBack}>
-          Back
-        </button>
-        <h3>Chat</h3>
-        <span></span>
-      </div>
-      <div className="message-list" ref={listRef}>
-        {messages.length === 0 ? (
-          <div className="chat-empty">No messages yet</div>
-        ) : (
-          messages.map((m) => (
-            <div key={m.id} className="message-item">
-              <div className="message-sender">
-                {m.sender_name || "Unknown"}
-              </div>
-              <div className="message-bubble">{m.text}</div>
-              <div className="message-time">{formatTime(m.timestamp_ms)}</div>
-            </div>
-          ))
-        )}
-      </div>
-      <div className="chat-input-area">
-        <input
-          type="text"
-          placeholder="Type a message..."
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={handleKeyDown}
-        />
-        <button className="send-btn" onClick={handleSend}>
-          Send
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="settings-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="settings-header">
+          <span>Settings</span>
+          <button onClick={onClose}>
+            <RiCloseLine size={20} />
+          </button>
+        </div>
+        <div className="settings-body">
+          <div className="settings-section">
+            <label className="settings-label">Display name</label>
+            <input
+              className="settings-input"
+              value={form.displayName}
+              onChange={(e) =>
+                setForm({ ...form, displayName: e.target.value })
+              }
+            />
+          </div>
+          <div className="settings-section">
+            <label className="settings-label">Language</label>
+            <select
+              value={form.language}
+              onChange={(e) =>
+                setForm({ ...form, language: e.target.value })
+              }
+            >
+              <option value="fr">Francais</option>
+              <option value="en">English</option>
+            </select>
+          </div>
+          <div className="settings-section">
+            <label className="settings-label">Mic on join</label>
+            <input
+              type="checkbox"
+              checked={form.micOnJoin}
+              onChange={(e) =>
+                setForm({ ...form, micOnJoin: e.target.checked })
+              }
+            />
+          </div>
+          <div className="settings-section">
+            <label className="settings-label">Camera on join</label>
+            <input
+              type="checkbox"
+              checked={form.cameraOnJoin}
+              onChange={(e) =>
+                setForm({ ...form, cameraOnJoin: e.target.checked })
+              }
+            />
+          </div>
+        </div>
+        <button className="settings-save" onClick={save}>
+          Save
         </button>
       </div>
     </div>
@@ -363,8 +685,57 @@ export default function App() {
     () => new Map()
   );
 
+  // New state for UX overhaul
+  const [isHandRaised, setIsHandRaised] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [handRaisedMap, setHandRaisedMap] = useState<Record<string, number>>({});
+  const [showChat, setShowChat] = useState(false);
+  const [showMicPicker, setShowMicPicker] = useState(false);
+  const [showCamPicker, setShowCamPicker] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+
+  // Device enumeration
+  const [audioInputs, setAudioInputs] = useState<MediaDeviceInfo[]>([]);
+  const [audioOutputs, setAudioOutputs] = useState<MediaDeviceInfo[]>([]);
+  const [videoInputs, setVideoInputs] = useState<MediaDeviceInfo[]>([]);
+  const [selectedAudioInput, setSelectedAudioInput] = useState("");
+  const [selectedVideoInput, setSelectedVideoInput] = useState("");
+
   const viewRef = useRef(view);
   viewRef.current = view;
+
+  // ---- Device enumeration -------------------------------------------------
+  useEffect(() => {
+    const enumerate = async () => {
+      try {
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        setAudioInputs(devices.filter((d) => d.kind === "audioinput"));
+        setAudioOutputs(devices.filter((d) => d.kind === "audiooutput"));
+        setVideoInputs(devices.filter((d) => d.kind === "videoinput"));
+      } catch {
+        // Not available in Tauri webview without permissions
+      }
+    };
+    enumerate();
+    navigator.mediaDevices?.addEventListener("devicechange", enumerate);
+    return () => {
+      navigator.mediaDevices?.removeEventListener("devicechange", enumerate);
+    };
+  }, []);
+
+  // ---- Click outside to close device pickers ------------------------------
+  useEffect(() => {
+    const handleClick = (e: MouseEvent) => {
+      if (
+        !(e.target as Element).closest(".device-picker, .control-chevron")
+      ) {
+        setShowMicPicker(false);
+        setShowCamPicker(false);
+      }
+    };
+    document.addEventListener("click", handleClick);
+    return () => document.removeEventListener("click", handleClick);
+  }, []);
 
   // ---- Polling ------------------------------------------------------------
   const poll = useCallback(async () => {
@@ -378,6 +749,10 @@ export default function App() {
         setCamEnabled(false);
         setMessages([]);
         setVideoFrames(new Map());
+        setShowChat(false);
+        setIsHandRaised(false);
+        setUnreadCount(0);
+        setHandRaisedMap({});
         return;
       }
 
@@ -396,7 +771,7 @@ export default function App() {
   useEffect(() => {
     if (view === "home") return;
 
-    poll(); // immediate first poll
+    poll();
     const id = setInterval(poll, 1000);
     return () => clearInterval(id);
   }, [view, poll]);
@@ -420,6 +795,46 @@ export default function App() {
 
     return () => {
       if (unlisten) unlisten();
+    };
+  }, [view]);
+
+  // ---- Hand raise & unread events (Task 2.8) ------------------------------
+  useEffect(() => {
+    if (view === "home") return;
+
+    let unlistenHand: UnlistenFn | null = null;
+    let unlistenUnread: UnlistenFn | null = null;
+
+    listen<{ participantSid: string; raised: boolean; position: number }>(
+      "hand-raised-changed",
+      (event) => {
+        const { participantSid, raised, position } = event.payload;
+        setHandRaisedMap((prev) => ({
+          ...prev,
+          [participantSid]: raised ? position : 0,
+        }));
+        // If our own hand was auto-lowered
+        // We don't have localSid here, but we track via isHandRaised
+        if (!raised) {
+          // Check via invoke if our hand is still raised
+          invoke<boolean>("is_hand_raised").then((val) => {
+            setIsHandRaised(val);
+          });
+        }
+      }
+    ).then((fn) => {
+      unlistenHand = fn;
+    });
+
+    listen<number>("unread-count-changed", (event) => {
+      setUnreadCount(event.payload);
+    }).then((fn) => {
+      unlistenUnread = fn;
+    });
+
+    return () => {
+      if (unlistenHand) unlistenHand();
+      if (unlistenUnread) unlistenUnread();
     };
   }, [view]);
 
@@ -461,7 +876,35 @@ export default function App() {
     setCamEnabled(false);
     setMessages([]);
     setVideoFrames(new Map());
+    setShowChat(false);
     setConnectionState("disconnected");
+    setIsHandRaised(false);
+    setUnreadCount(0);
+    setHandRaisedMap({});
+  };
+
+  const handleToggleHandRaise = async () => {
+    try {
+      if (isHandRaised) {
+        await invoke("lower_hand");
+      } else {
+        await invoke("raise_hand");
+      }
+      setIsHandRaised(!isHandRaised);
+    } catch (e) {
+      console.error("hand raise error:", e);
+    }
+  };
+
+  const handleToggleChat = async () => {
+    const newState = !showChat;
+    setShowChat(newState);
+    try {
+      await invoke("set_chat_open", { open: newState });
+    } catch (e) {
+      console.error("set_chat_open error:", e);
+    }
+    if (newState) setUnreadCount(0);
   };
 
   const handleSendChat = async (text: string) => {
@@ -476,31 +919,56 @@ export default function App() {
   return (
     <>
       <header>
-        <h1>Visio</h1>
+        <h1>Visio Mobile</h1>
         <StatusBadge state={connectionState} />
       </header>
       <main>
-        {view === "home" && <HomeView onJoin={handleJoin} />}
+        {view === "home" && (
+          <HomeView
+            onJoin={handleJoin}
+            onOpenSettings={() => setShowSettings(true)}
+          />
+        )}
         {view === "call" && (
           <CallView
             participants={participants}
             micEnabled={micEnabled}
             camEnabled={camEnabled}
             videoFrames={videoFrames}
+            messages={messages}
+            handRaisedMap={handRaisedMap}
+            isHandRaised={isHandRaised}
+            unreadCount={unreadCount}
+            showChat={showChat}
             onToggleMic={handleToggleMic}
             onToggleCam={handleToggleCam}
             onHangUp={handleHangUp}
-            onOpenChat={() => setView("chat")}
-          />
-        )}
-        {view === "chat" && (
-          <ChatView
-            messages={messages}
-            onBack={() => setView("call")}
-            onSend={handleSendChat}
+            onToggleHandRaise={handleToggleHandRaise}
+            onToggleChat={handleToggleChat}
+            onSendChat={handleSendChat}
+            onShowMicPicker={() => {
+              setShowMicPicker(!showMicPicker);
+              setShowCamPicker(false);
+            }}
+            onShowCamPicker={() => {
+              setShowCamPicker(!showCamPicker);
+              setShowMicPicker(false);
+            }}
+            showMicPicker={showMicPicker}
+            showCamPicker={showCamPicker}
+            audioInputs={audioInputs}
+            audioOutputs={audioOutputs}
+            videoInputs={videoInputs}
+            selectedAudioInput={selectedAudioInput}
+            selectedVideoInput={selectedVideoInput}
+            onSelectAudioInput={setSelectedAudioInput}
+            onSelectVideoInput={setSelectedVideoInput}
           />
         )}
       </main>
+      {showSettings && (
+        <SettingsModal onClose={() => setShowSettings(false)} />
+      )}
     </>
   );
 }
