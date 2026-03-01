@@ -306,6 +306,31 @@ fn set_camera_enabled_on_join(state: tauri::State<'_, VisioState>, enabled: bool
     state.settings.set_camera_enabled_on_join(enabled);
 }
 
+#[tauri::command]
+async fn raise_hand(state: tauri::State<'_, VisioState>) -> Result<(), String> {
+    let room = state.room.lock().await;
+    room.raise_hand().await.map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+async fn lower_hand(state: tauri::State<'_, VisioState>) -> Result<(), String> {
+    let room = state.room.lock().await;
+    room.lower_hand().await.map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+async fn is_hand_raised(state: tauri::State<'_, VisioState>) -> Result<bool, String> {
+    let room = state.room.lock().await;
+    Ok(room.is_hand_raised().await)
+}
+
+#[tauri::command]
+async fn set_chat_open(state: tauri::State<'_, VisioState>, open: bool) -> Result<(), String> {
+    let chat = state.chat.lock().await;
+    chat.set_chat_open(open);
+    Ok(())
+}
+
 // ---------------------------------------------------------------------------
 // Entry point
 // ---------------------------------------------------------------------------
@@ -394,6 +419,10 @@ pub fn run() {
             set_language,
             set_mic_enabled_on_join,
             set_camera_enabled_on_join,
+            raise_hand,
+            lower_hand,
+            is_hand_raised,
+            set_chat_open,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
