@@ -10,6 +10,7 @@ pub mod errors;
 pub mod events;
 pub mod participants;
 pub mod room;
+pub mod settings;
 
 pub use auth::{AuthService, TokenInfo};
 pub use chat::ChatService;
@@ -21,3 +22,4 @@ pub use events::{
 };
 pub use participants::ParticipantManager;
 pub use room::RoomManager;
+pub use settings::{Settings, SettingsStore};

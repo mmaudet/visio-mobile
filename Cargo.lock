@@ -5361,6 +5361,7 @@ dependencies = [
  "reqwest 0.12.28",
  "serde",
  "serde_json",
+ "tempfile",
  "thiserror 2.0.18",
  "tokio",
  "tracing",
@@ -5400,6 +5401,7 @@ dependencies = [
  "uniffi",
  "visio-core",
  "visio-video",
+ "webrtc-sys-build",
 ]
 
 [[package]]
