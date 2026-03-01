@@ -9,6 +9,7 @@ use visio_core::{
 
 #[cfg(target_os = "macos")]
 mod camera_macos;
+mod audio_cpal;
 
 // ---------------------------------------------------------------------------
 // Global AppHandle for the C video callback
@@ -54,6 +55,8 @@ struct VisioState {
     settings: SettingsStore,
     #[cfg(target_os = "macos")]
     camera_capture: std::sync::Mutex<Option<camera_macos::MacCameraCapture>>,
+    _audio_playout: audio_cpal::CpalAudioPlayout,
+    audio_capture: std::sync::Mutex<Option<audio_cpal::CpalAudioCapture>>,
 }
 
 // ---------------------------------------------------------------------------
@@ -172,7 +175,27 @@ async fn toggle_mic(
     controls
         .set_microphone_enabled(enabled)
         .await
-        .map_err(|e| e.to_string())
+        .map_err(|e| e.to_string())?;
+
+    if enabled {
+        // Start capture if not already running
+        let already_running = state.audio_capture.lock().unwrap().is_some();
+        if !already_running {
+            if let Some(source) = controls.audio_source().await {
+                let capture = audio_cpal::CpalAudioCapture::start(source)
+                    .map_err(|e| format!("audio capture: {e}"))?;
+                *state.audio_capture.lock().unwrap() = Some(capture);
+            }
+        }
+    } else {
+        // Stop capture
+        let mut cap = state.audio_capture.lock().unwrap();
+        if let Some(capture) = cap.take() {
+            capture.stop();
+        }
+    }
+
+    Ok(())
 }
 
 #[tauri::command]
@@ -303,8 +326,12 @@ pub fn run() {
     let settings = SettingsStore::new(data_dir.to_str().unwrap());
 
     let room_manager = RoomManager::new();
+    let playout_buffer = room_manager.playout_buffer();
     let controls = room_manager.controls();
     let chat = room_manager.chat();
+
+    let audio_playout = audio_cpal::CpalAudioPlayout::start(playout_buffer)
+        .expect("failed to start audio playout");
 
     let room_arc = Arc::new(Mutex::new(room_manager));
 
@@ -331,6 +358,8 @@ pub fn run() {
         settings,
         #[cfg(target_os = "macos")]
         camera_capture: std::sync::Mutex::new(None),
+        _audio_playout: audio_playout,
+        audio_capture: std::sync::Mutex::new(None),
     };
 
     tauri::Builder::default()
