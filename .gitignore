@@ -34,3 +34,6 @@ Thumbs.db
 # UniFFI generated bindings (regenerated on build)
 android/app/src/main/kotlin/generated/
 ios/VisioMobile/Generated/
+
+# AI assistant context
+CLAUDE.md
