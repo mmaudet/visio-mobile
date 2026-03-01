@@ -350,6 +350,15 @@ impl VisioClient {
         visio_log("VISIO FFI: tokio runtime created successfully");
         let settings = visio_core::SettingsStore::new(&data_dir);
         let room_manager = visio_core::RoomManager::new();
+
+        // Store playout buffer for Android JNI audio pull
+        #[cfg(target_os = "android")]
+        {
+            let buf = room_manager.playout_buffer();
+            *PLAYOUT_BUFFER.lock().unwrap() = Some(buf);
+            visio_log("VISIO FFI: playout buffer stored for Android audio output");
+        }
+
         let controls = room_manager.controls();
         let chat = room_manager.chat();
 
@@ -421,7 +430,23 @@ impl VisioClient {
             self.controls
                 .set_microphone_enabled(enabled)
                 .await
-                .map_err(VisioError::from)
+                .map_err(VisioError::from)?;
+
+            #[cfg(target_os = "android")]
+            {
+                let mut guard = AUDIO_SOURCE.lock().unwrap();
+                if enabled {
+                    if let Some(source) = self.controls.audio_source().await {
+                        visio_log("VISIO FFI: audio source stored for JNI pipeline");
+                        *guard = Some(source);
+                    }
+                } else {
+                    visio_log("VISIO FFI: audio source cleared");
+                    *guard = None;
+                }
+            }
+
+            Ok(())
         })
     }
 
@@ -511,12 +536,39 @@ impl VisioClient {
 use livekit::webrtc::prelude::*;
 #[cfg(target_os = "android")]
 use livekit::webrtc::video_source::native::NativeVideoSource;
+#[cfg(target_os = "android")]
+use livekit::webrtc::audio_source::native::NativeAudioSource;
+
+/// Stores the AudioPlayoutBuffer from RoomManager so the Android AudioPlayout
+/// Kotlin class can pull decoded remote audio via JNI.
+#[cfg(target_os = "android")]
+static PLAYOUT_BUFFER: StdMutex<Option<Arc<visio_core::AudioPlayoutBuffer>>> = StdMutex::new(None);
 
 /// Stores the NativeVideoSource after `set_camera_enabled(true)` publishes
 /// the camera track. The Android CameraCapture Kotlin class pushes YUV frames
 /// into this source via JNI → `visio_push_camera_frame()`.
 #[cfg(target_os = "android")]
 static CAMERA_SOURCE: StdMutex<Option<NativeVideoSource>> = StdMutex::new(None);
+
+/// Stores the NativeAudioSource after `set_microphone_enabled(true)` publishes
+/// the audio track. The Android AudioCapture Kotlin class pushes PCM frames
+/// into this source via JNI → `nativePushAudioFrame()`.
+#[cfg(target_os = "android")]
+static AUDIO_SOURCE: StdMutex<Option<NativeAudioSource>> = StdMutex::new(None);
+
+/// Dedicated tokio runtime for async audio capture_frame calls.
+#[cfg(target_os = "android")]
+static AUDIO_RT: std::sync::OnceLock<tokio::runtime::Runtime> = std::sync::OnceLock::new();
+
+#[cfg(target_os = "android")]
+fn audio_runtime() -> &'static tokio::runtime::Runtime {
+    AUDIO_RT.get_or_init(|| {
+        tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("failed to create audio runtime")
+    })
+}
 
 /// Receive a YUV_420_888 frame from the Android Camera2 pipeline and feed it
 /// into the LiveKit NativeVideoSource.
@@ -645,6 +697,115 @@ pub extern "C" fn Java_io_visio_mobile_NativeVideo_nativeStopCameraCapture(
     visio_log("VISIO FFI: nativeStopCameraCapture — clearing camera source");
     let mut guard = CAMERA_SOURCE.lock().unwrap();
     *guard = None;
+}
+
+// ── JNI: audio capture pipeline ──────────────────────────────────────
+
+/// Receive a PCM audio frame from Android AudioRecord and feed it into
+/// the LiveKit NativeAudioSource.
+///
+/// Called from Kotlin via JNI on the AudioCapture recording thread.
+/// `data` is a direct ByteBuffer containing 16-bit signed PCM samples.
+///
+/// # Safety
+/// - `env` must be a valid JNI environment pointer.
+/// - `data_buf` must be a valid direct ByteBuffer jobject.
+#[cfg(target_os = "android")]
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn Java_io_visio_mobile_NativeVideo_nativePushAudioFrame(
+    env: *mut jni::sys::JNIEnv,
+    _class: jni::sys::jobject,
+    data_buf: jni::sys::jobject,
+    num_samples: jni::sys::jint,
+    sample_rate: jni::sys::jint,
+    num_channels: jni::sys::jint,
+) {
+    let guard = AUDIO_SOURCE.lock().unwrap();
+    let Some(source) = guard.as_ref() else {
+        return;
+    };
+    let source = source.clone();
+    drop(guard);
+
+    let jni_env = unsafe { jni::JNIEnv::from_raw(env) }.expect("invalid JNIEnv");
+    let ptr = unsafe {
+        jni_env.get_direct_buffer_address(&jni::objects::JByteBuffer::from_raw(data_buf))
+    };
+    let Ok(ptr) = ptr else { return; };
+
+    let sample_count = num_samples as usize;
+    let pcm_data = unsafe { std::slice::from_raw_parts(ptr as *const i16, sample_count) };
+
+    let frame = AudioFrame {
+        data: pcm_data.into(),
+        sample_rate: sample_rate as u32,
+        num_channels: num_channels as u32,
+        samples_per_channel: sample_count as u32 / num_channels as u32,
+    };
+
+    // capture_frame is async — run on dedicated single-thread runtime
+    let _ = audio_runtime().block_on(source.capture_frame(&frame));
+
+    std::mem::forget(jni_env);
+}
+
+/// Clear the global audio source (called when mic capture stops).
+#[cfg(target_os = "android")]
+#[unsafe(no_mangle)]
+pub extern "C" fn Java_io_visio_mobile_NativeVideo_nativeStopAudioCapture(
+    _env: *mut jni::sys::JNIEnv,
+    _class: jni::sys::jobject,
+) {
+    visio_log("VISIO FFI: nativeStopAudioCapture — clearing audio source");
+    let mut guard = AUDIO_SOURCE.lock().unwrap();
+    *guard = None;
+}
+
+// ── JNI: audio playout pipeline (remote audio → speakers) ───────────
+
+/// Pull decoded remote audio samples from the playout buffer.
+///
+/// Called from Kotlin's AudioPlayout polling thread. Fills the provided
+/// ShortArray with PCM samples. Returns the number of samples actually
+/// available (rest is filled with silence).
+///
+/// # Safety
+/// - `env` must be a valid JNI environment pointer.
+/// - `buffer` must be a valid jshortArray.
+#[cfg(target_os = "android")]
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn Java_io_visio_mobile_NativeVideo_nativePullAudioPlayback(
+    env: *mut jni::sys::JNIEnv,
+    _class: jni::sys::jobject,
+    buffer: jni::sys::jshortArray,
+) -> jni::sys::jint {
+    let guard = PLAYOUT_BUFFER.lock().unwrap();
+    let Some(playout) = guard.as_ref() else {
+        return 0;
+    };
+    let playout = playout.clone();
+    drop(guard);
+
+    let mut jni_env = unsafe { jni::JNIEnv::from_raw(env) }.expect("invalid JNIEnv");
+
+    let len = jni_env.get_array_length(&unsafe { jni::objects::JShortArray::from_raw(buffer) })
+        .unwrap_or(0) as usize;
+    if len == 0 {
+        std::mem::forget(jni_env);
+        return 0;
+    }
+
+    let mut tmp = vec![0i16; len];
+    let pulled = playout.pull_samples(&mut tmp) as jni::sys::jint;
+
+    let _ = jni_env.set_short_array_region(
+        &unsafe { jni::objects::JShortArray::from_raw(buffer) },
+        0,
+        &tmp,
+    );
+
+    std::mem::forget(jni_env);
+    pulled
 }
 
 // ── C FFI: video attach / detach ─────────────────────────────────────

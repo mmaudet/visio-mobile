@@ -34,6 +34,7 @@ import android.content.pm.PackageManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -48,6 +49,7 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import io.visio.mobile.VisioManager
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import uniffi.visio.ConnectionState
 
@@ -66,6 +68,23 @@ fun CallScreen(
     var cameraEnabled by remember { mutableStateOf(true) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
 
+    val coroutineScope = rememberCoroutineScope()
+
+    // Mic permission launcher
+    val micPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) {
+            coroutineScope.launch(Dispatchers.IO) {
+                try {
+                    VisioManager.client.setMicrophoneEnabled(true)
+                    VisioManager.startAudioCapture()
+                    micEnabled = true
+                } catch (_: Exception) {}
+            }
+        }
+    }
+
     // Camera permission launcher
     val cameraPermissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
@@ -79,10 +98,12 @@ fun CallScreen(
         }
     }
 
-    // Stop camera capture when leaving the call screen
+    // Stop capture and playout when leaving the call screen
     DisposableEffect(Unit) {
         onDispose {
             VisioManager.stopCameraCapture()
+            VisioManager.stopAudioCapture()
+            VisioManager.stopAudioPlayout()
         }
     }
 
@@ -100,6 +121,8 @@ fun CallScreen(
                 }
                 val user = username.ifBlank { null }
                 VisioManager.client.connect(roomUrl, user)
+                // Start remote audio playout immediately after connecting
+                VisioManager.startAudioPlayout()
                 micEnabled = VisioManager.client.isMicrophoneEnabled()
                 cameraEnabled = VisioManager.client.isCameraEnabled()
             } catch (e: Exception) {
@@ -118,11 +141,31 @@ fun CallScreen(
                 ) {
                     // Mic toggle
                     IconButton(onClick = {
-                        try {
-                            val newState = !micEnabled
-                            VisioManager.client.setMicrophoneEnabled(newState)
-                            micEnabled = newState
-                        } catch (_: Exception) {}
+                        val newState = !micEnabled
+                        if (newState) {
+                            val hasPermission = ContextCompat.checkSelfPermission(
+                                context, Manifest.permission.RECORD_AUDIO
+                            ) == PackageManager.PERMISSION_GRANTED
+                            if (hasPermission) {
+                                coroutineScope.launch(Dispatchers.IO) {
+                                    try {
+                                        VisioManager.client.setMicrophoneEnabled(true)
+                                        VisioManager.startAudioCapture()
+                                        micEnabled = true
+                                    } catch (_: Exception) {}
+                                }
+                            } else {
+                                micPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                            }
+                        } else {
+                            coroutineScope.launch(Dispatchers.IO) {
+                                try {
+                                    VisioManager.stopAudioCapture()
+                                    VisioManager.client.setMicrophoneEnabled(false)
+                                    micEnabled = false
+                                } catch (_: Exception) {}
+                            }
+                        }
                     }) {
                         Icon(
                             imageVector = if (micEnabled) Icons.Default.Mic else Icons.Default.MicOff,
@@ -172,6 +215,8 @@ fun CallScreen(
                     FilledIconButton(
                         onClick = {
                             VisioManager.stopCameraCapture()
+                            VisioManager.stopAudioCapture()
+                            VisioManager.stopAudioPlayout()
                             VisioManager.client.disconnect()
                             onHangUp()
                         },

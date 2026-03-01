@@ -3,6 +3,7 @@
 //! Pure Rust crate with no platform dependencies.
 //! Consumed by native UI shells via UniFFI bindings.
 
+pub mod audio_playout;
 pub mod auth;
 pub mod chat;
 pub mod controls;
@@ -22,4 +23,5 @@ pub use events::{
 };
 pub use participants::ParticipantManager;
 pub use room::RoomManager;
+pub use audio_playout::AudioPlayoutBuffer;
 pub use settings::{Settings, SettingsStore};

@@ -26,6 +26,10 @@ object VisioManager : VisioEventListener {
 
     // Camera capture (Camera2 → JNI → NativeVideoSource)
     private var cameraCapture: CameraCapture? = null
+    // Audio capture (AudioRecord → JNI → NativeAudioSource)
+    private var audioCapture: AudioCapture? = null
+    // Audio playout (Rust playout buffer → JNI → AudioTrack)
+    private var audioPlayout: AudioPlayout? = null
     private lateinit var appContext: Context
 
     private val _connectionState = MutableStateFlow<ConnectionState>(ConnectionState.Disconnected)
@@ -66,6 +70,38 @@ object VisioManager : VisioEventListener {
     fun stopCameraCapture() {
         cameraCapture?.stop()
         cameraCapture = null
+    }
+
+    /**
+     * Start AudioRecord capture. Call after setMicrophoneEnabled(true) succeeds.
+     */
+    fun startAudioCapture() {
+        if (audioCapture != null) return
+        audioCapture = AudioCapture().also { it.start() }
+    }
+
+    /**
+     * Stop AudioRecord capture. Call when mic is disabled or room disconnects.
+     */
+    fun stopAudioCapture() {
+        audioCapture?.stop()
+        audioCapture = null
+    }
+
+    /**
+     * Start audio playout for remote participants. Call after connecting to room.
+     */
+    fun startAudioPlayout() {
+        if (audioPlayout != null) return
+        audioPlayout = AudioPlayout().also { it.start() }
+    }
+
+    /**
+     * Stop audio playout. Call when disconnecting from room.
+     */
+    fun stopAudioPlayout() {
+        audioPlayout?.stop()
+        audioPlayout = null
     }
 
     private fun refreshParticipants() {

@@ -31,4 +31,34 @@ object NativeVideo {
      * Clear the stored NativeVideoSource when camera capture stops.
      */
     external fun nativeStopCameraCapture()
+
+    /**
+     * Push a PCM audio frame into the LiveKit NativeAudioSource.
+     * Called from AudioCapture's recording thread.
+     *
+     * @param data Direct ByteBuffer containing 16-bit signed PCM samples
+     * @param numSamples Total number of samples in the buffer
+     * @param sampleRate Sample rate in Hz (48000)
+     * @param numChannels Number of audio channels (1 = mono)
+     */
+    external fun nativePushAudioFrame(
+        data: ByteBuffer,
+        numSamples: Int,
+        sampleRate: Int,
+        numChannels: Int
+    )
+
+    /**
+     * Clear the stored NativeAudioSource when mic capture stops.
+     */
+    external fun nativeStopAudioCapture()
+
+    /**
+     * Pull decoded remote audio samples from the Rust playout buffer.
+     * Called from AudioPlayout's polling thread.
+     *
+     * @param buffer ShortArray to fill with PCM samples
+     * @return Number of samples actually available (rest is silence)
+     */
+    external fun nativePullAudioPlayback(buffer: ShortArray): Int
 }

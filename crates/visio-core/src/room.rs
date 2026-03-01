@@ -9,7 +9,10 @@ use livekit::track::{
 };
 use livekit::participant::ConnectionQuality as LkConnectionQuality;
 use livekit::data_stream::StreamReader;
+use livekit::webrtc::audio_stream::native::NativeAudioStream;
+use futures_util::StreamExt;
 
+use crate::audio_playout::AudioPlayoutBuffer;
 use crate::auth::AuthService;
 use crate::chat::MessageStore;
 use crate::errors::VisioError;
@@ -27,6 +30,7 @@ pub struct RoomManager {
     connection_state: Arc<Mutex<ConnectionState>>,
     subscribed_tracks: Arc<Mutex<HashMap<String, RemoteVideoTrack>>>,
     messages: MessageStore,
+    playout_buffer: Arc<AudioPlayoutBuffer>,
 }
 
 impl RoomManager {
@@ -38,7 +42,16 @@ impl RoomManager {
             connection_state: Arc::new(Mutex::new(ConnectionState::Disconnected)),
             subscribed_tracks: Arc::new(Mutex::new(HashMap::new())),
             messages: Arc::new(Mutex::new(Vec::new())),
+            playout_buffer: Arc::new(AudioPlayoutBuffer::new()),
         }
+    }
+
+    /// Get a reference to the audio playout buffer.
+    ///
+    /// Platform audio output (Android AudioTrack, desktop cpal) pulls
+    /// decoded remote audio samples from this buffer.
+    pub fn playout_buffer(&self) -> Arc<AudioPlayoutBuffer> {
+        self.playout_buffer.clone()
     }
 
     /// Register a listener for room events.
@@ -146,9 +159,10 @@ impl RoomManager {
         let room_ref = self.room.clone();
         let subscribed_tracks = self.subscribed_tracks.clone();
         let messages = self.messages.clone();
+        let playout_buffer = self.playout_buffer.clone();
 
         tokio::spawn(async move {
-            Self::event_loop(events, emitter, participants, connection_state, room_ref, subscribed_tracks, messages).await;
+            Self::event_loop(events, emitter, participants, connection_state, room_ref, subscribed_tracks, messages, playout_buffer).await;
         });
 
         Ok(())
@@ -165,6 +179,7 @@ impl RoomManager {
         self.participants.lock().await.clear();
         self.subscribed_tracks.lock().await.clear();
         self.messages.lock().await.clear();
+        self.playout_buffer.clear();
         self.set_connection_state(ConnectionState::Disconnected).await;
     }
 
@@ -219,8 +234,11 @@ impl RoomManager {
         room_ref: Arc<Mutex<Option<Arc<Room>>>>,
         subscribed_tracks: Arc<Mutex<HashMap<String, RemoteVideoTrack>>>,
         messages: MessageStore,
+        playout_buffer: Arc<AudioPlayoutBuffer>,
     ) {
         let mut reconnect_attempt: u32 = 0;
+        // Track active audio stream tasks so they get cancelled on disconnect
+        let mut audio_stream_tasks: HashMap<String, tokio::task::JoinHandle<()>> = HashMap::new();
 
         while let Some(event) = events.recv().await {
             match event {
@@ -250,6 +268,12 @@ impl RoomManager {
                     participants.lock().await.clear();
                     subscribed_tracks.lock().await.clear();
                     messages.lock().await.clear();
+                    playout_buffer.clear();
+                    // Stop all audio playout streams
+                    for (sid, handle) in audio_stream_tasks.drain() {
+                        handle.abort();
+                        tracing::info!("audio playout stream aborted on disconnect: {sid}");
+                    }
                     *room_ref.lock().await = None;
                     break;
                 }
@@ -294,6 +318,29 @@ impl RoomManager {
                         }
                     }
 
+                    // Start audio playout: create NativeAudioStream and feed
+                    // decoded PCM frames into the shared playout buffer.
+                    if track_kind == TrackKind::Audio {
+                        if let livekit::track::RemoteTrack::Audio(audio_track) = &track {
+                            let rtc_track = audio_track.rtc_track();
+                            let mut audio_stream = NativeAudioStream::new(
+                                rtc_track,
+                                48_000, // sample rate
+                                1,      // mono
+                            );
+                            let buf = playout_buffer.clone();
+                            let sid = track_sid.clone();
+                            let handle = tokio::spawn(async move {
+                                tracing::info!("audio playout stream started for track {sid}");
+                                while let Some(frame) = audio_stream.next().await {
+                                    buf.push_samples(&frame.data);
+                                }
+                                tracing::info!("audio playout stream ended for track {sid}");
+                            });
+                            audio_stream_tasks.insert(track_sid.clone(), handle);
+                        }
+                    }
+
                     let info = TrackInfo {
                         sid: track_sid,
                         participant_sid: psid,
@@ -307,6 +354,7 @@ impl RoomManager {
                     let psid = participant.sid().to_string();
                     let track_sid = track.sid().to_string();
                     let is_video = publication.kind() == LkTrackKind::Video;
+                    let is_audio = publication.kind() == LkTrackKind::Audio;
 
                     if is_video {
                         let mut pm = participants.lock().await;
@@ -315,6 +363,13 @@ impl RoomManager {
                             p.video_track_sid = None;
                         }
                         subscribed_tracks.lock().await.remove(&track_sid);
+                    }
+
+                    if is_audio {
+                        if let Some(handle) = audio_stream_tasks.remove(&track_sid) {
+                            handle.abort();
+                            tracing::info!("audio playout stream aborted for track {track_sid}");
+                        }
                     }
 
                     emitter.emit(VisioEvent::TrackUnsubscribed(track_sid));
