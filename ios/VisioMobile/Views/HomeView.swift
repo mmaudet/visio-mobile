@@ -7,9 +7,21 @@ struct HomeView: View {
     @State private var displayName: String = ""
     @State private var navigateToCall: Bool = false
     @State private var showSettings: Bool = false
+    @State private var roomStatus: String = "idle"
 
     private var lang: String { manager.currentLang }
     private var isDark: Bool { manager.currentTheme == "dark" }
+
+    private static let slugPattern = /^[a-z]{3}-[a-z]{4}-[a-z]{3}$/
+
+    private func extractSlug(_ input: String) -> String? {
+        let trimmed = input.trimmingCharacters(in: .whitespacesAndNewlines)
+            .trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        let candidate = trimmed.contains("/")
+            ? String(trimmed.split(separator: "/").last ?? "")
+            : trimmed
+        return candidate.wholeMatch(of: Self.slugPattern) != nil ? candidate : nil
+    }
 
     var body: some View {
         ZStack {
@@ -39,11 +51,46 @@ struct HomeView: View {
                         .autocorrectionDisabled()
                         .keyboardType(.URL)
 
+                    if roomStatus == "checking" {
+                        Text(Strings.t("home.room.checking", lang: lang))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    } else if roomStatus == "valid" {
+                        Text(Strings.t("home.room.valid", lang: lang))
+                            .font(.caption)
+                            .foregroundStyle(.green)
+                    } else if roomStatus == "not_found" {
+                        Text(Strings.t("home.room.notFound", lang: lang))
+                            .font(.caption)
+                            .foregroundStyle(.red)
+                    }
+
                     TextField(Strings.t("home.displayName", lang: lang), text: $displayName)
                         .textFieldStyle(.roundedBorder)
                         .textInputAutocapitalization(.words)
                 }
                 .padding(.horizontal, 32)
+                .task(id: roomURL) {
+                    guard let _ = extractSlug(roomURL) else {
+                        roomStatus = "idle"
+                        return
+                    }
+                    roomStatus = "checking"
+                    try? await Task.sleep(for: .milliseconds(500))
+                    guard !Task.isCancelled else { return }
+                    let result = manager.client.validateRoom(
+                        url: roomURL.trimmingCharacters(in: .whitespacesAndNewlines),
+                        username: displayName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                            ? nil : displayName.trimmingCharacters(in: .whitespacesAndNewlines)
+                    )
+                    guard !Task.isCancelled else { return }
+                    switch result {
+                    case .valid: roomStatus = "valid"
+                    case .notFound: roomStatus = "not_found"
+                    case .invalidFormat: roomStatus = "idle"
+                    case .networkError: roomStatus = "error"
+                    }
+                }
 
                 // Join button
                 Button {
@@ -56,7 +103,7 @@ struct HomeView: View {
                 }
                 .buttonStyle(.borderedProminent)
                 .tint(VisioColors.primary500)
-                .disabled(roomURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                .disabled(roomStatus != "valid")
                 .padding(.horizontal, 32)
 
                 Spacer()
