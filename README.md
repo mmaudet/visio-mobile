@@ -62,8 +62,8 @@ Native video conferencing client for [La Suite Meet](https://meet.numerique.gouv
 ### Desktop (macOS / Linux / Windows)
 
 ```bash
-# Dev mode (frontend hot-reload + Rust backend)
-cd crates/visio-desktop/frontend && npm install
+# Dev mode — start Vite and Tauri separately:
+cd crates/visio-desktop/frontend && npm install && npm run dev &
 cd crates/visio-desktop && cargo tauri dev
 
 # Production build
@@ -71,7 +71,7 @@ cd crates/visio-desktop/frontend && npm run build
 cd crates/visio-desktop && cargo tauri build
 ```
 
-The frontend dev server runs on `http://localhost:5173` (Vite). Tauri proxies to it in dev mode. The i18n JSON files are imported at build time — no runtime fetch needed.
+The frontend dev server (Vite) must be running on `http://localhost:5173` **before** `cargo tauri dev` — Tauri's `devUrl` points to it. If Vite is not running, the window will be blank. Make sure no other Vite instance (e.g. from a git worktree) is occupying port 5173.
 
 ### Android
 
@@ -150,13 +150,15 @@ docs/plans/         Design docs and implementation plans
 ## What works
 
 - Join a La Suite Meet room via URL (guest mode)
+- Real-time room URL validation with debounce (checks Meet API before joining)
 - Bidirectional audio (mic + speaker) on all platforms
 - Bidirectional video (camera + remote video) on Android and desktop
 - iOS: video reception works, camera capture pipeline ready (tested via test pattern, needs physical device)
 - Chat (bidirectional with Meet via LiveKit Stream API)
-- Participant list with connection quality indicators
+- Participant list with connection quality and active speaker indicators
 - Hand raise with Meet interop
 - Persistent settings (display name, language, mic/camera on join)
+- i18n: 6 languages (EN, FR, DE, ES, IT, NL) with shared JSON files
 
 ## What's next
 
