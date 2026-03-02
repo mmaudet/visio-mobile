@@ -20,6 +20,11 @@
 		A1000100000000000000000E /* CameraCapture.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10002000000000000000012 /* CameraCapture.swift */; };
 		A1000100000000000000000F /* ParticipantListSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10002000000000000000013 /* ParticipantListSheet.swift */; };
 		A10001000000000000000010 /* Strings.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10002000000000000000014 /* Strings.swift */; };
+		A10001000000000000000011 /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10002000000000000000015 /* Theme.swift */; };
+		A10001000000000000000012 /* VisioLogo.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10002000000000000000016 /* VisioLogo.swift */; };
+		A10001000000000000000013 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10002000000000000000017 /* SettingsView.swift */; };
+		A10001000000000000000014 /* CallKitManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10002000000000000000018 /* CallKitManager.swift */; };
+		A10001000000000000000015 /* PiPManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10002000000000000000019 /* PiPManager.swift */; };
 		A1000100000000000000000B /* libvisio_ffi.a in Frameworks */ = {isa = PBXBuildFile; fileRef = A1000200000000000000000B /* libvisio_ffi.a */; };
 		A1000100000000000000000C /* libvisio_video.a in Frameworks */ = {isa = PBXBuildFile; fileRef = A1000200000000000000000C /* libvisio_video.a */; };
 		A1000100000000000000000D /* libresolv.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = A1000200000000000000000D /* libresolv.tbd */; };
@@ -46,6 +51,11 @@
 		A10002000000000000000012 /* CameraCapture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraCapture.swift; sourceTree = "<group>"; };
 		A10002000000000000000013 /* ParticipantListSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParticipantListSheet.swift; sourceTree = "<group>"; };
 		A10002000000000000000014 /* Strings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Strings.swift; sourceTree = "<group>"; };
+		A10002000000000000000015 /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
+		A10002000000000000000016 /* VisioLogo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VisioLogo.swift; sourceTree = "<group>"; };
+		A10002000000000000000017 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		A10002000000000000000018 /* CallKitManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CallKitManager.swift; sourceTree = "<group>"; };
+		A10002000000000000000019 /* PiPManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PiPManager.swift; sourceTree = "<group>"; };
 		A10003000000000000000001 /* VisioMobile.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = VisioMobile.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -81,8 +91,10 @@
 				A10002000000000000000004 /* AudioPlayout.swift */,
 				A10002000000000000000005 /* VideoFrameRouter.swift */,
 				A10002000000000000000012 /* CameraCapture.swift */,
+				A10002000000000000000015 /* Theme.swift */,
 				A10005000000000000000007 /* i18n */,
 				A10005000000000000000004 /* Views */,
+				A10005000000000000000008 /* Services */,
 				A10005000000000000000006 /* Generated */,
 				A1000200000000000000000E /* Info.plist */,
 			);
@@ -105,6 +117,8 @@
 				A10002000000000000000008 /* ChatView.swift */,
 				A10002000000000000000009 /* VideoLayerView.swift */,
 				A10002000000000000000013 /* ParticipantListSheet.swift */,
+				A10002000000000000000016 /* VisioLogo.swift */,
+				A10002000000000000000017 /* SettingsView.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -136,6 +150,15 @@
 				A10002000000000000000014 /* Strings.swift */,
 			);
 			path = i18n;
+			sourceTree = "<group>";
+		};
+		A10005000000000000000008 /* Services */ = {
+			isa = PBXGroup;
+			children = (
+				A10002000000000000000018 /* CallKitManager.swift */,
+				A10002000000000000000019 /* PiPManager.swift */,
+			);
+			path = Services;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -237,6 +260,11 @@
 				A1000100000000000000000E /* CameraCapture.swift in Sources */,
 				A1000100000000000000000F /* ParticipantListSheet.swift in Sources */,
 				A10001000000000000000010 /* Strings.swift in Sources */,
+				A10001000000000000000011 /* Theme.swift in Sources */,
+				A10001000000000000000012 /* VisioLogo.swift in Sources */,
+				A10001000000000000000013 /* SettingsView.swift in Sources */,
+				A10001000000000000000014 /* CallKitManager.swift in Sources */,
+				A10001000000000000000015 /* PiPManager.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
