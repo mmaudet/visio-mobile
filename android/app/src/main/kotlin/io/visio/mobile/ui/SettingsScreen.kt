@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
@@ -64,6 +65,8 @@ fun SettingsScreen(
     var theme by remember { mutableStateOf("light") }
     var micOnJoin by remember { mutableStateOf(true) }
     var cameraOnJoin by remember { mutableStateOf(false) }
+    var meetInstances by remember { mutableStateOf(listOf("meet.numerique.gouv.fr")) }
+    var newInstance by remember { mutableStateOf("") }
     val coroutineScope = rememberCoroutineScope()
 
     // Use VisioManager.currentLang for live i18n (updates instantly when language radio changes)
@@ -79,6 +82,7 @@ fun SettingsScreen(
             theme = settings.theme ?: "light"
             micOnJoin = settings.micEnabledOnJoin
             cameraOnJoin = settings.cameraEnabledOnJoin
+            meetInstances = VisioManager.client.getMeetInstances()
         } catch (_: Exception) {}
     }
 
@@ -175,6 +179,89 @@ fun SettingsScreen(
                     VisioManager.setLanguage(it)
                 }
             )
+
+            // Meet instances section
+            SectionHeader(Strings.t("settings.meetInstances", lang), isDark)
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(
+                        if (isDark) VisioColors.PrimaryDark100 else VisioColors.LightSurfaceVariant,
+                        RoundedCornerShape(12.dp)
+                    )
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                meetInstances.forEachIndexed { index, instance ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = instance,
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = if (isDark) VisioColors.White else VisioColors.LightOnBackground,
+                            modifier = Modifier.weight(1f)
+                        )
+                        IconButton(
+                            onClick = {
+                                meetInstances = meetInstances.toMutableList().also { it.removeAt(index) }
+                            },
+                            modifier = Modifier.size(32.dp)
+                        ) {
+                            Icon(
+                                painter = painterResource(R.drawable.ri_close_line),
+                                contentDescription = "Remove",
+                                tint = if (isDark) VisioColors.Greyscale400 else VisioColors.LightTextSecondary
+                            )
+                        }
+                    }
+                }
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                TextField(
+                    value = newInstance,
+                    onValueChange = { newInstance = it },
+                    placeholder = {
+                        Text(
+                            Strings.t("settings.addInstance", lang),
+                            color = if (isDark) VisioColors.Greyscale400 else VisioColors.LightTextSecondary
+                        )
+                    },
+                    singleLine = true,
+                    modifier = Modifier.weight(1f),
+                    colors = TextFieldDefaults.colors(
+                        focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                        unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                        cursorColor = VisioColors.Primary500,
+                        focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                        unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+                        focusedIndicatorColor = Color.Transparent,
+                        unfocusedIndicatorColor = Color.Transparent
+                    ),
+                    shape = RoundedCornerShape(12.dp)
+                )
+                IconButton(
+                    onClick = {
+                        val trimmed = newInstance.trim()
+                        if (trimmed.isNotEmpty() && trimmed !in meetInstances) {
+                            meetInstances = meetInstances + trimmed
+                            newInstance = ""
+                        }
+                    }
+                ) {
+                    Icon(
+                        painter = painterResource(R.drawable.ri_add_line),
+                        contentDescription = "Add",
+                        tint = VisioColors.Primary500
+                    )
+                }
+            }
         }
 
         // Save button
@@ -186,6 +273,7 @@ fun SettingsScreen(
                         VisioManager.client.setLanguage(language)
                         VisioManager.client.setMicEnabledOnJoin(micOnJoin)
                         VisioManager.client.setCameraEnabledOnJoin(cameraOnJoin)
+                        VisioManager.client.setMeetInstances(meetInstances)
                     } catch (_: Exception) {}
                 }
                 VisioManager.updateDisplayName(displayName)
