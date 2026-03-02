@@ -142,6 +142,12 @@ struct HomeView: View {
                 displayName = name
             }
         }
+        .onChange(of: manager.pendingDeepLink) { _, newValue in
+            if let link = newValue {
+                roomURL = link
+                manager.pendingDeepLink = nil
+            }
+        }
     }
 }
 

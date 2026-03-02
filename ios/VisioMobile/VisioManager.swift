@@ -27,6 +27,7 @@ class VisioManager: ObservableObject {
     @Published var currentLang: String = "fr"
     @Published var currentTheme: String = "light"
     @Published var displayName: String = ""
+    @Published var pendingDeepLink: String? = nil
 
     // MARK: - Private
 
