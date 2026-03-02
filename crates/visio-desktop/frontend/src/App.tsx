@@ -325,16 +325,17 @@ function HomeView({
           <input
             id="meetUrl"
             type="text"
-            placeholder={t("home.meetUrl.placeholder")}
+            placeholder="https://meet.example.com/abc-defg-hij"
             autoComplete="off"
             value={meetUrl}
             onChange={(e) => setMeetUrl(e.target.value)}
             onKeyDown={handleKeyDown}
           />
+          {roomStatus === "checking" && <div className="room-status checking">{t("home.room.checking")}</div>}
+          {roomStatus === "valid" && <div className="room-status valid">{t("home.room.valid")}</div>}
+          {roomStatus === "not_found" && <div className="room-status not-found">{t("home.room.notFound")}</div>}
+          {roomStatus === "error" && <div className="room-status error">{t("home.room.error")}</div>}
         </div>
-        {roomStatus === "checking" && <div className="room-status checking">{t("home.room.checking")}</div>}
-        {roomStatus === "valid" && <div className="room-status valid">{t("home.room.valid")}</div>}
-        {roomStatus === "not_found" && <div className="room-status not-found">{t("home.room.notFound")}</div>}
         <div className="form-group">
           <label htmlFor="username">{t("home.displayName")}</label>
           <input
@@ -492,6 +493,7 @@ function CallView({
   videoInputs,
   selectedAudioInput,
   selectedVideoInput,
+  activeSpeakers,
   onSelectAudioInput,
   onSelectVideoInput,
 }: {
@@ -502,6 +504,7 @@ function CallView({
   videoFrames: Map<string, string>;
   messages: ChatMessage[];
   handRaisedMap: Record<string, number>;
+  activeSpeakers: string[];
   isHandRaised: boolean;
   unreadCount: number;
   showChat: boolean;
@@ -574,6 +577,7 @@ function CallView({
                 <ParticipantTile
                   participant={allParticipants.find((p) => p.sid === focusedParticipant)!}
                   videoFrames={videoFrames}
+                  isActiveSpeaker={activeSpeakers.includes(focusedParticipant)}
                   handRaisePosition={handRaisedMap[focusedParticipant]}
                 />
               </div>
@@ -585,6 +589,7 @@ function CallView({
                       <ParticipantTile
                         participant={p}
                         videoFrames={videoFrames}
+                        isActiveSpeaker={activeSpeakers.includes(p.sid)}
                         handRaisePosition={handRaisedMap[p.sid]}
                       />
                     </div>
@@ -601,6 +606,7 @@ function CallView({
                     <ParticipantTile
                       participant={p}
                       videoFrames={videoFrames}
+                      isActiveSpeaker={activeSpeakers.includes(p.sid)}
                       handRaisePosition={handRaisedMap[p.sid]}
                     />
                   </div>
@@ -624,10 +630,11 @@ function CallView({
                 <div className="chat-empty">{t("chat.noMessages")}</div>
               ) : (
                 messages.map((m, i) => {
+                  const isOwn = localParticipant && m.sender_sid === localParticipant.sid;
                   const showName =
-                    i === 0 || messages[i - 1].sender_sid !== m.sender_sid;
+                    !isOwn && (i === 0 || messages[i - 1].sender_sid !== m.sender_sid);
                   return (
-                    <div key={m.id} className="chat-bubble">
+                    <div key={m.id} className={`chat-bubble ${isOwn ? "chat-bubble-own" : ""}`}>
                       {showName && (
                         <div className="chat-sender">
                           {m.sender_name || t("unknown")}
@@ -1031,6 +1038,7 @@ export default function App() {
   const [isHandRaised, setIsHandRaised] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const [handRaisedMap, setHandRaisedMap] = useState<Record<string, number>>({});
+  const [activeSpeakers, setActiveSpeakers] = useState<string[]>([]);
   const [showChat, setShowChat] = useState(false);
   const [showParticipants, setShowParticipants] = useState(false);
   const [showInfo, setShowInfo] = useState(false);
@@ -1131,6 +1139,7 @@ export default function App() {
         setIsHandRaised(false);
         setUnreadCount(0);
         setHandRaisedMap({});
+        setActiveSpeakers([]);
         setLocalParticipant(null);
         return;
       }
@@ -1186,6 +1195,7 @@ export default function App() {
 
     let unlistenHand: UnlistenFn | null = null;
     let unlistenUnread: UnlistenFn | null = null;
+    let unlistenSpeakers: UnlistenFn | null = null;
 
     listen<{ participantSid: string; raised: boolean; position: number }>(
       "hand-raised-changed",
@@ -1214,9 +1224,16 @@ export default function App() {
       unlistenUnread = fn;
     });
 
+    listen<string[]>("active-speakers-changed", (event) => {
+      setActiveSpeakers(event.payload);
+    }).then((fn) => {
+      unlistenSpeakers = fn;
+    });
+
     return () => {
       if (unlistenHand) unlistenHand();
       if (unlistenUnread) unlistenUnread();
+      if (unlistenSpeakers) unlistenSpeakers();
     };
   }, [view]);
 
@@ -1267,6 +1284,7 @@ export default function App() {
     setIsHandRaised(false);
     setUnreadCount(0);
     setHandRaisedMap({});
+    setActiveSpeakers([]);
     setLocalParticipant(null);
     setCurrentMeetUrl("");
   };
@@ -1330,6 +1348,7 @@ export default function App() {
             videoFrames={videoFrames}
             messages={messages}
             handRaisedMap={handRaisedMap}
+            activeSpeakers={activeSpeakers}
             isHandRaised={isHandRaised}
             unreadCount={unreadCount}
             showChat={showChat}

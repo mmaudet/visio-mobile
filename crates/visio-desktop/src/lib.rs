@@ -118,6 +118,11 @@ impl VisioEventListener for DesktopEventListener {
                     let _ = app.emit("unread-count-changed", count);
                 }
             }
+            VisioEvent::ActiveSpeakersChanged(sids) => {
+                if let Some(app) = APP_HANDLE.get() {
+                    let _ = app.emit("active-speakers-changed", &sids);
+                }
+            }
             _ => {}
         }
     }

@@ -276,7 +276,7 @@ main {
 }
 
 .self-view.with-chat {
-  right: 370px;
+  right: 374px;
 }
 
 .self-view .self-video {
@@ -615,7 +615,7 @@ main {
 /* -- Chat Sidebar ---------------------------------------------------------- */
 
 .chat-sidebar {
-  width: 320px;
+  width: 358px;
   flex-shrink: 0;
   background: var(--bg-secondary);
   display: flex;
@@ -1135,7 +1135,8 @@ main {
 
 /* -- Room Status ----------------------------------------------------------- */
 
-.room-status { font-size: 0.85rem; margin-top: 4px; padding: 2px 0; }
+.room-status { font-size: 0.85rem; margin-top: 4px; padding: 2px 0; text-align: right; }
 .room-status.checking { color: var(--greyscale-400, #999); }
 .room-status.valid { color: #18753c; }
 .room-status.not-found { color: #e1000f; }
+.room-status.error { color: var(--error-text, #DC2626); }

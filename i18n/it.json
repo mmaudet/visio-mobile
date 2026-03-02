@@ -11,6 +11,7 @@
   "home.room.checking": "Verifica della stanza...",
   "home.room.valid": "Stanza trovata",
   "home.room.notFound": "Stanza non trovata",
+  "home.room.error": "Errore di connessione",
   "call.noParticipants": "Nessun altro partecipante al momento",
   "call.you": "Tu",
   "call.waiting": "In attesa di partecipanti...",
