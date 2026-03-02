@@ -39,7 +39,7 @@ Native video conferencing client for [La Suite Meet](https://meet.numerique.gouv
 
 **4 Rust crates:**
 
-- **`visio-core`** — Room lifecycle, auth (Meet API token fetch), chat (Stream API `lk.chat`), participants, media controls, settings
+- **`visio-core`** — Room lifecycle, auth (Meet API token fetch), chat (Stream API `lk.chat`), participants, media controls, hand raise (Meet interop), settings, event system
 - **`visio-video`** — Video frame rendering: I420 decode, renderer registry, platform-specific renderers
 - **`visio-ffi`** — UniFFI `.udl` bindings (control plane) + raw C FFI (video/audio zero-copy)
 - **`visio-desktop`** — Tauri 2.x commands + cpal audio + AVFoundation camera capture (macOS)
@@ -149,19 +149,41 @@ docs/plans/         Design docs and implementation plans
 
 ## What works
 
+**Core:**
 - Join a La Suite Meet room via URL (guest mode)
 - Real-time room URL validation with debounce (checks Meet API before joining)
 - Bidirectional audio (mic + speaker) on all platforms
 - Bidirectional video (camera + remote video) on Android and desktop
 - iOS: video reception works, camera capture pipeline ready (tested via test pattern, needs physical device)
-- Chat (bidirectional with Meet via LiveKit Stream API)
-- Participant list with connection quality and active speaker indicators
-- Hand raise with Meet interop
-- Persistent settings (display name, language, mic/camera on join)
+- Chat (bidirectional with Meet via LiveKit Stream API `lk.chat` topic)
+- Participant list with connection quality indicators
+- Hand raise with Meet interop (uses `handRaisedAt` attribute, auto-lower after 3s speaking)
+- Persistent settings (display name, language, theme, mic/camera on join)
 - i18n: 6 languages (EN, FR, DE, ES, IT, NL) with shared JSON files
+
+**Desktop UX (Meet-inspired):**
+- Dark/light theme toggle (Meet palette: `#161622` base)
+- Remixicon icon set across all controls
+- Grouped control bar: mic+chevron, cam+chevron, hand raise, chat, participants, tools, info, hangup
+- Device picker popovers (mic/speaker/camera enumeration via WebRTC API)
+- Adaptive video grid (1x1 to 3x3) + click-to-focus layout with filmstrip
+- Participant tiles with initials avatar (deterministic color), active speaker glow, hand raise badge, connection quality bars
+- Chat sidebar (358px, slide-in animation, own messages right-aligned in accent color)
+- Participants sidebar with live count
+- Info panel with meeting URL copy
+- Settings modal (display name, language, theme, join preferences)
+
+**Android UX:**
+- Material 3 dark/light theme with Meet color palette
+- Remixicon SVG vector drawables
+- Room URL validation with real-time status feedback
+- Participant list bottom sheet
+- Edge-to-edge display support
 
 ## What's next
 
+- iOS UX overhaul (Phase 4 — SwiftUI controls, tiles, chat, CallKit, PiP)
+- Android UX overhaul (Phase 3 — control bar, tiles, chat, PiP)
 - Physical device testing (iOS camera, Android edge cases)
 - Push notifications
 - ProConnect authentication
