@@ -789,6 +789,8 @@ internal open class UniffiVTableCallbackInterfaceVisioEventListener(
 
 
 
+
+
 // For large crates we prevent `MethodTooLargeException` (see #2340)
 // N.B. the name of the extension is very misleading, since it is 
 // rather `InterfaceTooLargeException`, caused by too many methods 
@@ -855,6 +857,8 @@ fun uniffi_visio_ffi_checksum_method_visioclient_start_video_renderer(
 fun uniffi_visio_ffi_checksum_method_visioclient_stop_video_renderer(
 ): Short
 fun uniffi_visio_ffi_checksum_method_visioclient_unread_count(
+): Short
+fun uniffi_visio_ffi_checksum_method_visioclient_validate_room(
 ): Short
 fun uniffi_visio_ffi_checksum_constructor_visioclient_new(
 ): Short
@@ -966,6 +970,8 @@ fun uniffi_visio_ffi_fn_method_visioclient_stop_video_renderer(`ptr`: Pointer,`t
 ): Unit
 fun uniffi_visio_ffi_fn_method_visioclient_unread_count(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
 ): Int
+fun uniffi_visio_ffi_fn_method_visioclient_validate_room(`ptr`: Pointer,`url`: RustBuffer.ByValue,`username`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+): RustBuffer.ByValue
 fun uniffi_visio_ffi_fn_init_callback_vtable_visioeventlistener(`vtable`: UniffiVTableCallbackInterfaceVisioEventListener,
 ): Unit
 fun uniffi_visio_ffi_fn_func_init_logging(uniffi_out_err: UniffiRustCallStatus, 
@@ -1172,6 +1178,9 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_visio_ffi_checksum_method_visioclient_unread_count() != 7178.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_visio_ffi_checksum_method_visioclient_validate_room() != 14512.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_visio_ffi_checksum_constructor_visioclient_new() != 10250.toShort()) {
@@ -1631,6 +1640,8 @@ public interface VisioClientInterface {
     
     fun `unreadCount`(): kotlin.UInt
     
+    fun `validateRoom`(`url`: kotlin.String, `username`: kotlin.String?): RoomValidationResult
+    
     companion object
 }
 
@@ -2014,6 +2025,18 @@ open class VisioClient: Disposable, AutoCloseable, VisioClientInterface
     }
     
 
+    override fun `validateRoom`(`url`: kotlin.String, `username`: kotlin.String?): RoomValidationResult {
+            return FfiConverterTypeRoomValidationResult.lift(
+    callWithPointer {
+    uniffiRustCall() { _status ->
+    UniffiLib.INSTANCE.uniffi_visio_ffi_fn_method_visioclient_validate_room(
+        it, FfiConverterString.lower(`url`),FfiConverterOptionalString.lower(`username`),_status)
+}
+    }
+    )
+    }
+    
+
     
 
     
@@ -2346,6 +2369,114 @@ public object FfiConverterTypeConnectionState : FfiConverterRustBuffer<Connectio
             is ConnectionState.Reconnecting -> {
                 buf.putInt(4)
                 FfiConverterUInt.write(value.`attempt`, buf)
+                Unit
+            }
+        }.let { /* this makes the `when` an expression, which ensures it is exhaustive */ }
+    }
+}
+
+
+
+
+
+sealed class RoomValidationResult {
+    
+    data class Valid(
+        val `livekitUrl`: kotlin.String, 
+        val `token`: kotlin.String) : RoomValidationResult() {
+        companion object
+    }
+    
+    object NotFound : RoomValidationResult()
+    
+    
+    data class InvalidFormat(
+        val `message`: kotlin.String) : RoomValidationResult() {
+        companion object
+    }
+    
+    data class NetworkError(
+        val `message`: kotlin.String) : RoomValidationResult() {
+        companion object
+    }
+    
+
+    
+    companion object
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterTypeRoomValidationResult : FfiConverterRustBuffer<RoomValidationResult>{
+    override fun read(buf: ByteBuffer): RoomValidationResult {
+        return when(buf.getInt()) {
+            1 -> RoomValidationResult.Valid(
+                FfiConverterString.read(buf),
+                FfiConverterString.read(buf),
+                )
+            2 -> RoomValidationResult.NotFound
+            3 -> RoomValidationResult.InvalidFormat(
+                FfiConverterString.read(buf),
+                )
+            4 -> RoomValidationResult.NetworkError(
+                FfiConverterString.read(buf),
+                )
+            else -> throw RuntimeException("invalid enum value, something is very wrong!!")
+        }
+    }
+
+    override fun allocationSize(value: RoomValidationResult) = when(value) {
+        is RoomValidationResult.Valid -> {
+            // Add the size for the Int that specifies the variant plus the size needed for all fields
+            (
+                4UL
+                + FfiConverterString.allocationSize(value.`livekitUrl`)
+                + FfiConverterString.allocationSize(value.`token`)
+            )
+        }
+        is RoomValidationResult.NotFound -> {
+            // Add the size for the Int that specifies the variant plus the size needed for all fields
+            (
+                4UL
+            )
+        }
+        is RoomValidationResult.InvalidFormat -> {
+            // Add the size for the Int that specifies the variant plus the size needed for all fields
+            (
+                4UL
+                + FfiConverterString.allocationSize(value.`message`)
+            )
+        }
+        is RoomValidationResult.NetworkError -> {
+            // Add the size for the Int that specifies the variant plus the size needed for all fields
+            (
+                4UL
+                + FfiConverterString.allocationSize(value.`message`)
+            )
+        }
+    }
+
+    override fun write(value: RoomValidationResult, buf: ByteBuffer) {
+        when(value) {
+            is RoomValidationResult.Valid -> {
+                buf.putInt(1)
+                FfiConverterString.write(value.`livekitUrl`, buf)
+                FfiConverterString.write(value.`token`, buf)
+                Unit
+            }
+            is RoomValidationResult.NotFound -> {
+                buf.putInt(2)
+                Unit
+            }
+            is RoomValidationResult.InvalidFormat -> {
+                buf.putInt(3)
+                FfiConverterString.write(value.`message`, buf)
+                Unit
+            }
+            is RoomValidationResult.NetworkError -> {
+                buf.putInt(4)
+                FfiConverterString.write(value.`message`, buf)
                 Unit
             }
         }.let { /* this makes the `when` an expression, which ensures it is exhaustive */ }

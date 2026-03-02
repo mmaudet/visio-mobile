@@ -11,6 +11,7 @@
   "home.room.checking": "Kamer controleren...",
   "home.room.valid": "Kamer gevonden",
   "home.room.notFound": "Kamer niet gevonden",
+  "home.room.error": "Verbindingsfout",
   "call.noParticipants": "Nog geen andere deelnemers",
   "call.you": "U",
   "call.waiting": "Wachten op deelnemers...",

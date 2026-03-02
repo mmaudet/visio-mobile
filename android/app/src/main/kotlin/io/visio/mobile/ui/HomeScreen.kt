@@ -48,7 +48,7 @@ fun HomeScreen(
     onJoin: (roomUrl: String, username: String) -> Unit,
     onSettings: () -> Unit
 ) {
-    var roomUrl by remember { mutableStateOf("https://meet.example.com/room-name") }
+    var roomUrl by remember { mutableStateOf("") }
     var username by remember { mutableStateOf("") }
     val lang = VisioManager.currentLang
     val isDark = VisioManager.currentTheme == "dark"
@@ -137,11 +137,16 @@ fun HomeScreen(
 
         Spacer(modifier = Modifier.height(24.dp))
 
+        Text(
+            text = Strings.t("home.meetUrl", lang),
+            style = MaterialTheme.typography.bodySmall,
+            color = if (isDark) VisioColors.Greyscale400 else VisioColors.LightTextSecondary,
+            modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp)
+        )
         TextField(
             value = roomUrl,
             onValueChange = { roomUrl = it },
-            label = { Text(Strings.t("home.meetUrl", lang), color = if (isDark) VisioColors.Greyscale400 else VisioColors.LightTextSecondary) },
-            placeholder = { Text(Strings.t("home.meetUrl.placeholder", lang), color = if (isDark) VisioColors.Greyscale400 else VisioColors.LightTextSecondary) },
+            placeholder = { Text("https://meet.example.com/abc-defg-hij", color = if (isDark) VisioColors.Greyscale400 else VisioColors.LightTextSecondary) },
             singleLine = true,
             modifier = Modifier.fillMaxWidth(),
             colors = TextFieldDefaults.colors(
@@ -163,19 +168,22 @@ fun HomeScreen(
                 Strings.t("home.room.checking", lang),
                 style = MaterialTheme.typography.bodySmall,
                 color = VisioColors.Greyscale400,
-                modifier = Modifier.fillMaxWidth().padding(top = 4.dp)
+                modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+                textAlign = androidx.compose.ui.text.style.TextAlign.End
             )
             "valid" -> Text(
                 Strings.t("home.room.valid", lang),
                 style = MaterialTheme.typography.bodySmall,
                 color = Color(0xFF18753C),
-                modifier = Modifier.fillMaxWidth().padding(top = 4.dp)
+                modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+                textAlign = androidx.compose.ui.text.style.TextAlign.End
             )
             "not_found" -> Text(
                 Strings.t("home.room.notFound", lang),
                 style = MaterialTheme.typography.bodySmall,
                 color = Color(0xFFE1000F),
-                modifier = Modifier.fillMaxWidth().padding(top = 4.dp)
+                modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+                textAlign = androidx.compose.ui.text.style.TextAlign.End
             )
         }
 

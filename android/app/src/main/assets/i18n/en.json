@@ -11,6 +11,7 @@
   "home.room.checking": "Checking room...",
   "home.room.valid": "Room found",
   "home.room.notFound": "Room not found",
+  "home.room.error": "Connection error",
   "call.noParticipants": "No other participants yet",
   "call.you": "You",
   "call.waiting": "Waiting for participants...",

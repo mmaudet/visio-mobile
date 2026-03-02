@@ -563,7 +563,7 @@ function CallView({
       video_track_sid: camEnabled ? "local-camera" : null,
     });
   }
-  allParticipants.push(...participants);
+  allParticipants.push(...participants.filter((p) => !localParticipant || p.sid !== localParticipant.sid));
   const gridCount = Math.min(allParticipants.length, 9);
 
   return (

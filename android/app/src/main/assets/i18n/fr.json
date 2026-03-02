@@ -11,6 +11,7 @@
   "home.room.checking": "Vérification de la salle...",
   "home.room.valid": "Salle trouvée",
   "home.room.notFound": "Salle introuvable",
+  "home.room.error": "Erreur de connexion",
   "call.noParticipants": "Aucun autre participant pour le moment",
   "call.you": "Vous",
   "call.waiting": "En attente de participants...",
