@@ -43,6 +43,7 @@ jobs:
           ssh-private-key: ${{ secrets.MATCH_DEPLOY_KEY }}
 
       - name: Build & distribute via Fastlane
+        timeout-minutes: 20
         working-directory: ios
         env:
           MATCH_GIT_URL: ${{ secrets.MATCH_GIT_URL }}
