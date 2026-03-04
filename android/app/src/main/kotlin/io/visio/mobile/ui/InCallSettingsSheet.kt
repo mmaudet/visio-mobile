@@ -35,6 +35,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Notifications
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import io.visio.mobile.R
@@ -100,7 +103,7 @@ fun InCallSettingsSheet(
                     onClick = { selectedTab = 1 }
                 )
                 TabIcon(
-                    iconRes = R.drawable.ri_notification_3_line,
+                    icon = Icons.Outlined.Notifications,
                     label = Strings.t("settings.incall.notifications", lang),
                     selected = selectedTab == 2,
                     onClick = { selectedTab = 2 }
@@ -158,6 +161,31 @@ private fun TabIcon(
     ) {
         Icon(
             painter = painterResource(iconRes),
+            contentDescription = label,
+            tint = VisioColors.White,
+            modifier = Modifier.size(20.dp)
+        )
+    }
+}
+
+@Composable
+private fun TabIcon(
+    icon: ImageVector,
+    label: String,
+    selected: Boolean,
+    onClick: () -> Unit
+) {
+    IconButton(
+        onClick = onClick,
+        modifier = Modifier
+            .size(48.dp)
+            .background(
+                if (selected) VisioColors.Primary500 else VisioColors.PrimaryDark100,
+                RoundedCornerShape(8.dp)
+            )
+    ) {
+        Icon(
+            imageVector = icon,
             contentDescription = label,
             tint = VisioColors.White,
             modifier = Modifier.size(20.dp)
