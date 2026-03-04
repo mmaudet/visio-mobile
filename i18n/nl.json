@@ -76,6 +76,8 @@
   "status.connecting": "Verbinden",
   "status.reconnecting": "Opnieuw verbinden",
   "audio.source": "Audiobron",
+  "audio.output": "Uitvoer",
+  "audio.input": "Invoer",
   "audio.speaker": "Luidspreker",
   "audio.earpiece": "Oorstuk",
   "audio.bluetooth": "Bluetooth",

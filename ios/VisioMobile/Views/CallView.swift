@@ -458,7 +458,9 @@ struct ParticipantTile: View {
 struct AudioDeviceSheet: View {
     @EnvironmentObject private var manager: VisioManager
     @State private var availableInputs: [AVAudioSessionPortDescription] = []
+    @State private var currentOutputs: [AVAudioSessionPortDescription] = []
     @State private var currentInput: AVAudioSessionPortDescription?
+    @State private var isSpeakerOverride: Bool = false
     @Environment(\.dismiss) private var dismiss
 
     private var lang: String { manager.currentLang }
@@ -467,39 +469,74 @@ struct AudioDeviceSheet: View {
     var body: some View {
         NavigationStack {
             List {
-                // Built-in speaker option (always available)
-                Button {
-                    try? AVAudioSession.sharedInstance().setPreferredInput(nil)
-                    currentInput = nil
-                    dismiss()
-                } label: {
-                    HStack {
-                        Image(systemName: "speaker.wave.2.fill")
-                            .foregroundStyle(VisioColors.primary500)
-                        Text(Strings.t("audio.speaker", lang: lang))
-                            .foregroundStyle(VisioColors.onSurface(dark: isDark))
-                        Spacer()
-                        if currentInput == nil {
+                // MARK: - Output section
+                Section(Strings.t("audio.output", lang: lang)) {
+                    // Speaker option
+                    Button {
+                        try? AVAudioSession.sharedInstance().overrideOutputAudioPort(.speaker)
+                        loadDevices()
+                    } label: {
+                        HStack {
+                            Image(systemName: "speaker.wave.2.fill")
+                                .foregroundStyle(VisioColors.primary500)
+                            Text(Strings.t("audio.speaker", lang: lang))
+                                .foregroundStyle(VisioColors.onSurface(dark: isDark))
+                            Spacer()
+                            if isSpeakerOverride {
+                                Image(systemName: "checkmark")
+                                    .foregroundStyle(VisioColors.primary500)
+                            }
+                        }
+                    }
+
+                    // Earpiece / default output
+                    Button {
+                        try? AVAudioSession.sharedInstance().overrideOutputAudioPort(.none)
+                        loadDevices()
+                    } label: {
+                        HStack {
+                            Image(systemName: "iphone")
+                                .foregroundStyle(VisioColors.primary500)
+                            Text(Strings.t("audio.earpiece", lang: lang))
+                                .foregroundStyle(VisioColors.onSurface(dark: isDark))
+                            Spacer()
+                            if !isSpeakerOverride && currentOutputs.contains(where: { $0.portType == .builtInReceiver || $0.portType == .builtInSpeaker }) && !currentOutputs.contains(where: { isExternalOutput($0) }) {
+                                Image(systemName: "checkmark")
+                                    .foregroundStyle(VisioColors.primary500)
+                            }
+                        }
+                    }
+
+                    // External outputs (Bluetooth, headphones, etc.)
+                    ForEach(currentOutputs.filter { isExternalOutput($0) }, id: \.uid) { port in
+                        HStack {
+                            Image(systemName: iconForOutputPort(port))
+                                .foregroundStyle(VisioColors.primary500)
+                            Text(port.portName)
+                                .foregroundStyle(VisioColors.onSurface(dark: isDark))
+                            Spacer()
                             Image(systemName: "checkmark")
                                 .foregroundStyle(VisioColors.primary500)
                         }
                     }
                 }
 
-                // Available inputs (Bluetooth, wired headsets, etc.)
-                ForEach(availableInputs, id: \.uid) { port in
-                    Button {
-                        selectInput(port)
-                    } label: {
-                        HStack {
-                            Image(systemName: iconForPort(port))
-                                .foregroundStyle(VisioColors.primary500)
-                            Text(port.portName)
-                                .foregroundStyle(VisioColors.onSurface(dark: isDark))
-                            Spacer()
-                            if port.uid == currentInput?.uid {
-                                Image(systemName: "checkmark")
+                // MARK: - Input section
+                Section(Strings.t("audio.input", lang: lang)) {
+                    ForEach(availableInputs, id: \.uid) { port in
+                        Button {
+                            selectInput(port)
+                        } label: {
+                            HStack {
+                                Image(systemName: iconForInputPort(port))
                                     .foregroundStyle(VisioColors.primary500)
+                                Text(port.portName)
+                                    .foregroundStyle(VisioColors.onSurface(dark: isDark))
+                                Spacer()
+                                if port.uid == currentInput?.uid {
+                                    Image(systemName: "checkmark")
+                                        .foregroundStyle(VisioColors.primary500)
+                                }
                             }
                         }
                     }
@@ -526,24 +563,49 @@ struct AudioDeviceSheet: View {
         let session = AVAudioSession.sharedInstance()
         availableInputs = session.availableInputs ?? []
         currentInput = session.currentRoute.inputs.first
+        currentOutputs = session.currentRoute.outputs
+        isSpeakerOverride = currentOutputs.contains { $0.portType == .builtInSpeaker }
     }
 
     private func selectInput(_ port: AVAudioSessionPortDescription) {
         try? AVAudioSession.sharedInstance().setPreferredInput(port)
         currentInput = port
-        dismiss()
     }
 
-    private func iconForPort(_ port: AVAudioSessionPortDescription) -> String {
+    private func isExternalOutput(_ port: AVAudioSessionPortDescription) -> Bool {
+        switch port.portType {
+        case .bluetoothA2DP, .bluetoothLE, .bluetoothHFP, .headphones, .airPlay, .carAudio, .usbAudio:
+            return true
+        default:
+            return false
+        }
+    }
+
+    private func iconForOutputPort(_ port: AVAudioSessionPortDescription) -> String {
         switch port.portType {
         case .bluetoothA2DP, .bluetoothLE, .bluetoothHFP:
             return "wave.3.right"
         case .headphones:
             return "headphones"
+        case .airPlay:
+            return "airplayaudio"
+        case .carAudio:
+            return "car"
+        default:
+            return "speaker.wave.2"
+        }
+    }
+
+    private func iconForInputPort(_ port: AVAudioSessionPortDescription) -> String {
+        switch port.portType {
+        case .bluetoothHFP:
+            return "wave.3.right"
+        case .headsetMic:
+            return "headphones"
         case .builtInMic:
             return "iphone"
         default:
-            return "speaker.wave.2"
+            return "mic"
         }
     }
 }

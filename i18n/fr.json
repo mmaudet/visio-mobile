@@ -76,6 +76,8 @@
   "status.connecting": "Connexion",
   "status.reconnecting": "Reconnexion",
   "audio.source": "Source audio",
+  "audio.output": "Sortie",
+  "audio.input": "Entrée",
   "audio.speaker": "Haut-parleur",
   "audio.earpiece": "Écouteur",
   "audio.bluetooth": "Bluetooth",
