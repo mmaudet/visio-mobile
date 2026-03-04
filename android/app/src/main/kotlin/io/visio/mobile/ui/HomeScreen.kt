@@ -113,7 +113,7 @@ fun HomeScreen(
         ) {
             Spacer(modifier = Modifier.size(48.dp)) // balance the gear icon
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                VisioLogo(size = 64.dp)
+                VisioLogo(size = 192.dp)
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
                     text = Strings.t("app.title", lang),
