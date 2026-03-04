@@ -4,7 +4,7 @@ struct VisioLogo: View {
     var size: CGFloat = 64
 
     var body: some View {
-        if let uiImage = UIImage(named: "AppIcon") {
+        if let uiImage = UIImage(named: "AppLogo") {
             Image(uiImage: uiImage)
                 .resizable()
                 .aspectRatio(contentMode: .fit)

@@ -32,7 +32,7 @@ struct HomeView: View {
 
                 // App branding with tricolore logo
                 VStack(spacing: 8) {
-                    VisioLogo(size: 64)
+                    VisioLogo(size: 96)
                     Text(Strings.t("app.title", lang: lang))
                         .font(.largeTitle)
                         .fontWeight(.bold)
