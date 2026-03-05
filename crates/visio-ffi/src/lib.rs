@@ -783,6 +783,13 @@ impl VisioClient {
             visio_log(&format!("VISIO FFI: logout_all error: {e}"));
         }
     }
+
+    // ── Meeting Creation ──────────────────────────────────────────────
+
+    /// Generate a random meeting slug in the format xxx-yyyy-zzz.
+    pub fn generate_random_slug(&self) -> String {
+        visio_core::AuthService::generate_random_slug()
+    }
 }
 
 // ── Global camera video source (for Android Camera2 → Rust pipeline) ─

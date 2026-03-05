@@ -384,5 +384,34 @@ fun HomeScreen(
                 modifier = Modifier.padding(vertical = 4.dp),
             )
         }
+
+        // Create meeting button (only when authenticated)
+        if (meetInstances.isNotEmpty()) {
+            val primaryInstance = meetInstances.first()
+            val isAuthenticated = authSessions.any { it.instance == primaryInstance }
+            if (isAuthenticated) {
+                Spacer(modifier = Modifier.height(12.dp))
+                OutlinedButton(
+                    onClick = {
+                        val slug = VisioManager.client.generateRandomSlug()
+                        roomUrl = slug
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                ) {
+                    Icon(
+                        painter = painterResource(R.drawable.ri_add_line),
+                        contentDescription = null,
+                        modifier = Modifier.size(20.dp),
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        Strings.t("home.create", lang),
+                        fontSize = 16.sp,
+                        modifier = Modifier.padding(vertical = 4.dp),
+                    )
+                }
+            }
+        }
     }
 }

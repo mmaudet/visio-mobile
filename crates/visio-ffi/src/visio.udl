@@ -209,4 +209,9 @@ interface VisioClient {
 
     /// Logout from all instances (clear all sessions).
     void logout_all();
+
+    // ── Meeting Creation ─────────────────────────────────────────────────
+
+    /// Generate a random meeting slug in the format xxx-yyyy-zzz.
+    string generate_random_slug();
 };

@@ -6,6 +6,7 @@
   "home.displayName": "Display Name (optional)",
   "home.displayName.placeholder": "Your name",
   "home.join": "Join",
+  "home.create": "Create a meeting",
   "home.connecting": "Connecting...",
   "home.error.noUrl": "Please enter a meeting URL",
   "home.room.checking": "Checking room...",

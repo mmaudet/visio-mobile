@@ -6,6 +6,7 @@
   "home.displayName": "Anzeigename (optional)",
   "home.displayName.placeholder": "Ihr Name",
   "home.join": "Beitreten",
+  "home.create": "Meeting erstellen",
   "home.connecting": "Verbindung wird hergestellt...",
   "home.error.noUrl": "Bitte geben Sie eine Meeting-URL ein",
   "home.room.checking": "Raum wird überprüft...",

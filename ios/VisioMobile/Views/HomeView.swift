@@ -168,6 +168,23 @@ struct HomeView: View {
                 .disabled(roomStatus != "valid")
                 .padding(.horizontal, 32)
 
+                // Create meeting button (only when authenticated)
+                if let primaryInstance = meetInstances.first,
+                   manager.authSessions.contains(where: { $0.instance == primaryInstance }) {
+                    Button {
+                        let slug = manager.client.generateRandomSlug()
+                        roomURL = slug
+                    } label: {
+                        Label(Strings.t("home.create", lang: lang), systemImage: "plus.circle.fill")
+                            .font(.headline)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 12)
+                    }
+                    .buttonStyle(.bordered)
+                    .tint(VisioColors.secondary)
+                    .padding(.horizontal, 32)
+                }
+
                 Spacer()
                 Spacer()
             }

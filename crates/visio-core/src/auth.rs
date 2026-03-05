@@ -44,6 +44,30 @@ pub struct AuthCallbackParams {
 pub struct AuthService;
 
 impl AuthService {
+    /// Generate a random meeting slug in the format xxx-yyyy-zzz.
+    ///
+    /// The slug consists of:
+    /// - 3 lowercase letters
+    /// - dash
+    /// - 4 lowercase letters
+    /// - dash
+    /// - 3 lowercase letters
+    ///
+    /// # Returns
+    /// A random slug like "abc-defg-hij"
+    pub fn generate_random_slug() -> String {
+        use rand::Rng;
+        let mut rng = rand::thread_rng();
+
+        let mut gen_letters = |count: usize| -> String {
+            (0..count)
+                .map(|_| (b'a' + rng.gen_range(0..26)) as char)
+                .collect()
+        };
+
+        format!("{}-{}-{}", gen_letters(3), gen_letters(4), gen_letters(3))
+    }
+
     /// Call the Meet API to get a LiveKit token for the given room.
     ///
     /// `meet_url` should be a full URL like `https://meet.example.com/room-slug`
@@ -537,5 +561,39 @@ mod tests {
             state
         );
         assert!(AuthService::handle_auth_callback(&callback, &session_manager).is_err());
+    }
+
+    #[test]
+    fn generate_random_slug_format() {
+        for _ in 0..10 {
+            let slug = AuthService::generate_random_slug();
+            // Verify format: xxx-yyyy-zzz
+            let parts: Vec<&str> = slug.split('-').collect();
+            assert_eq!(parts.len(), 3, "slug should have 3 parts: {}", slug);
+            assert_eq!(parts[0].len(), 3, "first part should be 3 chars");
+            assert_eq!(parts[1].len(), 4, "second part should be 4 chars");
+            assert_eq!(parts[2].len(), 3, "third part should be 3 chars");
+            // Verify all lowercase
+            assert!(
+                slug.chars().all(|c| c.is_ascii_lowercase() || c == '-'),
+                "slug should be lowercase letters and dashes: {}",
+                slug
+            );
+            // Verify it passes extract_slug validation
+            assert!(
+                AuthService::extract_slug(&slug).is_ok(),
+                "generated slug should be valid: {}",
+                slug
+            );
+        }
+    }
+
+    #[test]
+    fn generate_random_slug_uniqueness() {
+        let slugs: std::collections::HashSet<String> = (0..100)
+            .map(|_| AuthService::generate_random_slug())
+            .collect();
+        // With 26^10 possibilities, collisions are extremely unlikely
+        assert_eq!(slugs.len(), 100, "100 slugs should all be unique");
     }
 }

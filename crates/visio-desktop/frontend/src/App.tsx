@@ -26,6 +26,9 @@ import {
   RiCloseLine,
   RiSendPlane2Fill,
   RiSettings3Line,
+  RiUserLine,
+  RiLogoutBoxLine,
+  RiAddLine,
 } from "@remixicon/react";
 
 // ---------------------------------------------------------------------------
@@ -65,6 +68,14 @@ interface Settings {
   mic_enabled_on_join: boolean;
   camera_enabled_on_join: boolean;
   theme: string;
+}
+
+interface AuthSession {
+  instance: string;
+  session_token: string;
+  expires_at_ms: number;
+  user_name: string | null;
+  user_email: string | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -255,6 +266,9 @@ function HomeView({
   onDisplayNameChange,
   deepLinkUrl,
   onDeepLinkConsumed,
+  authSessions,
+  onLogin,
+  onLogout,
 }: {
   onJoin: (meetUrl: string, username: string | null) => void;
   onOpenSettings: () => void;
@@ -262,6 +276,9 @@ function HomeView({
   onDisplayNameChange: (name: string) => void;
   deepLinkUrl: string | null;
   onDeepLinkConsumed: () => void;
+  authSessions: AuthSession[];
+  onLogin: (instance: string) => void;
+  onLogout: (instance: string) => void;
 }) {
   const t = useT();
   const [meetUrl, setMeetUrl] = useState("");
@@ -337,6 +354,21 @@ function HomeView({
     if (e.key === "Enter") handleJoin();
   };
 
+  const handleCreateMeeting = async () => {
+    try {
+      const slug = await invoke<string>("generate_random_slug");
+      setMeetUrl(slug);
+    } catch (e) {
+      console.error("create meeting error:", e);
+    }
+  };
+
+  // Check if user is authenticated for the primary instance
+  const primaryInstance = meetInstances[0];
+  const currentSession = primaryInstance
+    ? authSessions.find((s) => s.instance === primaryInstance)
+    : undefined;
+
   return (
     <div id="home" className="section active">
       <button className="settings-gear" onClick={onOpenSettings}>
@@ -346,6 +378,30 @@ function HomeView({
         <VisioLogo />
         <h2>{t("app.title")}</h2>
         <p>{t("home.subtitle")}</p>
+
+        {/* Auth section */}
+        {primaryInstance && (
+          <div className="auth-section">
+            {currentSession ? (
+              <div className="auth-logged-in">
+                <div className="auth-user-info">
+                  <RiUserLine size={18} />
+                  <span>{currentSession.user_name || currentSession.user_email || t("home.auth.loggedIn")}</span>
+                </div>
+                <button className="btn btn-secondary" onClick={() => onLogout(primaryInstance)}>
+                  <RiLogoutBoxLine size={16} />
+                  {t("home.auth.logout")}
+                </button>
+              </div>
+            ) : (
+              <button className="btn btn-secondary" onClick={() => onLogin(primaryInstance)}>
+                <RiUserLine size={16} />
+                {t("home.auth.login")}
+              </button>
+            )}
+          </div>
+        )}
+
         <div className="form-group">
           <label htmlFor="meetUrl">{t("home.meetUrl")}</label>
           <input
@@ -377,6 +433,15 @@ function HomeView({
         <button className="btn btn-primary" disabled={joining || roomStatus !== "valid"} onClick={handleJoin}>
           {joining ? t("home.connecting") : t("home.join")}
         </button>
+
+        {/* Create meeting button (only when authenticated) */}
+        {currentSession && (
+          <button className="btn btn-secondary btn-create" onClick={handleCreateMeeting}>
+            <RiAddLine size={16} />
+            {t("home.create")}
+          </button>
+        )}
+
         <div className="error-msg">{error}</div>
       </div>
     </div>
@@ -1109,6 +1174,8 @@ export default function App() {
   // Deep link
   const [deepLinkUrl, setDeepLinkUrl] = useState<string | null>(null);
   const [deepLinkError, setDeepLinkError] = useState<string | null>(null);
+  // Auth state
+  const [authSessions, setAuthSessions] = useState<AuthSession[]>([]);
   // Meeting URL (set on join, used in info panel)
   const [currentMeetUrl, setCurrentMeetUrl] = useState("");
   // Display name (shared between Home and Settings)
@@ -1123,7 +1190,7 @@ export default function App() {
     [lang]
   );
 
-  // Load settings on mount
+  // Load settings and auth sessions on mount
   useEffect(() => {
     invoke<Settings>("get_settings")
       .then((s) => {
@@ -1132,9 +1199,13 @@ export default function App() {
         if (s.theme) setTheme(s.theme);
       })
       .catch(() => {});
+    // Load auth sessions
+    invoke<AuthSession[]>("get_all_sessions")
+      .then(setAuthSessions)
+      .catch(() => {});
   }, []);
 
-  // Deep link listener
+  // Deep link listener (handles both room URLs and auth callbacks)
   useEffect(() => {
     const unlisten = onOpenUrl((urls: string[]) => {
       if (urls.length === 0) return;
@@ -1143,6 +1214,28 @@ export default function App() {
         const parsed = new URL(url);
         if (parsed.protocol !== "visio:") return;
         const host = parsed.hostname;
+
+        // Handle auth callback
+        if (host === "auth-callback") {
+          invoke<AuthSession>("handle_auth_callback", { callbackUrl: url })
+            .then((session) => {
+              // Refresh auth sessions
+              invoke<AuthSession[]>("get_all_sessions")
+                .then(setAuthSessions)
+                .catch(() => {});
+              // Update display name from auth response if available
+              if (session.user_name && !displayName) {
+                setDisplayName(session.user_name);
+                invoke("set_display_name", { name: session.user_name });
+              }
+            })
+            .catch((e) => {
+              console.error("auth callback error:", e);
+            });
+          return;
+        }
+
+        // Handle room URL
         const slug = parsed.pathname.replace(/^\//, "");
         if (!host || !slug) return;
 
@@ -1158,7 +1251,7 @@ export default function App() {
       } catch { /* ignore malformed URLs */ }
     });
     return () => { unlisten.then((fn) => fn()); };
-  }, []);
+  }, [displayName]);
 
   // Apply theme to document
   useEffect(() => {
@@ -1325,6 +1418,28 @@ export default function App() {
     };
   }, [view]);
 
+  // ---- Auth Handlers ------------------------------------------------------
+  const handleLogin = async (instance: string) => {
+    try {
+      const loginUrl = await invoke<string>("get_login_url", { instance });
+      // Open in system browser
+      window.open(loginUrl, "_blank");
+    } catch (e) {
+      console.error("login error:", e);
+    }
+  };
+
+  const handleLogout = async (instance: string) => {
+    try {
+      await invoke("logout", { instance });
+      // Refresh auth sessions
+      const sessions = await invoke<AuthSession[]>("get_all_sessions");
+      setAuthSessions(sessions);
+    } catch (e) {
+      console.error("logout error:", e);
+    }
+  };
+
   // ---- Handlers -----------------------------------------------------------
   const handleJoin = (meetUrl: string) => {
     setCurrentMeetUrl(meetUrl);
@@ -1428,6 +1543,9 @@ export default function App() {
               onDisplayNameChange={setDisplayName}
               deepLinkUrl={deepLinkUrl}
               onDeepLinkConsumed={() => setDeepLinkUrl(null)}
+              authSessions={authSessions}
+              onLogin={handleLogin}
+              onLogout={handleLogout}
             />
             {deepLinkError && (
               <div className="deep-link-error">
