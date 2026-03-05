@@ -275,9 +275,9 @@ docs/plans/         Design docs and implementation plans
 
 ## What's next
 
-- Push notifications
-- ProConnect authentication
-- App store packaging (APK/IPA/DMG)
+- Official App store packaging (APK/IPA/DMG)
+- OIDC & ProConnect authentication
+- AI Services (stay tuned !)
 
 ## Configuration
 
