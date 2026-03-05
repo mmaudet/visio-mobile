@@ -89,6 +89,16 @@ interface VisioError {
     Auth(string msg);
     Http(string msg);
     InvalidUrl(string msg);
+    SessionExpired(string msg);
+    Oidc(string msg);
+};
+
+dictionary AuthSession {
+    string instance;
+    string session_token;
+    u64 expires_at_ms;
+    string? user_name;
+    string? user_email;
 };
 
 callback interface VisioEventListener {
@@ -173,4 +183,30 @@ interface VisioClient {
     void start_video_renderer(string track_sid);
 
     void stop_video_renderer(string track_sid);
+
+    // ── SSO OIDC Authentication ──────────────────────────────────────
+
+    /// Generate the login URL to open in the system browser.
+    /// Returns the full URL for OIDC authentication.
+    string get_login_url(string instance);
+
+    /// Handle the auth callback URL received from the deep link.
+    /// Parses the callback, validates the state, and stores the session.
+    [Throws=VisioError]
+    AuthSession handle_auth_callback(string callback_url);
+
+    /// Get all authenticated sessions (non-expired).
+    sequence<AuthSession> get_all_sessions();
+
+    /// Get the session for a specific instance (if authenticated and not expired).
+    AuthSession? get_session(string instance);
+
+    /// Check if authenticated for a specific instance.
+    boolean is_authenticated(string instance);
+
+    /// Logout from a specific instance (remove session).
+    void logout(string instance);
+
+    /// Logout from all instances (clear all sessions).
+    void logout_all();
 };

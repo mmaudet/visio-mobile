@@ -3,7 +3,9 @@
 //! Provides a VisioClient object that wraps RoomManager, MeetingControls,
 //! and ChatService into a single FFI-safe interface.
 
-use std::sync::{Arc, Mutex as StdMutex};
+use std::sync::Arc;
+#[cfg(any(target_os = "android", target_os = "ios"))]
+use std::sync::Mutex as StdMutex;
 use visio_core::{
     self,
     events::{
@@ -336,6 +338,10 @@ pub enum VisioError {
     Http { msg: String },
     #[error("Invalid URL: {msg}")]
     InvalidUrl { msg: String },
+    #[error("Session expired: {msg}")]
+    SessionExpired { msg: String },
+    #[error("OIDC error: {msg}")]
+    Oidc { msg: String },
 }
 
 impl From<visio_core::VisioError> for VisioError {
@@ -347,6 +353,31 @@ impl From<visio_core::VisioError> for VisioError {
             visio_core::VisioError::Auth(msg) => Self::Auth { msg },
             visio_core::VisioError::Http(msg) => Self::Http { msg },
             visio_core::VisioError::InvalidUrl(msg) => Self::InvalidUrl { msg },
+            visio_core::VisioError::SessionExpired(msg) => Self::SessionExpired { msg },
+            visio_core::VisioError::Oidc(msg) => Self::Oidc { msg },
+        }
+    }
+}
+
+// ── AuthSession FFI type ─────────────────────────────────────────────
+
+#[derive(Debug, Clone)]
+pub struct AuthSession {
+    pub instance: String,
+    pub session_token: String,
+    pub expires_at_ms: u64,
+    pub user_name: Option<String>,
+    pub user_email: Option<String>,
+}
+
+impl From<visio_core::AuthSession> for AuthSession {
+    fn from(s: visio_core::AuthSession) -> Self {
+        Self {
+            instance: s.instance,
+            session_token: s.session_token,
+            expires_at_ms: s.expires_at_ms,
+            user_name: s.user_name,
+            user_email: s.user_email,
         }
     }
 }
@@ -376,6 +407,7 @@ pub struct VisioClient {
     controls: visio_core::MeetingControls,
     chat: visio_core::ChatService,
     settings: visio_core::SettingsStore,
+    session_manager: visio_core::SessionManager,
     rt: tokio::runtime::Runtime,
 }
 
@@ -386,6 +418,21 @@ impl VisioClient {
         visio_log("VISIO FFI: tokio runtime created successfully");
         let settings = visio_core::SettingsStore::new(&data_dir);
         let room_manager = visio_core::RoomManager::new();
+
+        // Create secure storage for session management
+        let secure_storage: Arc<dyn visio_core::SecureStorage> = {
+            #[cfg(not(any(target_os = "android", target_os = "ios")))]
+            {
+                Arc::new(visio_core::KeyringStorage::new("io.visio.mobile"))
+            }
+            #[cfg(any(target_os = "android", target_os = "ios"))]
+            {
+                // Mobile platforms use memory storage by default
+                // Platform-specific secure storage should be set via callbacks
+                Arc::new(visio_core::MemoryStorage::new())
+            }
+        };
+        let session_manager = visio_core::SessionManager::new(secure_storage);
 
         // Store playout buffer for Android JNI audio pull
         #[cfg(target_os = "android")]
@@ -412,6 +459,7 @@ impl VisioClient {
             controls,
             chat,
             settings,
+            session_manager,
             rt,
         }
     }
@@ -673,6 +721,67 @@ impl VisioClient {
     pub fn stop_video_renderer(&self, track_sid: String) {
         visio_log(&format!("VISIO FFI: stopping video renderer for {track_sid}"));
         visio_video::stop_track_renderer(&track_sid);
+    }
+
+    // ── SSO OIDC Authentication ──────────────────────────────────────
+
+    /// Generate the login URL to open in the system browser.
+    /// Returns the full URL for OIDC authentication.
+    pub fn get_login_url(&self, instance: String) -> String {
+        // Start the auth flow and get the state parameter
+        let state = self.session_manager.start_auth(&instance)
+            .unwrap_or_else(|e| {
+                visio_log(&format!("VISIO FFI: failed to start auth: {e}"));
+                uuid::Uuid::new_v4().to_string()
+            });
+        visio_core::AuthService::get_login_url(&instance, &state)
+    }
+
+    /// Handle the auth callback URL received from the deep link.
+    /// Parses the callback, validates the state, and stores the session.
+    pub fn handle_auth_callback(&self, callback_url: String) -> Result<AuthSession, VisioError> {
+        visio_log(&format!("VISIO FFI: handling auth callback"));
+        let session = visio_core::AuthService::handle_auth_callback(&callback_url, &self.session_manager)?;
+        visio_log(&format!("VISIO FFI: auth successful for instance: {}", session.instance));
+        Ok(session.into())
+    }
+
+    /// Get all authenticated sessions (non-expired).
+    pub fn get_all_sessions(&self) -> Vec<AuthSession> {
+        self.session_manager.get_all_sessions()
+            .unwrap_or_default()
+            .into_iter()
+            .map(AuthSession::from)
+            .collect()
+    }
+
+    /// Get the session for a specific instance (if authenticated and not expired).
+    pub fn get_session(&self, instance: String) -> Option<AuthSession> {
+        self.session_manager.get_session(&instance)
+            .ok()
+            .flatten()
+            .map(AuthSession::from)
+    }
+
+    /// Check if authenticated for a specific instance.
+    pub fn is_authenticated(&self, instance: String) -> bool {
+        self.session_manager.is_authenticated(&instance)
+    }
+
+    /// Logout from a specific instance (remove session).
+    pub fn logout(&self, instance: String) {
+        visio_log(&format!("VISIO FFI: logging out from {instance}"));
+        if let Err(e) = self.session_manager.remove_session(&instance) {
+            visio_log(&format!("VISIO FFI: logout error: {e}"));
+        }
+    }
+
+    /// Logout from all instances (clear all sessions).
+    pub fn logout_all(&self) {
+        visio_log("VISIO FFI: logging out from all instances");
+        if let Err(e) = self.session_manager.clear_all_sessions() {
+            visio_log(&format!("VISIO FFI: logout_all error: {e}"));
+        }
     }
 }
 
