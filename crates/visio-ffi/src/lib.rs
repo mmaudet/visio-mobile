@@ -460,6 +460,12 @@ impl VisioClient {
     }
 
     pub fn disconnect(&self) {
+        // Clear the client pointer BEFORE disconnecting so no JNI call
+        // can dereference a stale pointer while teardown is in progress.
+        #[cfg(target_os = "android")]
+        {
+            *CLIENT_FOR_VIDEO.lock().unwrap() = 0;
+        }
         self.rt.block_on(self.room_manager.disconnect());
     }
 
@@ -709,11 +715,54 @@ static CLIENT_FOR_VIDEO: StdMutex<usize> = StdMutex::new(0);
 #[cfg(target_os = "android")]
 static CAMERA_SOURCE: StdMutex<Option<NativeVideoSource>> = StdMutex::new(None);
 
-/// Stores the ANativeWindow* for local camera self-view (as usize for Send).
+/// RAII wrapper around `ANativeWindow*` that calls `ANativeWindow_release` on drop.
+///
+/// Prevents leaks and double-frees on error paths in JNI surface management.
+#[cfg(target_os = "android")]
+struct NativeWindowHandle(*mut ndk_sys::ANativeWindow);
+
+#[cfg(target_os = "android")]
+impl NativeWindowHandle {
+    /// Wrap a non-null `ANativeWindow*` obtained from `ANativeWindow_fromSurface`.
+    ///
+    /// # Safety
+    /// `ptr` must be a valid, non-null `ANativeWindow*` with an outstanding reference.
+    unsafe fn from_raw(ptr: *mut ndk_sys::ANativeWindow) -> Self {
+        debug_assert!(!ptr.is_null());
+        Self(ptr)
+    }
+
+    /// Return the raw pointer.
+    fn as_ptr(&self) -> *mut ndk_sys::ANativeWindow {
+        self.0
+    }
+
+    /// Consume `self` without calling `ANativeWindow_release`, transferring
+    /// ownership to the caller (e.g. into `start_track_renderer`).
+    fn into_raw(self) -> *mut ndk_sys::ANativeWindow {
+        let ptr = self.0;
+        std::mem::forget(self);
+        ptr
+    }
+}
+
+#[cfg(target_os = "android")]
+impl Drop for NativeWindowHandle {
+    fn drop(&mut self) {
+        unsafe { ndk_sys::ANativeWindow_release(self.0) };
+    }
+}
+
+// SAFETY: ANativeWindow is thread-safe per Android documentation.
+// All ANativeWindow functions are safe to call from any thread.
+#[cfg(target_os = "android")]
+unsafe impl Send for NativeWindowHandle {}
+
+/// Stores the ANativeWindow for local camera self-view.
 /// Set when VideoSurfaceView attaches with track_sid "local-camera".
 /// The nativePushCameraFrame JNI renders I420 frames directly to this surface.
 #[cfg(target_os = "android")]
-static LOCAL_PREVIEW_SURFACE: StdMutex<usize> = StdMutex::new(0);
+static LOCAL_PREVIEW_SURFACE: StdMutex<Option<NativeWindowHandle>> = StdMutex::new(None);
 
 /// Stores the NativeAudioSource after `set_microphone_enabled(true)` publishes
 /// the audio track. The Android AudioCapture Kotlin class pushes PCM frames
@@ -848,11 +897,10 @@ pub unsafe extern "C" fn Java_io_visio_mobile_NativeVideo_nativePushCameraFrame(
     // release the ANativeWindow while we are writing to it (prevents SIGSEGV).
     {
         let guard = LOCAL_PREVIEW_SURFACE.lock().unwrap();
-        let preview_addr = *guard;
-        if preview_addr != 0 {
+        if let Some(ref handle) = *guard {
             visio_video::render_i420_to_surface(
                 &i420,
-                preview_addr as *mut std::ffi::c_void,
+                handle.as_ptr() as *mut std::ffi::c_void,
                 rotation_degrees as u32,
                 true, // mirror for front-camera self-view
             );
@@ -1213,12 +1261,15 @@ pub unsafe extern "C" fn Java_io_visio_mobile_NativeVideo_attachSurface(
 
     visio_log(&format!("VISIO JNI: attachSurface track={track_sid}"));
 
+    // Wrap in RAII handle — Drop calls ANativeWindow_release on early return.
+    let window_handle = unsafe { NativeWindowHandle::from_raw(native_window) };
+
     // Local camera self-view: store the surface for direct rendering
     // in nativePushCameraFrame (bypasses NativeVideoStream which only
     // works with remote tracks).
     if track_sid == "local-camera" {
         visio_log("VISIO JNI: storing local preview surface for self-view");
-        *LOCAL_PREVIEW_SURFACE.lock().unwrap() = native_window as usize;
+        *LOCAL_PREVIEW_SURFACE.lock().unwrap() = Some(window_handle);
         return;
     }
 
@@ -1226,7 +1277,7 @@ pub unsafe extern "C" fn Java_io_visio_mobile_NativeVideo_attachSurface(
     let client_addr = *CLIENT_FOR_VIDEO.lock().unwrap();
     if client_addr == 0 {
         visio_log("VISIO JNI: no client pointer stored, cannot attach surface");
-        unsafe { ndk_sys::ANativeWindow_release(native_window) };
+        // window_handle is dropped here → ANativeWindow_release called automatically
         return;
     }
 
@@ -1240,17 +1291,18 @@ pub unsafe extern "C" fn Java_io_visio_mobile_NativeVideo_attachSurface(
     match track {
         Some(video_track) => {
             visio_log(&format!("VISIO JNI: calling start_track_renderer for {track_sid}"));
+            // Transfer ownership — start_track_renderer/frame_loop holds the surface.
             visio_video::start_track_renderer(
                 track_sid.clone(),
                 video_track,
-                native_window as *mut std::ffi::c_void,
+                window_handle.into_raw() as *mut std::ffi::c_void,
                 Some(client.rt.handle().clone()),
             );
             visio_log(&format!("VISIO JNI: start_track_renderer returned for {track_sid}"));
         }
         None => {
             visio_log(&format!("VISIO JNI: no video track found for {track_sid}"));
-            unsafe { ndk_sys::ANativeWindow_release(native_window) };
+            // window_handle is dropped here → ANativeWindow_release called automatically
         }
     }
 }
@@ -1278,12 +1330,12 @@ pub unsafe extern "C" fn Java_io_visio_mobile_NativeVideo_detachSurface(
 
     visio_log(&format!("VISIO JNI: detachSurface track={track_sid}"));
 
-    // Local camera self-view: release the stored ANativeWindow.
+    // Local camera self-view: release the stored ANativeWindow via RAII drop.
     if track_sid == "local-camera" {
-        let prev = std::mem::replace(&mut *LOCAL_PREVIEW_SURFACE.lock().unwrap(), 0);
-        if prev != 0 {
+        let prev = LOCAL_PREVIEW_SURFACE.lock().unwrap().take();
+        if prev.is_some() {
             visio_log("VISIO JNI: releasing local preview surface");
-            unsafe { ndk_sys::ANativeWindow_release(prev as *mut ndk_sys::ANativeWindow) };
+            // NativeWindowHandle::drop calls ANativeWindow_release automatically
         }
         return;
     }

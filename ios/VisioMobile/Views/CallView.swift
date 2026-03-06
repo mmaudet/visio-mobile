@@ -96,10 +96,12 @@ struct CallView: View {
             manager.startAudioPlayout()
             CallKitManager.shared.reportCallStarted(roomName: roomURL)
             UIApplication.shared.isIdleTimerDisabled = true
+            PiPManager.shared.setup()
         }
         .onDisappear {
             manager.stopAudioPlayout()
             UIApplication.shared.isIdleTimerDisabled = false
+            PiPManager.shared.tearDown()
         }
         .onChange(of: scenePhase) { phase in
             if phase == .background {

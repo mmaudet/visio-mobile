@@ -80,6 +80,12 @@ pub fn render_i420_to_surface(
         let dst_stride = native_buf.stride as usize;
         let bits = native_buf.bits as *mut u8;
 
+        // Validate stride — must be at least surface width for safe pixel writes.
+        if dst_stride < surf_w {
+            ndk_sys::ANativeWindow_unlockAndPost(window);
+            return;
+        }
+
         // Clear to opaque black — RGBA(0,0,0,255) = 0xFF000000 on little-endian.
         let pixels = bits as *mut u32;
         for i in 0..(surf_h * dst_stride) {
@@ -125,6 +131,7 @@ pub fn render_i420_to_surface(
                 let dx = out_col + off_x;
                 let dy = out_row + off_y;
                 let out_offset = (dy * dst_stride + dx) * 4;
+                debug_assert!(out_offset + 3 < surf_h * dst_stride * 4);
                 *bits.add(out_offset) = r;
                 *bits.add(out_offset + 1) = g;
                 *bits.add(out_offset + 2) = b;
@@ -204,6 +211,12 @@ pub(crate) fn render_frame(
         let dst_stride = native_buf.stride as usize;
         let bits = native_buf.bits as *mut u8;
 
+        // Validate stride — must be at least surface width for safe pixel writes.
+        if dst_stride < surf_w {
+            ndk_sys::ANativeWindow_unlockAndPost(window);
+            return;
+        }
+
         // Clear to opaque black.
         let pixels = bits as *mut u32;
         for i in 0..(surf_h * dst_stride) {
@@ -241,6 +254,7 @@ pub(crate) fn render_frame(
                 let dx = out_col + off_x;
                 let dy = out_row + off_y;
                 let out_offset = (dy * dst_stride + dx) * 4;
+                debug_assert!(out_offset + 3 < surf_h * dst_stride * 4);
                 *bits.add(out_offset) = r;
                 *bits.add(out_offset + 1) = g;
                 *bits.add(out_offset + 2) = b;
