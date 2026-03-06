@@ -756,7 +756,7 @@ fun ParticipantTile(
     ) {
         // Video surface or avatar fallback
         if (participant.hasVideo && participant.videoTrackSid != null) {
-            val trackSid = participant.videoTrackSid
+            val trackSid = participant.videoTrackSid!!
             AndroidView(
                 factory = { ctx -> VideoSurfaceView(ctx, trackSid) },
                 modifier = Modifier.fillMaxSize(),
