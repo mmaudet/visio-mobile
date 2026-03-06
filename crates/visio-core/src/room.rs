@@ -528,8 +528,6 @@ impl RoomManager {
                             .lock()
                             .await
                             .insert(track_sid.clone(), video_track.clone());
-
-
                     }
 
                     // Start audio playout: create NativeAudioStream and feed
