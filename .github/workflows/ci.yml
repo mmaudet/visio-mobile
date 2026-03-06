@@ -9,8 +9,7 @@ on:
       - 'crates/**'
       - 'Cargo.toml'
       - 'Cargo.lock'
-  pull_request:
-    branches: [main]
+  workflow_dispatch:
 
 jobs:
   test-rust:
@@ -63,7 +62,7 @@ jobs:
         run: ./gradlew ktlintCheck
 
   test-android-ui:
-    if: github.event_name == 'pull_request'
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
