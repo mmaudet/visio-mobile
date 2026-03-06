@@ -277,6 +277,7 @@ pub enum VisioEvent {
     ChatMessageReceived { message: ChatMessage },
     HandRaisedChanged { participant_sid: String, raised: bool, position: u32 },
     UnreadCountChanged { count: u32 },
+    ConnectionLost,
 }
 
 impl From<CoreVisioEvent> for VisioEvent {
@@ -318,6 +319,7 @@ impl From<CoreVisioEvent> for VisioEvent {
             CoreVisioEvent::UnreadCountChanged(count) => {
                 Self::UnreadCountChanged { count }
             }
+            CoreVisioEvent::ConnectionLost => Self::ConnectionLost,
         }
     }
 }
@@ -459,6 +461,12 @@ impl VisioClient {
 
     pub fn disconnect(&self) {
         self.rt.block_on(self.room_manager.disconnect());
+    }
+
+    pub fn reconnect(&self) -> Result<(), VisioError> {
+        self.rt
+            .block_on(self.room_manager.reconnect())
+            .map_err(Into::into)
     }
 
     pub fn connection_state(&self) -> ConnectionState {

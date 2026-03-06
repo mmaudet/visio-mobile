@@ -123,6 +123,19 @@ impl VisioEventListener for DesktopEventListener {
                     let _ = app.emit("active-speakers-changed", &sids);
                 }
             }
+            VisioEvent::ConnectionLost => {
+                if let Some(app) = APP_HANDLE.get() {
+                    let _ = app.emit("connection-lost", ());
+                }
+                let room = self.room.clone();
+                tokio::spawn(async move {
+                    let rm = room.lock().await;
+                    tracing::info!("connection lost, attempting reconnection");
+                    if let Err(e) = rm.reconnect().await {
+                        tracing::error!("desktop reconnection failed: {e}");
+                    }
+                });
+            }
             _ => {}
         }
     }

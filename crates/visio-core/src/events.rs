@@ -28,6 +28,8 @@ pub enum VisioEvent {
         position: u32,
     },
     UnreadCountChanged(u32),
+    /// Connection lost unexpectedly — native UI should call reconnect().
+    ConnectionLost,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

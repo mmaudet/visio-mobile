@@ -221,19 +221,60 @@ object VisioManager : VisioEventListener {
         scope.launch { _chatMessages.value = client.chatMessages() }
     }
 
+    /**
+     * Called when the app goes to background. Stop camera to save battery
+     * but keep audio active (wake lock protects CPU).
+     */
+    fun onAppBackgrounded() {
+        if (connectionState.value is ConnectionState.Connected ||
+            connectionState.value is ConnectionState.Reconnecting
+        ) {
+            stopCameraCapture()
+        }
+    }
+
+    /**
+     * Called when the app returns to foreground. Restart camera if it was
+     * enabled, and trigger reconnection if the connection was lost.
+     */
+    fun onAppForegrounded() {
+        scope.launch {
+            when (connectionState.value) {
+                is ConnectionState.Connected -> {
+                    if (client.isCameraEnabled()) {
+                        startCameraCapture()
+                    }
+                    refreshParticipantsPublic()
+                }
+                is ConnectionState.Disconnected -> {
+                    try {
+                        client.reconnect()
+                    } catch (e: Exception) {
+                        Log.e("VISIO", "Foreground reconnection failed: ${e.message}")
+                    }
+                }
+                else -> {}
+            }
+        }
+    }
+
     override fun onEvent(event: VisioEvent) {
         when (event) {
             is VisioEvent.ConnectionStateChanged -> {
                 _connectionState.value = event.state
-                if (event.state is ConnectionState.Connected) {
-                    refreshParticipants()
-                    refreshChatMessages()
-                }
-                if (event.state is ConnectionState.Disconnected) {
-                    // Reset state on disconnect
-                    _handRaisedMap.value = emptyMap()
-                    _unreadCount.value = 0
-                    _isHandRaised.value = false
+                when (event.state) {
+                    is ConnectionState.Connected -> {
+                        refreshParticipants()
+                        refreshChatMessages()
+                        CallForegroundService.start(appContext)
+                    }
+                    is ConnectionState.Disconnected -> {
+                        _handRaisedMap.value = emptyMap()
+                        _unreadCount.value = 0
+                        _isHandRaised.value = false
+                        CallForegroundService.stop(appContext)
+                    }
+                    else -> {}
                 }
             }
             is VisioEvent.ParticipantJoined -> {
@@ -288,6 +329,15 @@ object VisioManager : VisioEventListener {
             is VisioEvent.TrackUnsubscribed -> {
                 Log.d("VISIO", "TrackUnsubscribed: trackSid=${event.trackSid}")
                 refreshParticipants()
+            }
+            is VisioEvent.ConnectionLost -> {
+                scope.launch {
+                    try {
+                        client.reconnect()
+                    } catch (e: Exception) {
+                        Log.e("VISIO", "Auto-reconnection failed: ${e.message}")
+                    }
+                }
             }
         }
     }

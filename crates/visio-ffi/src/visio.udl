@@ -80,6 +80,7 @@ interface VisioEvent {
     ChatMessageReceived(ChatMessage message);
     HandRaisedChanged(string participant_sid, boolean raised, u32 position);
     UnreadCountChanged(u32 count);
+    ConnectionLost();
 };
 
 [Error]
@@ -110,6 +111,9 @@ interface VisioClient {
     void connect(string meet_url, string? username);
 
     void disconnect();
+
+    [Throws=VisioError]
+    void reconnect();
 
     ConnectionState connection_state();
 

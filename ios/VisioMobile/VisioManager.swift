@@ -282,6 +282,38 @@ class VisioManager: ObservableObject {
         client.setNotificationMessageReceived(enabled: enabled)
     }
 
+    // MARK: - Lifecycle
+
+    func onAppBackgrounded() {
+        guard case .connected = connectionState else { return }
+        cameraCapture?.stop()
+        cameraCapture = nil
+    }
+
+    func onAppForegrounded() {
+        switch connectionState {
+        case .connected:
+            if isCameraEnabled {
+                let capture = CameraCapture()
+                capture.start()
+                cameraCapture = capture
+            }
+        case .disconnected:
+            DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+                guard let self else { return }
+                do {
+                    try self.client.reconnect()
+                } catch {
+                    DispatchQueue.main.async {
+                        self.errorMessage = "Reconnection failed: \(error.localizedDescription)"
+                    }
+                }
+            }
+        default:
+            break
+        }
+    }
+
     // MARK: - Audio Playout
 
     func startAudioPlayout() {
@@ -380,6 +412,18 @@ extension VisioManager: VisioEventListener {
 
             case .unreadCountChanged(let count):
                 self.unreadCount = Int(count)
+
+            case .connectionLost:
+                DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+                    guard let self else { return }
+                    do {
+                        try self.client.reconnect()
+                    } catch {
+                        DispatchQueue.main.async {
+                            self.errorMessage = "Reconnection failed: \(error.localizedDescription)"
+                        }
+                    }
+                }
             }
         }
     }

@@ -4,6 +4,7 @@ import SwiftUI
 struct VisioMobileApp: App {
     // Use the shared singleton so CallKit can access it
     @ObservedObject private var manager = VisioManager.shared
+    @Environment(\.scenePhase) private var scenePhase
 
     init() {
         Strings.initialize()
@@ -25,6 +26,18 @@ struct VisioMobileApp: App {
                 let instances = manager.client.getMeetInstances()
                 if instances.contains(host) {
                     manager.pendingDeepLink = "https://\(host)/\(slug)"
+                }
+            }
+            .onChange(of: scenePhase) { _, phase in
+                switch phase {
+                case .background:
+                    manager.onAppBackgrounded()
+                case .active:
+                    manager.onAppForegrounded()
+                case .inactive:
+                    break
+                @unknown default:
+                    break
                 }
             }
         }

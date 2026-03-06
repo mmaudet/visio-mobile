@@ -801,6 +801,8 @@ internal open class UniffiVTableCallbackInterfaceVisioEventListener(
 
 
 
+
+
 // For large crates we prevent `MethodTooLargeException` (see #2340)
 // N.B. the name of the extension is very misleading, since it is 
 // rather `InterfaceTooLargeException`, caused by too many methods 
@@ -845,6 +847,8 @@ fun uniffi_visio_ffi_checksum_method_visioclient_lower_hand(
 fun uniffi_visio_ffi_checksum_method_visioclient_participants(
 ): Short
 fun uniffi_visio_ffi_checksum_method_visioclient_raise_hand(
+): Short
+fun uniffi_visio_ffi_checksum_method_visioclient_reconnect(
 ): Short
 fun uniffi_visio_ffi_checksum_method_visioclient_send_chat_message(
 ): Short
@@ -967,6 +971,8 @@ fun uniffi_visio_ffi_fn_method_visioclient_lower_hand(`ptr`: Pointer,uniffi_out_
 fun uniffi_visio_ffi_fn_method_visioclient_participants(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
 ): RustBuffer.ByValue
 fun uniffi_visio_ffi_fn_method_visioclient_raise_hand(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
+): Unit
+fun uniffi_visio_ffi_fn_method_visioclient_reconnect(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
 ): Unit
 fun uniffi_visio_ffi_fn_method_visioclient_send_chat_message(`ptr`: Pointer,`text`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
 ): RustBuffer.ByValue
@@ -1175,6 +1181,9 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_visio_ffi_checksum_method_visioclient_raise_hand() != 37998.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_visio_ffi_checksum_method_visioclient_reconnect() != 64546.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_visio_ffi_checksum_method_visioclient_send_chat_message() != 33280.toShort()) {
@@ -1663,6 +1672,8 @@ public interface VisioClientInterface {
     
     fun `raiseHand`()
     
+    fun `reconnect`()
+    
     fun `sendChatMessage`(`text`: kotlin.String): ChatMessage
     
     fun `setCameraEnabled`(`enabled`: kotlin.Boolean)
@@ -1949,6 +1960,18 @@ open class VisioClient: Disposable, AutoCloseable, VisioClientInterface
     callWithPointer {
     uniffiRustCallWithError(VisioException) { _status ->
     UniffiLib.INSTANCE.uniffi_visio_ffi_fn_method_visioclient_raise_hand(
+        it, _status)
+}
+    }
+    
+    
+
+    
+    @Throws(VisioException::class)override fun `reconnect`()
+        = 
+    callWithPointer {
+    uniffiRustCallWithError(VisioException) { _status ->
+    UniffiLib.INSTANCE.uniffi_visio_ffi_fn_method_visioclient_reconnect(
         it, _status)
 }
     }
@@ -2886,6 +2909,9 @@ sealed class VisioEvent {
         companion object
     }
     
+    object ConnectionLost : VisioEvent()
+    
+    
 
     
     companion object
@@ -2938,6 +2964,7 @@ public object FfiConverterTypeVisioEvent : FfiConverterRustBuffer<VisioEvent>{
             12 -> VisioEvent.UnreadCountChanged(
                 FfiConverterUInt.read(buf),
                 )
+            13 -> VisioEvent.ConnectionLost
             else -> throw RuntimeException("invalid enum value, something is very wrong!!")
         }
     }
@@ -3032,6 +3059,12 @@ public object FfiConverterTypeVisioEvent : FfiConverterRustBuffer<VisioEvent>{
                 + FfiConverterUInt.allocationSize(value.`count`)
             )
         }
+        is VisioEvent.ConnectionLost -> {
+            // Add the size for the Int that specifies the variant plus the size needed for all fields
+            (
+                4UL
+            )
+        }
     }
 
     override fun write(value: VisioEvent, buf: ByteBuffer) {
@@ -3099,6 +3132,10 @@ public object FfiConverterTypeVisioEvent : FfiConverterRustBuffer<VisioEvent>{
             is VisioEvent.UnreadCountChanged -> {
                 buf.putInt(12)
                 FfiConverterUInt.write(value.`count`, buf)
+                Unit
+            }
+            is VisioEvent.ConnectionLost -> {
+                buf.putInt(13)
                 Unit
             }
         }.let { /* this makes the `when` an expression, which ensures it is exhaustive */ }

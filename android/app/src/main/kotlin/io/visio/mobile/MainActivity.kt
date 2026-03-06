@@ -106,6 +106,18 @@ class MainActivity : ComponentActivity() {
         parseDeepLink(intent)?.let { VisioManager.pendingDeepLink = it }
     }
 
+    override fun onPause() {
+        super.onPause()
+        if (!isInPictureInPictureMode) {
+            VisioManager.onAppBackgrounded()
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        VisioManager.onAppForegrounded()
+    }
+
     override fun onDestroy() {
         super.onDestroy()
         try {

@@ -2,8 +2,6 @@ use futures_util::StreamExt;
 use livekit::data_stream::StreamReader;
 use livekit::participant::ConnectionQuality as LkConnectionQuality;
 use livekit::prelude::{RemoteParticipant, Room, RoomEvent, RoomOptions};
-#[cfg(target_os = "android")]
-use livekit::track::VideoQuality;
 use livekit::track::{RemoteVideoTrack, TrackKind as LkTrackKind, TrackSource as LkTrackSource};
 use livekit::webrtc::audio_stream::native::NativeAudioStream;
 use std::collections::HashMap;
@@ -35,6 +33,9 @@ pub struct RoomManager {
     /// authoritative camera state without depending on LiveKit publication
     /// mute-state timing.
     camera_enabled: Arc<Mutex<bool>>,
+    /// Stored connection info for application-level reconnection.
+    last_meet_url: Arc<Mutex<Option<String>>>,
+    last_username: Arc<Mutex<Option<String>>>,
 }
 
 impl Default for RoomManager {
@@ -55,6 +56,8 @@ impl RoomManager {
             playout_buffer: Arc::new(AudioPlayoutBuffer::new()),
             hand_raise: Arc::new(Mutex::new(None)),
             camera_enabled: Arc::new(Mutex::new(false)),
+            last_meet_url: Arc::new(Mutex::new(None)),
+            last_username: Arc::new(Mutex::new(None)),
         }
     }
 
@@ -166,6 +169,10 @@ impl RoomManager {
     ///
     /// Calls the Meet API to get a token, then connects to the LiveKit room.
     pub async fn connect(&self, meet_url: &str, username: Option<&str>) -> Result<(), VisioError> {
+        // Store connection info for potential reconnection
+        *self.last_meet_url.lock().await = Some(meet_url.to_string());
+        *self.last_username.lock().await = username.map(|s| s.to_string());
+
         self.set_connection_state(ConnectionState::Connecting).await;
 
         let token_info = AuthService::request_token(meet_url, username).await?;
@@ -184,6 +191,8 @@ impl RoomManager {
 
         let mut options = RoomOptions::default();
         options.auto_subscribe = true;
+        options.adaptive_stream = true;
+        options.dynacast = true;
 
         let (room, events) = Room::connect(livekit_url, token, options)
             .await
@@ -229,6 +238,7 @@ impl RoomManager {
         let messages = self.messages.clone();
         let playout_buffer = self.playout_buffer.clone();
         let hand_raise = self.hand_raise.clone();
+        let last_meet_url = self.last_meet_url.clone();
 
         tokio::spawn(async move {
             Self::event_loop(
@@ -241,6 +251,7 @@ impl RoomManager {
                 messages,
                 playout_buffer,
                 hand_raise,
+                last_meet_url,
             )
             .await;
         });
@@ -250,6 +261,11 @@ impl RoomManager {
 
     /// Disconnect from the current room.
     pub async fn disconnect(&self) {
+        // Clear reconnection info BEFORE closing — so the event loop
+        // knows this disconnect is intentional.
+        *self.last_meet_url.lock().await = None;
+        *self.last_username.lock().await = None;
+
         let room = self.room.lock().await.take();
         if let Some(room) = room
             && let Err(e) = room.close().await
@@ -293,6 +309,60 @@ impl RoomManager {
             Some(hm) => hm.is_hand_raised().await,
             None => false,
         }
+    }
+
+    /// Get stored connection info for reconnection.
+    pub async fn last_connection_info(&self) -> Option<(String, Option<String>)> {
+        let url = self.last_meet_url.lock().await.clone();
+        let username = self.last_username.lock().await.clone();
+        url.map(|u| (u, username))
+    }
+
+    /// Attempt to reconnect to the last room with exponential backoff.
+    ///
+    /// Called by native UI when ConnectionLost is received.
+    pub async fn reconnect(&self) -> Result<(), VisioError> {
+        let (meet_url, username) = self
+            .last_connection_info()
+            .await
+            .ok_or_else(|| VisioError::Connection("no previous connection info".into()))?;
+
+        let max_attempts: u32 = 10;
+        let base_delay = std::time::Duration::from_secs(1);
+        let max_delay = std::time::Duration::from_secs(30);
+
+        for attempt in 1..=max_attempts {
+            self.set_connection_state(ConnectionState::Reconnecting { attempt })
+                .await;
+
+            tracing::info!("reconnection attempt {attempt}/{max_attempts}");
+
+            match self.connect(&meet_url, username.as_deref()).await {
+                Ok(()) => {
+                    tracing::info!("reconnection successful on attempt {attempt}");
+                    return Ok(());
+                }
+                Err(e) => {
+                    tracing::warn!("reconnection attempt {attempt}/{max_attempts} failed: {e}");
+                    if attempt < max_attempts {
+                        let delay = base_delay
+                            .checked_mul(2u32.pow(attempt - 1))
+                            .unwrap_or(max_delay)
+                            .min(max_delay);
+                        tokio::time::sleep(delay).await;
+                    }
+                }
+            }
+        }
+
+        // All attempts failed — clear connection info and report disconnect
+        *self.last_meet_url.lock().await = None;
+        *self.last_username.lock().await = None;
+        self.set_connection_state(ConnectionState::Disconnected)
+            .await;
+        Err(VisioError::Connection(
+            "reconnection failed after all attempts".into(),
+        ))
     }
 
     async fn set_connection_state(&self, state: ConnectionState) {
@@ -348,6 +418,7 @@ impl RoomManager {
         messages: MessageStore,
         playout_buffer: Arc<AudioPlayoutBuffer>,
         hand_raise: Arc<Mutex<Option<HandRaiseManager>>>,
+        last_meet_url: Arc<Mutex<Option<String>>>,
     ) {
         let mut reconnect_attempt: u32 = 0;
         // Track active audio stream tasks so they get cancelled on disconnect
@@ -382,24 +453,34 @@ impl RoomManager {
 
                 RoomEvent::Disconnected { reason } => {
                     tracing::info!("room disconnected: {reason:?}");
+
+                    // Check if this was an intentional disconnect (disconnect()
+                    // clears last_meet_url before closing the room).
+                    let is_intentional = last_meet_url.lock().await.is_none();
+
                     *connection_state.lock().await = ConnectionState::Disconnected;
-                    emitter.emit(VisioEvent::ConnectionStateChanged(
-                        ConnectionState::Disconnected,
-                    ));
                     participants.lock().await.clear();
                     subscribed_tracks.lock().await.clear();
                     messages.lock().await.clear();
                     playout_buffer.clear();
-                    // Clear hand raise state
                     if let Some(hm) = hand_raise.lock().await.take() {
                         hm.clear().await;
                     }
-                    // Stop all audio playout streams
                     for (sid, handle) in audio_stream_tasks.drain() {
                         handle.abort();
                         tracing::info!("audio playout stream aborted on disconnect: {sid}");
                     }
                     *room_ref.lock().await = None;
+
+                    if is_intentional {
+                        emitter.emit(VisioEvent::ConnectionStateChanged(
+                            ConnectionState::Disconnected,
+                        ));
+                    } else {
+                        // Network loss — emit ConnectionLost so native UI
+                        // can trigger reconnect().
+                        emitter.emit(VisioEvent::ConnectionLost);
+                    }
                     break;
                 }
 
@@ -448,11 +529,7 @@ impl RoomManager {
                             .await
                             .insert(track_sid.clone(), video_track.clone());
 
-                        // Force LOW simulcast layer on Android to prevent decoder
-                        // thrashing between 320x180 and 1280x720 (the hardware
-                        // decoder gets released/reinited before OnFrame fires).
-                        #[cfg(target_os = "android")]
-                        publication.set_video_quality(VideoQuality::Low);
+
                     }
 
                     // Start audio playout: create NativeAudioStream and feed
