@@ -18,6 +18,12 @@ reqwest = { workspace = true }
 urlencoding = { workspace = true }
 futures-util = { workspace = true }
 regex = "1"
+url = "2"
+rand = "0.8"
+
+# Desktop secure storage (Keychain/libsecret/Credential Manager)
+[target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
+keyring = "3"
 
 [dev-dependencies]
 tempfile = "3"

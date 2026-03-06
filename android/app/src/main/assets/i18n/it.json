@@ -6,6 +6,7 @@
   "home.displayName": "Nome visualizzato (opzionale)",
   "home.displayName.placeholder": "Il tuo nome",
   "home.join": "Partecipa",
+  "home.create": "Crea una riunione",
   "home.connecting": "Connessione in corso...",
   "home.error.noUrl": "Inserisci un URL di riunione",
   "home.room.checking": "Verifica della stanza...",

@@ -1,6 +1,9 @@
 package io.visio.mobile.ui
 
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -13,6 +16,7 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -21,11 +25,13 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -33,8 +39,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.visio.mobile.R
@@ -51,6 +59,7 @@ fun HomeScreen(
     onJoin: (roomUrl: String, username: String) -> Unit,
     onSettings: () -> Unit,
 ) {
+    val context = LocalContext.current
     var roomUrl by remember { mutableStateOf("") }
     var username by remember { mutableStateOf("") }
     val lang = VisioManager.currentLang
@@ -59,11 +68,24 @@ fun HomeScreen(
     val slugRegex = remember { Regex("^[a-z]{3}-[a-z]{4}-[a-z]{3}$") }
     var meetInstances by remember { mutableStateOf(listOf<String>()) }
 
+    // Auth state
+    val authSessions by VisioManager.authSessions.collectAsState()
+    val authError by VisioManager.authError.collectAsState()
+    val pendingAuth by VisioManager.pendingAuthInstance.collectAsState()
+
     // Load meet instances from settings
     LaunchedEffect(Unit) {
         try {
             meetInstances = VisioManager.client.getMeetInstances()
         } catch (_: Exception) {
+        }
+    }
+
+    // Show auth error if any
+    LaunchedEffect(authError) {
+        authError?.let { error ->
+            android.widget.Toast.makeText(context, error, android.widget.Toast.LENGTH_LONG).show()
+            VisioManager.clearAuthError()
         }
     }
 
@@ -171,7 +193,83 @@ fun HomeScreen(
             color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f),
         )
 
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // ── Authentication Section ──────────────────────────────────────
+        if (meetInstances.isNotEmpty()) {
+            val primaryInstance = meetInstances.first()
+            val currentSession = authSessions.find { it.instance == primaryInstance }
+
+            if (currentSession != null) {
+                // Logged in: show user info and logout button
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(
+                            MaterialTheme.colorScheme.surfaceVariant,
+                            RoundedCornerShape(12.dp)
+                        )
+                        .padding(16.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = currentSession.userName ?: currentSession.userEmail ?: Strings.t("home.auth.loggedIn", lang),
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.Medium,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                        Text(
+                            text = primaryInstance,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    OutlinedButton(
+                        onClick = { VisioManager.logout(primaryInstance) },
+                        shape = RoundedCornerShape(8.dp),
+                    ) {
+                        Text(
+                            Strings.t("home.auth.logout", lang),
+                            fontSize = 14.sp,
+                        )
+                    }
+                }
+            } else {
+                // Not logged in: show login button
+                Button(
+                    onClick = {
+                        val loginUrl = VisioManager.getLoginUrl(primaryInstance)
+                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(loginUrl))
+                        context.startActivity(intent)
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.secondary,
+                        contentColor = MaterialTheme.colorScheme.onSecondary,
+                    ),
+                    shape = RoundedCornerShape(12.dp),
+                ) {
+                    Icon(
+                        painter = painterResource(R.drawable.ri_user_line),
+                        contentDescription = null,
+                        modifier = Modifier.size(20.dp),
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        Strings.t("home.auth.login", lang),
+                        fontSize = 16.sp,
+                        modifier = Modifier.padding(vertical = 4.dp),
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+        }
 
         Text(
             text = Strings.t("home.meetUrl", lang),
@@ -286,6 +384,35 @@ fun HomeScreen(
                 fontSize = 16.sp,
                 modifier = Modifier.padding(vertical = 4.dp),
             )
+        }
+
+        // Create meeting button (only when authenticated)
+        if (meetInstances.isNotEmpty()) {
+            val primaryInstance = meetInstances.first()
+            val isAuthenticated = authSessions.any { it.instance == primaryInstance }
+            if (isAuthenticated) {
+                Spacer(modifier = Modifier.height(12.dp))
+                OutlinedButton(
+                    onClick = {
+                        val slug = VisioManager.client.generateRandomSlug()
+                        roomUrl = slug
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                ) {
+                    Icon(
+                        painter = painterResource(R.drawable.ri_add_line),
+                        contentDescription = null,
+                        modifier = Modifier.size(20.dp),
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        Strings.t("home.create", lang),
+                        fontSize = 16.sp,
+                        modifier = Modifier.padding(vertical = 4.dp),
+                    )
+                }
+            }
         }
     }
 }

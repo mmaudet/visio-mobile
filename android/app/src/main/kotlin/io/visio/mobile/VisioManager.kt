@@ -16,6 +16,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import uniffi.visio.AuthSession
 import uniffi.visio.ChatMessage
 import uniffi.visio.ConnectionState
 import uniffi.visio.ParticipantInfo
@@ -77,6 +78,14 @@ object VisioManager : VisioEventListener {
     var displayName by mutableStateOf("")
         private set
 
+    // Auth state
+    private val _authSessions = MutableStateFlow<List<AuthSession>>(emptyList())
+    val authSessions: StateFlow<List<AuthSession>> = _authSessions.asStateFlow()
+    private val _authError = MutableStateFlow<String?>(null)
+    val authError: StateFlow<String?> = _authError.asStateFlow()
+    private val _pendingAuthInstance = MutableStateFlow<String?>(null)
+    val pendingAuthInstance: StateFlow<String?> = _pendingAuthInstance.asStateFlow()
+
     private var initialized = false
 
     fun initialize(context: Context) {
@@ -93,6 +102,8 @@ object VisioManager : VisioEventListener {
             displayName = settings.displayName ?: ""
         } catch (_: Exception) {
         }
+        // Load auth sessions
+        refreshAuthSessions()
         initialized = true
     }
 
@@ -108,6 +119,102 @@ object VisioManager : VisioEventListener {
 
     fun updateDisplayName(name: String) {
         displayName = name
+    }
+
+    // ── SSO OIDC Authentication ──────────────────────────────────────
+
+    /**
+     * Refresh auth sessions from Rust storage.
+     */
+    fun refreshAuthSessions() {
+        scope.launch {
+            try {
+                _authSessions.value = client.getAllSessions()
+            } catch (e: Exception) {
+                Log.e("VISIO", "Failed to refresh auth sessions: ${e.message}")
+            }
+        }
+    }
+
+    /**
+     * Check if authenticated for a specific instance.
+     */
+    fun isAuthenticated(instance: String): Boolean {
+        return try {
+            client.isAuthenticated(instance)
+        } catch (_: Exception) {
+            false
+        }
+    }
+
+    /**
+     * Get the login URL for SSO authentication.
+     * Opens this URL in the system browser to start the OIDC flow.
+     */
+    fun getLoginUrl(instance: String): String {
+        _pendingAuthInstance.value = instance
+        return client.getLoginUrl(instance)
+    }
+
+    /**
+     * Called by MainActivity when auth callback is received.
+     */
+    fun onAuthSuccess(session: AuthSession) {
+        _pendingAuthInstance.value = null
+        _authError.value = null
+        refreshAuthSessions()
+        // Update display name from auth response if available
+        session.userName?.let { name ->
+            if (name.isNotBlank() && displayName.isBlank()) {
+                displayName = name
+                scope.launch { client.setDisplayName(name) }
+            }
+        }
+        Log.i("VISIO", "Authentication successful for ${session.instance}")
+    }
+
+    /**
+     * Called by MainActivity when auth callback fails.
+     */
+    fun onAuthError(error: String) {
+        _pendingAuthInstance.value = null
+        _authError.value = error
+        Log.e("VISIO", "Authentication failed: $error")
+    }
+
+    /**
+     * Clear auth error (after displaying it to user).
+     */
+    fun clearAuthError() {
+        _authError.value = null
+    }
+
+    /**
+     * Logout from a specific instance.
+     */
+    fun logout(instance: String) {
+        scope.launch {
+            try {
+                client.logout(instance)
+                refreshAuthSessions()
+            } catch (e: Exception) {
+                Log.e("VISIO", "Logout failed: ${e.message}")
+            }
+        }
+    }
+
+    /**
+     * Logout from all instances.
+     */
+    fun logoutAll() {
+        scope.launch {
+            try {
+                client.logoutAll()
+                refreshAuthSessions()
+            } catch (e: Exception) {
+                Log.e("VISIO", "Logout all failed: ${e.message}")
+            }
+        }
     }
 
     /**

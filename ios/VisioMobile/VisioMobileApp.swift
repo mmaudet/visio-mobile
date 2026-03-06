@@ -19,10 +19,17 @@ struct VisioMobileApp: App {
             .preferredColorScheme(manager.currentTheme == "dark" ? .dark : .light)
             .onOpenURL { url in
                 guard url.scheme == "visio",
-                      let host = url.host,
-                      let slug = url.pathComponents.dropFirst().first
+                      let host = url.host
                 else { return }
 
+                // Handle auth callback
+                if host == "auth-callback" {
+                    manager.handleAuthCallback(url: url.absoluteString)
+                    return
+                }
+
+                // Handle room deep link
+                guard let slug = url.pathComponents.dropFirst().first else { return }
                 let instances = manager.client.getMeetInstances()
                 if instances.contains(host) {
                     manager.pendingDeepLink = "https://\(host)/\(slug)"

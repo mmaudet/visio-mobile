@@ -13,6 +13,9 @@
   "home.room.valid": "Room found",
   "home.room.notFound": "Room not found",
   "home.room.error": "Connection error",
+  "home.auth.login": "Sign in with SSO",
+  "home.auth.logout": "Sign out",
+  "home.auth.loggedIn": "Signed in",
   "call.noParticipants": "No other participants yet",
   "call.you": "You",
   "call.waiting": "Waiting for participants...",
@@ -113,8 +116,5 @@
   "settings.incall.cameraBack": "Back camera",
   "settings.incall.notifParticipant": "Participant joined",
   "settings.incall.notifHandRaised": "Hand raised",
-  "settings.incall.notifMessage": "Message received",
-  "home.auth.login": "Sign in with SSO",
-  "home.auth.logout": "Sign out",
-  "home.auth.loggedIn": "Signed in"
+  "settings.incall.notifMessage": "Message received"
 }

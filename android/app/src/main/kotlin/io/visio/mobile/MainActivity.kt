@@ -23,10 +23,24 @@ import kotlinx.coroutines.launch
 import uniffi.visio.ConnectionState
 
 class MainActivity : ComponentActivity() {
+    /**
+     * Parse a deep link URL.
+     * Handles two types:
+     * - Room links: visio://host/room-slug -> returns room URL
+     * - Auth callbacks: visio://auth-callback?... -> handled separately, returns null
+     */
     private fun parseDeepLink(intent: Intent?): String? {
         val uri = intent?.data ?: return null
         if (uri.scheme != "visio") return null
         val host = uri.host ?: return null
+
+        // Handle auth callback
+        if (host == "auth-callback") {
+            handleAuthCallback(uri.toString())
+            return null
+        }
+
+        // Handle room deep link
         val slug = uri.path?.trimStart('/') ?: return null
         if (host.isBlank() || slug.isBlank()) return null
 
@@ -35,6 +49,21 @@ class MainActivity : ComponentActivity() {
             "https://$host/$slug"
         } else {
             null
+        }
+    }
+
+    /**
+     * Handle SSO OIDC auth callback.
+     * Called when the app receives a visio://auth-callback?... deep link.
+     */
+    private fun handleAuthCallback(callbackUrl: String) {
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                val session = VisioManager.client.handleAuthCallback(callbackUrl)
+                VisioManager.onAuthSuccess(session)
+            } catch (e: Exception) {
+                VisioManager.onAuthError(e.message ?: "Authentication failed")
+            }
         }
     }
 

@@ -12,6 +12,8 @@ pub mod events;
 pub mod hand_raise;
 pub mod participants;
 pub mod room;
+pub mod secure_storage;
+pub mod session;
 pub mod settings;
 
 pub use audio_playout::AudioPlayoutBuffer;
@@ -26,4 +28,9 @@ pub use events::{
 pub use hand_raise::HandRaiseManager;
 pub use participants::ParticipantManager;
 pub use room::RoomManager;
+pub use secure_storage::{CallbackStorage, MemoryStorage, SecureStorage};
+pub use session::{AuthSession, PendingAuth, SessionManager};
 pub use settings::{Settings, SettingsStore};
+
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
+pub use secure_storage::KeyringStorage;

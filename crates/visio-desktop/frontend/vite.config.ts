@@ -6,6 +6,10 @@ export default defineConfig({
   server: {
     port: 5173,
     strictPort: true,
+    fs: {
+      // Allow serving files from the project root (for i18n folder)
+      allow: [".", "../../.."],
+    },
   },
   build: {
     outDir: "dist",

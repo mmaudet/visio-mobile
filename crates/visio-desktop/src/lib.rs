@@ -3,8 +3,9 @@ use tokio::sync::Mutex;
 
 use tauri::{AppHandle, Emitter, Listener};
 use visio_core::{
-    ChatService, MeetingControls, RoomManager, SettingsStore, TrackInfo, TrackKind, VisioEvent,
-    VisioEventListener,
+    AuthService, ChatService, MeetingControls, RoomManager, SessionManager, SettingsStore,
+    TrackInfo, TrackKind, VisioEvent, VisioEventListener,
+    secure_storage::KeyringStorage,
 };
 
 #[cfg(target_os = "macos")]
@@ -53,6 +54,7 @@ struct VisioState {
     controls: Arc<Mutex<MeetingControls>>,
     chat: Arc<Mutex<ChatService>>,
     settings: SettingsStore,
+    session_manager: SessionManager,
     #[cfg(target_os = "macos")]
     camera_capture: std::sync::Mutex<Option<camera_macos::MacCameraCapture>>,
     _audio_playout: audio_cpal::CpalAudioPlayout,
@@ -440,6 +442,106 @@ async fn set_chat_open(state: tauri::State<'_, VisioState>, open: bool) -> Resul
 }
 
 // ---------------------------------------------------------------------------
+// Auth commands
+// ---------------------------------------------------------------------------
+
+#[tauri::command]
+fn get_login_url(state: tauri::State<'_, VisioState>, instance: String) -> Result<String, String> {
+    let auth_state = state
+        .session_manager
+        .start_auth(&instance)
+        .map_err(|e| e.to_string())?;
+    Ok(AuthService::get_login_url(&instance, &auth_state))
+}
+
+#[tauri::command]
+fn handle_auth_callback(
+    state: tauri::State<'_, VisioState>,
+    callback_url: String,
+) -> Result<serde_json::Value, String> {
+    let session = AuthService::handle_auth_callback(&callback_url, &state.session_manager)
+        .map_err(|e| e.to_string())?;
+    Ok(serde_json::json!({
+        "instance": session.instance,
+        "session_token": session.session_token,
+        "expires_at_ms": session.expires_at_ms,
+        "user_name": session.user_name,
+        "user_email": session.user_email,
+    }))
+}
+
+#[tauri::command]
+fn get_all_sessions(state: tauri::State<'_, VisioState>) -> Result<Vec<serde_json::Value>, String> {
+    let sessions = state
+        .session_manager
+        .get_all_sessions()
+        .map_err(|e| e.to_string())?;
+    Ok(sessions
+        .into_iter()
+        .map(|s| {
+            serde_json::json!({
+                "instance": s.instance,
+                "session_token": s.session_token,
+                "expires_at_ms": s.expires_at_ms,
+                "user_name": s.user_name,
+                "user_email": s.user_email,
+            })
+        })
+        .collect())
+}
+
+#[tauri::command]
+fn get_session(
+    state: tauri::State<'_, VisioState>,
+    instance: String,
+) -> Result<Option<serde_json::Value>, String> {
+    let session = state
+        .session_manager
+        .get_session(&instance)
+        .map_err(|e| e.to_string())?;
+    Ok(session.map(|s| {
+        serde_json::json!({
+            "instance": s.instance,
+            "session_token": s.session_token,
+            "expires_at_ms": s.expires_at_ms,
+            "user_name": s.user_name,
+            "user_email": s.user_email,
+        })
+    }))
+}
+
+#[tauri::command]
+fn is_authenticated(state: tauri::State<'_, VisioState>, instance: String) -> bool {
+    state.session_manager.is_authenticated(&instance)
+}
+
+#[tauri::command]
+fn logout(state: tauri::State<'_, VisioState>, instance: String) -> Result<(), String> {
+    state
+        .session_manager
+        .remove_session(&instance)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn logout_all(state: tauri::State<'_, VisioState>) -> Result<(), String> {
+    state
+        .session_manager
+        .clear_all_sessions()
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn generate_random_slug() -> String {
+    AuthService::generate_random_slug()
+}
+
+#[tauri::command]
+fn open_url(url: String) -> Result<(), String> {
+    open::that(&url).map_err(|e| e.to_string())
+}
+
+// ---------------------------------------------------------------------------
 // Entry point
 // ---------------------------------------------------------------------------
 
@@ -457,6 +559,10 @@ pub fn run() {
         .join("io.visio.desktop");
     std::fs::create_dir_all(&data_dir).ok();
     let settings = SettingsStore::new(data_dir.to_str().unwrap());
+
+    // Create session manager with keyring storage
+    let storage = Arc::new(KeyringStorage::new("io.visio.desktop"));
+    let session_manager = SessionManager::new(storage);
 
     let room_manager = RoomManager::new();
     let playout_buffer = room_manager.playout_buffer();
@@ -489,6 +595,7 @@ pub fn run() {
         controls: Arc::new(Mutex::new(controls)),
         chat: Arc::new(Mutex::new(chat)),
         settings,
+        session_manager,
         #[cfg(target_os = "macos")]
         camera_capture: std::sync::Mutex::new(None),
         _audio_playout: audio_playout,
@@ -543,6 +650,16 @@ pub fn run() {
             lower_hand,
             is_hand_raised,
             set_chat_open,
+            // Auth commands
+            get_login_url,
+            handle_auth_callback,
+            get_all_sessions,
+            get_session,
+            is_authenticated,
+            logout,
+            logout_all,
+            generate_random_slug,
+            open_url,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

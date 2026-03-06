@@ -13,6 +13,9 @@
   "home.room.valid": "Salle trouvée",
   "home.room.notFound": "Salle introuvable",
   "home.room.error": "Erreur de connexion",
+  "home.auth.login": "Se connecter avec SSO",
+  "home.auth.logout": "Se déconnecter",
+  "home.auth.loggedIn": "Connecté",
   "call.noParticipants": "Aucun autre participant pour le moment",
   "call.you": "Vous",
   "call.waiting": "En attente de participants...",
@@ -113,8 +116,5 @@
   "settings.incall.cameraBack": "Caméra arrière",
   "settings.incall.notifParticipant": "Participant rejoint",
   "settings.incall.notifHandRaised": "Main levée",
-  "settings.incall.notifMessage": "Message reçu",
-  "home.auth.login": "Se connecter avec SSO",
-  "home.auth.logout": "Se déconnecter",
-  "home.auth.loggedIn": "Connecté"
+  "settings.incall.notifMessage": "Message reçu"
 }

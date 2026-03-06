@@ -6,6 +6,7 @@
   "home.displayName": "Weergavenaam (optioneel)",
   "home.displayName.placeholder": "Uw naam",
   "home.join": "Deelnemen",
+  "home.create": "Vergadering maken",
   "home.connecting": "Verbinden...",
   "home.error.noUrl": "Voer een vergader-URL in",
   "home.room.checking": "Kamer controleren...",

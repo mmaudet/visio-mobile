@@ -30,6 +30,11 @@ class VisioManager: ObservableObject {
     @Published var pendingDeepLink: String? = nil
     @Published var isFrontCamera: Bool = true
 
+    // Auth state
+    @Published var authSessions: [AuthSession] = []
+    @Published var authError: String? = nil
+    @Published var pendingAuthInstance: String? = nil
+
     // MARK: - Private
 
     let client: VisioClient
@@ -49,6 +54,9 @@ class VisioManager: ObservableObject {
         currentLang = settings.language ?? "fr"
         currentTheme = settings.theme ?? "light"
         displayName = settings.displayName ?? ""
+
+        // Load auth sessions
+        refreshAuthSessions()
 
         // Register the video frame callback so Rust can deliver I420 frames to Swift.
         visio_video_set_ios_callback({ width, height, yPtr, yStride, uPtr, uStride, vPtr, vStride, trackSidCStr, userData in
@@ -326,6 +334,73 @@ class VisioManager: ObservableObject {
     func stopAudioPlayout() {
         audioPlayout?.stop()
         audioPlayout = nil
+    }
+
+    // MARK: - SSO OIDC Authentication
+
+    /// Refresh auth sessions from Rust storage.
+    func refreshAuthSessions() {
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            guard let self else { return }
+            let sessions = self.client.getAllSessions()
+            DispatchQueue.main.async {
+                self.authSessions = sessions
+            }
+        }
+    }
+
+    /// Check if authenticated for a specific instance.
+    func isAuthenticated(instance: String) -> Bool {
+        return client.isAuthenticated(instance: instance)
+    }
+
+    /// Get the login URL for SSO authentication.
+    /// Opens this URL in the system browser to start the OIDC flow.
+    func getLoginUrl(instance: String) -> String {
+        pendingAuthInstance = instance
+        return client.getLoginUrl(instance: instance)
+    }
+
+    /// Handle auth callback from deep link.
+    func handleAuthCallback(url: String) {
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            guard let self else { return }
+            do {
+                let session = try self.client.handleAuthCallback(callbackUrl: url)
+                DispatchQueue.main.async {
+                    self.pendingAuthInstance = nil
+                    self.authError = nil
+                    self.refreshAuthSessions()
+                    // Update display name from auth response if available
+                    if let name = session.userName, !name.isEmpty, self.displayName.isEmpty {
+                        self.displayName = name
+                        self.client.setDisplayName(name: name)
+                    }
+                }
+            } catch {
+                DispatchQueue.main.async {
+                    self.pendingAuthInstance = nil
+                    self.authError = error.localizedDescription
+                }
+            }
+        }
+    }
+
+    /// Clear auth error.
+    func clearAuthError() {
+        authError = nil
+    }
+
+    /// Logout from a specific instance.
+    func logout(instance: String) {
+        client.logout(instance: instance)
+        refreshAuthSessions()
+    }
+
+    /// Logout from all instances.
+    func logoutAll() {
+        client.logoutAll()
+        refreshAuthSessions()
     }
 }
 

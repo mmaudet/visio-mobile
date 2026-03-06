@@ -24,6 +24,52 @@ struct HomeView: View {
         return candidate.wholeMatch(of: Self.slugPattern) != nil ? candidate : nil
     }
 
+    @ViewBuilder
+    private func authSection(instance: String) -> some View {
+        let currentSession = manager.authSessions.first { $0.instance == instance }
+
+        if let session = currentSession {
+            // Logged in: show user info and logout button
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(session.userName ?? session.userEmail ?? Strings.t("home.auth.loggedIn", lang: lang))
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                        .foregroundStyle(VisioColors.onBackground(dark: isDark))
+                        .lineLimit(1)
+                    Text(instance)
+                        .font(.caption)
+                        .foregroundStyle(VisioColors.secondaryText(dark: isDark))
+                }
+                Spacer()
+                Button(Strings.t("home.auth.logout", lang: lang)) {
+                    manager.logout(instance: instance)
+                }
+                .buttonStyle(.bordered)
+            }
+            .padding()
+            .background(VisioColors.surface(dark: isDark))
+            .cornerRadius(12)
+            .padding(.horizontal, 32)
+        } else {
+            // Not logged in: show login button
+            Button {
+                let loginUrl = manager.getLoginUrl(instance: instance)
+                if let url = URL(string: loginUrl) {
+                    UIApplication.shared.open(url)
+                }
+            } label: {
+                Label(Strings.t("home.auth.login", lang: lang), systemImage: "person.badge.key.fill")
+                    .font(.headline)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 12)
+            }
+            .buttonStyle(.bordered)
+            .tint(VisioColors.secondary)
+            .padding(.horizontal, 32)
+        }
+    }
+
     /// If input is just a slug, prefix with first configured server
     private func resolveRoomURL(_ input: String) -> String {
         let trimmed = input.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -52,6 +98,11 @@ struct HomeView: View {
                 Text(Strings.t("home.subtitle", lang: lang))
                     .font(.subheadline)
                     .foregroundStyle(VisioColors.secondaryText(dark: isDark))
+
+                // Authentication section
+                if let primaryInstance = meetInstances.first {
+                    authSection(instance: primaryInstance)
+                }
 
                 // Input fields
                 VStack(spacing: 16) {
@@ -116,6 +167,23 @@ struct HomeView: View {
                 .tint(VisioColors.primary500)
                 .disabled(roomStatus != "valid")
                 .padding(.horizontal, 32)
+
+                // Create meeting button (only when authenticated)
+                if let primaryInstance = meetInstances.first,
+                   manager.authSessions.contains(where: { $0.instance == primaryInstance }) {
+                    Button {
+                        let slug = manager.client.generateRandomSlug()
+                        roomURL = slug
+                    } label: {
+                        Label(Strings.t("home.create", lang: lang), systemImage: "plus.circle.fill")
+                            .font(.headline)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 12)
+                    }
+                    .buttonStyle(.bordered)
+                    .tint(VisioColors.secondary)
+                    .padding(.horizontal, 32)
+                }
 
                 Spacer()
                 Spacer()
