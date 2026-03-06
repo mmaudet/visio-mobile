@@ -146,10 +146,15 @@ final class CameraCapture: NSObject, AVCaptureVideoDataOutputSampleBufferDelegat
 
         uPlane.withUnsafeBufferPointer { uBuf in
             vPlane.withUnsafeBufferPointer { vBuf in
+                guard let uPtr = uBuf.baseAddress,
+                      let vPtr = vBuf.baseAddress else {
+                    NSLog("CameraCapture: nil buffer base address, skipping frame")
+                    return
+                }
                 visio_push_ios_camera_frame(
                     yPtr, UInt32(yStride),
-                    uBuf.baseAddress!, UInt32(chromaW),
-                    vBuf.baseAddress!, UInt32(chromaW),
+                    uPtr, UInt32(chromaW),
+                    vPtr, UInt32(chromaW),
                     UInt32(width), UInt32(height)
                 )
             }

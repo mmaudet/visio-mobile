@@ -17,12 +17,15 @@ final class AudioPlayout {
     func start() {
         configureSession()
 
-        let format = AVAudioFormat(
+        guard let format = AVAudioFormat(
             commonFormat: .pcmFormatFloat32,
             sampleRate: sampleRate,
             channels: channelCount,
             interleaved: false
-        )!
+        ) else {
+            print("AudioPlayout: failed to create AVAudioFormat")
+            return
+        }
 
         // AVAudioSourceNode: the render callback pulls samples on the audio IO thread.
         let node = AVAudioSourceNode { _, _, frameCount, bufferList -> OSStatus in

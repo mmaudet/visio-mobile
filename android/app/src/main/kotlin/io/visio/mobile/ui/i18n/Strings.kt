@@ -1,6 +1,7 @@
 package io.visio.mobile.ui.i18n
 
 import android.content.Context
+import android.util.Log
 import org.json.JSONObject
 
 object Strings {
@@ -15,7 +16,8 @@ object Strings {
                 val map = mutableMapOf<String, String>()
                 obj.keys().forEach { key -> map[key] = obj.getString(key) }
                 translations[lang] = map
-            } catch (_: Exception) {
+            } catch (e: Exception) {
+                Log.e("Strings", "Failed to load i18n translations for '$lang'", e)
             }
         }
     }

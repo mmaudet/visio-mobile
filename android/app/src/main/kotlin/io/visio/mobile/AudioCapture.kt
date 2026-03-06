@@ -24,6 +24,8 @@ class AudioCapture {
         private const val SAMPLES_PER_FRAME = SAMPLE_RATE * FRAME_SIZE_MS / 1000 * CHANNELS
     }
 
+    private val lock = Any()
+
     @Volatile
     private var running = false
     private var recordThread: Thread? = null
@@ -31,8 +33,10 @@ class AudioCapture {
 
     @SuppressLint("MissingPermission") // Caller must check RECORD_AUDIO permission
     fun start() {
-        if (running) return
-        running = true
+        synchronized(lock) {
+            if (running) return
+            running = true
+        }
 
         val bufferSize =
             maxOf(
@@ -102,11 +106,15 @@ class AudioCapture {
     }
 
     fun stop() {
-        if (!running) return
-        running = false
-        recordThread?.join(1000)
-        recordThread = null
-        recorder = null
+        val thread: Thread?
+        synchronized(lock) {
+            if (!running) return
+            running = false
+            thread = recordThread
+            recordThread = null
+            recorder = null
+        }
+        thread?.join(1000)
         NativeVideo.nativeStopAudioCapture()
     }
 }

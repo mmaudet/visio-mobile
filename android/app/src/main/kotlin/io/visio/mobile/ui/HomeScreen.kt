@@ -1,5 +1,6 @@
 package io.visio.mobile.ui
 
+import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -46,6 +47,8 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import uniffi.visio.RoomValidationResult
 
+private const val TAG = "HomeScreen"
+
 @Composable
 fun HomeScreen(
     onJoin: (roomUrl: String, username: String) -> Unit,
@@ -63,7 +66,8 @@ fun HomeScreen(
     LaunchedEffect(Unit) {
         try {
             meetInstances = VisioManager.client.getMeetInstances()
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to load meet instances", e)
         }
     }
 
@@ -107,7 +111,8 @@ fun HomeScreen(
                     is RoomValidationResult.InvalidFormat -> "idle"
                     is RoomValidationResult.NetworkError -> "error"
                 }
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to validate room URL", e)
             roomStatus = "error"
         }
     }

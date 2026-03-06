@@ -13,7 +13,7 @@ const LK_CHANNELS: u32 = 1;
 // cpal::Stream is !Send + !Sync due to platform internals, but it is safe
 // to hold in Tauri state — we never move the stream across threads, we just
 // keep it alive so the OS audio callback keeps firing.
-struct SendSyncStream(cpal::Stream);
+struct SendSyncStream(#[allow(dead_code)] cpal::Stream);
 unsafe impl Send for SendSyncStream {}
 unsafe impl Sync for SendSyncStream {}
 

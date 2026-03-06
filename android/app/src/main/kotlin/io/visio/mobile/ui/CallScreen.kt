@@ -3,6 +3,7 @@ package io.visio.mobile.ui
 import android.Manifest
 import android.app.Activity
 import android.content.Context
+import android.util.Log
 import android.content.pm.PackageManager
 import android.os.Build
 import android.view.WindowManager
@@ -71,6 +72,8 @@ import uniffi.visio.ConnectionState
 import uniffi.visio.ParticipantInfo
 import kotlin.math.absoluteValue
 
+private const val TAG = "CallScreen"
+
 fun Context.findActivity(): Activity? {
     var ctx = this
     while (ctx is android.content.ContextWrapper) {
@@ -124,7 +127,8 @@ fun CallScreen(
                         VisioManager.client.setMicrophoneEnabled(true)
                         VisioManager.startAudioCapture()
                         micEnabled = true
-                    } catch (_: Exception) {
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Failed to enable microphone after permission grant", e)
                     }
                 }
             }
@@ -141,7 +145,8 @@ fun CallScreen(
                         VisioManager.client.setCameraEnabled(true)
                         VisioManager.startCameraCapture()
                         cameraEnabled = true
-                    } catch (_: Exception) {
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Failed to enable camera after permission grant", e)
                     }
                 }
             }
@@ -175,47 +180,70 @@ fun CallScreen(
     // Connect on first composition
     LaunchedEffect(Unit) {
         withContext(Dispatchers.IO) {
-            try {
-                val state = VisioManager.connectionState.value
-                if (state is ConnectionState.Connected || state is ConnectionState.Connecting) {
-                    micEnabled = VisioManager.client.isMicrophoneEnabled()
-                    cameraEnabled = VisioManager.client.isCameraEnabled()
+            val state = VisioManager.connectionState.value
+            if (state is ConnectionState.Connected || state is ConnectionState.Connecting) {
+                micEnabled = VisioManager.client.isMicrophoneEnabled()
+                cameraEnabled = VisioManager.client.isCameraEnabled()
+                return@withContext
+            }
+
+            val settings =
+                try {
+                    VisioManager.client.getSettings()
+                } catch (e: Exception) {
+                    errorMessage = "Failed to load settings: ${e.message}"
                     return@withContext
                 }
-                val user = username.ifBlank { null }
-                val settings = VisioManager.client.getSettings()
-                VisioManager.client.connect(roomUrl, user)
-                VisioManager.startAudioPlayout()
 
-                // Apply mic-on-join setting (only if permission already granted)
-                if (settings.micEnabledOnJoin) {
-                    val hasMicPerm =
-                        ContextCompat.checkSelfPermission(
-                            context, Manifest.permission.RECORD_AUDIO,
-                        ) == PackageManager.PERMISSION_GRANTED
-                    if (hasMicPerm) {
+            val user = username.ifBlank { null }
+            try {
+                VisioManager.client.connect(roomUrl, user)
+            } catch (e: Exception) {
+                errorMessage = "Connection failed: ${e.message}"
+                return@withContext
+            }
+
+            try {
+                VisioManager.startAudioPlayout()
+            } catch (e: Exception) {
+                errorMessage = "Audio playout failed: ${e.message}"
+                return@withContext
+            }
+
+            // Apply mic-on-join setting (only if permission already granted)
+            if (settings.micEnabledOnJoin) {
+                val hasMicPerm =
+                    ContextCompat.checkSelfPermission(
+                        context, Manifest.permission.RECORD_AUDIO,
+                    ) == PackageManager.PERMISSION_GRANTED
+                if (hasMicPerm) {
+                    try {
                         VisioManager.client.setMicrophoneEnabled(true)
                         VisioManager.startAudioCapture()
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Failed to enable microphone on join", e)
                     }
                 }
-                micEnabled = VisioManager.client.isMicrophoneEnabled()
+            }
+            micEnabled = VisioManager.client.isMicrophoneEnabled()
 
-                // Apply camera-on-join setting (only if permission already granted)
-                if (settings.cameraEnabledOnJoin) {
-                    val hasCamPerm =
-                        ContextCompat.checkSelfPermission(
-                            context, Manifest.permission.CAMERA,
-                        ) == PackageManager.PERMISSION_GRANTED
-                    if (hasCamPerm) {
+            // Apply camera-on-join setting (only if permission already granted)
+            if (settings.cameraEnabledOnJoin) {
+                val hasCamPerm =
+                    ContextCompat.checkSelfPermission(
+                        context, Manifest.permission.CAMERA,
+                    ) == PackageManager.PERMISSION_GRANTED
+                if (hasCamPerm) {
+                    try {
                         VisioManager.client.setCameraEnabled(true)
                         VisioManager.startCameraCapture()
                         VisioManager.refreshParticipantsPublic()
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Failed to enable camera on join", e)
                     }
                 }
-                cameraEnabled = VisioManager.client.isCameraEnabled()
-            } catch (e: Exception) {
-                errorMessage = e.message ?: "Connection failed"
             }
+            cameraEnabled = VisioManager.client.isCameraEnabled()
         }
     }
 
@@ -224,7 +252,8 @@ fun CallScreen(
         coroutineScope.launch(Dispatchers.IO) {
             try {
                 VisioManager.client.setChatOpen(true)
-            } catch (_: Exception) {
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to notify backend that chat is open", e)
             }
         }
         onNavigateToChat()
@@ -392,7 +421,8 @@ fun CallScreen(
                                     VisioManager.client.setMicrophoneEnabled(true)
                                     VisioManager.startAudioCapture()
                                     micEnabled = true
-                                } catch (_: Exception) {
+                                } catch (e: Exception) {
+                                    Log.e(TAG, "Failed to enable microphone", e)
                                 }
                             }
                         } else {
@@ -404,7 +434,8 @@ fun CallScreen(
                                 VisioManager.stopAudioCapture()
                                 VisioManager.client.setMicrophoneEnabled(false)
                                 micEnabled = false
-                            } catch (_: Exception) {
+                            } catch (e: Exception) {
+                                Log.e(TAG, "Failed to disable microphone", e)
                             }
                         }
                     }
@@ -427,7 +458,8 @@ fun CallScreen(
                                     VisioManager.startCameraCapture()
                                     cameraEnabled = true
                                     VisioManager.refreshParticipantsPublic()
-                                } catch (_: Exception) {
+                                } catch (e: Exception) {
+                                    Log.e(TAG, "Failed to enable camera", e)
                                 }
                             }
                         } else {
@@ -440,7 +472,8 @@ fun CallScreen(
                                 VisioManager.client.setCameraEnabled(false)
                                 cameraEnabled = false
                                 VisioManager.refreshParticipantsPublic()
-                            } catch (_: Exception) {
+                            } catch (e: Exception) {
+                                Log.e(TAG, "Failed to disable camera", e)
                             }
                         }
                     }
@@ -453,7 +486,8 @@ fun CallScreen(
                             } else {
                                 VisioManager.client.raiseHand()
                             }
-                        } catch (_: Exception) {
+                        } catch (e: Exception) {
+                            Log.e(TAG, "Failed to toggle hand raise", e)
                         }
                     }
                 },

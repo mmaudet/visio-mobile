@@ -565,7 +565,7 @@ private fun getFilteredOutputDevices(audioManager: AudioManager): List<AudioDevi
                     seenBtNames.add(name)
                     true
                 } else {
-                    seenBtNames.add(name) // returns false if already present
+                    !seenBtNames.contains(name).also { seenBtNames.add(name) }
                 }
             } else {
                 true

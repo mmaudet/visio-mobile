@@ -116,11 +116,18 @@ impl EventEmitter {
     }
 
     pub fn add_listener(&self, listener: Arc<dyn VisioEventListener>) {
-        self.listeners.write().unwrap().push(listener);
+        let mut guard = self
+            .listeners
+            .write()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        guard.push(listener);
     }
 
     pub fn emit(&self, event: VisioEvent) {
-        let listeners = self.listeners.read().unwrap();
+        let listeners = self
+            .listeners
+            .read()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
         for listener in listeners.iter() {
             listener.on_event(event.clone());
         }

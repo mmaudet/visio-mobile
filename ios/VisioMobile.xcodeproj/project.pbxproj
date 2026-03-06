@@ -8,7 +8,6 @@
 
 /* Begin PBXBuildFile section */
 		A10001000000000000000001 /* VisioMobileApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10002000000000000000001 /* VisioMobileApp.swift */; };
-		A10001000000000000000002 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10002000000000000000002 /* ContentView.swift */; };
 		A10001000000000000000003 /* VisioManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10002000000000000000003 /* VisioManager.swift */; };
 		A10001000000000000000004 /* AudioPlayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10002000000000000000004 /* AudioPlayout.swift */; };
 		A10001000000000000000005 /* VideoFrameRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10002000000000000000005 /* VideoFrameRouter.swift */; };
@@ -35,7 +34,6 @@
 
 /* Begin PBXFileReference section */
 		A10002000000000000000001 /* VisioMobileApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VisioMobileApp.swift; sourceTree = "<group>"; };
-		A10002000000000000000002 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		A10002000000000000000003 /* VisioManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VisioManager.swift; sourceTree = "<group>"; };
 		A10002000000000000000004 /* AudioPlayout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioPlayout.swift; sourceTree = "<group>"; };
 		A10002000000000000000005 /* VideoFrameRouter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoFrameRouter.swift; sourceTree = "<group>"; };
@@ -92,7 +90,6 @@
 			isa = PBXGroup;
 			children = (
 				A10002000000000000000001 /* VisioMobileApp.swift */,
-				A10002000000000000000002 /* ContentView.swift */,
 				A10002000000000000000003 /* VisioManager.swift */,
 				A10002000000000000000004 /* AudioPlayout.swift */,
 				A10002000000000000000005 /* VideoFrameRouter.swift */,
@@ -269,7 +266,6 @@
 			buildActionMask = 2147483647;
 			files = (
 				A10001000000000000000001 /* VisioMobileApp.swift in Sources */,
-				A10001000000000000000002 /* ContentView.swift in Sources */,
 				A10001000000000000000003 /* VisioManager.swift in Sources */,
 				A10001000000000000000004 /* AudioPlayout.swift in Sources */,
 				A10001000000000000000005 /* VideoFrameRouter.swift in Sources */,

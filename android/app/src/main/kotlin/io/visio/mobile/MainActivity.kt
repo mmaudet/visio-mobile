@@ -7,6 +7,7 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.os.Build
 import android.os.Bundle
+import android.util.Log
 import android.util.Rational
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -56,7 +57,8 @@ class MainActivity : ComponentActivity() {
                                     VisioManager.client.setMicrophoneEnabled(true)
                                     VisioManager.startAudioCapture()
                                 }
-                            } catch (_: Exception) {
+                            } catch (e: Exception) {
+                                Log.e(TAG, "Failed to toggle microphone in PiP mode", e)
                             }
                         }
                     }
@@ -122,7 +124,8 @@ class MainActivity : ComponentActivity() {
         super.onDestroy()
         try {
             unregisterReceiver(pipActionReceiver)
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to unregister PiP broadcast receiver", e)
         }
     }
 
@@ -141,6 +144,7 @@ class MainActivity : ComponentActivity() {
     }
 
     companion object {
+        private const val TAG = "MainActivity"
         const val ACTION_TOGGLE_MIC = "io.visio.mobile.TOGGLE_MIC"
         const val ACTION_HANGUP = "io.visio.mobile.HANGUP"
     }

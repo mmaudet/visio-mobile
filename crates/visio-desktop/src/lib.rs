@@ -1,10 +1,10 @@
 use std::sync::{Arc, OnceLock};
 use tokio::sync::Mutex;
 
-use tauri::{AppHandle, Emitter, Listener};
+use tauri::{AppHandle, Emitter, Listener, Manager};
 use visio_core::{
-    ChatService, MeetingControls, RoomManager, SettingsStore, TrackInfo, TrackKind, VisioEvent,
-    VisioEventListener,
+    ChatService, MeetingControls, RoomManager, SettingsStore, TrackInfo, TrackKind, TrackSource,
+    VisioEvent, VisioEventListener,
 };
 
 #[cfg(target_os = "macos")]
@@ -67,9 +67,49 @@ struct DesktopEventListener {
     room: Arc<Mutex<RoomManager>>,
 }
 
+fn source_to_str(source: &TrackSource) -> &'static str {
+    match source {
+        TrackSource::Microphone => "microphone",
+        TrackSource::Camera => "camera",
+        TrackSource::ScreenShare => "screen_share",
+        TrackSource::Unknown => "unknown",
+    }
+}
+
 impl VisioEventListener for DesktopEventListener {
     fn on_event(&self, event: VisioEvent) {
         match event {
+            VisioEvent::ConnectionStateChanged(state) => {
+                let name = match &state {
+                    visio_core::ConnectionState::Disconnected => "disconnected",
+                    visio_core::ConnectionState::Connecting => "connecting",
+                    visio_core::ConnectionState::Connected => "connected",
+                    visio_core::ConnectionState::Reconnecting { .. } => "reconnecting",
+                };
+                tracing::info!("connection state changed: {name}");
+                if let Some(app) = APP_HANDLE.get() {
+                    let _ = app.emit("connection-state-changed", name);
+                }
+            }
+            VisioEvent::ParticipantJoined(info) => {
+                tracing::info!("participant joined: {} ({})", info.identity, info.sid);
+                if let Some(app) = APP_HANDLE.get() {
+                    let _ = app.emit(
+                        "participant-joined",
+                        serde_json::json!({
+                            "sid": info.sid,
+                            "identity": info.identity,
+                            "name": info.name,
+                        }),
+                    );
+                }
+            }
+            VisioEvent::ParticipantLeft(sid) => {
+                tracing::info!("participant left: {sid}");
+                if let Some(app) = APP_HANDLE.get() {
+                    let _ = app.emit("participant-left", &sid);
+                }
+            }
             VisioEvent::TrackSubscribed(TrackInfo {
                 sid: track_sid,
                 kind: TrackKind::Video,
@@ -90,9 +130,38 @@ impl VisioEventListener for DesktopEventListener {
                     }
                 });
             }
+            VisioEvent::TrackSubscribed(_) => {}
             VisioEvent::TrackUnsubscribed(track_sid) => {
                 tracing::info!("auto-stopping video renderer for track {track_sid}");
                 visio_video::stop_track_renderer(&track_sid);
+            }
+            VisioEvent::TrackMuted {
+                participant_sid,
+                source,
+            } => {
+                if let Some(app) = APP_HANDLE.get() {
+                    let _ = app.emit(
+                        "track-muted",
+                        serde_json::json!({
+                            "participantSid": participant_sid,
+                            "source": source_to_str(&source),
+                        }),
+                    );
+                }
+            }
+            VisioEvent::TrackUnmuted {
+                participant_sid,
+                source,
+            } => {
+                if let Some(app) = APP_HANDLE.get() {
+                    let _ = app.emit(
+                        "track-unmuted",
+                        serde_json::json!({
+                            "participantSid": participant_sid,
+                            "source": source_to_str(&source),
+                        }),
+                    );
+                }
             }
             VisioEvent::HandRaisedChanged {
                 participant_sid,
@@ -123,6 +192,34 @@ impl VisioEventListener for DesktopEventListener {
                     let _ = app.emit("active-speakers-changed", &sids);
                 }
             }
+            VisioEvent::ConnectionQualityChanged {
+                participant_sid,
+                quality,
+            } => {
+                if let Some(app) = APP_HANDLE.get() {
+                    let _ = app.emit(
+                        "connection-quality-changed",
+                        serde_json::json!({
+                            "participantSid": participant_sid,
+                            "quality": format!("{:?}", quality),
+                        }),
+                    );
+                }
+            }
+            VisioEvent::ChatMessageReceived(msg) => {
+                if let Some(app) = APP_HANDLE.get() {
+                    let _ = app.emit(
+                        "chat-message-received",
+                        serde_json::json!({
+                            "id": msg.id,
+                            "senderSid": msg.sender_sid,
+                            "senderName": msg.sender_name,
+                            "text": msg.text,
+                            "timestampMs": msg.timestamp_ms,
+                        }),
+                    );
+                }
+            }
             VisioEvent::ConnectionLost => {
                 if let Some(app) = APP_HANDLE.get() {
                     let _ = app.emit("connection-lost", ());
@@ -136,7 +233,6 @@ impl VisioEventListener for DesktopEventListener {
                     }
                 });
             }
-            _ => {}
         }
     }
 }
@@ -360,6 +456,41 @@ async fn get_messages(
 }
 
 #[tauri::command]
+fn get_translations(
+    app: AppHandle,
+    lang: String,
+) -> Result<serde_json::Value, String> {
+    let supported = ["en", "fr", "de", "es", "it", "nl"];
+    let lang = if supported.contains(&lang.as_str()) {
+        lang
+    } else {
+        "en".to_string()
+    };
+
+    let resource_path = app
+        .path()
+        .resource_dir()
+        .map_err(|e| format!("resource dir: {e}"))?
+        .join("i18n")
+        .join(format!("{lang}.json"));
+
+    let content = std::fs::read_to_string(&resource_path).map_err(|e| {
+        tracing::warn!("failed to load i18n/{lang}.json from {resource_path:?}: {e}");
+        format!("i18n file not found: {lang}.json")
+    })?;
+
+    serde_json::from_str(&content)
+        .map_err(|e| format!("invalid i18n JSON: {e}"))
+}
+
+#[tauri::command]
+fn get_system_language() -> String {
+    sys_locale::get_locale()
+        .and_then(|l| l.split(['-', '_']).next().map(String::from))
+        .unwrap_or_else(|| "en".to_string())
+}
+
+#[tauri::command]
 fn get_settings(state: tauri::State<'_, VisioState>) -> Result<serde_json::Value, String> {
     let s = state.settings.get();
     Ok(serde_json::json!({
@@ -372,28 +503,72 @@ fn get_settings(state: tauri::State<'_, VisioState>) -> Result<serde_json::Value
 }
 
 #[tauri::command]
-fn set_display_name(state: tauri::State<'_, VisioState>, name: Option<String>) {
-    state.settings.set_display_name(name);
+fn set_display_name(
+    app: AppHandle,
+    state: tauri::State<'_, VisioState>,
+    name: Option<String>,
+) -> Result<(), String> {
+    if let Some(ref n) = name {
+        let trimmed = n.trim();
+        if trimmed.is_empty() || trimmed.len() > 100 {
+            return Err("display name must be 1-100 characters".into());
+        }
+    }
+    state.settings.set_display_name(name.clone());
+    let _ = app.emit("settings-changed", serde_json::json!({"display_name": name}));
+    Ok(())
 }
 
 #[tauri::command]
-fn set_language(state: tauri::State<'_, VisioState>, lang: Option<String>) {
-    state.settings.set_language(lang);
+fn set_language(
+    app: AppHandle,
+    state: tauri::State<'_, VisioState>,
+    lang: Option<String>,
+) -> Result<(), String> {
+    let supported = ["en", "fr", "de", "es", "it", "nl"];
+    if let Some(ref l) = lang {
+        if !supported.contains(&l.as_str()) {
+            return Err(format!("unsupported language: {l}"));
+        }
+    }
+    state.settings.set_language(lang.clone());
+    let _ = app.emit("settings-changed", serde_json::json!({"language": lang}));
+    Ok(())
 }
 
 #[tauri::command]
-fn set_mic_enabled_on_join(state: tauri::State<'_, VisioState>, enabled: bool) {
+fn set_mic_enabled_on_join(
+    app: AppHandle,
+    state: tauri::State<'_, VisioState>,
+    enabled: bool,
+) {
     state.settings.set_mic_enabled_on_join(enabled);
+    let _ = app.emit("settings-changed", serde_json::json!({"mic_enabled_on_join": enabled}));
 }
 
 #[tauri::command]
-fn set_camera_enabled_on_join(state: tauri::State<'_, VisioState>, enabled: bool) {
+fn set_camera_enabled_on_join(
+    app: AppHandle,
+    state: tauri::State<'_, VisioState>,
+    enabled: bool,
+) {
     state.settings.set_camera_enabled_on_join(enabled);
+    let _ = app.emit("settings-changed", serde_json::json!({"camera_enabled_on_join": enabled}));
 }
 
 #[tauri::command]
-fn set_theme(state: tauri::State<'_, VisioState>, theme: String) {
-    state.settings.set_theme(theme);
+fn set_theme(
+    app: AppHandle,
+    state: tauri::State<'_, VisioState>,
+    theme: String,
+) -> Result<(), String> {
+    let valid = ["light", "dark", "system"];
+    if !valid.contains(&theme.as_str()) {
+        return Err(format!("invalid theme: {theme}"));
+    }
+    state.settings.set_theme(theme.clone());
+    let _ = app.emit("settings-changed", serde_json::json!({"theme": theme}));
+    Ok(())
 }
 
 #[tauri::command]
@@ -519,6 +694,33 @@ pub fn run() {
 
             Ok(())
         })
+        .on_window_event(|window, event| {
+            if let tauri::WindowEvent::CloseRequested { .. } = event {
+                tracing::info!("window close requested, disconnecting gracefully");
+                let state: tauri::State<'_, VisioState> = window.state();
+                let room = state.room.clone();
+                // Stop audio/camera capture before disconnect
+                {
+                    let mut cap = state.audio_capture.lock().unwrap_or_else(|e| e.into_inner());
+                    if let Some(capture) = cap.take() {
+                        capture.stop();
+                    }
+                }
+                #[cfg(target_os = "macos")]
+                {
+                    let mut cam = state.camera_capture.lock().unwrap_or_else(|e| e.into_inner());
+                    if let Some(mut capture) = cam.take() {
+                        capture.stop();
+                    }
+                }
+                // Gracefully disconnect the room
+                tauri::async_runtime::block_on(async {
+                    let rm = room.lock().await;
+                    rm.disconnect().await;
+                });
+                tracing::info!("graceful disconnect complete");
+            }
+        })
         .invoke_handler(tauri::generate_handler![
             validate_room,
             connect,
@@ -531,6 +733,8 @@ pub fn run() {
             toggle_camera,
             send_chat,
             get_messages,
+            get_translations,
+            get_system_language,
             get_settings,
             set_display_name,
             set_language,

@@ -77,13 +77,17 @@ impl AuthService {
     /// Accepts full URL (`https://meet.example.com/abc-defg-hij`) or bare slug (`abc-defg-hij`).
     /// Slug format: 3 lowercase + dash + 4 lowercase + dash + 3 lowercase.
     pub fn extract_slug(input: &str) -> Result<String, VisioError> {
+        use std::sync::OnceLock;
+        static SLUG_RE: OnceLock<regex::Regex> = OnceLock::new();
+
         let input = input.trim().trim_end_matches('/');
         let candidate = if input.contains('/') {
             input.rsplit('/').next().unwrap_or("")
         } else {
             input
         };
-        let re = regex::Regex::new(r"^[a-z]{3}-[a-z]{4}-[a-z]{3}$").unwrap();
+        let re = SLUG_RE
+            .get_or_init(|| regex::Regex::new(r"^[a-z]{3}-[a-z]{4}-[a-z]{3}$").unwrap());
         if re.is_match(candidate) {
             Ok(candidate.to_string())
         } else {

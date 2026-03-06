@@ -1,5 +1,6 @@
 package io.visio.mobile.ui
 
+import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -54,6 +55,8 @@ import io.visio.mobile.ui.theme.VisioColors
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
+private const val TAG = "SettingsScreen"
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(onBack: () -> Unit) {
@@ -80,7 +83,8 @@ fun SettingsScreen(onBack: () -> Unit) {
             micOnJoin = settings.micEnabledOnJoin
             cameraOnJoin = settings.cameraEnabledOnJoin
             meetInstances = VisioManager.client.getMeetInstances()
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to load settings", e)
         }
     }
 
@@ -292,7 +296,8 @@ fun SettingsScreen(onBack: () -> Unit) {
                         VisioManager.client.setMicEnabledOnJoin(micOnJoin)
                         VisioManager.client.setCameraEnabledOnJoin(cameraOnJoin)
                         VisioManager.client.setMeetInstances(instancesToSave)
-                    } catch (_: Exception) {
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Failed to save settings", e)
                     }
                 }
                 VisioManager.updateDisplayName(displayName)

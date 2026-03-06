@@ -4,7 +4,7 @@
 //! NV12 → I420, and feeds frames into a LiveKit NativeVideoSource.
 //! Also emits self-view frames through the visio-video desktop callback.
 
-use std::ffi::{c_char, c_void, CStr};
+use std::ffi::{c_char, c_void};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Mutex;
 
@@ -13,7 +13,7 @@ use livekit::webrtc::video_source::native::NativeVideoSource;
 
 use objc2::rc::Retained;
 use objc2::runtime::{AnyClass, AnyObject, Bool, NSObject};
-use objc2::{define_class, msg_send, msg_send_id, ClassType};
+use objc2::{define_class, msg_send, ClassType};
 
 // ---------------------------------------------------------------------------
 // CoreMedia / CoreVideo C FFI
@@ -143,10 +143,10 @@ fn process_camera_frame(sample_buffer: *const c_void) {
         }
     }
 
-    // Drop mutable borrows before immutable use
-    drop(y_dst);
-    drop(u_dst);
-    drop(v_dst);
+    // Release mutable borrows before immutable use
+    let _ = y_dst;
+    let _ = u_dst;
+    let _ = v_dst;
 
     unsafe { CVPixelBufferUnlockBaseAddress(pxbuf, 1) };
 
@@ -224,7 +224,7 @@ impl MacCameraCapture {
         // --- Create session ---
         let session_cls = AnyClass::get(c"AVCaptureSession")
             .ok_or("AVCaptureSession class not found")?;
-        let session: Retained<AnyObject> = unsafe { msg_send_id![session_cls, new] };
+        let session: Retained<AnyObject> = unsafe { msg_send![session_cls, new] };
 
         // Set session preset
         let _: () = unsafe {
@@ -248,7 +248,7 @@ impl MacCameraCapture {
             .ok_or("AVCaptureDeviceInput class not found")?;
         let mut error_ptr: *mut AnyObject = std::ptr::null_mut();
         let input_ptr: *mut AnyObject = unsafe {
-            msg_send![input_cls, deviceInputWithDevice: &*device error: &mut error_ptr]
+            msg_send![input_cls, deviceInputWithDevice: &*device, error: &mut error_ptr]
         };
         if input_ptr.is_null() {
             return Err("Failed to create camera input".into());
@@ -259,24 +259,24 @@ impl MacCameraCapture {
         // --- Create video data output ---
         let output_cls = AnyClass::get(c"AVCaptureVideoDataOutput")
             .ok_or("AVCaptureVideoDataOutput class not found")?;
-        let output: Retained<AnyObject> = unsafe { msg_send_id![output_cls, new] };
+        let output: Retained<AnyObject> = unsafe { msg_send![output_cls, new] };
 
         // Force NV12 pixel format via videoSettings dictionary
         let nsnumber_cls = AnyClass::get(c"NSNumber").unwrap();
         let format_num: Retained<AnyObject> = unsafe {
-            msg_send_id![nsnumber_cls, numberWithUnsignedInt: PIXEL_FORMAT_NV12]
+            msg_send![nsnumber_cls, numberWithUnsignedInt: PIXEL_FORMAT_NV12]
         };
 
         // kCVPixelBufferPixelFormatTypeKey = "PixelFormatType"
         let key_bytes = c"PixelFormatType";
         let key_cls = AnyClass::get(c"NSString").unwrap();
         let format_key: Retained<AnyObject> = unsafe {
-            msg_send_id![key_cls, stringWithUTF8String: key_bytes.as_ptr()]
+            msg_send![key_cls, stringWithUTF8String: key_bytes.as_ptr()]
         };
 
         let dict_cls = AnyClass::get(c"NSDictionary").unwrap();
         let video_settings: Retained<AnyObject> = unsafe {
-            msg_send_id![dict_cls, dictionaryWithObject: &*format_num forKey: &*format_key]
+            msg_send![dict_cls, dictionaryWithObject: &*format_num, forKey: &*format_key]
         };
         let _: () = unsafe {
             msg_send![&*output, setVideoSettings: &*video_settings]
@@ -289,7 +289,7 @@ impl MacCameraCapture {
 
         // --- Create delegate and dispatch queue ---
         let delegate: Retained<VisioCameraDelegate> = unsafe {
-            msg_send_id![VisioCameraDelegate::class(), new]
+            msg_send![VisioCameraDelegate::class(), new]
         };
 
         let queue = unsafe {

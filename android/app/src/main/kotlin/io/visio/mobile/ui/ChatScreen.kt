@@ -1,5 +1,6 @@
 package io.visio.mobile.ui
 
+import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -52,6 +53,8 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
+private const val TAG = "ChatScreen"
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ChatScreen(onBack: () -> Unit) {
@@ -64,14 +67,16 @@ fun ChatScreen(onBack: () -> Unit) {
     LaunchedEffect(Unit) {
         try {
             VisioManager.client.setChatOpen(true)
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to mark chat as open", e)
         }
     }
     DisposableEffect(Unit) {
         onDispose {
             try {
                 VisioManager.client.setChatOpen(false)
-            } catch (_: Exception) {
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to mark chat as closed", e)
             }
         }
     }
@@ -128,7 +133,8 @@ fun ChatScreen(onBack: () -> Unit) {
                         message.senderName == (
                             try {
                                 VisioManager.client.getSettings().displayName
-                            } catch (_: Exception) {
+                            } catch (e: Exception) {
+                                Log.e(TAG, "Failed to get display name for sender comparison", e)
                                 null
                             }
                         )
@@ -184,7 +190,8 @@ fun ChatScreen(onBack: () -> Unit) {
                         try {
                             VisioManager.client.sendChatMessage(text)
                             inputText = ""
-                        } catch (_: Exception) {
+                        } catch (e: Exception) {
+                            Log.e(TAG, "Failed to send chat message", e)
                         }
                     }
                 },

@@ -91,7 +91,8 @@ object VisioManager : VisioEventListener {
             currentLang = settings.language ?: "fr"
             currentTheme = settings.theme ?: "light"
             displayName = settings.displayName ?: ""
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            Log.e("VisioManager", "Failed to load persisted settings", e)
         }
         initialized = true
     }
