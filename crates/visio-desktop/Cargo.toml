@@ -6,6 +6,7 @@ license.workspace = true
 
 [dependencies]
 visio-core = { path = "../visio-core" }
+visio-ffi = { path = "../visio-ffi" }
 visio-video = { path = "../visio-video" }
 livekit = { workspace = true }
 tauri = { version = "2", features = [] }

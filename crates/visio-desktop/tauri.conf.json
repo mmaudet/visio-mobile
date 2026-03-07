@@ -32,7 +32,9 @@
     "active": true,
     "targets": "all",
     "resources": {
-      "../../i18n/*.json": "i18n/"
+      "../../i18n/*.json": "i18n/",
+      "../../assets/backgrounds/*.jpg": "backgrounds/",
+      "../../models/selfie_segmentation.onnx": "models/"
     },
     "icon": [
         "icons/icon.png",

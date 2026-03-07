@@ -152,15 +152,6 @@ fun CallScreen(
             }
         }
 
-    // Stop capture and playout when leaving the call screen
-    DisposableEffect(Unit) {
-        onDispose {
-            VisioManager.stopCameraCapture()
-            VisioManager.stopAudioCapture()
-            VisioManager.stopAudioPlayout()
-        }
-    }
-
     // Keep screen on while connected or reconnecting
     val keepScreenOn =
         connectionState is ConnectionState.Connected ||

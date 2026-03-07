@@ -1,23 +1,31 @@
 package io.visio.mobile.ui
 
 import android.content.Context
+import android.graphics.BitmapFactory
 import android.media.AudioDeviceCallback
 import android.media.AudioDeviceInfo
 import android.media.AudioManager
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Notifications
@@ -38,10 +46,14 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
@@ -49,6 +61,9 @@ import io.visio.mobile.R
 import io.visio.mobile.VisioManager
 import io.visio.mobile.ui.i18n.Strings
 import io.visio.mobile.ui.theme.VisioColors
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -369,7 +384,14 @@ private fun CameraTab(
     isFrontCamera: Boolean,
     onSwitchCamera: (Boolean) -> Unit,
 ) {
+    val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
     var selectedFront by remember { mutableStateOf(isFrontCamera) }
+
+    // Background mode state: "off", "blur", or "image:<id>"
+    var backgroundMode by remember {
+        mutableStateOf(VisioManager.client.getBackgroundMode())
+    }
 
     SectionHeader(Strings.t("settings.incall.cameraSelect", lang))
 
@@ -428,6 +450,130 @@ private fun CameraTab(
         )
         Text(
             text = Strings.t("settings.incall.cameraBack", lang),
+            color = VisioColors.White,
+            style = MaterialTheme.typography.bodyMedium,
+        )
+    }
+
+    Spacer(modifier = Modifier.height(16.dp))
+
+    // Background section
+    SectionHeader(Strings.t("settings.incall.background", lang))
+
+    // None / Blur row
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        BackgroundOptionChip(
+            label = Strings.t("settings.incall.bgOff", lang),
+            selected = backgroundMode == "off",
+            onClick = {
+                backgroundMode = "off"
+                coroutineScope.launch(Dispatchers.IO) {
+                    VisioManager.client.setBackgroundMode("off")
+                }
+            },
+            modifier = Modifier.weight(1f),
+        )
+        BackgroundOptionChip(
+            label = Strings.t("settings.incall.bgBlur", lang),
+            selected = backgroundMode == "blur",
+            onClick = {
+                backgroundMode = "blur"
+                coroutineScope.launch(Dispatchers.IO) {
+                    VisioManager.client.setBackgroundMode("blur")
+                }
+            },
+            modifier = Modifier.weight(1f),
+        )
+    }
+
+    Spacer(modifier = Modifier.height(12.dp))
+
+    // Image grid
+    val imageIds = (1..8).toList()
+    LazyVerticalGrid(
+        columns = GridCells.Fixed(4),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+        modifier = Modifier.height(180.dp),
+    ) {
+        items(imageIds) { id ->
+            val isSelected = backgroundMode == "image:$id"
+            val bitmap = remember(id) {
+                BitmapFactory.decodeStream(
+                    context.assets.open("backgrounds/thumbnails/$id.jpg")
+                )
+            }
+            Box(
+                modifier =
+                    Modifier
+                        .aspectRatio(1f)
+                        .clip(RoundedCornerShape(8.dp))
+                        .then(
+                            if (isSelected) {
+                                Modifier.border(
+                                    2.dp,
+                                    VisioColors.Primary500,
+                                    RoundedCornerShape(8.dp),
+                                )
+                            } else {
+                                Modifier
+                            }
+                        )
+                        .clickable {
+                            backgroundMode = "image:$id"
+                            coroutineScope.launch(Dispatchers.IO) {
+                                // Copy full image from assets to cache so FFI can read it by path
+                                val cacheFile = java.io.File(context.cacheDir, "bg_$id.jpg")
+                                if (!cacheFile.exists()) {
+                                    context.assets.open("backgrounds/$id.jpg").use { input ->
+                                        cacheFile.outputStream().use { output ->
+                                            input.copyTo(output)
+                                        }
+                                    }
+                                }
+                                VisioManager.client.loadBackgroundImage(
+                                    id.toUByte(),
+                                    cacheFile.absolutePath,
+                                )
+                                VisioManager.client.setBackgroundMode("image:$id")
+                            }
+                        },
+            ) {
+                Image(
+                    bitmap = bitmap.asImageBitmap(),
+                    contentDescription = "Background $id",
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.matchParentSize(),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun BackgroundOptionChip(
+    label: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier =
+            modifier
+                .height(40.dp)
+                .clip(RoundedCornerShape(8.dp))
+                .background(
+                    if (selected) VisioColors.Primary500 else VisioColors.PrimaryDark100,
+                )
+                .clickable(onClick = onClick)
+                .padding(horizontal = 12.dp),
+    ) {
+        Text(
+            text = label,
             color = VisioColors.White,
             style = MaterialTheme.typography.bodyMedium,
         )

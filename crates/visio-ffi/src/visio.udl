@@ -90,6 +90,7 @@ interface VisioError {
     Auth(string msg);
     Http(string msg);
     InvalidUrl(string msg);
+    Generic(string msg);
 };
 
 callback interface VisioEventListener {
@@ -177,4 +178,14 @@ interface VisioClient {
     void start_video_renderer(string track_sid);
 
     void stop_video_renderer(string track_sid);
+
+    void set_background_mode(string mode);
+
+    string get_background_mode();
+
+    [Throws=VisioError]
+    void load_background_image(u8 id, string jpeg_path);
+
+    [Throws=VisioError]
+    void load_blur_model(string model_path);
 };

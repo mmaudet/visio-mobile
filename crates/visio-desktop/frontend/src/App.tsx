@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback, createContext, useContext } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import { resolveResource } from "@tauri-apps/api/path";
 import { onOpenUrl } from "@tauri-apps/plugin-deep-link";
 import {
   RiMicLine,
@@ -609,6 +610,26 @@ function CallView({
   const [focusedParticipant, setFocusedParticipant] = useState<string | null>(null);
   const [chatInput, setChatInput] = useState("");
   const chatScrollRef = useRef<HTMLDivElement>(null);
+  const [bgMode, setBgMode] = useState("off");
+
+  // Load current background mode on mount
+  useEffect(() => {
+    invoke<string>("get_background_mode").then(setBgMode).catch(() => {});
+  }, []);
+
+  const handleBgMode = async (mode: string) => {
+    try {
+      if (mode.startsWith("image:")) {
+        const id = parseInt(mode.slice(6), 10);
+        const path = await resolveResource(`backgrounds/${id}.jpg`);
+        await invoke("load_background_image", { id, jpegPath: path });
+      }
+      await invoke("set_background_mode", { mode });
+      setBgMode(mode);
+    } catch (e) {
+      console.error("set_background_mode error:", e);
+    }
+  };
 
   useEffect(() => {
     if (chatScrollRef.current) {
@@ -936,7 +957,7 @@ function CallView({
 
       {/* Camera device picker */}
       {showCamPicker && (
-        <div className="device-picker">
+        <div className="device-picker" style={{ minWidth: 300 }}>
           <div className="device-section">
             <div className="device-section-title">{t("device.camera")}</div>
             {videoInputs.map((d) => (
@@ -955,6 +976,38 @@ function CallView({
                 {t("device.noCamera")}
               </div>
             )}
+          </div>
+          <div className="device-section">
+            <div className="device-section-title">{t("settings.incall.background")}</div>
+            <div className="bg-mode-buttons">
+              <button
+                className={`bg-mode-btn ${bgMode === "off" ? "bg-mode-btn-active" : ""}`}
+                onClick={() => handleBgMode("off")}
+              >
+                {t("settings.incall.bgOff")}
+              </button>
+              <button
+                className={`bg-mode-btn ${bgMode === "blur" ? "bg-mode-btn-active" : ""}`}
+                onClick={() => handleBgMode("blur")}
+              >
+                {t("settings.incall.bgBlur")}
+              </button>
+            </div>
+            <div className="bg-image-grid">
+              {[1, 2, 3, 4, 5, 6, 7, 8].map((id) => (
+                <button
+                  key={id}
+                  className={`bg-image-thumb ${bgMode === `image:${id}` ? "bg-image-thumb-active" : ""}`}
+                  onClick={() => handleBgMode(`image:${id}`)}
+                >
+                  <img
+                    src={`/backgrounds/thumbnails/${id}.jpg`}
+                    alt={`Background ${id}`}
+                    draggable={false}
+                  />
+                </button>
+              ))}
+            </div>
           </div>
         </div>
       )}
@@ -1177,6 +1230,11 @@ export default function App() {
         if (s.language) setLang(s.language);
         if (s.theme) setTheme(s.theme);
       })
+      .catch(() => {});
+
+    // Load ONNX segmentation model for background blur
+    resolveResource("models/selfie_segmentation.onnx")
+      .then((path) => invoke("load_blur_model", { modelPath: path }))
       .catch(() => {});
   }, []);
 

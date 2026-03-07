@@ -1192,6 +1192,77 @@ main {
   align-items: center;
 }
 
+/* -- Background Mode Picker ------------------------------------------------ */
+
+.bg-mode-buttons {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.bg-mode-btn {
+  flex: 1;
+  padding: 6px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg);
+  color: var(--text);
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.bg-mode-btn:hover {
+  background: var(--bg-tertiary);
+}
+
+.bg-mode-btn-active {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+
+.bg-mode-btn-active:hover {
+  background: var(--accent);
+}
+
+.bg-image-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+}
+
+.bg-image-thumb {
+  border: 2px solid transparent;
+  border-radius: 6px;
+  overflow: hidden;
+  cursor: pointer;
+  padding: 0;
+  background: none;
+  transition: border-color 0.15s, transform 0.1s;
+  aspect-ratio: 4 / 3;
+}
+
+.bg-image-thumb:hover {
+  border-color: var(--text-tertiary);
+  transform: scale(1.05);
+}
+
+.bg-image-thumb-active {
+  border-color: var(--accent);
+}
+
+.bg-image-thumb-active:hover {
+  border-color: var(--accent);
+}
+
+.bg-image-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
 /* -- Room Status ----------------------------------------------------------- */
 
 .room-status { font-size: 0.85rem; margin-top: 4px; padding: 2px 0; text-align: right; }

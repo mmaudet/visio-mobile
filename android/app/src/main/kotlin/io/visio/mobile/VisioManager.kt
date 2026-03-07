@@ -95,6 +95,19 @@ object VisioManager : VisioEventListener {
         } catch (e: Exception) {
             Log.e("VisioManager", "Failed to load persisted settings", e)
         }
+        // Load ONNX segmentation model for background blur
+        try {
+            val modelFile = java.io.File(context.cacheDir, "selfie_segmentation.onnx")
+            if (!modelFile.exists()) {
+                context.assets.open("models/selfie_segmentation.onnx").use { input ->
+                    modelFile.outputStream().use { output -> input.copyTo(output) }
+                }
+            }
+            _client.loadBlurModel(modelFile.absolutePath)
+            Log.i("VisioManager", "Blur model loaded from ${modelFile.absolutePath}")
+        } catch (e: Exception) {
+            Log.e("VisioManager", "Failed to load blur model", e)
+        }
         initialized = true
     }
 

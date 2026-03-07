@@ -116,5 +116,8 @@
   "notification.channelName": "Appel actif",
   "notification.channelDescription": "Affiche quand un appel est en cours",
   "notification.title": "Visio Mobile",
-  "notification.text": "Appel en cours"
+  "notification.text": "Appel en cours",
+  "settings.incall.background": "Arrière-plan",
+  "settings.incall.bgOff": "Aucun",
+  "settings.incall.bgBlur": "Flou"
 }

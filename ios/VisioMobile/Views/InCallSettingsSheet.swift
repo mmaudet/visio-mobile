@@ -112,9 +112,78 @@ struct InCallSettingsSheet: View {
                     }
                 }
             }
+
+            Section(Strings.t("settings.incall.background", lang: lang)) {
+                // Off option
+                Button {
+                    setBackgroundMode("off")
+                } label: {
+                    HStack {
+                        Image(systemName: "circle.slash")
+                            .foregroundStyle(VisioColors.primary500)
+                        Text(Strings.t("settings.incall.bgOff", lang: lang))
+                            .foregroundStyle(VisioColors.onSurface(dark: isDark))
+                        Spacer()
+                        if manager.backgroundMode == "off" {
+                            Image(systemName: "checkmark")
+                                .foregroundStyle(VisioColors.primary500)
+                        }
+                    }
+                }
+
+                // Blur option
+                Button {
+                    setBackgroundMode("blur")
+                } label: {
+                    HStack {
+                        Image(systemName: "aqi.medium")
+                            .foregroundStyle(VisioColors.primary500)
+                        Text(Strings.t("settings.incall.bgBlur", lang: lang))
+                            .foregroundStyle(VisioColors.onSurface(dark: isDark))
+                        Spacer()
+                        if manager.backgroundMode == "blur" {
+                            Image(systemName: "checkmark")
+                                .foregroundStyle(VisioColors.primary500)
+                        }
+                    }
+                }
+
+                // Image grid
+                LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 4), spacing: 8) {
+                    ForEach(1...8, id: \.self) { id in
+                        if let path = Bundle.main.path(forResource: "\(id)", ofType: "jpg", inDirectory: "backgrounds/thumbnails"),
+                           let img = UIImage(contentsOfFile: path) {
+                            Image(uiImage: img)
+                                .resizable()
+                                .aspectRatio(16.0/9.0, contentMode: .fill)
+                                .frame(height: 50)
+                                .clipShape(RoundedRectangle(cornerRadius: 6))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 6)
+                                        .stroke(manager.backgroundMode == "image:\(id)" ? VisioColors.primary500 : Color.clear, lineWidth: 2)
+                                )
+                                .onTapGesture { setBackgroundMode("image:\(id)") }
+                        }
+                    }
+                }
+                .padding(.vertical, 4)
+            }
         }
         .scrollContentBackground(.hidden)
         .background(VisioColors.background(dark: isDark))
+    }
+
+    private func setBackgroundMode(_ mode: String) {
+        manager.backgroundMode = mode
+        DispatchQueue.global(qos: .userInitiated).async {
+            if mode.hasPrefix("image:") {
+                let id = UInt8(mode.dropFirst(6)) ?? 0
+                if let path = Bundle.main.path(forResource: "\(id)", ofType: "jpg", inDirectory: "backgrounds") {
+                    try? manager.client.loadBackgroundImage(id: id, jpegPath: path)
+                }
+            }
+            manager.client.setBackgroundMode(mode: mode)
+        }
     }
 
     // MARK: - Notifications Tab

@@ -23,6 +23,8 @@ pub struct Settings {
     pub notification_hand_raised: bool,
     #[serde(default = "default_true")]
     pub notification_message_received: bool,
+    #[serde(default = "default_background_mode")]
+    pub background_mode: String,
 }
 
 fn default_meet_instances() -> Vec<String> {
@@ -31,6 +33,10 @@ fn default_meet_instances() -> Vec<String> {
 
 fn default_theme() -> String {
     "light".to_string()
+}
+
+fn default_background_mode() -> String {
+    "off".to_string()
 }
 
 fn default_true() -> bool {
@@ -49,6 +55,7 @@ impl Default for Settings {
             notification_participant_join: true,
             notification_hand_raised: true,
             notification_message_received: true,
+            background_mode: "off".to_string(),
         }
     }
 }
@@ -118,6 +125,15 @@ impl SettingsStore {
 
     pub fn set_notification_message_received(&self, enabled: bool) {
         self.settings.lock().unwrap_or_else(|e| e.into_inner()).notification_message_received = enabled;
+        self.save();
+    }
+
+    pub fn get_background_mode(&self) -> String {
+        self.settings.lock().unwrap_or_else(|e| e.into_inner()).background_mode.clone()
+    }
+
+    pub fn set_background_mode(&self, mode: String) {
+        self.settings.lock().unwrap_or_else(|e| e.into_inner()).background_mode = mode;
         self.save();
     }
 
@@ -302,6 +318,36 @@ mod tests {
         assert!(!s.notification_participant_join);
         assert!(!s.notification_hand_raised);
         assert!(!s.notification_message_received);
+    }
+
+    #[test]
+    fn test_background_mode_defaults_to_off() {
+        let s = Settings::default();
+        assert_eq!(s.background_mode, "off");
+    }
+
+    #[test]
+    fn test_set_background_mode_persists() {
+        let dir = temp_dir();
+        let path = dir.path().to_str().unwrap();
+        {
+            let store = SettingsStore::new(path);
+            store.set_background_mode("blur".to_string());
+        }
+        let store = SettingsStore::new(path);
+        assert_eq!(store.get_background_mode(), "blur");
+    }
+
+    #[test]
+    fn test_set_background_mode_image() {
+        let dir = temp_dir();
+        let path = dir.path().to_str().unwrap();
+        {
+            let store = SettingsStore::new(path);
+            store.set_background_mode("image:3".to_string());
+        }
+        let store = SettingsStore::new(path);
+        assert_eq!(store.get_background_mode(), "image:3");
     }
 
     #[test]

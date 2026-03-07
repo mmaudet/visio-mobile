@@ -194,7 +194,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "mkdir -p \"${BUILT_PRODUCTS_DIR}/${PRODUCT_NAME}.app/i18n\"\ncp -R \"${SRCROOT}/../i18n/\"*.json \"${BUILT_PRODUCTS_DIR}/${PRODUCT_NAME}.app/i18n/\"\n";
+			shellScript = "mkdir -p \"${BUILT_PRODUCTS_DIR}/${PRODUCT_NAME}.app/i18n\"\ncp -R \"${SRCROOT}/../i18n/\"*.json \"${BUILT_PRODUCTS_DIR}/${PRODUCT_NAME}.app/i18n/\"\n\n# Copy ONNX model for background blur\ncp \"${SRCROOT}/VisioMobile/Resources/models/selfie_segmentation.onnx\" \"${BUILT_PRODUCTS_DIR}/${PRODUCT_NAME}.app/\"\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 

@@ -112,5 +112,8 @@
   "settings.incall.cameraBack": "Achtercamera",
   "settings.incall.notifParticipant": "Deelnemer aangesloten",
   "settings.incall.notifHandRaised": "Hand opgestoken",
-  "settings.incall.notifMessage": "Bericht ontvangen"
+  "settings.incall.notifMessage": "Bericht ontvangen",
+  "settings.incall.background": "Background",
+  "settings.incall.bgOff": "None",
+  "settings.incall.bgBlur": "Blur"
 }

@@ -116,5 +116,8 @@
   "notification.channelName": "Active Call",
   "notification.channelDescription": "Shows when a call is in progress",
   "notification.title": "Visio Mobile",
-  "notification.text": "Call in progress"
+  "notification.text": "Call in progress",
+  "settings.incall.background": "Background",
+  "settings.incall.bgOff": "None",
+  "settings.incall.bgBlur": "Blur"
 }

@@ -112,5 +112,8 @@
   "settings.incall.cameraBack": "Cámara trasera",
   "settings.incall.notifParticipant": "Participante se unió",
   "settings.incall.notifHandRaised": "Mano levantada",
-  "settings.incall.notifMessage": "Mensaje recibido"
+  "settings.incall.notifMessage": "Mensaje recibido",
+  "settings.incall.background": "Background",
+  "settings.incall.bgOff": "None",
+  "settings.incall.bgBlur": "Blur"
 }

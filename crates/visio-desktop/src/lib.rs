@@ -250,7 +250,7 @@ async fn validate_room(
     if let Err(e) = visio_core::AuthService::extract_slug(&url) {
         return Ok(serde_json::json!({ "status": "invalid_format", "message": e.to_string() }));
     }
-    match visio_core::AuthService::validate_room(&url, username.as_deref()).await {
+    match visio_core::AuthService::validate_room(&url, username.as_deref(), None).await {
         Ok(token_info) => Ok(serde_json::json!({
             "status": "valid",
             "livekit_url": token_info.livekit_url,
@@ -614,6 +614,51 @@ async fn set_chat_open(state: tauri::State<'_, VisioState>, open: bool) -> Resul
     Ok(())
 }
 
+#[tauri::command]
+fn set_background_mode(
+    state: tauri::State<'_, VisioState>,
+    app: AppHandle,
+    mode: String,
+) -> Result<(), String> {
+    // Validate mode
+    if mode != "off" && mode != "blur" && !mode.starts_with("image:") {
+        return Err("Invalid background mode".into());
+    }
+    // Update BlurProcessor
+    let bg_mode = match mode.as_str() {
+        "blur" => visio_ffi::blur::process::BackgroundMode::Blur,
+        m if m.starts_with("image:") => {
+            if let Ok(id) = m[6..].parse::<u8>() {
+                visio_ffi::blur::process::BackgroundMode::Image(id)
+            } else {
+                return Err("Invalid image ID".into());
+            }
+        }
+        _ => visio_ffi::blur::process::BackgroundMode::Off,
+    };
+    visio_ffi::blur::BlurProcessor::set_mode(bg_mode);
+    // Persist
+    state.settings.set_background_mode(mode);
+    let _ = app.emit("settings-changed", ());
+    Ok(())
+}
+
+#[tauri::command]
+fn get_background_mode(state: tauri::State<'_, VisioState>) -> String {
+    state.settings.get_background_mode()
+}
+
+#[tauri::command]
+fn load_blur_model(model_path: String) -> Result<(), String> {
+    visio_ffi::blur::model::load_model(std::path::Path::new(&model_path))
+}
+
+#[tauri::command]
+fn load_background_image(id: u8, jpeg_path: String) -> Result<(), String> {
+    let jpeg_bytes = std::fs::read(&jpeg_path).map_err(|e| e.to_string())?;
+    visio_ffi::blur::BlurProcessor::load_replacement_image(id, &jpeg_bytes, 640, 480)
+}
+
 // ---------------------------------------------------------------------------
 // Entry point
 // ---------------------------------------------------------------------------
@@ -747,6 +792,10 @@ pub fn run() {
             lower_hand,
             is_hand_raised,
             set_chat_open,
+            set_background_mode,
+            get_background_mode,
+            load_blur_model,
+            load_background_image,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

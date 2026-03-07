@@ -150,6 +150,17 @@ fn process_camera_frame(sample_buffer: *const c_void) {
 
     unsafe { CVPixelBufferUnlockBaseAddress(pxbuf, 1) };
 
+    // Apply background processing (blur/replacement) if enabled
+    {
+        let (y_data, u_data, v_data) = i420.data_mut();
+        visio_ffi::blur::BlurProcessor::process_i420(
+            y_data, u_data, v_data,
+            w, h,
+            strides.0 as usize, strides.1 as usize, strides.2 as usize,
+            0, // Desktop camera frames have no rotation metadata
+        );
+    }
+
     // Feed frame into LiveKit
     let frame = VideoFrame {
         rotation: VideoRotation::VideoRotation0,
