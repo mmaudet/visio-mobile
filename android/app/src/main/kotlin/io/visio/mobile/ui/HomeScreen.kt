@@ -63,15 +63,6 @@ fun HomeScreen(
     val slugRegex = remember { Regex("^[a-z]{3}-[a-z]{4}-[a-z]{3}$") }
     var meetInstances by remember { mutableStateOf(listOf<String>()) }
 
-    // Load meet instances from settings
-    LaunchedEffect(Unit) {
-        try {
-            meetInstances = VisioManager.client.getMeetInstances()
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to load meet instances", e)
-        }
-    }
-
     LaunchedEffect(VisioManager.pendingDeepLink) {
         val link = VisioManager.pendingDeepLink
         if (link != null) {
@@ -81,6 +72,12 @@ fun HomeScreen(
     }
 
     LaunchedEffect(roomUrl) {
+        // Reload meet instances every time so newly added instances are used
+        try {
+            meetInstances = VisioManager.client.getMeetInstances()
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to load meet instances", e)
+        }
         val trimmed = roomUrl.trim()
         val isSlug = slugRegex.matches(trimmed)
         val candidate = if (isSlug) {
