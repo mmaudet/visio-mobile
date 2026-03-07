@@ -47,6 +47,7 @@ android/app/src/main/assets/i18n/
 # AI assistant context
 CLAUDE.md
 docs/plans/
+.claude/
 
 # Ruby / Fastlane
 vendor/bundle/
