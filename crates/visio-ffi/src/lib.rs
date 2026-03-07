@@ -936,6 +936,7 @@ pub unsafe extern "C" fn Java_io_visio_mobile_NativeVideo_nativePushCameraFrame(
             y_data, u_data, v_data,
             w as usize, h as usize,
             strides.0 as usize, strides.1 as usize, strides.2 as usize,
+            rotation_degrees as u32,
         );
     }
 
@@ -1202,6 +1203,7 @@ pub unsafe extern "C" fn visio_push_ios_camera_frame(
             y_data, u_data, v_data,
             width as usize, height as usize,
             strides.0 as usize, strides.1 as usize, strides.2 as usize,
+            0, // iOS frames are pre-rotated by AVCaptureConnection
         );
     }
 

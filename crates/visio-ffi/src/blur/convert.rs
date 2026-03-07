@@ -71,6 +71,58 @@ pub fn resize_rgb(
     dst
 }
 
+/// Rotate packed RGB image by 0, 90, 180, or 270 degrees clockwise.
+/// For 90/270, the output dimensions are swapped (width↔height).
+pub fn rotate_rgb(src: &[u8], width: usize, height: usize, degrees: u32) -> Vec<u8> {
+    match degrees {
+        0 | 360 => src.to_vec(),
+        90 => {
+            // 90° CW: dst[x, height-1-y] = src[y, x]
+            let dst_w = height;
+            let dst_h = width;
+            let mut dst = vec![0u8; dst_w * dst_h * 3];
+            for y in 0..height {
+                for x in 0..width {
+                    let src_idx = (y * width + x) * 3;
+                    let dx = height - 1 - y;
+                    let dy = x;
+                    let dst_idx = (dy * dst_w + dx) * 3;
+                    dst[dst_idx..dst_idx + 3].copy_from_slice(&src[src_idx..src_idx + 3]);
+                }
+            }
+            dst
+        }
+        180 => {
+            let mut dst = vec![0u8; width * height * 3];
+            for y in 0..height {
+                for x in 0..width {
+                    let src_idx = (y * width + x) * 3;
+                    let dst_idx = ((height - 1 - y) * width + (width - 1 - x)) * 3;
+                    dst[dst_idx..dst_idx + 3].copy_from_slice(&src[src_idx..src_idx + 3]);
+                }
+            }
+            dst
+        }
+        270 => {
+            // 270° CW (= 90° CCW): dst[y, width-1-x] = src[y_src, x_src]
+            let dst_w = height;
+            let dst_h = width;
+            let mut dst = vec![0u8; dst_w * dst_h * 3];
+            for y in 0..height {
+                for x in 0..width {
+                    let src_idx = (y * width + x) * 3;
+                    let dx = y;
+                    let dy = width - 1 - x;
+                    let dst_idx = (dy * dst_w + dx) * 3;
+                    dst[dst_idx..dst_idx + 3].copy_from_slice(&src[src_idx..src_idx + 3]);
+                }
+            }
+            dst
+        }
+        _ => src.to_vec(),
+    }
+}
+
 /// Decode JPEG bytes to packed RGB.
 ///
 /// Note: This expects the JPEG to contain RGB pixel data (not grayscale).

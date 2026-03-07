@@ -14,10 +14,15 @@ static MODE: Mutex<BackgroundMode> = Mutex::new(BackgroundMode::Off);
 /// Cached replacement image in I420 format, resized to current frame dimensions.
 static REPLACEMENT_CACHE: Mutex<Option<ReplacementImage>> = Mutex::new(None);
 
+/// Raw JPEG bytes for the current replacement image (used to re-generate I420
+/// when rotation or frame dimensions change).
+static REPLACEMENT_JPEG: Mutex<Option<(u8, Vec<u8>)>> = Mutex::new(None);
+
 struct ReplacementImage {
     id: u8,
     width: usize,
     height: usize,
+    rotation: u32,
     y: Vec<u8>,
     u: Vec<u8>,
     v: Vec<u8>,
@@ -57,28 +62,78 @@ impl BlurProcessor {
         MODE.lock().unwrap().clone()
     }
 
-    /// Load and cache a JPEG replacement image, converted to I420 at the given
-    /// target dimensions.
+    /// Store JPEG bytes for a replacement image. The actual I420 conversion
+    /// is deferred to `process_i420` where the real frame dimensions and
+    /// rotation are known.
     pub fn load_replacement_image(
         id: u8,
         jpeg_bytes: &[u8],
-        target_w: usize,
-        target_h: usize,
+        _target_w: usize,
+        _target_h: usize,
     ) -> Result<(), String> {
-        let rgb = convert::decode_jpeg_to_rgb(jpeg_bytes)?;
-        let (src_w, src_h) = convert::jpeg_dimensions(jpeg_bytes)?;
+        // Validate that the JPEG is decodable
+        convert::jpeg_dimensions(jpeg_bytes)?;
+        *REPLACEMENT_JPEG.lock().map_err(|e| e.to_string())? =
+            Some((id, jpeg_bytes.to_vec()));
+        // Invalidate cached I420 so it gets regenerated with correct dimensions/rotation
+        *REPLACEMENT_CACHE.lock().map_err(|e| e.to_string())? = None;
+        Ok(())
+    }
+
+    /// Generate (or return cached) I420 replacement image for the given frame
+    /// dimensions and rotation.
+    fn get_replacement(
+        id: u8,
+        frame_w: usize,
+        frame_h: usize,
+        rotation: u32,
+    ) -> Option<()> {
+        // Check if cache is already valid
+        {
+            let cache = REPLACEMENT_CACHE.lock().ok()?;
+            if let Some(ref r) = *cache {
+                if r.id == id && r.width == frame_w && r.height == frame_h && r.rotation == rotation
+                {
+                    return Some(());
+                }
+            }
+        }
+
+        // Need to regenerate — get JPEG bytes
+        let jpeg_guard = REPLACEMENT_JPEG.lock().ok()?;
+        let (stored_id, jpeg_bytes) = jpeg_guard.as_ref()?;
+        if *stored_id != id {
+            return None;
+        }
+
+        let rgb = convert::decode_jpeg_to_rgb(jpeg_bytes).ok()?;
+        let (src_w, src_h) = convert::jpeg_dimensions(jpeg_bytes).ok()?;
+
+        // Pre-rotate: apply inverse rotation so the image appears correct
+        // after the display rotation is applied.
+        let pre_rot = (360 - rotation) % 360;
+        let (target_w, target_h) = if pre_rot == 90 || pre_rot == 270 {
+            // After rotating 90/270, width and height swap
+            (frame_h, frame_w)
+        } else {
+            (frame_w, frame_h)
+        };
+
         let resized = convert::resize_rgb(&rgb, src_w, src_h, target_w, target_h);
-        let (y, u, v) = convert::rgb_to_i420(&resized, target_w, target_h);
-        let mut cache = REPLACEMENT_CACHE.lock().map_err(|e| e.to_string())?;
+        let rotated = convert::rotate_rgb(&resized, target_w, target_h, pre_rot);
+        let (y, u, v) = convert::rgb_to_i420(&rotated, frame_w, frame_h);
+
+        let mut cache = REPLACEMENT_CACHE.lock().ok()?;
         *cache = Some(ReplacementImage {
             id,
-            width: target_w,
-            height: target_h,
+            width: frame_w,
+            height: frame_h,
+            rotation,
             y,
             u,
             v,
         });
-        Ok(())
+        Some(())
     }
 
     /// Process an I420 frame in-place: apply background blur or replacement.
@@ -94,6 +149,7 @@ impl BlurProcessor {
         stride_y: usize,
         stride_u: usize,
         stride_v: usize,
+        rotation: u32,
     ) -> bool {
         // 1. Check mode
         let mode = MODE.lock().unwrap().clone();
@@ -166,11 +222,12 @@ impl BlurProcessor {
                     }
                 }
             }
-            BackgroundMode::Image(_id) => {
-                // 7. Get cached replacement I420 planes
+            BackgroundMode::Image(id) => {
+                // 7. Get cached replacement I420 planes (regenerated if rotation changed)
+                Self::get_replacement(id, width, height, rotation);
                 let cache = REPLACEMENT_CACHE.lock().unwrap();
                 let replacement = match cache.as_ref() {
-                    Some(r) if r.width == width && r.height == height => r,
+                    Some(r) if r.width == width && r.height == height && r.rotation == rotation => r,
                     _ => return false,
                 };
 

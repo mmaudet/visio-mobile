@@ -157,6 +157,7 @@ fn process_camera_frame(sample_buffer: *const c_void) {
             y_data, u_data, v_data,
             w, h,
             strides.0 as usize, strides.1 as usize, strides.2 as usize,
+            0, // Desktop camera frames have no rotation metadata
         );
     }
 

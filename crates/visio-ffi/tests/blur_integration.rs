@@ -49,6 +49,7 @@ fn test_blur_mode_on_synthetic_frame() {
         &mut y, &mut u, &mut v,
         width, height,
         width, uv_w, uv_w,
+        0,
     );
 
     assert!(result, "Blur mode should process successfully");
@@ -94,6 +95,7 @@ fn test_image_replacement_mode() {
         &mut y, &mut u, &mut v,
         width, height,
         width, uv_w, uv_w,
+        0,
     );
 
     assert!(result, "Image replacement mode should process successfully");
