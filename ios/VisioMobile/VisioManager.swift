@@ -40,8 +40,12 @@ class VisioManager: ObservableObject {
 
     init() {
         // VisioClient() creates a tokio runtime -- acceptable to block on main thread at launch.
-        guard let documentsDir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else {
-            fatalError("VisioManager: unable to access documents directory")
+        let documentsDir: URL
+        if let dir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first {
+            documentsDir = dir
+        } else {
+            NSLog("VisioManager: documents directory unavailable, using temp directory")
+            documentsDir = FileManager.default.temporaryDirectory
         }
         client = VisioClient(dataDir: documentsDir.path)
         client.addListener(listener: self)
