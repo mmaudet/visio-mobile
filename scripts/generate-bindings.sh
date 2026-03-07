@@ -9,6 +9,14 @@ UDL="crates/visio-ffi/src/visio.udl"
 
 generate_kotlin() {
     echo "==> Generating Kotlin UniFFI bindings..."
+    # On Linux, ort_sys and webrtc_sys both bundle protobuf, causing duplicate
+    # symbol errors when linking the host binary.  Allow multiple definitions
+    # so the uniffi-bindgen CLI (which only parses the UDL) can link.
+    local extra_flags=""
+    if [ "$(uname)" = "Linux" ]; then
+        extra_flags="-C link-args=-Wl,--allow-multiple-definition"
+    fi
+    RUSTFLAGS="${RUSTFLAGS:-} $extra_flags" \
     cargo run -p visio-ffi --features cli --bin uniffi-bindgen generate \
         "$UDL" --language kotlin \
         --out-dir android/app/src/main/kotlin/generated/
