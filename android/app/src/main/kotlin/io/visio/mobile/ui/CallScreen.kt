@@ -498,10 +498,7 @@ fun CallScreen(
                 },
                 onChat = onChatOpen,
                 onHangUp = {
-                    VisioManager.stopCameraCapture()
-                    VisioManager.stopAudioCapture()
-                    VisioManager.stopAudioPlayout()
-                    VisioManager.client.disconnect()
+                    VisioManager.disconnect()
                     onHangUp()
                 },
             )

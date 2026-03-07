@@ -12,6 +12,7 @@ import androidx.compose.runtime.setValue
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -29,7 +30,7 @@ object VisioManager : VisioEventListener {
     val client: VisioClient get() = _client
 
     // IO scope for callbacks that call back into Rust (avoids nested block_on)
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private var scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     // Camera capture (Camera2 -> JNI -> NativeVideoSource)
     private var cameraCapture: CameraCapture? = null
@@ -202,6 +203,18 @@ object VisioManager : VisioEventListener {
             val am = appContext.getSystemService(Context.AUDIO_SERVICE) as AudioManager
             am.setCommunicationDevice(device)
         }
+    }
+
+    /**
+     * Full teardown: stop captures, playout, cancel pending coroutines, disconnect.
+     */
+    fun disconnect() {
+        stopCameraCapture()
+        stopAudioCapture()
+        stopAudioPlayout()
+        scope.cancel()
+        scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+        client.disconnect()
     }
 
     fun refreshParticipantsPublic() = refreshParticipants()
