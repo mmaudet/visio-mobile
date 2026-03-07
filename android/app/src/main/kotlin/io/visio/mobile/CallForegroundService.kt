@@ -11,6 +11,7 @@ import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
+import io.visio.mobile.ui.i18n.Strings
 
 class CallForegroundService : Service() {
 
@@ -35,10 +36,10 @@ class CallForegroundService : Service() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
                 CHANNEL_ID,
-                "Active Call",
+                Strings.t("notification.channelName", VisioManager.currentLang),
                 NotificationManager.IMPORTANCE_LOW,
             ).apply {
-                description = "Shows when a call is in progress"
+                description = Strings.t("notification.channelDescription", VisioManager.currentLang)
                 setShowBadge(false)
             }
             val nm = getSystemService(NotificationManager::class.java)
@@ -55,8 +56,8 @@ class CallForegroundService : Service() {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
         return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("Visio Mobile")
-            .setContentText("Call in progress")
+            .setContentTitle(Strings.t("notification.title", VisioManager.currentLang))
+            .setContentText(Strings.t("notification.text", VisioManager.currentLang))
             .setSmallIcon(R.mipmap.ic_launcher)
             .setOngoing(true)
             .setContentIntent(pendingIntent)

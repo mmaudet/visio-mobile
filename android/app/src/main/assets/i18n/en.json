@@ -112,5 +112,9 @@
   "settings.incall.cameraBack": "Back camera",
   "settings.incall.notifParticipant": "Participant joined",
   "settings.incall.notifHandRaised": "Hand raised",
-  "settings.incall.notifMessage": "Message received"
+  "settings.incall.notifMessage": "Message received",
+  "notification.channelName": "Active Call",
+  "notification.channelDescription": "Shows when a call is in progress",
+  "notification.title": "Visio Mobile",
+  "notification.text": "Call in progress"
 }
