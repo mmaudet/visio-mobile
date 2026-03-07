@@ -180,6 +180,53 @@ Whisper output (source language) -> language detection -> NLLB on-device -> tran
 
 ---
 
+### Feature 6: Adaptive Context Modes (seamless mobility)
+
+**What:** The app detects the user's physical context (office WiFi, walking on cellular, car Bluetooth) and adapts video quality, audio routing, and UI layout automatically — with manual override.
+
+**Context detection signals:**
+- Network type: WiFi vs cellular (Reachability / ConnectivityManager)
+- Bluetooth profile: A2DP car kit detection vs headphones vs speaker
+- Motion sensors: accelerometer/pedometer to detect walking (CoreMotion / SensorManager)
+- Screen lock state: screen off = pocket mode
+
+**Three adaptive modes:**
+
+| Mode | Trigger | Video | Audio | UI |
+|------|---------|-------|-------|----|
+| **Office** | WiFi connected, stationary | Full quality (720p) | Device speaker/headset | Standard full UI |
+| **Pedestrian** | Cellular + motion detected | Reduced quality (360p) or receive-only | Earpiece or wired headset | Compact floating bubble (PiP-style) with essential controls; tap to expand to full-screen with larger buttons, reduced info, high contrast for outdoor visibility |
+| **Car** | Bluetooth car kit connected | Outgoing video off, incoming audio-only | Bluetooth car audio (automatic routing) | Same compact bubble; audio-only by default |
+
+**Mode transitions:**
+- Automatic detection with smooth transition (no interruption to the call)
+- Small toast notification: "Switched to pedestrian mode" (dismissible)
+- Manual override: long-press mode indicator to force a specific mode or return to auto
+- Override persists until end of call or until user re-enables auto
+
+**Compact bubble UI (pedestrian/car):**
+- Floating mini-overlay (similar to existing PiP but with controls)
+- Shows: active speaker name, call duration, mute state
+- Controls: mute toggle, hang up, expand to full view
+- Tap to expand: full-screen with reorganized layout (larger buttons, fewer elements, stronger contrast)
+
+**Audio routing:**
+- WiFi → no change (user's current device)
+- Bluetooth car kit detected → audio routes to Bluetooth automatically (standard OS behavior, no custom logic needed)
+- Wired headset plugged in → audio routes to headset (OS default)
+- App does not override OS audio routing decisions, only adapts UI/video
+
+**Network adaptation:**
+- WiFi: publish 720p, subscribe to all video tracks
+- Cellular: publish 360p (or disable outgoing video), request lower-quality simulcast layers from server
+- Poor signal: graceful degradation — video off, audio priority, reconnect handling (already implemented in visio-core)
+
+**Platform scope:** Mobile only (Android + iOS). Desktop stays in office mode (no motion sensors, no Bluetooth car kit).
+
+**Dependency:** Builds on existing PiP (iOS) and Picture-in-Picture (Android) implementations.
+
+---
+
 ## Cross-cutting Concerns
 
 ### Model Management
@@ -203,4 +250,4 @@ Whisper output (source language) -> language detection -> NLLB on-device -> tran
 - Models sourced from open-source projects (Whisper: MIT, NLLB: CC-BY-NC, MediaPipe: Apache 2.0)
 
 ### Platform Parity
-All horizon 1 features target all 3 platforms (Android, iOS, Desktop). Platform-specific implementations share the same UX and data protocols.
+All horizon 1 features target all 3 platforms (Android, iOS, Desktop) except Feature 6 (Adaptive Context Modes) which is mobile-only. Platform-specific implementations share the same UX and data protocols.
