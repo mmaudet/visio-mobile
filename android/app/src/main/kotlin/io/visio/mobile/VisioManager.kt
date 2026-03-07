@@ -367,13 +367,14 @@ object VisioManager : VisioEventListener {
                 refreshParticipants()
             }
             is VisioEvent.ReactionReceived -> {
-                val reaction = ReactionData(
-                    id = reactionIdCounter++,
-                    participantSid = event.participantSid,
-                    participantName = event.participantName,
-                    emoji = event.emoji,
-                    timestamp = System.currentTimeMillis(),
-                )
+                val reaction =
+                    ReactionData(
+                        id = reactionIdCounter++,
+                        participantSid = event.participantSid,
+                        participantName = event.participantName,
+                        emoji = event.emoji,
+                        timestamp = System.currentTimeMillis(),
+                    )
                 _reactions.value = _reactions.value + reaction
             }
             is VisioEvent.ConnectionLost -> {

@@ -14,10 +14,13 @@ import androidx.core.app.NotificationCompat
 import io.visio.mobile.ui.i18n.Strings
 
 class CallForegroundService : Service() {
-
     override fun onBind(intent: Intent?): IBinder? = null
 
-    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+    override fun onStartCommand(
+        intent: Intent?,
+        flags: Int,
+        startId: Int,
+    ): Int {
         createNotificationChannel()
         val notification = buildNotification()
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
@@ -34,27 +37,32 @@ class CallForegroundService : Service() {
 
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(
-                CHANNEL_ID,
-                Strings.t("notification.channelName", VisioManager.currentLang),
-                NotificationManager.IMPORTANCE_LOW,
-            ).apply {
-                description = Strings.t("notification.channelDescription", VisioManager.currentLang)
-                setShowBadge(false)
-            }
+            val channel =
+                NotificationChannel(
+                    CHANNEL_ID,
+                    Strings.t("notification.channelName", VisioManager.currentLang),
+                    NotificationManager.IMPORTANCE_LOW,
+                ).apply {
+                    description = Strings.t("notification.channelDescription", VisioManager.currentLang)
+                    setShowBadge(false)
+                }
             val nm = getSystemService(NotificationManager::class.java)
             nm.createNotificationChannel(channel)
         }
     }
 
     private fun buildNotification(): Notification {
-        val intent = Intent(this, MainActivity::class.java).apply {
-            flags = Intent.FLAG_ACTIVITY_SINGLE_TOP
-        }
-        val pendingIntent = PendingIntent.getActivity(
-            this, 0, intent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
-        )
+        val intent =
+            Intent(this, MainActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_SINGLE_TOP
+            }
+        val pendingIntent =
+            PendingIntent.getActivity(
+                this,
+                0,
+                intent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+            )
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle(Strings.t("notification.title", VisioManager.currentLang))
             .setContentText(Strings.t("notification.text", VisioManager.currentLang))

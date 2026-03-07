@@ -57,7 +57,10 @@ impl AuthService {
             req = req.header("Cookie", format!("sessionid={cookie}"));
         }
 
-        let resp = req.send().await.map_err(|e| VisioError::Http(e.to_string()))?;
+        let resp = req
+            .send()
+            .await
+            .map_err(|e| VisioError::Http(e.to_string()))?;
 
         if resp.status().is_redirection() || resp.status() == reqwest::StatusCode::UNAUTHORIZED {
             return Err(VisioError::AuthRequired);
@@ -101,8 +104,8 @@ impl AuthService {
         } else {
             input
         };
-        let re = SLUG_RE
-            .get_or_init(|| regex::Regex::new(r"^[a-z]{3}-[a-z]{4}-[a-z]{3}$").unwrap());
+        let re =
+            SLUG_RE.get_or_init(|| regex::Regex::new(r"^[a-z]{3}-[a-z]{4}-[a-z]{3}$").unwrap());
         if re.is_match(candidate) {
             Ok(candidate.to_string())
         } else {

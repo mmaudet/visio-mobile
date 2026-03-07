@@ -83,12 +83,13 @@ fun HomeScreen(
     LaunchedEffect(roomUrl) {
         val trimmed = roomUrl.trim()
         val isSlug = slugRegex.matches(trimmed)
-        val candidate = if (isSlug) {
-            trimmed
-        } else {
-            val stripped = trimmed.trimEnd('/')
-            if ('/' in stripped) stripped.substringAfterLast('/') else stripped
-        }
+        val candidate =
+            if (isSlug) {
+                trimmed
+            } else {
+                val stripped = trimmed.trimEnd('/')
+                if ('/' in stripped) stripped.substringAfterLast('/') else stripped
+            }
         if (!slugRegex.matches(candidate)) {
             roomStatus = "idle"
             resolvedRoomUrl = trimmed
@@ -97,11 +98,12 @@ fun HomeScreen(
         roomStatus = "checking"
         delay(500)
         // If input is a slug, try each configured server; otherwise validate the full URL
-        val urlsToTry = if (isSlug && meetInstances.isNotEmpty()) {
-            meetInstances.map { server -> "https://$server/$trimmed" }
-        } else {
-            listOf(trimmed)
-        }
+        val urlsToTry =
+            if (isSlug && meetInstances.isNotEmpty()) {
+                meetInstances.map { server -> "https://$server/$trimmed" }
+            } else {
+                listOf(trimmed)
+            }
         try {
             var foundValid = false
             for (url in urlsToTry) {

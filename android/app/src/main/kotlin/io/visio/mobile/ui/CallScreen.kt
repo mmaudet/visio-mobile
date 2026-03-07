@@ -3,9 +3,9 @@ package io.visio.mobile.ui
 import android.Manifest
 import android.app.Activity
 import android.content.Context
-import android.util.Log
 import android.content.pm.PackageManager
 import android.os.Build
+import android.util.Log
 import android.view.WindowManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -85,16 +85,17 @@ import kotlin.math.absoluteValue
 
 private const val TAG = "CallScreen"
 
-private val REACTION_EMOJIS = listOf(
-    "thumbs-up" to "\uD83D\uDC4D",
-    "thumbs-down" to "\uD83D\uDC4E",
-    "clapping-hands" to "\uD83D\uDC4F",
-    "red-heart" to "\u2764\uFE0F",
-    "face-with-tears-of-joy" to "\uD83D\uDE02",
-    "face-with-open-mouth" to "\uD83D\uDE2E",
-    "party-popper" to "\uD83C\uDF89",
-    "folded-hands" to "\uD83D\uDE4F",
-)
+private val REACTION_EMOJIS =
+    listOf(
+        "thumbs-up" to "\uD83D\uDC4D",
+        "thumbs-down" to "\uD83D\uDC4E",
+        "clapping-hands" to "\uD83D\uDC4F",
+        "red-heart" to "\u2764\uFE0F",
+        "face-with-tears-of-joy" to "\uD83D\uDE02",
+        "face-with-open-mouth" to "\uD83D\uDE2E",
+        "party-popper" to "\uD83C\uDF89",
+        "folded-hands" to "\uD83D\uDE4F",
+    )
 
 fun Context.findActivity(): Activity? {
     var ctx = this
@@ -560,11 +561,12 @@ private fun ControlBar(
         // Reaction picker (slides above control bar)
         if (showReactionPicker) {
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 4.dp)
-                    .background(Color(0xCC000000), RoundedCornerShape(12.dp))
-                    .padding(horizontal = 8.dp, vertical = 8.dp),
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 4.dp)
+                        .background(Color(0xCC000000), RoundedCornerShape(12.dp))
+                        .padding(horizontal = 8.dp, vertical = 8.dp),
                 horizontalArrangement = Arrangement.SpaceEvenly,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -572,9 +574,10 @@ private fun ControlBar(
                     Text(
                         text = emoji,
                         fontSize = 28.sp,
-                        modifier = Modifier
-                            .clickable { onReaction(id) }
-                            .padding(4.dp),
+                        modifier =
+                            Modifier
+                                .clickable { onReaction(id) }
+                                .padding(4.dp),
                     )
                 }
             }
@@ -583,37 +586,48 @@ private fun ControlBar(
         // Overflow menu (slides above control bar)
         if (showOverflow) {
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 4.dp)
-                    .background(Color(0xCC000000), RoundedCornerShape(12.dp))
-                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 4.dp)
+                        .background(Color(0xCC000000), RoundedCornerShape(12.dp))
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
                 horizontalArrangement = Arrangement.SpaceEvenly,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 // Hand raise
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = Modifier.clickable {
-                        onToggleHandRaise()
-                        showOverflow = false
-                    }.padding(horizontal = 8.dp),
+                    modifier =
+                        Modifier.clickable {
+                            onToggleHandRaise()
+                            showOverflow = false
+                        }.padding(horizontal = 8.dp),
                 ) {
                     IconButton(
                         onClick = {
                             onToggleHandRaise()
                             showOverflow = false
                         },
-                        modifier = Modifier
-                            .size(38.dp)
-                            .background(
-                                if (isHandRaised) VisioColors.HandRaise else VisioColors.PrimaryDark100,
-                                RoundedCornerShape(8.dp),
-                            ),
+                        modifier =
+                            Modifier
+                                .size(38.dp)
+                                .background(
+                                    if (isHandRaised) VisioColors.HandRaise else VisioColors.PrimaryDark100,
+                                    RoundedCornerShape(8.dp),
+                                ),
                     ) {
                         Icon(
                             painter = painterResource(R.drawable.ri_hand),
-                            contentDescription = if (isHandRaised) Strings.t("control.lowerHand", lang) else Strings.t("control.raiseHand", lang),
+                            contentDescription =
+                                if (isHandRaised) {
+                                    Strings.t(
+                                        "control.lowerHand",
+                                        lang,
+                                    )
+                                } else {
+                                    Strings.t("control.raiseHand", lang)
+                                },
                             tint = if (isHandRaised) Color.Black else VisioColors.White,
                             modifier = Modifier.size(20.dp),
                         )
@@ -629,19 +643,21 @@ private fun ControlBar(
                 // Reaction
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = Modifier.clickable {
-                        showOverflow = false
-                        onToggleReactionPicker()
-                    }.padding(horizontal = 8.dp),
+                    modifier =
+                        Modifier.clickable {
+                            showOverflow = false
+                            onToggleReactionPicker()
+                        }.padding(horizontal = 8.dp),
                 ) {
                     IconButton(
                         onClick = {
                             showOverflow = false
                             onToggleReactionPicker()
                         },
-                        modifier = Modifier
-                            .size(38.dp)
-                            .background(VisioColors.PrimaryDark100, RoundedCornerShape(8.dp)),
+                        modifier =
+                            Modifier
+                                .size(38.dp)
+                                .background(VisioColors.PrimaryDark100, RoundedCornerShape(8.dp)),
                     ) {
                         Icon(
                             painter = painterResource(R.drawable.ri_emotion_line),
@@ -661,19 +677,21 @@ private fun ControlBar(
                 // Settings
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = Modifier.clickable {
-                        showOverflow = false
-                        onSettings()
-                    }.padding(horizontal = 8.dp),
+                    modifier =
+                        Modifier.clickable {
+                            showOverflow = false
+                            onSettings()
+                        }.padding(horizontal = 8.dp),
                 ) {
                     IconButton(
                         onClick = {
                             showOverflow = false
                             onSettings()
                         },
-                        modifier = Modifier
-                            .size(38.dp)
-                            .background(VisioColors.PrimaryDark100, RoundedCornerShape(8.dp)),
+                        modifier =
+                            Modifier
+                                .size(38.dp)
+                                .background(VisioColors.PrimaryDark100, RoundedCornerShape(8.dp)),
                     ) {
                         Icon(
                             painter = painterResource(R.drawable.ri_settings_3_line),
@@ -1111,14 +1129,18 @@ private fun ReactionOverlay(reactions: List<ReactionData>) {
 }
 
 @Composable
-private fun FloatingReaction(reaction: ReactionData, modifier: Modifier = Modifier) {
+private fun FloatingReaction(
+    reaction: ReactionData,
+    modifier: Modifier = Modifier,
+) {
     val emojiDisplay = REACTION_EMOJIS.find { it.first == reaction.emoji }?.second ?: reaction.emoji
     val density = LocalDensity.current
     val screenWidthDp = LocalConfiguration.current.screenWidthDp
     // Deterministic horizontal position based on reaction id (left 20% of screen)
-    val xOffsetDp = remember(reaction.id) {
-        ((reaction.id * 37 + 13) % (screenWidthDp * 20 / 100)).toInt()
-    }
+    val xOffsetDp =
+        remember(reaction.id) {
+            ((reaction.id * 37 + 13) % (screenWidthDp * 20 / 100)).toInt()
+        }
 
     val progress = remember { Animatable(0f) }
 
@@ -1130,16 +1152,18 @@ private fun FloatingReaction(reaction: ReactionData, modifier: Modifier = Modifi
     }
 
     val yOffset = with(density) { (-300.dp * progress.value).roundToPx() }
-    val alphaValue = if (progress.value > 0.7f) {
-        1f - ((progress.value - 0.7f) / 0.3f)
-    } else {
-        1f
-    }
+    val alphaValue =
+        if (progress.value > 0.7f) {
+            1f - ((progress.value - 0.7f) / 0.3f)
+        } else {
+            1f
+        }
 
     Column(
-        modifier = modifier
-            .offset { IntOffset(with(density) { xOffsetDp.dp.roundToPx() }, yOffset) }
-            .alpha(alphaValue),
+        modifier =
+            modifier
+                .offset { IntOffset(with(density) { xOffsetDp.dp.roundToPx() }, yOffset) }
+                .alpha(alphaValue),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Text(
@@ -1153,9 +1177,10 @@ private fun FloatingReaction(reaction: ReactionData, modifier: Modifier = Modifi
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
             textAlign = TextAlign.Center,
-            modifier = Modifier
-                .background(Color(0x99000000), RoundedCornerShape(4.dp))
-                .padding(horizontal = 4.dp, vertical = 1.dp),
+            modifier =
+                Modifier
+                    .background(Color(0x99000000), RoundedCornerShape(4.dp))
+                    .padding(horizontal = 4.dp, vertical = 1.dp),
         )
     }
 }

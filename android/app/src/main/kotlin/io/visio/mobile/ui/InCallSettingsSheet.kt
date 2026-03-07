@@ -63,7 +63,6 @@ import io.visio.mobile.ui.i18n.Strings
 import io.visio.mobile.ui.theme.VisioColors
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -501,11 +500,12 @@ private fun CameraTab(
     ) {
         items(imageIds) { id ->
             val isSelected = backgroundMode == "image:$id"
-            val bitmap = remember(id) {
-                BitmapFactory.decodeStream(
-                    context.assets.open("backgrounds/thumbnails/$id.jpg")
-                )
-            }
+            val bitmap =
+                remember(id) {
+                    BitmapFactory.decodeStream(
+                        context.assets.open("backgrounds/thumbnails/$id.jpg"),
+                    )
+                }
             Box(
                 modifier =
                     Modifier
@@ -520,7 +520,7 @@ private fun CameraTab(
                                 )
                             } else {
                                 Modifier
-                            }
+                            },
                         )
                         .clickable {
                             backgroundMode = "image:$id"

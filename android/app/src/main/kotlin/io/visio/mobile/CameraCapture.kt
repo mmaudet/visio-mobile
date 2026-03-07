@@ -35,8 +35,11 @@ class CameraCapture(private val context: Context) {
     private var imageReader: ImageReader? = null
     private var handlerThread: HandlerThread? = null
     private var handler: Handler? = null
+
     @Volatile private var sensorOrientation: Int = 0
+
     @Volatile private var isFrontCamera: Boolean = false
+
     @Volatile private var running = false
     private val displayManager = context.getSystemService(Context.DISPLAY_SERVICE) as DisplayManager
 

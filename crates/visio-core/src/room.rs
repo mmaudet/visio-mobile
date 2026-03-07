@@ -204,8 +204,7 @@ impl RoomManager {
         self.set_connection_state(ConnectionState::Connecting).await;
 
         let cookie = self.session_cookie.lock().await;
-        let token_info =
-            AuthService::request_token(meet_url, username, cookie.as_deref()).await?;
+        let token_info = AuthService::request_token(meet_url, username, cookie.as_deref()).await?;
 
         self.connect_with_token(&token_info.livekit_url, &token_info.token)
             .await
@@ -834,7 +833,8 @@ impl RoomManager {
                                     messages.lock().await.push(msg.clone());
                                     emitter.emit(VisioEvent::ChatMessageReceived(msg));
                                     if !chat_open.load(Ordering::Relaxed) {
-                                        let count = unread_count.fetch_add(1, Ordering::Relaxed) + 1;
+                                        let count =
+                                            unread_count.fetch_add(1, Ordering::Relaxed) + 1;
                                         emitter.emit(VisioEvent::UnreadCountChanged(count));
                                     }
                                 }
