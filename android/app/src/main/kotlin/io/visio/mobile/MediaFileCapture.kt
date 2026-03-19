@@ -17,7 +17,6 @@ import java.nio.ByteOrder
  * Both tracks loop when the file ends.
  */
 class MediaFileCapture(private val filePath: String) {
-
     companion object {
         private const val TAG = "MediaFileCapture"
 
@@ -37,6 +36,7 @@ class MediaFileCapture(private val filePath: String) {
     }
 
     @Volatile private var audioRunning = false
+
     @Volatile private var videoRunning = false
 
     private var audioThread: Thread? = null
@@ -50,21 +50,22 @@ class MediaFileCapture(private val filePath: String) {
         if (audioRunning) return
         audioRunning = true
 
-        audioThread = Thread({
-            android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_URGENT_AUDIO)
-            Log.i(TAG, "Audio decode thread started for: $filePath")
+        audioThread =
+            Thread({
+                android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_URGENT_AUDIO)
+                Log.i(TAG, "Audio decode thread started for: $filePath")
 
-            while (audioRunning) {
-                try {
-                    decodeAudioPass()
-                } catch (e: Exception) {
-                    Log.e(TAG, "Audio decode error, stopping", e)
-                    audioRunning = false
+                while (audioRunning) {
+                    try {
+                        decodeAudioPass()
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Audio decode error, stopping", e)
+                        audioRunning = false
+                    }
                 }
-            }
 
-            Log.i(TAG, "Audio decode thread stopped")
-        }, "MediaFileCapture-Audio").also { it.start() }
+                Log.i(TAG, "Audio decode thread stopped")
+            }, "MediaFileCapture-Audio").also { it.start() }
     }
 
     /**
@@ -75,21 +76,22 @@ class MediaFileCapture(private val filePath: String) {
         if (videoRunning) return
         videoRunning = true
 
-        videoThread = Thread({
-            android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_MORE_FAVORABLE)
-            Log.i(TAG, "Video decode thread started for: $filePath")
+        videoThread =
+            Thread({
+                android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_MORE_FAVORABLE)
+                Log.i(TAG, "Video decode thread started for: $filePath")
 
-            while (videoRunning) {
-                try {
-                    decodeVideoPass()
-                } catch (e: Exception) {
-                    Log.e(TAG, "Video decode error, stopping", e)
-                    videoRunning = false
+                while (videoRunning) {
+                    try {
+                        decodeVideoPass()
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Video decode error, stopping", e)
+                        videoRunning = false
+                    }
                 }
-            }
 
-            Log.i(TAG, "Video decode thread stopped")
-        }, "MediaFileCapture-Video").also { it.start() }
+                Log.i(TAG, "Video decode thread stopped")
+            }, "MediaFileCapture-Video").also { it.start() }
     }
 
     fun stopAudio() {
@@ -190,24 +192,26 @@ class MediaFileCapture(private val filePath: String) {
                         outBuf.asShortBuffer().get(pcm)
 
                         // Mix down to mono if stereo+
-                        val mono = if (srcChannels > 1) {
-                            ShortArray(frameSamples) { i ->
-                                var sum = 0
-                                for (ch in 0 until srcChannels) {
-                                    sum += pcm[i * srcChannels + ch].toInt()
+                        val mono =
+                            if (srcChannels > 1) {
+                                ShortArray(frameSamples) { i ->
+                                    var sum = 0
+                                    for (ch in 0 until srcChannels) {
+                                        sum += pcm[i * srcChannels + ch].toInt()
+                                    }
+                                    (sum / srcChannels).toShort()
                                 }
-                                (sum / srcChannels).toShort()
+                            } else {
+                                pcm
                             }
-                        } else {
-                            pcm
-                        }
 
                         // Resample to 48kHz if needed (linear interpolation)
-                        val resampled = if (srcSampleRate != TARGET_SAMPLE_RATE) {
-                            resampleLinear(mono, srcSampleRate, TARGET_SAMPLE_RATE)
-                        } else {
-                            mono
-                        }
+                        val resampled =
+                            if (srcSampleRate != TARGET_SAMPLE_RATE) {
+                                resampleLinear(mono, srcSampleRate, TARGET_SAMPLE_RATE)
+                            } else {
+                                mono
+                            }
 
                         // Accumulate and push 480-sample frames
                         var srcOffset = 0
@@ -225,7 +229,10 @@ class MediaFileCapture(private val filePath: String) {
                                 pushBuffer.limit(SAMPLES_PER_FRAME * 2)
 
                                 NativeVideo.nativePushAudioFrame(
-                                    pushBuffer, SAMPLES_PER_FRAME, TARGET_SAMPLE_RATE, TARGET_CHANNELS,
+                                    pushBuffer,
+                                    SAMPLES_PER_FRAME,
+                                    TARGET_SAMPLE_RATE,
+                                    TARGET_CHANNELS,
                                 )
 
                                 // Pace at real-time (10ms per frame)
@@ -269,7 +276,7 @@ class MediaFileCapture(private val filePath: String) {
         val mime = format.getString(MediaFormat.KEY_MIME) ?: "video/avc"
         val width = format.getInteger(MediaFormat.KEY_WIDTH)
         val height = format.getInteger(MediaFormat.KEY_HEIGHT)
-        Log.i(TAG, "Video track: mime=$mime, ${width}x${height}")
+        Log.i(TAG, "Video track: mime=$mime, ${width}x$height")
 
         // Request YUV output
         format.setInteger(
@@ -326,7 +333,8 @@ class MediaFileCapture(private val filePath: String) {
                                 vPlane.pixelStride,
                                 outWidth,
                                 outHeight,
-                                0, // no rotation for file playback
+                                // no rotation for file playback
+                                0,
                             )
 
                             image.close()
@@ -355,7 +363,10 @@ class MediaFileCapture(private val filePath: String) {
     /**
      * Find the first track in the extractor matching the given MIME prefix.
      */
-    private fun findTrack(extractor: MediaExtractor, mimePrefix: String): Int {
+    private fun findTrack(
+        extractor: MediaExtractor,
+        mimePrefix: String,
+    ): Int {
         for (i in 0 until extractor.trackCount) {
             val mime = extractor.getTrackFormat(i).getString(MediaFormat.KEY_MIME) ?: continue
             if (mime.startsWith(mimePrefix)) return i
@@ -366,7 +377,11 @@ class MediaFileCapture(private val filePath: String) {
     /**
      * Linear interpolation resampler. Converts mono PCM from srcRate to dstRate.
      */
-    private fun resampleLinear(input: ShortArray, srcRate: Int, dstRate: Int): ShortArray {
+    private fun resampleLinear(
+        input: ShortArray,
+        srcRate: Int,
+        dstRate: Int,
+    ): ShortArray {
         if (input.isEmpty()) return input
         val ratio = srcRate.toDouble() / dstRate.toDouble()
         val outLen = (input.size / ratio).toInt()

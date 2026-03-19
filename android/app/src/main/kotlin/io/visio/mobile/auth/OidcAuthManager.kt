@@ -19,24 +19,25 @@ class OidcAuthManager(context: Context) {
             .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
             .build()
 
-    private val prefs = try {
-        EncryptedSharedPreferences.create(
-            context,
-            "visio_auth",
-            masterKey,
-            EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
-            EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM,
-        )
-    } catch (_: Exception) {
-        context.deleteSharedPreferences("visio_auth")
-        EncryptedSharedPreferences.create(
-            context,
-            "visio_auth",
-            masterKey,
-            EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
-            EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM,
-        )
-    }
+    private val prefs =
+        try {
+            EncryptedSharedPreferences.create(
+                context,
+                "visio_auth",
+                masterKey,
+                EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+                EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM,
+            )
+        } catch (_: Exception) {
+            context.deleteSharedPreferences("visio_auth")
+            EncryptedSharedPreferences.create(
+                context,
+                "visio_auth",
+                masterKey,
+                EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+                EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM,
+            )
+        }
 
     /** The meet instance currently being authenticated against. */
     var pendingAuthInstance: String? = null
@@ -63,9 +64,10 @@ class OidcAuthManager(context: Context) {
 
         Log.d(TAG, "Starting OIDC flow via Custom Tab: $authUrl")
 
-        val customTabsIntent = CustomTabsIntent.Builder()
-            .setShowTitle(true)
-            .build()
+        val customTabsIntent =
+            CustomTabsIntent.Builder()
+                .setShowTitle(true)
+                .build()
         customTabsIntent.launchUrl(context, Uri.parse(authUrl))
     }
 
@@ -73,12 +75,10 @@ class OidcAuthManager(context: Context) {
      * Called when the visio://auth-callback deep link is received.
      * Extracts the sessionid cookie from CookieManager (shared with Custom Tab / Chrome).
      *
-     * @return Pair of (sessionid, meetInstance) if successful, null otherwise.
-     */
-    /**
      * @param consumeOnFailure If true (default, used by deep link callback), clears
      *   pendingAuthInstance even if no cookie is found. If false (used by onResume fallback),
      *   keeps pendingAuthInstance so the user can finish auth and return again.
+     * @return Pair of (sessionid, meetInstance) if successful, null otherwise.
      */
     fun handleAuthCallback(consumeOnFailure: Boolean = true): Pair<String, String>? {
         val meetInstance = pendingAuthInstance
