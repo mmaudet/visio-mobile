@@ -2057,6 +2057,23 @@ pub unsafe extern "C" fn visio_push_ios_camera_frame(
         );
     }
 
+    // Deliver post-blur frame to local preview.
+    {
+        let strides = i420.strides();
+        let (y_data, u_data, v_data) = i420.data();
+        visio_video::deliver_i420_to_ios_callback(
+            width,
+            height,
+            y_data.as_ptr(),
+            strides.0,
+            u_data.as_ptr(),
+            strides.1,
+            v_data.as_ptr(),
+            strides.2,
+            "local-camera",
+        );
+    }
+
     let frame = VideoFrame {
         rotation: VideoRotation::VideoRotation0,
         timestamp_us: 0,

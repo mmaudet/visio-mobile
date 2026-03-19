@@ -205,6 +205,5 @@ final class CameraCapture: NSObject, AVCaptureVideoDataOutputSampleBufferDelegat
         }
 
         pushNV12FrameToRust(pixelBuffer, uPlane: &uPlane, vPlane: &vPlane)
-        VideoFrameRouter.shared.deliverLocalPreviewBuffer(sampleBuffer)
     }
 }

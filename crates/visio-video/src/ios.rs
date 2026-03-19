@@ -53,6 +53,43 @@ pub unsafe extern "C" fn visio_video_set_ios_callback(
     });
 }
 
+/// Send I420 planes to the iOS callback for a given track SID.
+pub fn deliver_i420_to_ios_callback(
+    width: u32,
+    height: u32,
+    y_ptr: *const u8,
+    y_stride: u32,
+    u_ptr: *const u8,
+    u_stride: u32,
+    v_ptr: *const u8,
+    v_stride: u32,
+    track_sid: &str,
+) {
+    let Some(cb) = IOS_CALLBACK.get() else {
+        return;
+    };
+
+    let sid_cstr = match std::ffi::CString::new(track_sid) {
+        Ok(s) => s,
+        Err(_) => return,
+    };
+
+    unsafe {
+        (cb.callback)(
+            width,
+            height,
+            y_ptr,
+            y_stride,
+            u_ptr,
+            u_stride,
+            v_ptr,
+            v_stride,
+            sid_cstr.as_ptr(),
+            cb.user_data,
+        );
+    }
+}
+
 /// Render a single I420 frame by passing plane pointers to the iOS callback.
 ///
 /// The Swift callback receives raw Y/U/V plane pointers and strides so it can
