@@ -365,11 +365,9 @@ struct HomeView: View {
     }
 
     private func launchOidc(meetInstance: String) {
-        manager.authManager.launchOidcFlow(meetInstance: meetInstance) { [weak manager] cookie in
-            if let cookie, let manager {
-                manager.onAuthCookieReceived(cookie, meetInstance: meetInstance)
-            }
-        }
+        // Use WKWebView directly — ASWebAuthenticationSession does not reliably
+        // expose cookies to the app on real devices (iOS 17+).
+        manager.authManager.pendingInstance = meetInstance
     }
 }
 
@@ -451,11 +449,8 @@ private struct ServerPickerWithOidc: View {
     }
 
     private func selectInstance(_ instance: String) {
-        // Dismiss the server picker sheet, then launch ASWebAuthenticationSession
         onDismiss()
-        manager.authManager.launchOidcFlow(meetInstance: instance) { cookie in
-            onComplete(cookie, instance)
-        }
+        manager.authManager.pendingInstance = instance
     }
 
     var body: some View {
