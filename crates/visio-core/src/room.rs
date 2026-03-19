@@ -285,12 +285,11 @@ impl RoomManager {
         if let Some(lk_room) = room.as_ref() {
             for (_, participant) in lk_room.remote_participants() {
                 for (sid, publication) in participant.track_publications() {
-                    if sid.as_str() == track_sid {
-                        if let Some(track) = publication.track() {
-                            if let livekit::track::RemoteTrack::Audio(audio_track) = track {
-                                return Some(audio_track);
-                            }
-                        }
+                    if sid.as_str() == track_sid
+                        && let Some(livekit::track::RemoteTrack::Audio(audio_track)) =
+                            publication.track()
+                    {
+                        return Some(audio_track);
                     }
                 }
             }
@@ -532,10 +531,10 @@ impl RoomManager {
         {
             let mut last = self.last_reaction_time.lock().await;
             let now = std::time::Instant::now();
-            if let Some(prev) = *last {
-                if now.duration_since(prev) < std::time::Duration::from_millis(100) {
-                    return Err(VisioError::Room("reaction rate limited".into()));
-                }
+            if let Some(prev) = *last
+                && now.duration_since(prev) < std::time::Duration::from_millis(100)
+            {
+                return Err(VisioError::Room("reaction rate limited".into()));
             }
             *last = Some(now);
         }
@@ -1050,7 +1049,7 @@ impl RoomManager {
 
         let attrs = p.attributes();
         let color = attrs.get("color").cloned().filter(|s| !s.is_empty());
-        let is_admin = attrs.get("room_admin").map_or(false, |v| v == "true");
+        let is_admin = attrs.get("room_admin").is_some_and(|v| v == "true");
 
         ParticipantInfo {
             sid: p.sid().to_string(),
@@ -1644,10 +1643,10 @@ impl RoomManager {
                         match json["type"].as_str() {
                             Some("lowerAllHands") => {
                                 tracing::info!("received lowerAllHands from {psid}");
-                                if let Some(hm) = hand_raise.lock().await.as_ref() {
-                                    if hm.is_hand_raised().await {
-                                        let _ = hm.lower_hand().await;
-                                    }
+                                if let Some(hm) = hand_raise.lock().await.as_ref()
+                                    && hm.is_hand_raised().await
+                                {
+                                    let _ = hm.lower_hand().await;
                                 }
                                 continue;
                             }
