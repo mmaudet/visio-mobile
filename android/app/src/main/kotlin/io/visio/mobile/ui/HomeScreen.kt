@@ -453,9 +453,10 @@ fun HomeScreen(
                                 coroutineScope.launch {
                                     try {
                                         val uname = username.trim().ifEmpty { null }
-                                        val result = withContext(Dispatchers.IO) {
-                                            VisioManager.client.validateRoom(url, uname)
-                                        }
+                                        val result =
+                                            withContext(Dispatchers.IO) {
+                                                VisioManager.client.validateRoom(url, uname)
+                                            }
                                         if (result is RoomValidationResult.Valid) {
                                             historyJoining = null
                                             onJoin(url, username.trim())

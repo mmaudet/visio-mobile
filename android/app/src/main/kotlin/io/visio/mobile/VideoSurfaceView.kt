@@ -18,7 +18,6 @@ class VideoSurfaceView(
     context: Context,
     private val trackSid: String,
 ) : SurfaceView(context), SurfaceHolder.Callback {
-
     init {
         holder.addCallback(this)
         holder.setFormat(PixelFormat.RGBA_8888)
@@ -30,7 +29,12 @@ class VideoSurfaceView(
         NativeVideo.attachSurface(trackSid, holder.surface)
     }
 
-    override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {
+    override fun surfaceChanged(
+        holder: SurfaceHolder,
+        format: Int,
+        width: Int,
+        height: Int,
+    ) {
         Log.d(TAG, "surfaceChanged track=$trackSid ${width}x$height")
     }
 

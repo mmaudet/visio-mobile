@@ -12,11 +12,11 @@ import android.util.Rational
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import io.visio.mobile.auth.OidcAuthManager
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.ui.Modifier
+import io.visio.mobile.auth.OidcAuthManager
 import io.visio.mobile.navigation.AppNavigation
 import io.visio.mobile.ui.theme.VisioTheme
 import kotlinx.coroutines.CoroutineScope

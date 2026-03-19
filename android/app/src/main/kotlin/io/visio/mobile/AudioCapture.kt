@@ -126,38 +126,39 @@ class AudioCapture {
 
         Log.i(TAG, "Synthetic audio capture started: ${SINE_FREQ}Hz sine, ${SAMPLE_RATE}Hz, ${FRAME_SIZE_MS}ms frames")
 
-        recordThread = Thread({
-            val buffer = ByteBuffer.allocateDirect(SAMPLES_PER_FRAME * 2)
-            buffer.order(ByteOrder.nativeOrder())
-            val shortBuffer = buffer.asShortBuffer()
+        recordThread =
+            Thread({
+                val buffer = ByteBuffer.allocateDirect(SAMPLES_PER_FRAME * 2)
+                buffer.order(ByteOrder.nativeOrder())
+                val shortBuffer = buffer.asShortBuffer()
 
-            android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_URGENT_AUDIO)
+                android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_URGENT_AUDIO)
 
-            val tempArray = ShortArray(SAMPLES_PER_FRAME)
-            var sampleOffset = 0L
+                val tempArray = ShortArray(SAMPLES_PER_FRAME)
+                var sampleOffset = 0L
 
-            while (running) {
-                for (i in 0 until SAMPLES_PER_FRAME) {
-                    val t = (sampleOffset + i) / SAMPLE_RATE.toDouble()
-                    tempArray[i] = (Math.sin(t * SINE_FREQ * 2.0 * Math.PI) * SINE_AMPLITUDE).toInt().toShort()
+                while (running) {
+                    for (i in 0 until SAMPLES_PER_FRAME) {
+                        val t = (sampleOffset + i) / SAMPLE_RATE.toDouble()
+                        tempArray[i] = (Math.sin(t * SINE_FREQ * 2.0 * Math.PI) * SINE_AMPLITUDE).toInt().toShort()
+                    }
+                    sampleOffset += SAMPLES_PER_FRAME
+
+                    buffer.clear()
+                    shortBuffer.clear()
+                    shortBuffer.put(tempArray, 0, SAMPLES_PER_FRAME)
+                    buffer.position(0)
+                    buffer.limit(SAMPLES_PER_FRAME * 2)
+
+                    NativeVideo.nativePushAudioFrame(
+                        buffer, SAMPLES_PER_FRAME, SAMPLE_RATE, CHANNELS,
+                    )
+
+                    Thread.sleep(FRAME_SIZE_MS.toLong())
                 }
-                sampleOffset += SAMPLES_PER_FRAME
 
-                buffer.clear()
-                shortBuffer.clear()
-                shortBuffer.put(tempArray, 0, SAMPLES_PER_FRAME)
-                buffer.position(0)
-                buffer.limit(SAMPLES_PER_FRAME * 2)
-
-                NativeVideo.nativePushAudioFrame(
-                    buffer, SAMPLES_PER_FRAME, SAMPLE_RATE, CHANNELS,
-                )
-
-                Thread.sleep(FRAME_SIZE_MS.toLong())
-            }
-
-            Log.i(TAG, "Synthetic audio capture stopped")
-        }, "SyntheticAudioCapture").also { it.start() }
+                Log.i(TAG, "Synthetic audio capture stopped")
+            }, "SyntheticAudioCapture").also { it.start() }
     }
 
     fun setPreferredDevice(device: AudioDeviceInfo?) {

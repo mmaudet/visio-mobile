@@ -136,7 +136,7 @@ object VisioManager : VisioEventListener {
     var pendingDeepLink: String? by mutableStateOf(null)
 
     // Test deep link: connect directly with LiveKit URL + token (debug builds only)
-    var pendingTestConnect: Triple<String, String, String?>? = null  // (livekitUrl, token, mediaFile?)
+    var pendingTestConnect: Triple<String, String, String?>? = null // (livekitUrl, token, mediaFile?)
 
     // Media file capture for E2E testing (replaces synthetic audio/camera)
     private var mediaFileCapture: MediaFileCapture? = null
@@ -353,10 +353,11 @@ object VisioManager : VisioEventListener {
      */
     fun startMediaFileCapture(filePath: String) {
         if (mediaFileCapture != null) return
-        mediaFileCapture = MediaFileCapture(filePath).also {
-            it.startAudio()
-            it.startVideo()
-        }
+        mediaFileCapture =
+            MediaFileCapture(filePath).also {
+                it.startAudio()
+                it.startVideo()
+            }
     }
 
     /**
@@ -764,13 +765,14 @@ object VisioManager : VisioEventListener {
             try {
                 client.sendReaction(emoji)
                 // Show reaction locally (server echo is filtered out in Rust)
-                val reaction = ReactionData(
-                    id = reactionIdCounter++,
-                    participantSid = "local",
-                    participantName = client.getSettings().displayName ?: "",
-                    emoji = emoji,
-                    timestamp = System.currentTimeMillis(),
-                )
+                val reaction =
+                    ReactionData(
+                        id = reactionIdCounter++,
+                        participantSid = "local",
+                        participantName = client.getSettings().displayName ?: "",
+                        emoji = emoji,
+                        timestamp = System.currentTimeMillis(),
+                    )
                 _reactions.value = _reactions.value + reaction
             } catch (e: Exception) {
                 Log.e("VISIO", "sendReaction failed: ${e.message}")
