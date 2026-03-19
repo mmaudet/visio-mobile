@@ -1,8 +1,8 @@
 use futures_util::StreamExt;
+use livekit::DisconnectReason;
 use livekit::data_stream::StreamReader;
 use livekit::participant::ConnectionQuality as LkConnectionQuality;
 use livekit::prelude::{DataPacket, RemoteParticipant, Room, RoomEvent, RoomOptions};
-use livekit::DisconnectReason;
 use livekit::track::{
     RemoteVideoTrack, TrackKind as LkTrackKind, TrackSource as LkTrackSource, VideoQuality,
 };
@@ -277,17 +277,19 @@ impl RoomManager {
     /// Get a subscribed remote audio track by its SID.
     ///
     /// Returns `None` if the track is not currently subscribed.
-    pub async fn get_audio_track(&self, track_sid: &str) -> Option<livekit::track::RemoteAudioTrack> {
+    pub async fn get_audio_track(
+        &self,
+        track_sid: &str,
+    ) -> Option<livekit::track::RemoteAudioTrack> {
         let room = self.room.lock().await;
         if let Some(lk_room) = room.as_ref() {
             for (_, participant) in lk_room.remote_participants() {
                 for (sid, publication) in participant.track_publications() {
-                    if sid.as_str() == track_sid {
-                        if let Some(track) = publication.track() {
-                            if let livekit::track::RemoteTrack::Audio(audio_track) = track {
-                                return Some(audio_track);
-                            }
-                        }
+                    if sid.as_str() == track_sid
+                        && let Some(livekit::track::RemoteTrack::Audio(audio_track)) =
+                            publication.track()
+                    {
+                        return Some(audio_track);
                     }
                 }
             }
@@ -511,9 +513,8 @@ impl RoomManager {
     }
 
     /// Allowed emoji IDs for reactions (matches Meet web client).
-    const ALLOWED_EMOJIS: &'static [&'static str] = &[
-        "thumbsUp", "clap", "joy", "openMouth", "tada", "heart",
-    ];
+    const ALLOWED_EMOJIS: &'static [&'static str] =
+        &["thumbsUp", "clap", "joy", "openMouth", "tada", "heart"];
 
     /// Send an animated reaction visible to all participants.
     ///
@@ -530,10 +531,10 @@ impl RoomManager {
         {
             let mut last = self.last_reaction_time.lock().await;
             let now = std::time::Instant::now();
-            if let Some(prev) = *last {
-                if now.duration_since(prev) < std::time::Duration::from_millis(100) {
-                    return Err(VisioError::Room("reaction rate limited".into()));
-                }
+            if let Some(prev) = *last
+                && now.duration_since(prev) < std::time::Duration::from_millis(100)
+            {
+                return Err(VisioError::Room("reaction rate limited".into()));
             }
             *last = Some(now);
         }
@@ -599,9 +600,9 @@ impl RoomManager {
                 payload: data,
                 topic: None,
                 reliable: true,
-                destination_identities: vec![
-                    livekit::id::ParticipantIdentity(identity.to_string()),
-                ],
+                destination_identities: vec![livekit::id::ParticipantIdentity(
+                    identity.to_string(),
+                )],
             })
             .await
             .map_err(|e| VisioError::Room(format!("mute participant: {e}")))?;
@@ -753,8 +754,8 @@ impl RoomManager {
         let high_quality_mode = self.high_quality_mode.clone();
 
         tokio::spawn(async move {
-            let lobby_deadline = tokio::time::Instant::now()
-                + std::time::Duration::from_secs(10 * 60); // 10 minutes
+            let lobby_deadline =
+                tokio::time::Instant::now() + std::time::Duration::from_secs(10 * 60); // 10 minutes
 
             loop {
                 tokio::select! {
@@ -1048,7 +1049,7 @@ impl RoomManager {
 
         let attrs = p.attributes();
         let color = attrs.get("color").cloned().filter(|s| !s.is_empty());
-        let is_admin = attrs.get("room_admin").map_or(false, |v| v == "true");
+        let is_admin = attrs.get("room_admin").is_some_and(|v| v == "true");
 
         ParticipantInfo {
             sid: p.sid().to_string(),
@@ -1141,7 +1142,9 @@ impl RoomManager {
                             ConnectionState::Disconnected,
                         ));
                     } else if reason == DisconnectReason::DuplicateIdentity {
-                        tracing::warn!("disconnected: duplicate identity (connected from another device)");
+                        tracing::warn!(
+                            "disconnected: duplicate identity (connected from another device)"
+                        );
                         emitter.emit(VisioEvent::DisconnectedDuplicateIdentity);
                     } else if reason == DisconnectReason::ParticipantRemoved {
                         tracing::warn!("disconnected: removed by admin");
@@ -1178,7 +1181,9 @@ impl RoomManager {
                             const IDLE_SECS: u32 = 120;
                             let mut remaining = IDLE_SECS;
                             while remaining > 0 {
-                                emitter_idle.emit(VisioEvent::AloneInRoom { remaining_secs: remaining });
+                                emitter_idle.emit(VisioEvent::AloneInRoom {
+                                    remaining_secs: remaining,
+                                });
                                 tokio::time::sleep(std::time::Duration::from_secs(10)).await;
                                 remaining = remaining.saturating_sub(10);
                             }
@@ -1400,7 +1405,11 @@ impl RoomManager {
                         let mut pm = participants.lock().await;
                         if let Some(p) = pm.participant_mut(&psid) {
                             if let Some(color) = changed_attributes.get("color") {
-                                p.color = if color.is_empty() { None } else { Some(color.clone()) };
+                                p.color = if color.is_empty() {
+                                    None
+                                } else {
+                                    Some(color.clone())
+                                };
                             }
                             if let Some(admin) = changed_attributes.get("room_admin") {
                                 p.is_admin = admin == "true";
@@ -1634,10 +1643,10 @@ impl RoomManager {
                         match json["type"].as_str() {
                             Some("lowerAllHands") => {
                                 tracing::info!("received lowerAllHands from {psid}");
-                                if let Some(hm) = hand_raise.lock().await.as_ref() {
-                                    if hm.is_hand_raised().await {
-                                        let _ = hm.lower_hand().await;
-                                    }
+                                if let Some(hm) = hand_raise.lock().await.as_ref()
+                                    && hm.is_hand_raised().await
+                                {
+                                    let _ = hm.lower_hand().await;
                                 }
                                 continue;
                             }

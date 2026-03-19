@@ -143,7 +143,20 @@ final class CameraCapture: NSObject, AVCaptureVideoDataOutputSampleBufferDelegat
                 session.addInput(newInput)
                 currentInput = newInput
                 currentPosition = newPosition
+
+                // Reconfigure connection: update orientation and mirroring for
+                // the new camera. Without this, the back camera inherits the
+                // front camera's mirroring and orientation may be stale.
+                if let connection = videoOutput?.connection(with: .video) {
+                    if connection.isVideoOrientationSupported {
+                        connection.videoOrientation = Self.currentVideoOrientation()
+                    }
+                    if connection.isVideoMirroringSupported {
+                        connection.isVideoMirrored = (newPosition == .front)
+                    }
+                }
             }
+
             session.commitConfiguration()
             NSLog("CameraCapture: switched to %@ camera", toFront ? "front" : "back")
         }

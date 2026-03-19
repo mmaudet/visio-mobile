@@ -649,8 +649,14 @@ mod tests {
             store.set_camera_device(Some("FaceTime HD".to_string()));
         }
         let store = SettingsStore::new(path);
-        assert_eq!(store.get_audio_input_device(), Some("Blue Yeti".to_string()));
-        assert_eq!(store.get_audio_output_device(), Some("Speakers".to_string()));
+        assert_eq!(
+            store.get_audio_input_device(),
+            Some("Blue Yeti".to_string())
+        );
+        assert_eq!(
+            store.get_audio_output_device(),
+            Some("Speakers".to_string())
+        );
         assert_eq!(store.get_camera_device(), Some("FaceTime HD".to_string()));
     }
 

@@ -179,7 +179,12 @@ fun CallScreen(
     val lobbyNotification by VisioManager.lobbyNotification.collectAsState()
     val waitingParticipants by VisioManager.waitingParticipants.collectAsState()
     val adaptiveMode by VisioManager.adaptiveMode.collectAsState()
-    val isAdaptiveModeEnabled = try { VisioManager.client.isAdaptiveModeEnabled() } catch (_: Exception) { false }
+    val isAdaptiveModeEnabled =
+        try {
+            VisioManager.client.isAdaptiveModeEnabled()
+        } catch (_: Exception) {
+            false
+        }
 
     val context = LocalContext.current
     val lang = VisioManager.currentLang
@@ -401,15 +406,30 @@ fun CallScreen(
                 // Auto-chat messages for E2E test (turn-based)
                 coroutineScope.launch(Dispatchers.IO) {
                     delay(3000)
-                    try { VisioManager.client.sendChatMessage("Android joined the room!") } catch (_: Exception) {}
+                    try {
+                        VisioManager.client.sendChatMessage("Android joined the room!")
+                    } catch (_: Exception) {
+                    }
                     delay(47000) // 50s total
-                    try { VisioManager.client.sendChatMessage("Android: my turn to speak!") } catch (_: Exception) {}
+                    try {
+                        VisioManager.client.sendChatMessage("Android: my turn to speak!")
+                    } catch (_: Exception) {
+                    }
                     delay(15000) // 65s total
-                    try { VisioManager.client.sendChatMessage("Android: mid-turn check-in") } catch (_: Exception) {}
+                    try {
+                        VisioManager.client.sendChatMessage("Android: mid-turn check-in")
+                    } catch (_: Exception) {
+                    }
                     delay(10000) // 75s total
-                    try { VisioManager.client.sendChatMessage("Android: muted — iOS's turn") } catch (_: Exception) {}
+                    try {
+                        VisioManager.client.sendChatMessage("Android: muted — iOS's turn")
+                    } catch (_: Exception) {
+                    }
                     delay(25000) // 100s total
-                    try { VisioManager.client.sendChatMessage("Android: everyone speaking together!") } catch (_: Exception) {}
+                    try {
+                        VisioManager.client.sendChatMessage("Android: everyone speaking together!")
+                    } catch (_: Exception) {
+                    }
                 }
 
                 // Helper: start media capture from file or synthetic fallback
@@ -436,23 +456,55 @@ fun CallScreen(
                     // 5s: mute mic+cam (bot's turn)
                     delay(5000)
                     Log.i(TAG, "[TURN] Android muted (bot's turn)")
-                    try { stopMediaCapture(); VisioManager.client.setMicrophoneEnabled(false) } catch (_: Exception) {}
-                    try { VisioManager.client.setCameraEnabled(false) } catch (_: Exception) {}
+                    try {
+                        stopMediaCapture()
+                        VisioManager.client.setMicrophoneEnabled(false)
+                    } catch (_: Exception) {
+                    }
+                    try {
+                        VisioManager.client.setCameraEnabled(false)
+                    } catch (_: Exception) {
+                    }
                     // 50s: unmute — Android's turn to speak
                     delay(45000)
                     Log.i(TAG, "[TURN] Android speaking")
-                    try { VisioManager.client.setMicrophoneEnabled(true); VisioManager.client.setCameraEnabled(true) } catch (_: Exception) {}
-                    try { startMediaCapture() } catch (_: Exception) {}
+                    try {
+                        VisioManager.client.setMicrophoneEnabled(true)
+                        VisioManager.client.setCameraEnabled(true)
+                    } catch (
+                        _: Exception,
+                    ) {
+                    }
+                    try {
+                        startMediaCapture()
+                    } catch (_: Exception) {
+                    }
                     // 75s: mute — iOS's turn
                     delay(25000)
                     Log.i(TAG, "[TURN] Android muted (iOS's turn)")
-                    try { stopMediaCapture(); VisioManager.client.setMicrophoneEnabled(false) } catch (_: Exception) {}
-                    try { VisioManager.client.setCameraEnabled(false) } catch (_: Exception) {}
+                    try {
+                        stopMediaCapture()
+                        VisioManager.client.setMicrophoneEnabled(false)
+                    } catch (_: Exception) {
+                    }
+                    try {
+                        VisioManager.client.setCameraEnabled(false)
+                    } catch (_: Exception) {
+                    }
                     // 100s: unmute — everyone speaks
                     delay(25000)
                     Log.i(TAG, "[TURN] Android unmuted (all speak)")
-                    try { VisioManager.client.setMicrophoneEnabled(true); VisioManager.client.setCameraEnabled(true) } catch (_: Exception) {}
-                    try { startMediaCapture() } catch (_: Exception) {}
+                    try {
+                        VisioManager.client.setMicrophoneEnabled(true)
+                        VisioManager.client.setCameraEnabled(true)
+                    } catch (
+                        _: Exception,
+                    ) {
+                    }
+                    try {
+                        startMediaCapture()
+                    } catch (_: Exception) {
+                    }
                 }
 
                 return@withContext
@@ -770,7 +822,10 @@ fun CallScreen(
 
                                     // Close/exit focus button (top-right)
                                     IconButton(
-                                        onClick = { focusedItem = null; userPinnedItem = null },
+                                        onClick = {
+                                            focusedItem = null
+                                            userPinnedItem = null
+                                        },
                                         modifier =
                                             Modifier
                                                 .align(Alignment.TopEnd)
@@ -830,75 +885,77 @@ fun CallScreen(
                         } else {
                             // Grid mode — space-filling tiles using DisplayItems
                             val count = displayItems.size
-                            if (count > 0) BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
-                                val isLandscape = maxWidth > maxHeight
-                                val columnCount =
-                                    when {
-                                        count == 1 -> 1
-                                        isLandscape -> minOf(count, 3)
-                                        count <= 2 -> 1
-                                        else -> 2
-                                    }
-                                val rowCount = maxOf(1, (count + columnCount - 1) / columnCount)
-                                val tileHeight = (maxHeight - 8.dp * (rowCount - 1)) / rowCount
+                            if (count > 0) {
+                                BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+                                    val isLandscape = maxWidth > maxHeight
+                                    val columnCount =
+                                        when {
+                                            count == 1 -> 1
+                                            isLandscape -> minOf(count, 3)
+                                            count <= 2 -> 1
+                                            else -> 2
+                                        }
+                                    val rowCount = maxOf(1, (count + columnCount - 1) / columnCount)
+                                    val tileHeight = (maxHeight - 8.dp * (rowCount - 1)) / rowCount
 
-                                Column(
-                                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                                    modifier = Modifier.fillMaxSize(),
-                                ) {
-                                    for (rowStart in 0 until count step columnCount) {
-                                        val rowEnd = minOf(rowStart + columnCount, count)
-                                        Row(
-                                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                            modifier =
-                                                Modifier
-                                                    .fillMaxWidth()
-                                                    .height(tileHeight),
-                                        ) {
-                                            for (idx in rowStart until rowEnd) {
-                                                val item = displayItems[idx]
-                                                Box(
-                                                    modifier =
-                                                        Modifier
-                                                            .weight(1f)
-                                                            .fillMaxHeight()
-                                                            .clip(RoundedCornerShape(8.dp)),
-                                                ) {
-                                                    ParticipantTile(
-                                                        participant = item.participant,
-                                                        isActiveSpeaker = activeSpeakers.contains(item.participant.sid),
-                                                        handRaisePosition = handRaisedMap[item.participant.sid] ?: 0,
-                                                        isScreenShare = item.isScreenShare,
-                                                        onClick = {
-                                                            val fi = FocusItem(item.participant.sid, item.source)
-                                                            focusedItem = fi
-                                                            userPinnedItem = fi // user-initiated pin
-                                                        },
-                                                    )
-                                                    // Fullscreen icon overlay for screen share tiles
-                                                    if (item.isScreenShare) {
-                                                        IconButton(
+                                    Column(
+                                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                                        modifier = Modifier.fillMaxSize(),
+                                    ) {
+                                        for (rowStart in 0 until count step columnCount) {
+                                            val rowEnd = minOf(rowStart + columnCount, count)
+                                            Row(
+                                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                                modifier =
+                                                    Modifier
+                                                        .fillMaxWidth()
+                                                        .height(tileHeight),
+                                            ) {
+                                                for (idx in rowStart until rowEnd) {
+                                                    val item = displayItems[idx]
+                                                    Box(
+                                                        modifier =
+                                                            Modifier
+                                                                .weight(1f)
+                                                                .fillMaxHeight()
+                                                                .clip(RoundedCornerShape(8.dp)),
+                                                    ) {
+                                                        ParticipantTile(
+                                                            participant = item.participant,
+                                                            isActiveSpeaker = activeSpeakers.contains(item.participant.sid),
+                                                            handRaisePosition = handRaisedMap[item.participant.sid] ?: 0,
+                                                            isScreenShare = item.isScreenShare,
                                                             onClick = {
                                                                 val fi = FocusItem(item.participant.sid, item.source)
                                                                 focusedItem = fi
                                                                 userPinnedItem = fi // user-initiated pin
                                                             },
-                                                            modifier =
-                                                                Modifier
-                                                                    .align(Alignment.TopEnd)
-                                                                    .padding(4.dp)
-                                                                    .size(32.dp)
-                                                                    .background(
-                                                                        Color.Black.copy(alpha = 0.5f),
-                                                                        CircleShape,
-                                                                    ),
-                                                        ) {
-                                                            Icon(
-                                                                imageVector = Icons.Outlined.Fullscreen,
-                                                                contentDescription = "Fullscreen",
-                                                                tint = Color.White,
-                                                                modifier = Modifier.size(20.dp),
-                                                            )
+                                                        )
+                                                        // Fullscreen icon overlay for screen share tiles
+                                                        if (item.isScreenShare) {
+                                                            IconButton(
+                                                                onClick = {
+                                                                    val fi = FocusItem(item.participant.sid, item.source)
+                                                                    focusedItem = fi
+                                                                    userPinnedItem = fi // user-initiated pin
+                                                                },
+                                                                modifier =
+                                                                    Modifier
+                                                                        .align(Alignment.TopEnd)
+                                                                        .padding(4.dp)
+                                                                        .size(32.dp)
+                                                                        .background(
+                                                                            Color.Black.copy(alpha = 0.5f),
+                                                                            CircleShape,
+                                                                        ),
+                                                            ) {
+                                                                Icon(
+                                                                    imageVector = Icons.Outlined.Fullscreen,
+                                                                    contentDescription = "Fullscreen",
+                                                                    tint = Color.White,
+                                                                    modifier = Modifier.size(20.dp),
+                                                                )
+                                                            }
                                                         }
                                                     }
                                                 }
@@ -915,152 +972,153 @@ fun CallScreen(
                 ReactionOverlay(reactions = reactions)
 
                 // Persistent adaptive mode indicator (on top of everything) — hidden when disabled or in fullscreen focus
-                if (isAdaptiveModeEnabled && !isFullscreenFocus)
-                Row(
-                    modifier =
-                        Modifier
-                            .align(Alignment.TopEnd)
-                            .padding(8.dp)
-                            .background(Color.Black.copy(alpha = 0.6f), RoundedCornerShape(12.dp))
-                            .padding(horizontal = 8.dp, vertical = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
-                ) {
-                    val (modeIcon, modeKey) =
-                        when (adaptiveMode) {
-                            uniffi.visio.AdaptiveMode.OFFICE -> "🏢" to "adaptive.office"
-                            uniffi.visio.AdaptiveMode.PEDESTRIAN -> "🚶" to "adaptive.pedestrian"
-                            uniffi.visio.AdaptiveMode.CAR -> "🚗" to "adaptive.car"
-                        }
-                    Text(text = modeIcon, fontSize = 12.sp)
-                    Text(
-                        text = Strings.t(modeKey, lang),
-                        color = Color.White,
-                        fontSize = 11.sp,
-                    )
+                if (isAdaptiveModeEnabled && !isFullscreenFocus) {
+                    Row(
+                        modifier =
+                            Modifier
+                                .align(Alignment.TopEnd)
+                                .padding(8.dp)
+                                .background(Color.Black.copy(alpha = 0.6f), RoundedCornerShape(12.dp))
+                                .padding(horizontal = 8.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    ) {
+                        val (modeIcon, modeKey) =
+                            when (adaptiveMode) {
+                                uniffi.visio.AdaptiveMode.OFFICE -> "🏢" to "adaptive.office"
+                                uniffi.visio.AdaptiveMode.PEDESTRIAN -> "🚶" to "adaptive.pedestrian"
+                                uniffi.visio.AdaptiveMode.CAR -> "🚗" to "adaptive.car"
+                            }
+                        Text(text = modeIcon, fontSize = 12.sp)
+                        Text(
+                            text = Strings.t(modeKey, lang),
+                            color = Color.White,
+                            fontSize = 11.sp,
+                        )
+                    }
                 }
             }
 
             // Control bar — hidden in fullscreen focus mode unless tapped
             if (focusedItem == null || controlsVisible) {
-            Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(8.dp))
 
-            ControlBar(
-                micEnabled = micEnabled,
-                cameraEnabled = cameraEnabled,
-                isHandRaised = isHandRaised,
-                unreadCount = unreadCount,
-                participantCount = participants.size,
-                showReactionPicker = showReactionPicker,
-                adaptiveMode = effectiveAdaptiveMode,
-                isAdaptiveModeEnabled = isAdaptiveModeEnabled,
-                lang = lang,
-                onToggleMic = {
-                    val newState = !micEnabled
-                    if (newState) {
-                        val hasPermission =
-                            ContextCompat.checkSelfPermission(
-                                context, Manifest.permission.RECORD_AUDIO,
-                            ) == PackageManager.PERMISSION_GRANTED
-                        if (hasPermission) {
-                            coroutineScope.launch(Dispatchers.IO) {
-                                try {
-                                    VisioManager.client.setMicrophoneEnabled(true)
-                                    VisioManager.startAudioCapture()
-                                    micEnabled = true
-                                } catch (e: Exception) {
-                                    Log.e(TAG, "Failed to enable microphone", e)
+                ControlBar(
+                    micEnabled = micEnabled,
+                    cameraEnabled = cameraEnabled,
+                    isHandRaised = isHandRaised,
+                    unreadCount = unreadCount,
+                    participantCount = participants.size,
+                    showReactionPicker = showReactionPicker,
+                    adaptiveMode = effectiveAdaptiveMode,
+                    isAdaptiveModeEnabled = isAdaptiveModeEnabled,
+                    lang = lang,
+                    onToggleMic = {
+                        val newState = !micEnabled
+                        if (newState) {
+                            val hasPermission =
+                                ContextCompat.checkSelfPermission(
+                                    context, Manifest.permission.RECORD_AUDIO,
+                                ) == PackageManager.PERMISSION_GRANTED
+                            if (hasPermission) {
+                                coroutineScope.launch(Dispatchers.IO) {
+                                    try {
+                                        VisioManager.client.setMicrophoneEnabled(true)
+                                        VisioManager.startAudioCapture()
+                                        micEnabled = true
+                                    } catch (e: Exception) {
+                                        Log.e(TAG, "Failed to enable microphone", e)
+                                    }
                                 }
+                            } else {
+                                micPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
                             }
                         } else {
-                            micPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
-                        }
-                    } else {
-                        coroutineScope.launch(Dispatchers.IO) {
-                            try {
-                                VisioManager.stopAudioCapture()
-                                VisioManager.client.setMicrophoneEnabled(false)
-                                micEnabled = false
-                            } catch (e: Exception) {
-                                Log.e(TAG, "Failed to disable microphone", e)
-                            }
-                        }
-                    }
-                },
-                onAudioPicker = {
-                    inCallSettingsTab = 1
-                    showInCallSettings = true
-                },
-                onToggleCamera = {
-                    val newState = !cameraEnabled
-                    if (newState) {
-                        val hasPermission =
-                            ContextCompat.checkSelfPermission(
-                                context, Manifest.permission.CAMERA,
-                            ) == PackageManager.PERMISSION_GRANTED
-                        if (hasPermission) {
                             coroutineScope.launch(Dispatchers.IO) {
                                 try {
-                                    VisioManager.startCameraCapture()
-                                    VisioManager.client.setCameraEnabled(true)
-                                    cameraEnabled = true
+                                    VisioManager.stopAudioCapture()
+                                    VisioManager.client.setMicrophoneEnabled(false)
+                                    micEnabled = false
+                                } catch (e: Exception) {
+                                    Log.e(TAG, "Failed to disable microphone", e)
+                                }
+                            }
+                        }
+                    },
+                    onAudioPicker = {
+                        inCallSettingsTab = 1
+                        showInCallSettings = true
+                    },
+                    onToggleCamera = {
+                        val newState = !cameraEnabled
+                        if (newState) {
+                            val hasPermission =
+                                ContextCompat.checkSelfPermission(
+                                    context, Manifest.permission.CAMERA,
+                                ) == PackageManager.PERMISSION_GRANTED
+                            if (hasPermission) {
+                                coroutineScope.launch(Dispatchers.IO) {
+                                    try {
+                                        VisioManager.startCameraCapture()
+                                        VisioManager.client.setCameraEnabled(true)
+                                        cameraEnabled = true
+                                        VisioManager.refreshParticipantsPublic()
+                                    } catch (e: Exception) {
+                                        Log.e(TAG, "Failed to enable camera", e)
+                                    }
+                                }
+                            } else {
+                                cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+                            }
+                        } else {
+                            coroutineScope.launch(Dispatchers.IO) {
+                                try {
+                                    VisioManager.stopCameraCapture()
+                                    VisioManager.client.setCameraEnabled(false)
+                                    cameraEnabled = false
                                     VisioManager.refreshParticipantsPublic()
                                 } catch (e: Exception) {
-                                    Log.e(TAG, "Failed to enable camera", e)
+                                    Log.e(TAG, "Failed to disable camera", e)
                                 }
                             }
-                        } else {
-                            cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
                         }
-                    } else {
+                    },
+                    onToggleHandRaise = {
                         coroutineScope.launch(Dispatchers.IO) {
                             try {
-                                VisioManager.stopCameraCapture()
-                                VisioManager.client.setCameraEnabled(false)
-                                cameraEnabled = false
-                                VisioManager.refreshParticipantsPublic()
+                                if (isHandRaised) {
+                                    VisioManager.client.lowerHand()
+                                } else {
+                                    VisioManager.client.raiseHand()
+                                }
                             } catch (e: Exception) {
-                                Log.e(TAG, "Failed to disable camera", e)
+                                Log.e(TAG, "Failed to toggle hand raise", e)
                             }
                         }
-                    }
-                },
-                onToggleHandRaise = {
-                    coroutineScope.launch(Dispatchers.IO) {
-                        try {
-                            if (isHandRaised) {
-                                VisioManager.client.lowerHand()
-                            } else {
-                                VisioManager.client.raiseHand()
-                            }
-                        } catch (e: Exception) {
-                            Log.e(TAG, "Failed to toggle hand raise", e)
+                    },
+                    onReaction = { emoji ->
+                        VisioManager.sendReaction(emoji)
+                        showReactionPicker = false
+                    },
+                    onToggleReactionPicker = { showReactionPicker = !showReactionPicker },
+                    onParticipants = { showParticipantList = true },
+                    onSettings = {
+                        inCallSettingsTab = 0
+                        showInCallSettings = true
+                    },
+                    onChat = onChatOpen,
+                    onHangUp = {
+                        VisioManager.disconnect()
+                        onHangUp()
+                    },
+                    onAdaptiveModeOverride = { mode ->
+                        coroutineScope.launch(Dispatchers.IO) {
+                            VisioManager.client.setAdaptiveModeOverride(mode)
                         }
-                    }
-                },
-                onReaction = { emoji ->
-                    VisioManager.sendReaction(emoji)
-                    showReactionPicker = false
-                },
-                onToggleReactionPicker = { showReactionPicker = !showReactionPicker },
-                onParticipants = { showParticipantList = true },
-                onSettings = {
-                    inCallSettingsTab = 0
-                    showInCallSettings = true
-                },
-                onChat = onChatOpen,
-                onHangUp = {
-                    VisioManager.disconnect()
-                    onHangUp()
-                },
-                onAdaptiveModeOverride = { mode ->
-                    coroutineScope.launch(Dispatchers.IO) {
-                        VisioManager.client.setAdaptiveModeOverride(mode)
-                    }
-                },
-            )
+                    },
+                )
 
-            Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(8.dp))
             } // end control bar visibility
         }
 
@@ -1339,52 +1397,54 @@ private fun ControlBar(
             }
 
             // Adaptive mode override — only shown when adaptive mode is enabled
-            if (isAdaptiveModeEnabled) Column(
-                modifier =
-                    Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 4.dp)
-                        .background(Color(0xCC000000), RoundedCornerShape(12.dp))
-                        .padding(horizontal = 12.dp, vertical = 8.dp),
-            ) {
-                Text(
-                    text = Strings.t("adaptive.override", lang),
-                    color = VisioColors.White,
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Medium,
-                    modifier = Modifier.padding(bottom = 6.dp),
-                )
-                Row(
-                    horizontalArrangement = Arrangement.SpaceEvenly,
-                    modifier = Modifier.fillMaxWidth(),
+            if (isAdaptiveModeEnabled) {
+                Column(
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 4.dp)
+                            .background(Color(0xCC000000), RoundedCornerShape(12.dp))
+                            .padding(horizontal = 12.dp, vertical = 8.dp),
                 ) {
-                    val modeOptions =
-                        listOf<Pair<AdaptiveMode?, String>>(
-                            null to Strings.t("adaptive.auto", lang),
-                            AdaptiveMode.OFFICE to Strings.t("adaptive.office", lang),
-                            AdaptiveMode.PEDESTRIAN to Strings.t("adaptive.pedestrian", lang),
-                            AdaptiveMode.CAR to Strings.t("adaptive.car", lang),
-                        )
-                    modeOptions.forEach { (mode, label) ->
-                        val isSelected = mode == adaptiveModeOverride
-                        Text(
-                            text = label,
-                            color = if (isSelected) Color.Black else VisioColors.White,
-                            fontSize = 11.sp,
-                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                            modifier =
-                                Modifier
-                                    .background(
-                                        if (isSelected) VisioColors.Primary500 else VisioColors.PrimaryDark100,
-                                        RoundedCornerShape(16.dp),
-                                    )
-                                    .clickable {
-                                        adaptiveModeOverride = mode
-                                        onAdaptiveModeOverride(mode)
-                                    }
-                                    .padding(horizontal = 10.dp, vertical = 6.dp),
-                            maxLines = 1,
-                        )
+                    Text(
+                        text = Strings.t("adaptive.override", lang),
+                        color = VisioColors.White,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Medium,
+                        modifier = Modifier.padding(bottom = 6.dp),
+                    )
+                    Row(
+                        horizontalArrangement = Arrangement.SpaceEvenly,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        val modeOptions =
+                            listOf<Pair<AdaptiveMode?, String>>(
+                                null to Strings.t("adaptive.auto", lang),
+                                AdaptiveMode.OFFICE to Strings.t("adaptive.office", lang),
+                                AdaptiveMode.PEDESTRIAN to Strings.t("adaptive.pedestrian", lang),
+                                AdaptiveMode.CAR to Strings.t("adaptive.car", lang),
+                            )
+                        modeOptions.forEach { (mode, label) ->
+                            val isSelected = mode == adaptiveModeOverride
+                            Text(
+                                text = label,
+                                color = if (isSelected) Color.Black else VisioColors.White,
+                                fontSize = 11.sp,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                modifier =
+                                    Modifier
+                                        .background(
+                                            if (isSelected) VisioColors.Primary500 else VisioColors.PrimaryDark100,
+                                            RoundedCornerShape(16.dp),
+                                        )
+                                        .clickable {
+                                            adaptiveModeOverride = mode
+                                            onAdaptiveModeOverride(mode)
+                                        }
+                                        .padding(horizontal = 10.dp, vertical = 6.dp),
+                                maxLines = 1,
+                            )
+                        }
                     }
                 }
             }

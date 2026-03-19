@@ -51,15 +51,17 @@ fun OidcWebViewDialog(
 
     Dialog(
         onDismissRequest = onDismiss,
-        properties = DialogProperties(
-            usePlatformDefaultWidth = false,
-            dismissOnClickOutside = false,
-        ),
+        properties =
+            DialogProperties(
+                usePlatformDefaultWidth = false,
+                dismissOnClickOutside = false,
+            ),
     ) {
         Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .statusBarsPadding(),
+            modifier =
+                Modifier
+                    .fillMaxSize()
+                    .statusBarsPadding(),
         ) {
             AndroidView(
                 modifier = Modifier.fillMaxSize(),
@@ -72,37 +74,45 @@ fun OidcWebViewDialog(
                         CookieManager.getInstance().setAcceptCookie(true)
                         CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
 
-                        webViewClient = object : WebViewClient() {
-                            override fun shouldOverrideUrlLoading(
-                                view: WebView,
-                                request: WebResourceRequest,
-                            ): Boolean {
-                                val url = request.url
-                                // Intercept the visio:// custom scheme redirect
-                                if (url.scheme == "visio") {
-                                    Log.d(TAG, "Intercepted visio:// redirect")
-                                    extractAndComplete(meetInstance, onAuthenticated, onDismiss)
-                                    return true
+                        webViewClient =
+                            object : WebViewClient() {
+                                override fun shouldOverrideUrlLoading(
+                                    view: WebView,
+                                    request: WebResourceRequest,
+                                ): Boolean {
+                                    val url = request.url
+                                    // Intercept the visio:// custom scheme redirect
+                                    if (url.scheme == "visio") {
+                                        Log.d(TAG, "Intercepted visio:// redirect")
+                                        extractAndComplete(meetInstance, onAuthenticated, onDismiss)
+                                        return true
+                                    }
+                                    return false
                                 }
-                                return false
-                            }
 
-                            override fun onPageStarted(view: WebView, url: String?, favicon: Bitmap?) {
-                                loading = true
-                                // Check if we've returned to the Meet domain after auth
-                                if (url != null && url.startsWith("https://$meetInstance/") &&
-                                    !url.contains("/api/v1.0/authenticate") &&
-                                    !url.contains("/api/v1.0/callback")
+                                override fun onPageStarted(
+                                    view: WebView,
+                                    url: String?,
+                                    favicon: Bitmap?,
                                 ) {
-                                    Log.d(TAG, "Navigated back to Meet domain: $url")
-                                    extractAndComplete(meetInstance, onAuthenticated, onDismiss)
+                                    loading = true
+                                    // Check if we've returned to the Meet domain after auth
+                                    if (url != null && url.startsWith("https://$meetInstance/") &&
+                                        !url.contains("/api/v1.0/authenticate") &&
+                                        !url.contains("/api/v1.0/callback")
+                                    ) {
+                                        Log.d(TAG, "Navigated back to Meet domain: $url")
+                                        extractAndComplete(meetInstance, onAuthenticated, onDismiss)
+                                    }
+                                }
+
+                                override fun onPageFinished(
+                                    view: WebView,
+                                    url: String?,
+                                ) {
+                                    loading = false
                                 }
                             }
-
-                            override fun onPageFinished(view: WebView, url: String?) {
-                                loading = false
-                            }
-                        }
 
                         loadUrl(authUrl)
                     }
@@ -112,9 +122,10 @@ fun OidcWebViewDialog(
             // Close button
             IconButton(
                 onClick = onDismiss,
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .padding(8.dp),
+                modifier =
+                    Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(8.dp),
             ) {
                 Icon(
                     Icons.Default.Close,
@@ -149,10 +160,11 @@ private fun extractAndComplete(
     }
 
     val cookieNames = listOf("meet_sessionid", "sessionid")
-    val sessionId = allCookies.split(";")
-        .map { it.trim() }
-        .firstOrNull { cookie -> cookieNames.any { cookie.startsWith("$it=") } }
-        ?.substringAfter("=")
+    val sessionId =
+        allCookies.split(";")
+            .map { it.trim() }
+            .firstOrNull { cookie -> cookieNames.any { cookie.startsWith("$it=") } }
+            ?.substringAfter("=")
 
     if (sessionId != null) {
         Log.i(TAG, "Session cookie extracted successfully")

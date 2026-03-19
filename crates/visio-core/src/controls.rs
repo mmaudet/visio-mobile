@@ -125,7 +125,10 @@ impl MeetingControls {
     /// Creates a NativeVideoSource and publishes a video track.
     /// `resolution_preset` is "720p", "360p", or "180p".
     /// Returns the video source so native code can feed captured frames into it.
-    pub async fn publish_camera(&self, resolution_preset: &str) -> Result<NativeVideoSource, VisioError> {
+    pub async fn publish_camera(
+        &self,
+        resolution_preset: &str,
+    ) -> Result<NativeVideoSource, VisioError> {
         let room = self.room.lock().await;
         let room = room
             .as_ref()
@@ -133,10 +136,7 @@ impl MeetingControls {
 
         let (width, height) = resolve_video_resolution(resolution_preset);
         let source = NativeVideoSource::new(
-            VideoResolution {
-                width,
-                height,
-            },
+            VideoResolution { width, height },
             false, // not a screencast
         );
 
@@ -148,10 +148,7 @@ impl MeetingControls {
         tracing::info!("publish_camera: requesting codec {:?}", opts.video_codec);
 
         room.local_participant()
-            .publish_track(
-                LocalTrack::Video(track),
-                opts,
-            )
+            .publish_track(LocalTrack::Video(track), opts)
             .await
             .map_err(|e| VisioError::Room(format!("publish video: {e}")))?;
 

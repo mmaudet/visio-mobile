@@ -66,7 +66,12 @@ impl EventCapture {
     }
 
     fn count<F: Fn(&VisioEvent) -> bool>(&self, predicate: F) -> usize {
-        self.events.lock().unwrap().iter().filter(|e| predicate(e)).count()
+        self.events
+            .lock()
+            .unwrap()
+            .iter()
+            .filter(|e| predicate(e))
+            .count()
     }
 }
 
@@ -124,8 +129,11 @@ async fn test_connect_and_disconnect() {
 
     rm.disconnect().await;
 
-    let saw_disconnected =
-        wait_for(|| capture.has_state(ConnectionState::Disconnected), Duration::from_secs(5)).await;
+    let saw_disconnected = wait_for(
+        || capture.has_state(ConnectionState::Disconnected),
+        Duration::from_secs(5),
+    )
+    .await;
     assert!(saw_disconnected, "should have seen Disconnected event");
 }
 
@@ -221,7 +229,10 @@ async fn test_mute_unmute_propagation() {
         // Bob's participant list should show Alice as muted
         let p2 = rm2.participants().await;
         if let Some(alice) = p2.iter().find(|p| p.identity == "alice") {
-            assert!(alice.is_muted, "alice should be muted from bob's perspective");
+            assert!(
+                alice.is_muted,
+                "alice should be muted from bob's perspective"
+            );
         }
     }
 
@@ -245,8 +256,12 @@ async fn test_participant_left_event() {
     let capture1 = EventCapture::new();
     rm1.add_listener(capture1.clone());
 
-    rm1.connect_with_token(&url, &token1).await.expect("connect rm1");
-    rm2.connect_with_token(&url, &token2).await.expect("connect rm2");
+    rm1.connect_with_token(&url, &token1)
+        .await
+        .expect("connect rm1");
+    rm2.connect_with_token(&url, &token2)
+        .await
+        .expect("connect rm2");
 
     wait_mutual_discovery(&rm1, &rm2, "alice", "bob").await;
 
@@ -259,7 +274,10 @@ async fn test_participant_left_event() {
         Duration::from_secs(10),
     )
     .await;
-    assert!(saw_left, "alice should receive ParticipantLeft when bob disconnects");
+    assert!(
+        saw_left,
+        "alice should receive ParticipantLeft when bob disconnects"
+    );
 
     // Alice's participant list should no longer contain Bob
     let p1 = rm1.participants().await;
@@ -287,8 +305,12 @@ async fn test_chat_message_delivery() {
     let capture2 = EventCapture::new();
     rm2.add_listener(capture2.clone());
 
-    rm1.connect_with_token(&url, &token1).await.expect("connect rm1");
-    rm2.connect_with_token(&url, &token2).await.expect("connect rm2");
+    rm1.connect_with_token(&url, &token1)
+        .await
+        .expect("connect rm1");
+    rm2.connect_with_token(&url, &token2)
+        .await
+        .expect("connect rm2");
 
     wait_mutual_discovery(&rm1, &rm2, "alice", "bob").await;
 
@@ -341,8 +363,12 @@ async fn test_audio_track_subscription() {
     rm2.add_listener(capture2.clone());
     let controls1 = rm1.controls();
 
-    rm1.connect_with_token(&url, &token1).await.expect("connect rm1");
-    rm2.connect_with_token(&url, &token2).await.expect("connect rm2");
+    rm1.connect_with_token(&url, &token1)
+        .await
+        .expect("connect rm1");
+    rm2.connect_with_token(&url, &token2)
+        .await
+        .expect("connect rm2");
 
     wait_mutual_discovery(&rm1, &rm2, "alice", "bob").await;
 
@@ -389,8 +415,12 @@ async fn test_track_unsubscribed_on_disconnect() {
     rm2.add_listener(capture2.clone());
     let controls1 = rm1.controls();
 
-    rm1.connect_with_token(&url, &token1).await.expect("connect rm1");
-    rm2.connect_with_token(&url, &token2).await.expect("connect rm2");
+    rm1.connect_with_token(&url, &token1)
+        .await
+        .expect("connect rm1");
+    rm2.connect_with_token(&url, &token2)
+        .await
+        .expect("connect rm2");
 
     wait_mutual_discovery(&rm1, &rm2, "alice", "bob").await;
 
@@ -473,7 +503,9 @@ async fn test_connection_state_lifecycle() {
             _ => None,
         })
         .collect();
-    let connecting_pos = states.iter().position(|s| *s == ConnectionState::Connecting);
+    let connecting_pos = states
+        .iter()
+        .position(|s| *s == ConnectionState::Connecting);
     let connected_pos = states.iter().position(|s| *s == ConnectionState::Connected);
     assert!(
         connecting_pos < connected_pos,
@@ -545,23 +577,29 @@ async fn test_send_receive_reaction() {
     let capture2 = EventCapture::new();
     rm2.add_listener(capture2.clone());
 
-    rm1.connect_with_token(&url, &token1).await.expect("connect rm1");
-    rm2.connect_with_token(&url, &token2).await.expect("connect rm2");
+    rm1.connect_with_token(&url, &token1)
+        .await
+        .expect("connect rm1");
+    rm2.connect_with_token(&url, &token2)
+        .await
+        .expect("connect rm2");
     wait_mutual_discovery(&rm1, &rm2, "alice", "bob").await;
 
     // Alice sends a thumbs up
-    rm1.send_reaction("👍").await.expect("send_reaction failed");
+    rm1.send_reaction("thumbsUp")
+        .await
+        .expect("send_reaction failed");
 
     let saw_reaction = wait_for(
         || {
-            capture2.has(|e| {
-                matches!(e, VisioEvent::ReactionReceived { emoji, .. } if emoji == "👍")
-            })
+            capture2.has(
+                |e| matches!(e, VisioEvent::ReactionReceived { emoji, .. } if emoji == "thumbsUp"),
+            )
         },
         Duration::from_secs(5),
     )
     .await;
-    assert!(saw_reaction, "bob should receive reaction 👍");
+    assert!(saw_reaction, "bob should receive reaction thumbsUp");
 
     rm1.disconnect().await;
     rm2.disconnect().await;
@@ -583,17 +621,23 @@ async fn test_reaction_sender_info() {
     let capture2 = EventCapture::new();
     rm2.add_listener(capture2.clone());
 
-    rm1.connect_with_token(&url, &token1).await.expect("connect rm1");
-    rm2.connect_with_token(&url, &token2).await.expect("connect rm2");
+    rm1.connect_with_token(&url, &token1)
+        .await
+        .expect("connect rm1");
+    rm2.connect_with_token(&url, &token2)
+        .await
+        .expect("connect rm2");
     wait_mutual_discovery(&rm1, &rm2, "alice", "bob").await;
 
-    rm1.send_reaction("🎉").await.expect("send_reaction failed");
+    rm1.send_reaction("tada")
+        .await
+        .expect("send_reaction failed");
 
     let saw = wait_for(
         || {
             capture2.has(|e| {
                 matches!(e, VisioEvent::ReactionReceived { participant_name, emoji, .. }
-                    if participant_name == "Alice" && emoji == "🎉")
+                    if participant_name == "Alice" && emoji == "tada")
             })
         },
         Duration::from_secs(5),
@@ -621,13 +665,19 @@ async fn test_multiple_reactions() {
     let capture2 = EventCapture::new();
     rm2.add_listener(capture2.clone());
 
-    rm1.connect_with_token(&url, &token1).await.expect("connect rm1");
-    rm2.connect_with_token(&url, &token2).await.expect("connect rm2");
+    rm1.connect_with_token(&url, &token1)
+        .await
+        .expect("connect rm1");
+    rm2.connect_with_token(&url, &token2)
+        .await
+        .expect("connect rm2");
     wait_mutual_discovery(&rm1, &rm2, "alice", "bob").await;
 
-    let emojis = ["👍", "❤️", "😂"];
+    let emojis = ["thumbsUp", "heart", "joy"];
     for emoji in &emojis {
-        rm1.send_reaction(emoji).await.expect("send_reaction failed");
+        rm1.send_reaction(emoji)
+            .await
+            .expect("send_reaction failed");
         tokio::time::sleep(Duration::from_millis(100)).await;
     }
 
@@ -659,19 +709,22 @@ async fn test_raise_hand() {
     let capture2 = EventCapture::new();
     rm2.add_listener(capture2.clone());
 
-    rm1.connect_with_token(&url, &token1).await.expect("connect rm1");
-    rm2.connect_with_token(&url, &token2).await.expect("connect rm2");
+    rm1.connect_with_token(&url, &token1)
+        .await
+        .expect("connect rm1");
+    rm2.connect_with_token(&url, &token2)
+        .await
+        .expect("connect rm2");
     wait_mutual_discovery(&rm1, &rm2, "alice", "bob").await;
 
     rm1.raise_hand().await.expect("raise_hand failed");
-    assert!(rm1.is_hand_raised().await, "alice should have hand raised locally");
+    assert!(
+        rm1.is_hand_raised().await,
+        "alice should have hand raised locally"
+    );
 
     let saw_raised = wait_for(
-        || {
-            capture2.has(|e| {
-                matches!(e, VisioEvent::HandRaisedChanged { raised: true, .. })
-            })
-        },
+        || capture2.has(|e| matches!(e, VisioEvent::HandRaisedChanged { raised: true, .. })),
         Duration::from_secs(5),
     )
     .await;
@@ -697,8 +750,12 @@ async fn test_raise_then_lower_hand() {
     let capture2 = EventCapture::new();
     rm2.add_listener(capture2.clone());
 
-    rm1.connect_with_token(&url, &token1).await.expect("connect rm1");
-    rm2.connect_with_token(&url, &token2).await.expect("connect rm2");
+    rm1.connect_with_token(&url, &token1)
+        .await
+        .expect("connect rm1");
+    rm2.connect_with_token(&url, &token2)
+        .await
+        .expect("connect rm2");
     wait_mutual_discovery(&rm1, &rm2, "alice", "bob").await;
 
     rm1.raise_hand().await.expect("raise_hand failed");
@@ -711,7 +768,10 @@ async fn test_raise_then_lower_hand() {
     assert!(saw_raised, "bob should see hand raised");
 
     rm1.lower_hand().await.expect("lower_hand failed");
-    assert!(!rm1.is_hand_raised().await, "alice should have hand lowered");
+    assert!(
+        !rm1.is_hand_raised().await,
+        "alice should have hand lowered"
+    );
 
     let saw_lowered = wait_for(
         || capture2.has(|e| matches!(e, VisioEvent::HandRaisedChanged { raised: false, .. })),
@@ -742,23 +802,40 @@ async fn test_chat_bidirectional() {
     rm1.add_listener(capture1.clone());
     rm2.add_listener(capture2.clone());
 
-    rm1.connect_with_token(&url, &token1).await.expect("connect rm1");
-    rm2.connect_with_token(&url, &token2).await.expect("connect rm2");
+    rm1.connect_with_token(&url, &token1)
+        .await
+        .expect("connect rm1");
+    rm2.connect_with_token(&url, &token2)
+        .await
+        .expect("connect rm2");
     wait_mutual_discovery(&rm1, &rm2, "alice", "bob").await;
 
     // Alice → Bob
-    rm1.chat().send_message("Hello Bob!").await.expect("send failed");
+    rm1.chat()
+        .send_message("Hello Bob!")
+        .await
+        .expect("send failed");
     let saw_at_bob = wait_for(
-        || capture2.has(|e| matches!(e, VisioEvent::ChatMessageReceived(m) if m.text == "Hello Bob!")),
+        || {
+            capture2
+                .has(|e| matches!(e, VisioEvent::ChatMessageReceived(m) if m.text == "Hello Bob!"))
+        },
         Duration::from_secs(10),
     )
     .await;
     assert!(saw_at_bob, "bob should receive alice's message");
 
     // Bob → Alice
-    rm2.chat().send_message("Hello Alice!").await.expect("send failed");
+    rm2.chat()
+        .send_message("Hello Alice!")
+        .await
+        .expect("send failed");
     let saw_at_alice = wait_for(
-        || capture1.has(|e| matches!(e, VisioEvent::ChatMessageReceived(m) if m.text == "Hello Alice!")),
+        || {
+            capture1.has(
+                |e| matches!(e, VisioEvent::ChatMessageReceived(m) if m.text == "Hello Alice!"),
+            )
+        },
         Duration::from_secs(10),
     )
     .await;
@@ -784,8 +861,12 @@ async fn test_chat_message_store() {
     let capture2 = EventCapture::new();
     rm2.add_listener(capture2.clone());
 
-    rm1.connect_with_token(&url, &token1).await.expect("connect rm1");
-    rm2.connect_with_token(&url, &token2).await.expect("connect rm2");
+    rm1.connect_with_token(&url, &token1)
+        .await
+        .expect("connect rm1");
+    rm2.connect_with_token(&url, &token2)
+        .await
+        .expect("connect rm2");
     wait_mutual_discovery(&rm1, &rm2, "alice", "bob").await;
 
     let messages = ["msg1", "msg2", "msg3"];
@@ -829,8 +910,12 @@ async fn test_chat_unread_count() {
     let capture2 = EventCapture::new();
     rm2.add_listener(capture2.clone());
 
-    rm1.connect_with_token(&url, &token1).await.expect("connect rm1");
-    rm2.connect_with_token(&url, &token2).await.expect("connect rm2");
+    rm1.connect_with_token(&url, &token1)
+        .await
+        .expect("connect rm1");
+    rm2.connect_with_token(&url, &token2)
+        .await
+        .expect("connect rm2");
     wait_mutual_discovery(&rm1, &rm2, "alice", "bob").await;
 
     // Bob's chat is closed (default)
@@ -840,12 +925,12 @@ async fn test_chat_unread_count() {
     rm1.chat().send_message("hi2").await.expect("send failed");
 
     // Wait for both UnreadCountChanged events
-    let saw_unread = wait_for(
-        || rm2.unread_count() >= 2,
-        Duration::from_secs(10),
-    )
-    .await;
-    assert!(saw_unread, "unread count should be >= 2, got {}", rm2.unread_count());
+    let saw_unread = wait_for(|| rm2.unread_count() >= 2, Duration::from_secs(10)).await;
+    assert!(
+        saw_unread,
+        "unread count should be >= 2, got {}",
+        rm2.unread_count()
+    );
 
     // Open chat → unread resets to 0
     rm2.set_chat_open(true);
@@ -871,12 +956,19 @@ async fn test_video_track_publish_subscribe() {
     let capture2 = EventCapture::new();
     rm2.add_listener(capture2.clone());
 
-    rm1.connect_with_token(&url, &token1).await.expect("connect rm1");
-    rm2.connect_with_token(&url, &token2).await.expect("connect rm2");
+    rm1.connect_with_token(&url, &token1)
+        .await
+        .expect("connect rm1");
+    rm2.connect_with_token(&url, &token2)
+        .await
+        .expect("connect rm2");
     wait_mutual_discovery(&rm1, &rm2, "alice", "bob").await;
 
     let controls1 = rm1.controls();
-    let _source = controls1.publish_camera("720p").await.expect("publish_camera failed");
+    let _source = controls1
+        .publish_camera("720p")
+        .await
+        .expect("publish_camera failed");
 
     // Bob should receive TrackSubscribed for Camera
     let saw_video = wait_for(
@@ -914,12 +1006,19 @@ async fn test_video_track_mute_unmute() {
     let capture2 = EventCapture::new();
     rm2.add_listener(capture2.clone());
 
-    rm1.connect_with_token(&url, &token1).await.expect("connect rm1");
-    rm2.connect_with_token(&url, &token2).await.expect("connect rm2");
+    rm1.connect_with_token(&url, &token1)
+        .await
+        .expect("connect rm1");
+    rm2.connect_with_token(&url, &token2)
+        .await
+        .expect("connect rm2");
     wait_mutual_discovery(&rm1, &rm2, "alice", "bob").await;
 
     let controls1 = rm1.controls();
-    controls1.publish_camera("720p").await.expect("publish_camera failed");
+    controls1
+        .publish_camera("720p")
+        .await
+        .expect("publish_camera failed");
 
     // Wait for subscription
     let saw_sub = wait_for(
@@ -930,7 +1029,10 @@ async fn test_video_track_mute_unmute() {
     assert!(saw_sub, "bob should subscribe to camera");
 
     // Alice mutes camera
-    controls1.set_camera_enabled(false).await.expect("set_camera_enabled failed");
+    controls1
+        .set_camera_enabled(false)
+        .await
+        .expect("set_camera_enabled failed");
 
     let saw_mute = wait_for(
         || capture2.has(|e| matches!(e, VisioEvent::TrackMuted { source, .. } if *source == TrackSource::Camera)),
@@ -940,7 +1042,10 @@ async fn test_video_track_mute_unmute() {
     assert!(saw_mute, "bob should receive TrackMuted(Camera)");
 
     // Alice unmutes camera
-    controls1.set_camera_enabled(true).await.expect("set_camera_enabled failed");
+    controls1
+        .set_camera_enabled(true)
+        .await
+        .expect("set_camera_enabled failed");
 
     let saw_unmute = wait_for(
         || capture2.has(|e| matches!(e, VisioEvent::TrackUnmuted { source, .. } if *source == TrackSource::Camera)),
@@ -969,12 +1074,19 @@ async fn test_screen_share_publish_subscribe() {
     let capture2 = EventCapture::new();
     rm2.add_listener(capture2.clone());
 
-    rm1.connect_with_token(&url, &token1).await.expect("connect rm1");
-    rm2.connect_with_token(&url, &token2).await.expect("connect rm2");
+    rm1.connect_with_token(&url, &token1)
+        .await
+        .expect("connect rm1");
+    rm2.connect_with_token(&url, &token2)
+        .await
+        .expect("connect rm2");
     wait_mutual_discovery(&rm1, &rm2, "alice", "bob").await;
 
     let controls1 = rm1.controls();
-    let _source = controls1.publish_screen_share().await.expect("publish_screen_share failed");
+    let _source = controls1
+        .publish_screen_share()
+        .await
+        .expect("publish_screen_share failed");
 
     // Bob should receive TrackSubscribed for ScreenShare
     let saw_screen = wait_for(
@@ -986,7 +1098,10 @@ async fn test_screen_share_publish_subscribe() {
         Duration::from_secs(10),
     )
     .await;
-    assert!(saw_screen, "bob should receive TrackSubscribed(ScreenShare)");
+    assert!(
+        saw_screen,
+        "bob should receive TrackSubscribed(ScreenShare)"
+    );
 
     rm1.disconnect().await;
     rm2.disconnect().await;
@@ -1008,12 +1123,19 @@ async fn test_screen_share_stop() {
     let capture2 = EventCapture::new();
     rm2.add_listener(capture2.clone());
 
-    rm1.connect_with_token(&url, &token1).await.expect("connect rm1");
-    rm2.connect_with_token(&url, &token2).await.expect("connect rm2");
+    rm1.connect_with_token(&url, &token1)
+        .await
+        .expect("connect rm1");
+    rm2.connect_with_token(&url, &token2)
+        .await
+        .expect("connect rm2");
     wait_mutual_discovery(&rm1, &rm2, "alice", "bob").await;
 
     let controls1 = rm1.controls();
-    controls1.publish_screen_share().await.expect("publish_screen_share failed");
+    controls1
+        .publish_screen_share()
+        .await
+        .expect("publish_screen_share failed");
 
     let saw_sub = wait_for(
         || capture2.has(|e| matches!(e, VisioEvent::TrackSubscribed(info) if info.source == TrackSource::ScreenShare)),
@@ -1023,14 +1145,20 @@ async fn test_screen_share_stop() {
     assert!(saw_sub, "bob should subscribe to screen share");
 
     // Alice stops screen share
-    controls1.stop_screen_share().await.expect("stop_screen_share failed");
+    controls1
+        .stop_screen_share()
+        .await
+        .expect("stop_screen_share failed");
 
     let saw_unsub = wait_for(
         || capture2.has(|e| matches!(e, VisioEvent::TrackUnsubscribed(_))),
         Duration::from_secs(10),
     )
     .await;
-    assert!(saw_unsub, "bob should receive TrackUnsubscribed after screen share stops");
+    assert!(
+        saw_unsub,
+        "bob should receive TrackUnsubscribed after screen share stops"
+    );
 
     rm1.disconnect().await;
     rm2.disconnect().await;
@@ -1052,13 +1180,23 @@ async fn test_simultaneous_audio_video_tracks() {
     let capture2 = EventCapture::new();
     rm2.add_listener(capture2.clone());
 
-    rm1.connect_with_token(&url, &token1).await.expect("connect rm1");
-    rm2.connect_with_token(&url, &token2).await.expect("connect rm2");
+    rm1.connect_with_token(&url, &token1)
+        .await
+        .expect("connect rm1");
+    rm2.connect_with_token(&url, &token2)
+        .await
+        .expect("connect rm2");
     wait_mutual_discovery(&rm1, &rm2, "alice", "bob").await;
 
     let controls1 = rm1.controls();
-    controls1.publish_microphone().await.expect("publish_microphone failed");
-    controls1.publish_camera("720p").await.expect("publish_camera failed");
+    controls1
+        .publish_microphone()
+        .await
+        .expect("publish_microphone failed");
+    controls1
+        .publish_camera("720p")
+        .await
+        .expect("publish_camera failed");
 
     // Bob should receive 2 TrackSubscribed events
     let saw_both = wait_for(
@@ -1070,7 +1208,10 @@ async fn test_simultaneous_audio_video_tracks() {
         Duration::from_secs(10),
     )
     .await;
-    assert!(saw_both, "bob should receive both Microphone and Camera TrackSubscribed");
+    assert!(
+        saw_both,
+        "bob should receive both Microphone and Camera TrackSubscribed"
+    );
 
     rm1.disconnect().await;
     rm2.disconnect().await;
@@ -1092,12 +1233,19 @@ async fn test_track_disable_does_not_unsubscribe() {
     let capture2 = EventCapture::new();
     rm2.add_listener(capture2.clone());
 
-    rm1.connect_with_token(&url, &token1).await.expect("connect rm1");
-    rm2.connect_with_token(&url, &token2).await.expect("connect rm2");
+    rm1.connect_with_token(&url, &token1)
+        .await
+        .expect("connect rm1");
+    rm2.connect_with_token(&url, &token2)
+        .await
+        .expect("connect rm2");
     wait_mutual_discovery(&rm1, &rm2, "alice", "bob").await;
 
     let controls1 = rm1.controls();
-    controls1.publish_microphone().await.expect("publish_microphone failed");
+    controls1
+        .publish_microphone()
+        .await
+        .expect("publish_microphone failed");
 
     let saw_sub = wait_for(
         || capture2.has(|e| matches!(e, VisioEvent::TrackSubscribed(_))),
@@ -1107,7 +1255,10 @@ async fn test_track_disable_does_not_unsubscribe() {
     assert!(saw_sub, "bob should subscribe to mic");
 
     // Alice mutes mic (disable, not unpublish)
-    controls1.set_microphone_enabled(false).await.expect("mute failed");
+    controls1
+        .set_microphone_enabled(false)
+        .await
+        .expect("mute failed");
 
     // Should get TrackMuted but NOT TrackUnsubscribed
     let saw_mute = wait_for(
@@ -1163,9 +1314,12 @@ async fn test_three_participants_discovery() {
         let p2 = rm2.participants().await;
         let p3 = rm3.participants().await;
 
-        let p1_ok = p1.iter().any(|p| p.identity == "bob") && p1.iter().any(|p| p.identity == "charlie");
-        let p2_ok = p2.iter().any(|p| p.identity == "alice") && p2.iter().any(|p| p.identity == "charlie");
-        let p3_ok = p3.iter().any(|p| p.identity == "alice") && p3.iter().any(|p| p.identity == "bob");
+        let p1_ok =
+            p1.iter().any(|p| p.identity == "bob") && p1.iter().any(|p| p.identity == "charlie");
+        let p2_ok =
+            p2.iter().any(|p| p.identity == "alice") && p2.iter().any(|p| p.identity == "charlie");
+        let p3_ok =
+            p3.iter().any(|p| p.identity == "alice") && p3.iter().any(|p| p.identity == "bob");
 
         if p1_ok && p2_ok && p3_ok {
             break;
@@ -1212,7 +1366,10 @@ async fn test_participant_joined_has_correct_name() {
         Duration::from_secs(10),
     )
     .await;
-    assert!(saw_join, "ParticipantJoined should include name 'Bob McBobface'");
+    assert!(
+        saw_join,
+        "ParticipantJoined should include name 'Bob McBobface'"
+    );
 
     rm1.disconnect().await;
     rm2.disconnect().await;
@@ -1235,22 +1392,39 @@ async fn test_chat_three_participants() {
     rm2.add_listener(capture2.clone());
     rm3.add_listener(capture3.clone());
 
-    rm1.connect_with_token(&url, &make_token("alice", "Alice", &room_name)).await.expect("rm1");
-    rm2.connect_with_token(&url, &make_token("bob", "Bob", &room_name)).await.expect("rm2");
-    rm3.connect_with_token(&url, &make_token("charlie", "Charlie", &room_name)).await.expect("rm3");
+    rm1.connect_with_token(&url, &make_token("alice", "Alice", &room_name))
+        .await
+        .expect("rm1");
+    rm2.connect_with_token(&url, &make_token("bob", "Bob", &room_name))
+        .await
+        .expect("rm2");
+    rm3.connect_with_token(&url, &make_token("charlie", "Charlie", &room_name))
+        .await
+        .expect("rm3");
 
     // Wait for full mesh
     tokio::time::sleep(Duration::from_secs(3)).await;
 
-    rm1.chat().send_message("hello everyone").await.expect("send failed");
+    rm1.chat()
+        .send_message("hello everyone")
+        .await
+        .expect("send failed");
 
     let bob_saw = wait_for(
-        || capture2.has(|e| matches!(e, VisioEvent::ChatMessageReceived(m) if m.text == "hello everyone")),
+        || {
+            capture2.has(
+                |e| matches!(e, VisioEvent::ChatMessageReceived(m) if m.text == "hello everyone"),
+            )
+        },
         Duration::from_secs(10),
     )
     .await;
     let charlie_saw = wait_for(
-        || capture3.has(|e| matches!(e, VisioEvent::ChatMessageReceived(m) if m.text == "hello everyone")),
+        || {
+            capture3.has(
+                |e| matches!(e, VisioEvent::ChatMessageReceived(m) if m.text == "hello everyone"),
+            )
+        },
         Duration::from_secs(10),
     )
     .await;
@@ -1294,7 +1468,10 @@ async fn test_publish_before_connect() {
     let rm = RoomManager::new();
     let controls = rm.controls();
     let result = controls.publish_microphone().await;
-    assert!(result.is_err(), "publish_microphone before connect should fail");
+    assert!(
+        result.is_err(),
+        "publish_microphone before connect should fail"
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -1320,7 +1497,9 @@ async fn test_rapid_mute_toggle() {
     let url = livekit_url();
 
     let rm1 = RoomManager::new();
-    rm1.connect_with_token(&url, &token1).await.expect("connect rm1");
+    rm1.connect_with_token(&url, &token1)
+        .await
+        .expect("connect rm1");
 
     let controls1 = rm1.controls();
     if controls1.publish_microphone().await.is_ok() {
@@ -1354,11 +1533,16 @@ async fn test_last_connection_info_with_token() {
     let info_before = rm.last_connection_info().await;
     assert!(info_before.is_none(), "no connection info before connect");
 
-    rm.connect_with_token(&url, &token).await.expect("connect failed");
+    rm.connect_with_token(&url, &token)
+        .await
+        .expect("connect failed");
 
     // connect_with_token does NOT set last_meet_url (only connect() does)
     let info = rm.last_connection_info().await;
-    assert!(info.is_none(), "connect_with_token should not populate last_connection_info");
+    assert!(
+        info.is_none(),
+        "connect_with_token should not populate last_connection_info"
+    );
 
     rm.disconnect().await;
 }
@@ -1375,8 +1559,12 @@ async fn test_reconnect_clean_participants() {
 
     // First room with 2 participants
     let room1 = format!("test-clean-1-{}", uuid::Uuid::new_v4());
-    rm1.connect_with_token(&url, &make_token("alice", "Alice", &room1)).await.expect("connect");
-    rm2.connect_with_token(&url, &make_token("bob", "Bob", &room1)).await.expect("connect");
+    rm1.connect_with_token(&url, &make_token("alice", "Alice", &room1))
+        .await
+        .expect("connect");
+    rm2.connect_with_token(&url, &make_token("bob", "Bob", &room1))
+        .await
+        .expect("connect");
     wait_mutual_discovery(&rm1, &rm2, "alice", "bob").await;
 
     rm1.disconnect().await;
@@ -1385,7 +1573,9 @@ async fn test_reconnect_clean_participants() {
 
     // Second room with alice alone
     let room2 = format!("test-clean-2-{}", uuid::Uuid::new_v4());
-    rm1.connect_with_token(&url, &make_token("alice", "Alice", &room2)).await.expect("connect");
+    rm1.connect_with_token(&url, &make_token("alice", "Alice", &room2))
+        .await
+        .expect("connect");
     tokio::time::sleep(Duration::from_secs(1)).await;
 
     let participants = rm1.participants().await;
@@ -1597,7 +1787,14 @@ fn spawn_video_feeder(source: NativeVideoSource) {
 }
 
 /// Helper: wait until all 3 participants see each other.
-async fn wait_three_way_discovery(rm1: &RoomManager, rm2: &RoomManager, rm3: &RoomManager, id1: &str, id2: &str, id3: &str) {
+async fn wait_three_way_discovery(
+    rm1: &RoomManager,
+    rm2: &RoomManager,
+    rm3: &RoomManager,
+    id1: &str,
+    id2: &str,
+    id3: &str,
+) {
     let timeout = Duration::from_secs(15);
     let start = std::time::Instant::now();
     loop {
@@ -1636,11 +1833,28 @@ async fn test_three_participants_video_broadcast() {
     rm_viewer1.add_listener(capture_v1.clone());
     rm_viewer2.add_listener(capture_v2.clone());
 
-    rm_publisher.connect_with_token(&url, &make_token("streamer", "Streamer", &room_name)).await.expect("connect streamer");
-    rm_viewer1.connect_with_token(&url, &make_token("viewer1", "Viewer 1", &room_name)).await.expect("connect viewer1");
-    rm_viewer2.connect_with_token(&url, &make_token("viewer2", "Viewer 2", &room_name)).await.expect("connect viewer2");
+    rm_publisher
+        .connect_with_token(&url, &make_token("streamer", "Streamer", &room_name))
+        .await
+        .expect("connect streamer");
+    rm_viewer1
+        .connect_with_token(&url, &make_token("viewer1", "Viewer 1", &room_name))
+        .await
+        .expect("connect viewer1");
+    rm_viewer2
+        .connect_with_token(&url, &make_token("viewer2", "Viewer 2", &room_name))
+        .await
+        .expect("connect viewer2");
 
-    wait_three_way_discovery(&rm_publisher, &rm_viewer1, &rm_viewer2, "streamer", "viewer1", "viewer2").await;
+    wait_three_way_discovery(
+        &rm_publisher,
+        &rm_viewer1,
+        &rm_viewer2,
+        "streamer",
+        "viewer1",
+        "viewer2",
+    )
+    .await;
 
     // Publisher publishes audio + video with real frames
     let controls = rm_publisher.controls();
@@ -1659,7 +1873,10 @@ async fn test_three_participants_video_broadcast() {
         },
         Duration::from_secs(15),
     ).await;
-    assert!(v1_got_both, "viewer1 should receive both Microphone and Camera tracks");
+    assert!(
+        v1_got_both,
+        "viewer1 should receive both Microphone and Camera tracks"
+    );
 
     let v2_got_both = wait_for(
         || {
@@ -1669,7 +1886,10 @@ async fn test_three_participants_video_broadcast() {
         },
         Duration::from_secs(15),
     ).await;
-    assert!(v2_got_both, "viewer2 should receive both Microphone and Camera tracks");
+    assert!(
+        v2_got_both,
+        "viewer2 should receive both Microphone and Camera tracks"
+    );
 
     // Both viewers should have video track SIDs
     let sids1 = rm_viewer1.video_track_sids().await;
@@ -1699,9 +1919,18 @@ async fn test_three_participants_video_mute_broadcast() {
     rm_v1.add_listener(cap_v1.clone());
     rm_v2.add_listener(cap_v2.clone());
 
-    rm_pub.connect_with_token(&url, &make_token("pub", "Publisher", &room_name)).await.expect("connect");
-    rm_v1.connect_with_token(&url, &make_token("v1", "V1", &room_name)).await.expect("connect");
-    rm_v2.connect_with_token(&url, &make_token("v2", "V2", &room_name)).await.expect("connect");
+    rm_pub
+        .connect_with_token(&url, &make_token("pub", "Publisher", &room_name))
+        .await
+        .expect("connect");
+    rm_v1
+        .connect_with_token(&url, &make_token("v1", "V1", &room_name))
+        .await
+        .expect("connect");
+    rm_v2
+        .connect_with_token(&url, &make_token("v2", "V2", &room_name))
+        .await
+        .expect("connect");
     wait_three_way_discovery(&rm_pub, &rm_v1, &rm_v2, "pub", "v1", "v2").await;
 
     let controls = rm_pub.controls();
@@ -1754,9 +1983,18 @@ async fn test_three_participants_publisher_leaves() {
     rm_v1.add_listener(cap_v1.clone());
     rm_v2.add_listener(cap_v2.clone());
 
-    rm_pub.connect_with_token(&url, &make_token("pub", "Publisher", &room_name)).await.expect("connect");
-    rm_v1.connect_with_token(&url, &make_token("v1", "V1", &room_name)).await.expect("connect");
-    rm_v2.connect_with_token(&url, &make_token("v2", "V2", &room_name)).await.expect("connect");
+    rm_pub
+        .connect_with_token(&url, &make_token("pub", "Publisher", &room_name))
+        .await
+        .expect("connect");
+    rm_v1
+        .connect_with_token(&url, &make_token("v1", "V1", &room_name))
+        .await
+        .expect("connect");
+    rm_v2
+        .connect_with_token(&url, &make_token("v2", "V2", &room_name))
+        .await
+        .expect("connect");
     wait_three_way_discovery(&rm_pub, &rm_v1, &rm_v2, "pub", "v1", "v2").await;
 
     let controls = rm_pub.controls();
@@ -1782,11 +2020,13 @@ async fn test_three_participants_publisher_leaves() {
     let v1_left = wait_for(
         || cap_v1.has(|e| matches!(e, VisioEvent::ParticipantLeft(_))),
         Duration::from_secs(10),
-    ).await;
+    )
+    .await;
     let v2_left = wait_for(
         || cap_v2.has(|e| matches!(e, VisioEvent::ParticipantLeft(_))),
         Duration::from_secs(10),
-    ).await;
+    )
+    .await;
     assert!(v1_left, "viewer1 should see ParticipantLeft");
     assert!(v2_left, "viewer2 should see ParticipantLeft");
 
@@ -1819,9 +2059,15 @@ async fn test_three_participants_full_interaction() {
     rm2.add_listener(cap2.clone());
     rm3.add_listener(cap3.clone());
 
-    rm1.connect_with_token(&url, &make_token("alice", "Alice", &room_name)).await.expect("connect");
-    rm2.connect_with_token(&url, &make_token("bob", "Bob", &room_name)).await.expect("connect");
-    rm3.connect_with_token(&url, &make_token("charlie", "Charlie", &room_name)).await.expect("connect");
+    rm1.connect_with_token(&url, &make_token("alice", "Alice", &room_name))
+        .await
+        .expect("connect");
+    rm2.connect_with_token(&url, &make_token("bob", "Bob", &room_name))
+        .await
+        .expect("connect");
+    rm3.connect_with_token(&url, &make_token("charlie", "Charlie", &room_name))
+        .await
+        .expect("connect");
     wait_three_way_discovery(&rm1, &rm2, &rm3, "alice", "bob", "charlie").await;
 
     // Alice publishes audio + video with real frames
@@ -1842,31 +2088,49 @@ async fn test_three_participants_full_interaction() {
         },
         Duration::from_secs(15),
     ).await;
-    assert!(both_sub, "bob and charlie should subscribe to alice's audio+video");
+    assert!(
+        both_sub,
+        "bob and charlie should subscribe to alice's audio+video"
+    );
 
     // Bob sends a chat message — Alice and Charlie should receive it
-    rm2.chat().send_message("Hello from Bob").await.expect("chat send");
+    rm2.chat()
+        .send_message("Hello from Bob")
+        .await
+        .expect("chat send");
     let alice_chat = wait_for(
-        || cap1.has(|e| matches!(e, VisioEvent::ChatMessageReceived(m) if m.text == "Hello from Bob")),
+        || {
+            cap1.has(
+                |e| matches!(e, VisioEvent::ChatMessageReceived(m) if m.text == "Hello from Bob"),
+            )
+        },
         Duration::from_secs(10),
-    ).await;
+    )
+    .await;
     let charlie_chat = wait_for(
-        || cap3.has(|e| matches!(e, VisioEvent::ChatMessageReceived(m) if m.text == "Hello from Bob")),
+        || {
+            cap3.has(
+                |e| matches!(e, VisioEvent::ChatMessageReceived(m) if m.text == "Hello from Bob"),
+            )
+        },
         Duration::from_secs(10),
-    ).await;
+    )
+    .await;
     assert!(alice_chat, "alice should receive bob's chat");
     assert!(charlie_chat, "charlie should receive bob's chat");
 
     // Charlie sends a reaction — Alice and Bob should see it
-    rm3.send_reaction("🎉").await.expect("reaction send");
+    rm3.send_reaction("tada").await.expect("reaction send");
     let alice_react = wait_for(
-        || cap1.has(|e| matches!(e, VisioEvent::ReactionReceived { emoji, .. } if emoji == "🎉")),
+        || cap1.has(|e| matches!(e, VisioEvent::ReactionReceived { emoji, .. } if emoji == "tada")),
         Duration::from_secs(5),
-    ).await;
+    )
+    .await;
     let bob_react = wait_for(
-        || cap2.has(|e| matches!(e, VisioEvent::ReactionReceived { emoji, .. } if emoji == "🎉")),
+        || cap2.has(|e| matches!(e, VisioEvent::ReactionReceived { emoji, .. } if emoji == "tada")),
         Duration::from_secs(5),
-    ).await;
+    )
+    .await;
     assert!(alice_react, "alice should receive charlie's reaction");
     assert!(bob_react, "bob should receive charlie's reaction");
 
@@ -1875,11 +2139,13 @@ async fn test_three_participants_full_interaction() {
     let bob_hand = wait_for(
         || cap2.has(|e| matches!(e, VisioEvent::HandRaisedChanged { raised: true, .. })),
         Duration::from_secs(5),
-    ).await;
+    )
+    .await;
     let charlie_hand = wait_for(
         || cap3.has(|e| matches!(e, VisioEvent::HandRaisedChanged { raised: true, .. })),
         Duration::from_secs(5),
-    ).await;
+    )
+    .await;
     assert!(bob_hand, "bob should see alice's hand raised");
     assert!(charlie_hand, "charlie should see alice's hand raised");
 
@@ -1903,9 +2169,15 @@ async fn test_three_participants_two_publishers() {
     let cap3 = EventCapture::new();
     rm3.add_listener(cap3.clone());
 
-    rm1.connect_with_token(&url, &make_token("alice", "Alice", &room_name)).await.expect("connect");
-    rm2.connect_with_token(&url, &make_token("bob", "Bob", &room_name)).await.expect("connect");
-    rm3.connect_with_token(&url, &make_token("charlie", "Charlie", &room_name)).await.expect("connect");
+    rm1.connect_with_token(&url, &make_token("alice", "Alice", &room_name))
+        .await
+        .expect("connect");
+    rm2.connect_with_token(&url, &make_token("bob", "Bob", &room_name))
+        .await
+        .expect("connect");
+    rm3.connect_with_token(&url, &make_token("charlie", "Charlie", &room_name))
+        .await
+        .expect("connect");
     wait_three_way_discovery(&rm1, &rm2, &rm3, "alice", "bob", "charlie").await;
 
     // Alice publishes audio + video
@@ -1931,11 +2203,18 @@ async fn test_three_participants_two_publishers() {
         },
         Duration::from_secs(15),
     ).await;
-    assert!(charlie_got_all, "charlie should receive 2 mic + 2 camera tracks");
+    assert!(
+        charlie_got_all,
+        "charlie should receive 2 mic + 2 camera tracks"
+    );
 
     // Charlie should have 2 video track SIDs
     let sids = rm3.video_track_sids().await;
-    assert!(sids.len() >= 2, "charlie should have >= 2 video track SIDs, got {}", sids.len());
+    assert!(
+        sids.len() >= 2,
+        "charlie should have >= 2 video track SIDs, got {}",
+        sids.len()
+    );
 
     rm1.disconnect().await;
     rm2.disconnect().await;
@@ -1959,9 +2238,15 @@ async fn test_three_participants_screen_share_and_camera() {
     rm2.add_listener(cap2.clone());
     rm3.add_listener(cap3.clone());
 
-    rm1.connect_with_token(&url, &make_token("alice", "Alice", &room_name)).await.expect("connect");
-    rm2.connect_with_token(&url, &make_token("bob", "Bob", &room_name)).await.expect("connect");
-    rm3.connect_with_token(&url, &make_token("charlie", "Charlie", &room_name)).await.expect("connect");
+    rm1.connect_with_token(&url, &make_token("alice", "Alice", &room_name))
+        .await
+        .expect("connect");
+    rm2.connect_with_token(&url, &make_token("bob", "Bob", &room_name))
+        .await
+        .expect("connect");
+    rm3.connect_with_token(&url, &make_token("charlie", "Charlie", &room_name))
+        .await
+        .expect("connect");
     wait_three_way_discovery(&rm1, &rm2, &rm3, "alice", "bob", "charlie").await;
 
     let controls = rm1.controls();
@@ -1969,7 +2254,10 @@ async fn test_three_participants_screen_share_and_camera() {
     // Alice publishes camera + screen share
     let cam_src = controls.publish_camera("720p").await.expect("publish cam");
     spawn_video_feeder(cam_src);
-    let _screen_src = controls.publish_screen_share().await.expect("publish screen share");
+    let _screen_src = controls
+        .publish_screen_share()
+        .await
+        .expect("publish screen share");
 
     // Both viewers should get Camera AND ScreenShare tracks
     let both_got_both = wait_for(
@@ -1982,19 +2270,29 @@ async fn test_three_participants_screen_share_and_camera() {
         },
         Duration::from_secs(15),
     ).await;
-    assert!(both_got_both, "bob and charlie should both receive Camera + ScreenShare tracks");
+    assert!(
+        both_got_both,
+        "bob and charlie should both receive Camera + ScreenShare tracks"
+    );
 
     // Stop screen share — both should get unsubscribed
-    controls.stop_screen_share().await.expect("stop screen share");
+    controls
+        .stop_screen_share()
+        .await
+        .expect("stop screen share");
 
     let both_unsub = wait_for(
         || {
             cap2.has(|e| matches!(e, VisioEvent::TrackUnsubscribed(_)))
-            && cap3.has(|e| matches!(e, VisioEvent::TrackUnsubscribed(_)))
+                && cap3.has(|e| matches!(e, VisioEvent::TrackUnsubscribed(_)))
         },
         Duration::from_secs(10),
-    ).await;
-    assert!(both_unsub, "bob and charlie should get TrackUnsubscribed when screen share stops");
+    )
+    .await;
+    assert!(
+        both_unsub,
+        "bob and charlie should get TrackUnsubscribed when screen share stops"
+    );
 
     rm1.disconnect().await;
     rm2.disconnect().await;
