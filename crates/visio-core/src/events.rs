@@ -63,7 +63,9 @@ pub enum VisioEvent {
     ConnectionLost,
     /// Local participant is alone in the room — UI may show countdown or auto-disconnect.
     /// `remaining_secs` counts down from 120 (2 minutes). 0 means time's up.
-    AloneInRoom { remaining_secs: u32 },
+    AloneInRoom {
+        remaining_secs: u32,
+    },
     /// Alone-in-room countdown was cancelled (another participant joined).
     AloneInRoomCancelled,
     /// Admin requested muting all participants — native UI should mute the local mic.
