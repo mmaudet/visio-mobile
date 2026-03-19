@@ -43,6 +43,9 @@ fn android_log(msg: &str) {
 #[cfg(target_os = "ios")]
 mod ios;
 
+#[cfg(target_os = "ios")]
+pub use ios::deliver_i420_to_ios_callback;
+
 #[cfg(any(target_os = "macos", target_os = "linux", target_os = "windows"))]
 mod desktop;
 

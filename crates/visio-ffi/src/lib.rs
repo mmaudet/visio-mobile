@@ -1985,22 +1985,10 @@ pub unsafe extern "C" fn visio_push_ios_camera_frame(
     use std::sync::atomic::{AtomicU64, Ordering};
     static IOS_FRAME_COUNT: AtomicU64 = AtomicU64::new(0);
 
-    // Clone source and drop guard immediately (same pattern as visio_pull_audio_playback).
+    // Clone source (may be None before connect() finishes).
     let source = {
         let guard = CAMERA_SOURCE_IOS.lock().unwrap();
-        match guard.as_ref() {
-            Some(s) => s.clone(),
-            None => {
-                let n = IOS_FRAME_COUNT.fetch_add(1, Ordering::Relaxed);
-                if n % 30 == 0 {
-                    visio_log(&format!(
-                        "visio_push_ios_camera_frame: no source (frame #{})",
-                        n
-                    ));
-                }
-                return;
-            }
-        }
+        guard.as_ref().cloned()
     };
 
     let n = IOS_FRAME_COUNT.fetch_add(1, Ordering::Relaxed);
@@ -2057,12 +2045,32 @@ pub unsafe extern "C" fn visio_push_ios_camera_frame(
         );
     }
 
-    let frame = VideoFrame {
-        rotation: VideoRotation::VideoRotation0,
-        timestamp_us: 0,
-        buffer: i420,
-    };
-    source.capture_frame(&frame);
+    // Deliver post-blur frame to local preview.
+    {
+        let strides = i420.strides();
+        let (y_data, u_data, v_data) = i420.data();
+        visio_video::deliver_i420_to_ios_callback(
+            width,
+            height,
+            y_data.as_ptr(),
+            strides.0,
+            u_data.as_ptr(),
+            strides.1,
+            v_data.as_ptr(),
+            strides.2,
+            "local-camera",
+        );
+    }
+
+    // Publish to WebRTC if connected.
+    if let Some(source) = source {
+        let frame = VideoFrame {
+            rotation: VideoRotation::VideoRotation0,
+            timestamp_us: 0,
+            buffer: i420,
+        };
+        source.capture_frame(&frame);
+    }
 }
 
 // ── C FFI: video attach / detach ─────────────────────────────────────
