@@ -32,7 +32,7 @@ class MainActivity : ComponentActivity() {
 
         // Handle auth callback deep link: visio://auth-callback
         if (host == OidcAuthManager.AUTH_CALLBACK_HOST) {
-            handleAuthCallback()
+            handleAuthCallback(uri)
             return null
         }
 
@@ -49,16 +49,16 @@ class MainActivity : ComponentActivity() {
 
     /**
      * Handle the OIDC auth callback from Chrome Custom Tab.
-     * Extracts the sessionid cookie from CookieManager and completes authentication.
+     * Extracts the exchange code from the callback URI and triggers code exchange.
      */
-    private fun handleAuthCallback() {
-        val result = VisioManager.authManager.handleAuthCallback()
+    private fun handleAuthCallback(uri: android.net.Uri) {
+        val result = VisioManager.authManager.handleAuthCallback(uri)
         if (result != null) {
-            val (sessionId, meetInstance) = result
-            Log.i(TAG, "Auth callback: session cookie received for $meetInstance")
-            VisioManager.onAuthCookieReceived(sessionId, meetInstance)
+            val (code, meetInstance) = result
+            Log.i(TAG, "Auth callback: exchange code received for $meetInstance")
+            VisioManager.exchangeOidcCode(code, meetInstance)
         } else {
-            Log.w(TAG, "Auth callback: failed to extract session cookie")
+            Log.w(TAG, "Auth callback: failed to extract exchange code")
         }
     }
 

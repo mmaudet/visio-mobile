@@ -249,6 +249,20 @@ object VisioManager : VisioEventListener {
         }
     }
 
+    fun exchangeOidcCode(
+        code: String,
+        meetInstance: String,
+    ) {
+        scope.launch {
+            try {
+                val sessionId = client.exchangeOidcCode(meetInstance, code)
+                onAuthCookieReceived(sessionId, meetInstance)
+            } catch (e: Exception) {
+                Log.e("VISIO", "OIDC code exchange failed: ${e.message}")
+            }
+        }
+    }
+
     fun onAuthCookieReceived(
         cookie: String,
         meetInstance: String,

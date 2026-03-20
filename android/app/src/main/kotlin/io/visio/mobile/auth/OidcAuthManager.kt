@@ -3,7 +3,6 @@ package io.visio.mobile.auth
 import android.content.Context
 import android.net.Uri
 import android.util.Log
-import android.webkit.CookieManager
 import androidx.browser.customtabs.CustomTabsIntent
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
@@ -72,47 +71,27 @@ class OidcAuthManager(context: Context) {
     }
 
     /**
-     * Called when the visio://auth-callback deep link is received.
-     * Extracts the sessionid cookie from CookieManager (shared with Custom Tab / Chrome).
+     * Handle the visio://auth-callback?code={uuid} deep link.
+     * Extracts the exchange code from the URI query parameter.
      *
-     * @param consumeOnFailure If true (default, used by deep link callback), clears
-     *   pendingAuthInstance even if no cookie is found. If false (used by onResume fallback),
-     *   keeps pendingAuthInstance so the user can finish auth and return again.
-     * @return Pair of (sessionid, meetInstance) if successful, null otherwise.
+     * @return Pair of (code, meetInstance) if successful, null otherwise.
      */
-    fun handleAuthCallback(consumeOnFailure: Boolean = true): Pair<String, String>? {
+    fun handleAuthCallback(callbackUri: android.net.Uri?): Pair<String, String>? {
         val meetInstance = pendingAuthInstance
         if (meetInstance == null) {
             Log.w(TAG, "Auth callback received but no pending auth instance")
             return null
         }
+        pendingAuthInstance = null
 
-        val allCookies = CookieManager.getInstance().getCookie("https://$meetInstance")
-        Log.d(TAG, "Cookies for $meetInstance: $allCookies")
-
-        if (allCookies == null) {
-            Log.w(TAG, "No cookies found for $meetInstance")
-            if (consumeOnFailure) pendingAuthInstance = null
+        val code = callbackUri?.getQueryParameter("code")
+        if (code.isNullOrBlank()) {
+            Log.w(TAG, "No code parameter in callback URI: $callbackUri")
             return null
         }
 
-        // Meet uses "meet_sessionid", other instances may use "sessionid"
-        val cookieNames = listOf("meet_sessionid", "sessionid")
-        val sessionId =
-            allCookies.split(";")
-                .map { it.trim() }
-                .firstOrNull { cookie -> cookieNames.any { cookie.startsWith("$it=") } }
-                ?.substringAfter("=")
-
-        if (sessionId != null) {
-            pendingAuthInstance = null
-            Log.d(TAG, "Session cookie extracted successfully from CookieManager")
-            return Pair(sessionId, meetInstance)
-        } else {
-            Log.w(TAG, "sessionid not found in cookies")
-            if (consumeOnFailure) pendingAuthInstance = null
-            return null
-        }
+        Log.d(TAG, "Exchange code extracted from callback")
+        return Pair(code, meetInstance)
     }
 
     fun saveCookie(cookie: String) {
