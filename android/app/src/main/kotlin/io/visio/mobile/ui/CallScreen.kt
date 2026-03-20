@@ -784,6 +784,7 @@ fun CallScreen(
                                     if (hasTrack) {
                                         AndroidView(
                                             factory = { ctx -> VideoSurfaceView(ctx, focusedDisplayItem.trackSid!!) },
+                                            update = { view -> view.requestLayout() },
                                             modifier = Modifier.fillMaxSize(),
                                         )
                                     } else {
@@ -1704,6 +1705,12 @@ fun ParticipantTile(
             androidx.compose.runtime.key(trackSid) {
                 AndroidView(
                     factory = { ctx -> VideoSurfaceView(ctx, trackSid) },
+                    update = { view ->
+                        // Force layout pass when SurfaceView is first inserted
+                        // into the Compose hierarchy. Without this, the surface
+                        // may not be visible until the user touches the screen.
+                        view.requestLayout()
+                    },
                     modifier = Modifier.fillMaxSize(),
                 )
             }
