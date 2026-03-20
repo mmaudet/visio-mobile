@@ -668,8 +668,22 @@ fun CallScreen(
             // Connection state banner
             ConnectionStateBanner(connectionState, errorMessage)
 
+            // Compute layout decision for rendering
+            val localSid = participants.firstOrNull()?.sid ?: ""
+            val renderScreenShareFocus = if (screenShareSubscribed != null) FocusItem(screenShareSubscribed!!, "screen_share") else null
+            val (layoutDecision, _) = computeLayout(
+                participants = participants,
+                activeSpeakers = activeSpeakers,
+                pinnedItem = userPinnedItem,
+                screenShare = renderScreenShareFocus,
+                adaptiveMode = effectiveAdaptiveMode,
+                localParticipantSid = localSid,
+                previousState = layoutState,
+                nowMs = System.currentTimeMillis(),
+            )
+
             // Video grid area with reaction overlay
-            val isFullscreenFocus = focusedItem != null
+            val isFullscreenFocus = layoutDecision.mode == LayoutMode.FOCUS
             Box(
                 modifier =
                     Modifier
@@ -677,20 +691,6 @@ fun CallScreen(
                         .fillMaxWidth()
                         .padding(if (isFullscreenFocus) 0.dp else 8.dp),
             ) {
-                // Compute layout decision for rendering
-                val localSid = participants.firstOrNull()?.sid ?: ""
-                val renderScreenShareFocus = if (screenShareSubscribed != null) FocusItem(screenShareSubscribed!!, "screen_share") else null
-                val (layoutDecision, _) = computeLayout(
-                    participants = participants,
-                    activeSpeakers = activeSpeakers,
-                    pinnedItem = userPinnedItem,
-                    screenShare = renderScreenShareFocus,
-                    adaptiveMode = effectiveAdaptiveMode,
-                    localParticipantSid = localSid,
-                    previousState = layoutState,
-                    nowMs = System.currentTimeMillis(),
-                )
-
                 when (effectiveAdaptiveMode) {
                     AdaptiveMode.CAR -> {
                         // Car mode: audio-only view with speaker from layout decision
