@@ -167,7 +167,7 @@ struct CallView: View {
                         } else if effectiveAdaptiveMode == .pedestrian {
                             pedestrianSingleTile(speaker: layoutDecision.mainTile?.participant)
                         } else if layoutDecision.mode == .focus, let main = layoutDecision.mainTile {
-                            focusLayout(focused: main, allItems: [main] + layoutDecision.secondaryTiles)
+                            focusLayout(focused: main, allItems: [main] + layoutDecision.secondaryTiles, pinnedIndicatorSid: layoutDecision.pinnedIndicatorSid, speakerIndicatorSid: layoutDecision.speakerIndicatorSid)
                         } else {
                             gridLayout
                         }
@@ -339,6 +339,9 @@ struct CallView: View {
             }
         }
         .onChange(of: manager.activeSpeakers) { _ in
+            updateLayout()
+        }
+        .onChange(of: manager.participants.count) { _ in
             updateLayout()
         }
         .task {
@@ -558,7 +561,7 @@ struct CallView: View {
 
     // MARK: - Focus Layout
 
-    private func focusLayout(focused: DisplayItem, allItems: [DisplayItem]) -> some View {
+    private func focusLayout(focused: DisplayItem, allItems: [DisplayItem], pinnedIndicatorSid: String? = nil, speakerIndicatorSid: String? = nil) -> some View {
         VStack(spacing: 8) {
             // Main focused view
             ZStack {
@@ -566,8 +569,9 @@ struct CallView: View {
                     participant: focused.participant,
                     trackSidOverride: focused.isScreenShare ? focused.trackSid : nil,
                     large: true,
-                    isActiveSpeaker: manager.activeSpeakers.contains(focused.participant.sid),
+                    isActiveSpeaker: speakerIndicatorSid == focused.participant.sid || manager.activeSpeakers.contains(focused.participant.sid),
                     handRaisePosition: focused.isScreenShare ? 0 : manager.handRaisedMap[focused.participant.sid] ?? 0,
+                    isPinned: pinnedIndicatorSid == focused.participant.sid,
                     isDark: isDark
                 )
 
@@ -625,8 +629,9 @@ struct CallView: View {
                                 ParticipantTile(
                                     participant: item.participant,
                                     trackSidOverride: item.isScreenShare ? item.trackSid : nil,
-                                    isActiveSpeaker: manager.activeSpeakers.contains(item.participant.sid),
+                                    isActiveSpeaker: speakerIndicatorSid == item.participant.sid || manager.activeSpeakers.contains(item.participant.sid),
                                     handRaisePosition: item.isScreenShare ? 0 : manager.handRaisedMap[item.participant.sid] ?? 0,
+                                    isPinned: pinnedIndicatorSid == item.participant.sid,
                                     isDark: isDark
                                 )
 
