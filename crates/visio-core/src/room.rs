@@ -1659,14 +1659,27 @@ impl RoomManager {
                         }
                     }
 
-                    // Handle reactions from Meet web client (no topic, reliable data)
-                    // Skip our own reactions — LiveKit echoes data packets back to the sender,
-                    // and we already display the reaction locally on send.
-                    if participant.is_some()
-                        && let Ok(text) = std::str::from_utf8(&payload)
+                    // Handle reactions (no topic, reliable data).
+                    // Skip our own echoed reactions — LiveKit delivers the sender's
+                    // own data packet back with participant set to the local
+                    // participant. Compare SIDs to filter self-echoes reliably.
+                    if let Ok(text) = std::str::from_utf8(&payload)
                         && let Ok(json) = serde_json::from_str::<serde_json::Value>(text)
                         && json["type"].as_str() == Some("reactionReceived")
                     {
+                        // Skip self-echo: participant is None (our own packet) or
+                        // participant SID matches our local SID.
+                        if participant.is_none() {
+                            tracing::debug!("ignoring self-echoed reaction (no participant)");
+                            continue;
+                        }
+                        let local_sid =
+                            participants.lock().await.local_sid().map(|s| s.to_string());
+                        if local_sid.as_deref() == Some(psid.as_str()) {
+                            tracing::debug!("ignoring self-echoed reaction (SID match)");
+                            continue;
+                        }
+
                         if let Some(emoji) = json["data"]["emoji"].as_str() {
                             // Validate emoji against allowed set
                             if !RoomManager::ALLOWED_EMOJIS.contains(&emoji) {
