@@ -74,6 +74,7 @@ struct CallView: View {
     @State private var showAdaptiveModePicker: Bool = false
     /// Tracks whether the user manually pinned a participant (disables active speaker auto-focus).
     @State private var userPinned: Bool = false
+    @State private var layoutState = LayoutState()
 
     private var lang: String { manager.currentLang }
     private var isDark: Bool { manager.currentTheme == "dark" }
@@ -143,22 +144,33 @@ struct CallView: View {
                             Spacer()
                         }
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    } else if effectiveAdaptiveMode == .car {
-                        // Car mode: audio-only screen with active speaker name
-                        carAudioOnlyView
-                    } else if effectiveAdaptiveMode == .pedestrian {
-                        // Pedestrian mode: single active speaker tile
-                        pedestrianSingleTile
-                    } else if let fi = focusedItem {
-                        let displayItems = buildDisplayItems(manager.participants)
-                        if let focusedDisplay = displayItems.first(where: { $0.participant.sid == fi.participantSid && $0.source == fi.source }) {
-                            focusLayout(focused: focusedDisplay, allItems: displayItems)
+                    } else {
+                        // Unified layout engine
+                        let localSid = manager.participants.first?.sid ?? ""
+                        let screenShareFocus: FocusItem? = manager.lastScreenShareParticipantSid.map {
+                            FocusItem(participantSid: $0, source: .screenShare)
+                        }
+                        let pinnedFocus: FocusItem? = userPinned ? focusedItem : nil
+                        let (layoutDecision, _) = computeLayout(
+                            participants: manager.participants,
+                            activeSpeakers: manager.activeSpeakers,
+                            pinnedItem: pinnedFocus,
+                            screenShare: screenShareFocus,
+                            adaptiveMode: effectiveAdaptiveMode,
+                            localParticipantSid: localSid,
+                            previousState: layoutState,
+                            nowMs: Date().timeIntervalSince1970 * 1000
+                        )
+
+                        if effectiveAdaptiveMode == .car {
+                            carAudioOnlyView(speaker: layoutDecision.mainTile?.participant)
+                        } else if effectiveAdaptiveMode == .pedestrian {
+                            pedestrianSingleTile(speaker: layoutDecision.mainTile?.participant)
+                        } else if layoutDecision.mode == .focus, let main = layoutDecision.mainTile {
+                            focusLayout(focused: main, allItems: [main] + layoutDecision.secondaryTiles)
                         } else {
                             gridLayout
                         }
-                    } else {
-                        // Grid layout
-                        gridLayout
                     }
 
                     // Reaction overlay
@@ -326,27 +338,8 @@ struct CallView: View {
                 }
             }
         }
-        // Auto-focus on active speaker when 3+ participants and user hasn't manually pinned
-        .onChange(of: manager.activeSpeakers) { newSpeakers in
-            // Only auto-focus when there are enough participants to benefit from speaker view
-            guard manager.participants.count >= 3 else { return }
-            guard !userPinned else { return }
-            guard !newSpeakers.isEmpty else { return }
-            // Only auto-focus in office mode (pedestrian/car have their own speaker layouts)
-            guard effectiveAdaptiveMode == .office else { return }
-
-            // Find the first active speaker that is NOT the local participant
-            let localSid = manager.participants.first?.sid
-            let remoteSpeaker = newSpeakers.first(where: { $0 != localSid })
-            let speakerSid = remoteSpeaker ?? newSpeakers.first
-            guard let speakerSid else { return }
-
-            // Only switch if the speaker is different from the currently focused participant
-            if focusedItem?.participantSid == speakerSid && focusedItem?.source == .camera { return }
-
-            withAnimation(.easeInOut(duration: 0.2)) {
-                focusedItem = FocusItem(participantSid: speakerSid, source: .camera)
-            }
+        .onChange(of: manager.activeSpeakers) { _ in
+            updateLayout()
         }
         .task {
             guard let params = manager.pendingTestConnect else { return }
@@ -428,6 +421,41 @@ struct CallView: View {
         }
     }
 
+    // MARK: - Layout Engine Integration
+
+    private func updateLayout() {
+        let localSid = manager.participants.first?.sid ?? ""
+        let screenShareFocus: FocusItem? = manager.lastScreenShareParticipantSid.map {
+            FocusItem(participantSid: $0, source: .screenShare)
+        }
+        let pinnedFocus: FocusItem? = userPinned ? focusedItem : nil
+        let (decision, newState) = computeLayout(
+            participants: manager.participants,
+            activeSpeakers: manager.activeSpeakers,
+            pinnedItem: pinnedFocus,
+            screenShare: screenShareFocus,
+            adaptiveMode: effectiveAdaptiveMode,
+            localParticipantSid: localSid,
+            previousState: layoutState,
+            nowMs: Date().timeIntervalSince1970 * 1000
+        )
+        layoutState = newState
+
+        switch decision.mode {
+        case .grid:
+            if !userPinned {
+                withAnimation(.easeInOut(duration: 0.2)) { focusedItem = nil }
+            }
+        case .focus:
+            if let main = decision.mainTile, !userPinned {
+                let newFocus = FocusItem(participantSid: main.participant.sid, source: main.source)
+                if focusedItem != newFocus {
+                    withAnimation(.easeInOut(duration: 0.2)) { focusedItem = newFocus }
+                }
+            }
+        }
+    }
+
     // MARK: - Grid Layout
 
     private var gridLayout: some View {
@@ -506,6 +534,17 @@ struct CallView: View {
                                 withAnimation(.easeInOut(duration: 0.2)) {
                                     userPinned = true
                                     focusedItem = FocusItem(participantSid: item.participant.sid, source: item.source)
+                                }
+                            }
+                            .onLongPressGesture {
+                                withAnimation(.easeInOut(duration: 0.2)) {
+                                    if userPinned && focusedItem?.participantSid == item.participant.sid {
+                                        userPinned = false
+                                        updateLayout()
+                                    } else {
+                                        userPinned = true
+                                        focusedItem = FocusItem(participantSid: item.participant.sid, source: item.source)
+                                    }
                                 }
                             }
                         }
@@ -609,6 +648,17 @@ struct CallView: View {
                                     focusedItem = FocusItem(participantSid: item.participant.sid, source: item.source)
                                 }
                             }
+                            .onLongPressGesture {
+                                withAnimation(.easeInOut(duration: 0.2)) {
+                                    if userPinned && focusedItem?.participantSid == item.participant.sid {
+                                        userPinned = false
+                                        updateLayout()
+                                    } else {
+                                        userPinned = true
+                                        focusedItem = FocusItem(participantSid: item.participant.sid, source: item.source)
+                                    }
+                                }
+                            }
                         }
                     }
                     .padding(.horizontal, 8)
@@ -680,14 +730,8 @@ struct CallView: View {
 
     // MARK: - Pedestrian Single Tile
 
-    private var pedestrianSingleTile: some View {
-        // Find if active speaker is a remote participant
-        // (participants[0] is local, so skip it when looking for remote speaker)
-        let remoteParticipants = Array(manager.participants.dropFirst())
-        let remoteSpeaker = remoteParticipants.first(where: {
-            manager.activeSpeakers.contains($0.sid)
-        })
-        let displayParticipant = remoteSpeaker ?? manager.participants.first
+    private func pedestrianSingleTile(speaker: ParticipantInfo?) -> some View {
+        let displayParticipant = speaker ?? manager.participants.first
         return Group {
             if let speaker = displayParticipant {
                 ParticipantTile(
@@ -706,10 +750,8 @@ struct CallView: View {
 
     // MARK: - Car Audio-Only View
 
-    private var carAudioOnlyView: some View {
-        let activeSpeaker = manager.participants.first(where: {
-            manager.activeSpeakers.contains($0.sid)
-        }) ?? manager.participants.first
+    private func carAudioOnlyView(speaker: ParticipantInfo?) -> some View {
+        let activeSpeaker = speaker ?? manager.participants.first
         let speakerName = activeSpeaker?.name ?? activeSpeaker?.identity ?? ""
         return VStack(spacing: 24) {
             Spacer()
@@ -1087,6 +1129,7 @@ struct ParticipantTile: View {
     var large: Bool = false
     var isActiveSpeaker: Bool = false
     var handRaisePosition: Int = 0
+    var isPinned: Bool = false
     var isDark: Bool = true
 
     private var effectiveTrackSid: String? {
@@ -1106,6 +1149,23 @@ struct ParticipantTile: View {
 
             // Metadata bar at bottom
             metadataBar
+
+            // Pin indicator (top-right)
+            if isPinned {
+                VStack {
+                    HStack {
+                        Spacer()
+                        Image(systemName: "pin.fill")
+                            .font(.system(size: 12))
+                            .foregroundStyle(.white)
+                            .padding(6)
+                            .background(Color.black.opacity(0.6))
+                            .clipShape(Circle())
+                            .padding(4)
+                    }
+                    Spacer()
+                }
+            }
         }
         .clipShape(RoundedRectangle(cornerRadius: 8))
         .overlay(
