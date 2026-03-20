@@ -3,10 +3,10 @@
 
 export type LayoutMode = "grid" | "focus";
 
-export interface LayoutDecision {
+export interface LayoutDecision<T extends LayoutDisplayItem = LayoutDisplayItem> {
   mode: LayoutMode;
-  mainTile: DisplayItem | null;
-  secondaryTiles: DisplayItem[];
+  mainTile: T | null;
+  secondaryTiles: T[];
   speakerIndicatorSid: string | null;
   pinnedIndicatorSid: string | null;
 }
@@ -18,15 +18,15 @@ export interface LayoutState {
 }
 
 // Non-nullable focus item for internal use
-interface FocusItemNonNull {
+export interface FocusItemNonNull {
   participantSid: string;
   source: "camera" | "screen_share";
 }
 
-// Re-export for external use
-interface DisplayItem {
+// Minimal shape for display items — compatible with App's DisplayItem
+export interface LayoutDisplayItem {
   key: string;
-  participant: { sid: string; [key: string]: unknown };
+  participant: { sid: string };
   source: "camera" | "screen_share";
   trackSid: string | null;
   label: string;
@@ -36,15 +36,15 @@ interface DisplayItem {
 const MIN_HOLD_MS = 2500;
 const SILENCE_TO_GRID_MS = 5000;
 
-export function computeLayout(
-  displayItems: DisplayItem[],
+export function computeLayout<T extends LayoutDisplayItem>(
+  displayItems: T[],
   activeSpeakers: string[],
   pinnedItem: FocusItemNonNull | null,
   screenShare: FocusItemNonNull | null,
   localParticipantSid: string,
   previousState: LayoutState,
   nowMs: number,
-): [LayoutDecision, LayoutState] {
+): [LayoutDecision<T>, LayoutState] {
   // 1. Screen share has absolute priority
   if (screenShare) {
     const main = displayItems.find(

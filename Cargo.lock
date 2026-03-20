@@ -7617,7 +7617,7 @@ checksum = "0b928f33d975fc6ad9f86c8f283853ad26bdd5b10b7f1542aa2fa15e2289105a"
 
 [[package]]
 name = "visio-bot"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "clap 4.5.60",
  "futures-util",
@@ -7631,7 +7631,7 @@ dependencies = [
 
 [[package]]
 name = "visio-core"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "chrono",
  "futures-util",
@@ -7652,7 +7652,7 @@ dependencies = [
 
 [[package]]
 name = "visio-desktop"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "ashpd",
  "base64 0.22.1",
@@ -7688,7 +7688,7 @@ dependencies = [
 
 [[package]]
 name = "visio-ffi"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "jni",
  "jpeg-decoder",
@@ -7709,7 +7709,7 @@ dependencies = [
 
 [[package]]
 name = "visio-video"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "base64 0.22.1",
  "futures-util",
