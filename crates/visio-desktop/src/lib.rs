@@ -3,8 +3,9 @@ use tokio::sync::Mutex;
 
 use tauri::{AppHandle, Emitter, Listener, Manager};
 use visio_core::{
-    AudioPlayoutBuffer, ChatService, MeetingControls, RoomManager, SessionManager, SessionState,
-    SettingsStore, TrackInfo, TrackKind, TrackSource, VisioEvent, VisioEventListener,
+    AudioPlayoutBuffer, AuthService, ChatService, MeetingControls, RoomManager, SessionManager,
+    SessionState, SettingsStore, TrackInfo, TrackKind, TrackSource, VisioEvent,
+    VisioEventListener,
 };
 
 mod audio_engine;
@@ -420,6 +421,10 @@ async fn connect(
     meet_url: String,
     username: Option<String>,
 ) -> Result<(), String> {
+    // Extract room name from ?name= query param before stripping
+    let room_name = AuthService::extract_room_name(&meet_url);
+    let clean_url = AuthService::strip_query_params(&meet_url);
+
     // Start audio playout on connect (deferred from app startup to avoid
     // grabbing the microphone before the user joins a room).
     {
@@ -440,9 +445,14 @@ async fn connect(
         session.cookie()
     };
     let room = state.room.lock().await;
-    room.connect(&meet_url, username.as_deref(), cookie.as_deref())
+    room.connect(&clean_url, username.as_deref(), cookie.as_deref())
         .await
-        .map_err(|e| e.to_string())
+        .map_err(|e| e.to_string())?;
+
+    // Save to room history after successful connect
+    state.settings.add_room_to_history(clean_url, room_name);
+
+    Ok(())
 }
 
 #[tauri::command]
@@ -890,7 +900,9 @@ fn set_meet_instances(state: tauri::State<'_, VisioState>, instances: Vec<String
 }
 
 #[tauri::command]
-fn get_room_history(state: tauri::State<'_, VisioState>) -> Result<Vec<String>, String> {
+fn get_room_history(
+    state: tauri::State<'_, VisioState>,
+) -> Result<Vec<visio_core::RoomHistoryEntry>, String> {
     Ok(state.settings.get_room_history())
 }
 

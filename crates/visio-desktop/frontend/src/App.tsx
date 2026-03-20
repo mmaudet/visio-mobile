@@ -181,9 +181,30 @@ interface NativeVideoDevice {
 const SLUG_REGEX = /^[a-z]{3}-[a-z]{4}-[a-z]{3}$/;
 
 function extractSlug(input: string): string | null {
-  const trimmed = input.trim().replace(/\/$/, "");
+  // Strip query parameters before extracting slug
+  const stripped = input.split("?")[0];
+  const trimmed = stripped.trim().replace(/\/$/, "");
   const candidate = trimmed.includes("/") ? trimmed.split("/").pop() || "" : trimmed;
   return SLUG_REGEX.test(candidate) ? candidate : null;
+}
+
+/** Extract the `name` query parameter from a URL. */
+function extractRoomName(input: string): string | null {
+  const qIdx = input.indexOf("?");
+  if (qIdx < 0) return null;
+  const params = new URLSearchParams(input.slice(qIdx));
+  const name = params.get("name");
+  return name || null;
+}
+
+/** Strip query parameters from a URL. */
+function stripQueryParams(url: string): string {
+  return url.split("?")[0];
+}
+
+interface RoomHistoryEntry {
+  url: string;
+  name: string | null;
 }
 
 function detectSystemLang(): string {
@@ -425,10 +446,10 @@ function HomeView({
   const t = useT();
   const [meetUrl, setMeetUrl] = useState("");
   const [resolvedUrl, setResolvedUrl] = useState("");
-  const [roomHistory, setRoomHistory] = useState<string[]>([]);
+  const [roomHistory, setRoomHistory] = useState<RoomHistoryEntry[]>([]);
 
   useEffect(() => {
-    invoke<string[]>("get_room_history").then(setRoomHistory).catch(() => {});
+    invoke<RoomHistoryEntry[]>("get_room_history").then(setRoomHistory).catch(() => {});
   }, []);
   const [error, setError] = useState("");
   const [joining, setJoining] = useState(false);
@@ -446,17 +467,19 @@ function HomeView({
 
   useEffect(() => {
     const trimmed = meetUrl.trim();
-    const isSlug = SLUG_REGEX.test(trimmed);
+    // Strip query params for slug validation
+    const cleanInput = stripQueryParams(trimmed);
+    const isSlug = SLUG_REGEX.test(cleanInput);
 
-    // Build list of URLs to try
+    // Build list of URLs to try (always use clean URLs without query params)
     const urlsToTry: string[] = isSlug && meetInstances.length > 0
-      ? meetInstances.map(server => `https://${server}/${trimmed}`)
-      : [trimmed];
+      ? meetInstances.map(server => `https://${server}/${cleanInput}`)
+      : [cleanInput];
 
     const slug = extractSlug(urlsToTry[0]);
     if (!slug) {
       setRoomStatus("idle");
-      setResolvedUrl(trimmed);
+      setResolvedUrl(cleanInput);
       return;
     }
     setRoomStatus("checking");
@@ -504,9 +527,14 @@ function HomeView({
     setJoining(true);
     try {
       const uname = displayName.trim() || null;
+      // Reconstruct URL with ?name= so the backend can extract and store it in history
+      const roomNameFromInput = extractRoomName(meetUrl);
+      const connectUrl = roomNameFromInput
+        ? `${url}?name=${encodeURIComponent(roomNameFromInput)}`
+        : url;
       await invoke("set_display_name", { name: uname });
-      await invoke("connect", { meetUrl: url, username: uname });
-      onJoin(url, uname);
+      await invoke("connect", { meetUrl: connectUrl, username: uname });
+      onJoin(connectUrl, uname);
     } catch (e) {
       setError(String(e));
       setJoining(false);
@@ -680,26 +708,30 @@ function HomeView({
         {roomHistory.length > 0 && (
           <div className="room-history">
             <h4>{t("home.recentRooms")}</h4>
-            {roomHistory.map((url, i) => {
-              const slug = url.includes("/") ? url.split("/").pop() : url;
+            {roomHistory.map((entry, i) => {
+              const slug = entry.url.includes("/") ? entry.url.split("/").pop() : entry.url;
               let host = "";
-              try { host = new URL(url).host; } catch {}
+              try { host = new URL(entry.url).host; } catch {}
+              const displayLabel = entry.name || slug;
               return (
                 <button key={i} className="room-history-item" disabled={joining} onClick={async () => {
-                  setMeetUrl(url);
+                  // Reconstruct URL with ?name= if a name is stored
+                  const urlWithName = entry.name
+                    ? `${entry.url}?name=${encodeURIComponent(entry.name)}`
+                    : entry.url;
+                  setMeetUrl(urlWithName);
                   setError("");
                   setJoining(true);
                   try {
                     const uname = displayName.trim() || null;
                     const result = await invoke<{ status: string }>(
-                      "validate_room", { url, username: uname }
+                      "validate_room", { url: entry.url, username: uname }
                     );
                     if (result.status === "valid") {
                       await invoke("set_display_name", { name: uname });
-                      await invoke("connect", { meetUrl: url, username: uname });
-                      onJoin(url, uname);
+                      await invoke("connect", { meetUrl: urlWithName, username: uname });
+                      onJoin(urlWithName, uname);
                     } else {
-                      // Validation failed — fall back to filling the URL field so the user can see the status
                       setJoining(false);
                     }
                   } catch (e) {
@@ -707,14 +739,15 @@ function HomeView({
                     setJoining(false);
                   }
                 }} data-testid={`home_room_history_item_${i}`}>
-                  {joining && meetUrl === url ? (
+                  {joining && meetUrl === entry.url ? (
                     <span className="room-history-spinner" />
                   ) : (
                     <RiGlobalLine size={16} />
                   )}
                   <div className="room-history-info">
-                    <span className="room-history-slug">{slug}</span>
-                    {host && <span className="room-history-host">{host}</span>}
+                    <span className="room-history-slug">{displayLabel}</span>
+                    {entry.name && <span className="room-history-host">{slug}</span>}
+                    {host && <span className="room-history-host">{entry.name ? `· ${host}` : host}</span>}
                   </div>
                 </button>
               );
@@ -978,7 +1011,7 @@ function CreateRoomDialog({
 
 // -- Info Sidebar -----------------------------------------------------------
 
-function InfoSidebar({ meetUrl, onClose, roomId, accessLevel }: { meetUrl: string; onClose: () => void; roomId?: string; accessLevel?: string }) {
+function InfoSidebar({ meetUrl, roomName, onClose, roomId, accessLevel }: { meetUrl: string; roomName?: string | null; onClose: () => void; roomId?: string; accessLevel?: string }) {
   const t = useT();
   const [copiedHttp, setCopiedHttp] = useState(false);
   const [copiedDeep, setCopiedDeep] = useState(false);
@@ -986,8 +1019,12 @@ function InfoSidebar({ meetUrl, onClose, roomId, accessLevel }: { meetUrl: strin
   const [memberSearch, setMemberSearch] = useState("");
   const [memberResults, setMemberResults] = useState<any[]>([]);
 
+  // Build shareable URL that includes ?name= if present
+  const shareableUrl = roomName
+    ? `${meetUrl}?name=${encodeURIComponent(roomName)}`
+    : meetUrl;
   // Normalize URL for display (strip scheme)
-  const displayUrl = meetUrl.replace(/^https?:\/\//, "");
+  const displayUrl = shareableUrl.replace(/^https?:\/\//, "");
   const deepLink = `visio://${displayUrl}`;
 
   // Fetch accesses on mount if roomId is provided
@@ -1023,7 +1060,7 @@ function InfoSidebar({ meetUrl, onClose, roomId, accessLevel }: { meetUrl: strin
 
   const handleCopyHttp = async () => {
     try {
-      await navigator.clipboard.writeText(meetUrl);
+      await navigator.clipboard.writeText(shareableUrl);
       setCopiedHttp(true);
       setTimeout(() => setCopiedHttp(false), 2000);
     } catch { /* fallback: ignore */ }
@@ -1044,6 +1081,11 @@ function InfoSidebar({ meetUrl, onClose, roomId, accessLevel }: { meetUrl: strin
         <button className="chat-close" onClick={onClose}><RiCloseLine size={20} /></button>
       </div>
       <div className="info-body">
+        {roomName && (
+          <div className="info-section">
+            <h4 style={{ margin: "0 0 8px", color: "var(--white)" }}>{roomName}</h4>
+          </div>
+        )}
         <div className="info-section">
           <div className="info-link-header">
             <RiGlobalLine size={16} />
@@ -1052,7 +1094,7 @@ function InfoSidebar({ meetUrl, onClose, roomId, accessLevel }: { meetUrl: strin
               {copiedHttp ? <RiCheckLine size={16} /> : <RiFileCopyLine size={16} />}
             </button>
           </div>
-          <input className="info-link-input" readOnly value={meetUrl} onClick={e => (e.target as HTMLInputElement).select()} />
+          <input className="info-link-input" readOnly value={shareableUrl} onClick={e => (e.target as HTMLInputElement).select()} />
         </div>
         <div className="info-section">
           <div className="info-link-header">
@@ -1573,8 +1615,23 @@ function CallView({
     ? { gridTemplateColumns: `repeat(${gridCols}, 1fr)`, gridTemplateRows: `repeat(${gridRows}, 1fr)` }
     : {};
 
+  const roomNameForDisplay = extractRoomName(meetUrl);
+
   return (
     <div id="call" className="section active">
+      {/* Room name header (from ?name= query parameter) */}
+      {roomNameForDisplay && (
+        <div className="room-name-header" style={{
+          background: "var(--primary-dark-75, #1a1a2e)",
+          color: "white",
+          padding: "6px 16px",
+          fontSize: "14px",
+          fontWeight: 600,
+          textAlign: "center",
+        }}>
+          {roomNameForDisplay}
+        </div>
+      )}
       {/* Lobby waiting banner — persistent while participants are waiting */}
       {waitingParticipants.length > 0 && (() => {
         const first = waitingParticipants[0];
@@ -1838,7 +1895,7 @@ function CallView({
 
         {/* Info sidebar */}
         {showInfo && !showTranscription && (
-          <InfoSidebar meetUrl={meetUrl} onClose={onToggleInfo} roomId={roomId} accessLevel={accessLevel} />
+          <InfoSidebar meetUrl={stripQueryParams(meetUrl)} roomName={extractRoomName(meetUrl)} onClose={onToggleInfo} roomId={roomId} accessLevel={accessLevel} />
         )}
 
         {/* Tools sidebar */}
@@ -2459,7 +2516,10 @@ export default function App() {
         invoke<string[]>("get_meet_instances").then((instances) => {
           if (instances.includes(host)) {
             setView("home");
-            setDeepLinkUrl(`https://${host}/${slug}`);
+            // Preserve the ?name= query parameter from deep links
+            const nameParam = parsed.searchParams.get("name");
+            const nameQuery = nameParam ? `?name=${encodeURIComponent(nameParam)}` : "";
+            setDeepLinkUrl(`https://${host}/${slug}${nameQuery}`);
             setDeepLinkError(null);
           } else {
             setDeepLinkError(t("deepLink.unknownInstance").replace("{host}", host));
