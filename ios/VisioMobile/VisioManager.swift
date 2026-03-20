@@ -117,6 +117,7 @@ class VisioManager: ObservableObject {
         // Set connecting state immediately so CallView never renders the
         // "Disconnected" banner before the async event arrives from Rust.
         self.connectionState = .connecting
+        self.errorMessage = nil
 
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             guard let self else { return }
@@ -182,6 +183,7 @@ class VisioManager: ObservableObject {
 
     func connectWithToken(livekitUrl: String, token: String) {
         self.connectionState = .connecting
+        self.errorMessage = nil
 
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             guard let self else { return }
