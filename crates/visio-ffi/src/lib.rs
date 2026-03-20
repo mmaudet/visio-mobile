@@ -494,7 +494,9 @@ pub enum VisioEvent {
     ConnectionLost,
     DisconnectedDuplicateIdentity,
     DisconnectedByAdmin,
-    AloneInRoom { remaining_secs: u32 },
+    AloneInRoom {
+        remaining_secs: u32,
+    },
     AloneInRoomCancelled,
     MuteRequested,
 }
@@ -572,9 +574,7 @@ impl From<CoreVisioEvent> for VisioEvent {
             CoreVisioEvent::ConnectionLost => Self::ConnectionLost,
             CoreVisioEvent::DisconnectedDuplicateIdentity => Self::DisconnectedDuplicateIdentity,
             CoreVisioEvent::DisconnectedByAdmin => Self::DisconnectedByAdmin,
-            CoreVisioEvent::AloneInRoom { remaining_secs } => {
-                Self::AloneInRoom { remaining_secs }
-            }
+            CoreVisioEvent::AloneInRoom { remaining_secs } => Self::AloneInRoom { remaining_secs },
             CoreVisioEvent::AloneInRoomCancelled => Self::AloneInRoomCancelled,
             CoreVisioEvent::MuteRequested => Self::MuteRequested,
         }
@@ -684,7 +684,8 @@ impl visio_core::VisioEventListener for BridgeListener {
                     if client_addr != 0 {
                         let client = unsafe { &*(client_addr as *const VisioClient) };
                         let sid = info.sid.clone();
-                        let is_screencast = info.source == visio_core::events::TrackSource::ScreenShare;
+                        let is_screencast =
+                            info.source == visio_core::events::TrackSource::ScreenShare;
                         let rt_handle = client.rt.handle().clone();
                         // Wrap raw pointers in Send-able newtypes for the async block.
                         let send_client = SendClientPtr(client_addr);
@@ -713,7 +714,9 @@ impl visio_core::VisioEventListener for BridgeListener {
 
         // Record room in history on successful connection (covers lobby acceptance path
         // which bypasses VisioClient::connect's return-value path at line 805).
-        if let CoreVisioEvent::ConnectionStateChanged(visio_core::ConnectionState::Connected) = &event {
+        if let CoreVisioEvent::ConnectionStateChanged(visio_core::ConnectionState::Connected) =
+            &event
+        {
             let rm = self.room_manager.clone();
             let settings = self.settings.clone();
             tokio::spawn(async move {
@@ -837,11 +840,7 @@ impl VisioClient {
         }
     }
 
-    pub fn connect_with_token(
-        &self,
-        livekit_url: String,
-        token: String,
-    ) -> Result<(), VisioError> {
+    pub fn connect_with_token(&self, livekit_url: String, token: String) -> Result<(), VisioError> {
         visio_log(&format!(
             "VISIO FFI: connect_with_token() entered, url={livekit_url}"
         ));
@@ -1181,6 +1180,20 @@ impl VisioClient {
         Ok(())
     }
 
+    /// Exchange a one-time OIDC code for a session ID.
+    pub fn exchange_oidc_code(
+        &self,
+        meet_instance: String,
+        code: String,
+    ) -> Result<String, VisioError> {
+        self.rt
+            .block_on(visio_core::SessionManager::exchange_oidc_code(
+                &meet_instance,
+                &code,
+            ))
+            .map_err(VisioError::from)
+    }
+
     /// Get current session state
     pub fn get_session_state(&self) -> SessionState {
         let session = self.session_manager.lock().unwrap();
@@ -1410,7 +1423,9 @@ impl VisioClient {
     }
 
     pub fn start_video_renderer(&self, track_sid: String) {
-        let is_screencast = self.rt.block_on(self.room_manager.is_track_screencast(&track_sid));
+        let is_screencast = self
+            .rt
+            .block_on(self.room_manager.is_track_screencast(&track_sid));
         let track = self
             .rt
             .block_on(self.room_manager.get_video_track(&track_sid));
@@ -2126,7 +2141,9 @@ pub unsafe extern "C" fn visio_attach_video_surface(
     };
 
     // Look up the track from the room manager
-    let is_screencast = client.rt.block_on(client.room_manager.is_track_screencast(&sid_str));
+    let is_screencast = client
+        .rt
+        .block_on(client.room_manager.is_track_screencast(&sid_str));
     let track = client
         .rt
         .block_on(client.room_manager.get_video_track(&sid_str));
@@ -2232,13 +2249,16 @@ pub unsafe extern "C" fn Java_io_visio_mobile_NativeVideo_attachSurface(
 
     let client = unsafe { &*(client_addr as *const VisioClient) };
     visio_log("VISIO JNI: about to block_on get_video_track");
-    let is_screencast = client.rt.block_on(client.room_manager.is_track_screencast(&track_sid));
+    let is_screencast = client
+        .rt
+        .block_on(client.room_manager.is_track_screencast(&track_sid));
     let track = client
         .rt
         .block_on(client.room_manager.get_video_track(&track_sid));
     visio_log(&format!(
         "VISIO JNI: block_on done, track found={}, screencast={}",
-        track.is_some(), is_screencast
+        track.is_some(),
+        is_screencast
     ));
 
     match track {
