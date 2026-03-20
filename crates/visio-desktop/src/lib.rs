@@ -1463,7 +1463,28 @@ fn launch_oidc_browser(meet_instance: String) -> Result<(), String> {
         meet_instance
     );
     tracing::info!("Opening system browser for OIDC: {}", auth_url);
-    open::that(&auth_url).map_err(|e| format!("failed to open browser: {e}"))
+    #[cfg(target_os = "macos")]
+    {
+        std::process::Command::new("open")
+            .arg(&auth_url)
+            .spawn()
+            .map_err(|e| format!("failed to open browser: {e}"))?;
+    }
+    #[cfg(target_os = "linux")]
+    {
+        std::process::Command::new("xdg-open")
+            .arg(&auth_url)
+            .spawn()
+            .map_err(|e| format!("failed to open browser: {e}"))?;
+    }
+    #[cfg(target_os = "windows")]
+    {
+        std::process::Command::new("cmd")
+            .args(["/C", "start", &auth_url])
+            .spawn()
+            .map_err(|e| format!("failed to open browser: {e}"))?;
+    }
+    Ok(())
 }
 
 /// Exchange a one-time OIDC code for a session, completing authentication.
