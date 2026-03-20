@@ -8,20 +8,20 @@ use visio_core::{
 };
 
 mod audio_engine;
+#[cfg(target_os = "linux")]
+mod audio_linux;
 #[cfg(target_os = "macos")]
 mod audio_macos;
 #[cfg(target_os = "windows")]
 mod audio_windows;
 #[cfg(target_os = "linux")]
-mod audio_linux;
+mod camera_linux;
 #[cfg(target_os = "macos")]
 mod camera_macos;
-#[cfg(target_os = "linux")]
-mod camera_linux;
 mod noise_reduction;
-mod screen_capture;
 #[cfg(target_os = "macos")]
 mod screen_audio_macos;
+mod screen_capture;
 
 // ---------------------------------------------------------------------------
 // Global AppHandle for the C video callback
@@ -160,7 +160,9 @@ impl VisioEventListener for DesktopEventListener {
                 tokio::spawn(async move {
                     let rm = room.lock().await;
                     if let Some(video_track) = rm.get_video_track(&sid).await {
-                        tracing::info!("auto-starting video renderer for track {sid} screencast={is_screencast}");
+                        tracing::info!(
+                            "auto-starting video renderer for track {sid} screencast={is_screencast}"
+                        );
                         visio_video::start_track_renderer(
                             sid,
                             video_track,
@@ -570,21 +572,17 @@ async fn toggle_mic(state: tauri::State<'_, VisioState>, enabled: bool) -> Resul
         .map_err(|e| e.to_string())?;
     if enabled {
         if let Some(source) = controls.audio_source().await {
-            let mut engine = state
-                .audio_engine
-                .lock()
-                .unwrap_or_else(|e| e.into_inner());
+            let mut engine = state.audio_engine.lock().unwrap_or_else(|e| e.into_inner());
             // Stop first to ensure idempotency (avoids leaking drain thread
             // if toggle_mic(true) is called twice without an intervening false)
             engine.stop_capture();
             let nr = state.settings.is_noise_reduction_enabled();
-            engine.start_capture(source, nr).map_err(|e| format!("audio capture: {e}"))?;
+            engine
+                .start_capture(source, nr)
+                .map_err(|e| format!("audio capture: {e}"))?;
         }
     } else {
-        let mut engine = state
-            .audio_engine
-            .lock()
-            .unwrap_or_else(|e| e.into_inner());
+        let mut engine = state.audio_engine.lock().unwrap_or_else(|e| e.into_inner());
         engine.stop_capture();
     }
     Ok(())
@@ -600,7 +598,10 @@ async fn toggle_camera(state: tauri::State<'_, VisioState>, enabled: bool) -> Re
             Some(existing) => Some(existing),
             None => {
                 let res = state.settings.get_video_resolution();
-                let source = controls.publish_camera(&res).await.map_err(|e| e.to_string())?;
+                let source = controls
+                    .publish_camera(&res)
+                    .await
+                    .map_err(|e| e.to_string())?;
                 tracing::info!("camera track published via toggle_camera");
                 Some(source)
             }
@@ -636,14 +637,16 @@ async fn toggle_camera(state: tauri::State<'_, VisioState>, enabled: bool) -> Re
                 .lock()
                 .unwrap_or_else(|e| e.into_inner());
             if cam.is_none() {
-                tracing::info!("Linux camera: no existing capture, source={}", source.is_some());
+                tracing::info!(
+                    "Linux camera: no existing capture, source={}",
+                    source.is_some()
+                );
                 if let Some(source) = source {
                     tracing::info!("Linux camera: starting LinuxCameraCapture");
-                    let capture = camera_linux::LinuxCameraCapture::start(source)
-                        .map_err(|e| {
-                            tracing::error!("Linux camera capture failed: {}", e);
-                            format!("camera capture: {e}")
-                        })?;
+                    let capture = camera_linux::LinuxCameraCapture::start(source).map_err(|e| {
+                        tracing::error!("Linux camera capture failed: {}", e);
+                        format!("camera capture: {e}")
+                    })?;
                     *cam = Some(capture);
                     tracing::info!("Linux camera capture (re)started successfully");
                 }
@@ -687,8 +690,8 @@ async fn toggle_camera(state: tauri::State<'_, VisioState>, enabled: bool) -> Re
 fn check_media_permissions() -> serde_json::Value {
     #[cfg(target_os = "macos")]
     {
-        use objc2::runtime::AnyClass;
         use objc2::msg_send;
+        use objc2::runtime::AnyClass;
 
         fn auth_status(media_type: &std::ffi::CStr) -> &'static str {
             unsafe {
@@ -951,9 +954,14 @@ async fn mute_everyone(state: tauri::State<'_, VisioState>) -> Result<(), String
 }
 
 #[tauri::command]
-async fn mute_participant(state: tauri::State<'_, VisioState>, identity: String) -> Result<(), String> {
+async fn mute_participant(
+    state: tauri::State<'_, VisioState>,
+    identity: String,
+) -> Result<(), String> {
     let room = state.room.lock().await;
-    room.mute_participant(&identity).await.map_err(|e| e.to_string())
+    room.mute_participant(&identity)
+        .await
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -989,21 +997,19 @@ async fn start_screen_share(
     #[cfg(target_os = "macos")]
     {
         match controls.publish_screen_share_audio().await {
-            Ok(audio_source) => {
-                match screen_audio_macos::ScreenAudioCapture::start(audio_source) {
-                    Ok(audio_cap) => {
-                        let mut sa = state
-                            .screen_audio_capture
-                            .lock()
-                            .unwrap_or_else(|e| e.into_inner());
-                        *sa = Some(audio_cap);
-                        tracing::info!("screen audio capture started");
-                    }
-                    Err(e) => {
-                        tracing::warn!("screen audio capture failed (continuing without): {e}");
-                    }
+            Ok(audio_source) => match screen_audio_macos::ScreenAudioCapture::start(audio_source) {
+                Ok(audio_cap) => {
+                    let mut sa = state
+                        .screen_audio_capture
+                        .lock()
+                        .unwrap_or_else(|e| e.into_inner());
+                    *sa = Some(audio_cap);
+                    tracing::info!("screen audio capture started");
                 }
-            }
+                Err(e) => {
+                    tracing::warn!("screen audio capture failed (continuing without): {e}");
+                }
+            },
             Err(e) => {
                 tracing::warn!("publish screen share audio failed (continuing without): {e}");
             }
@@ -1160,13 +1166,21 @@ async fn select_audio_input(
     drop(controls);
 
     // Store selected device name
-    *state.selected_input_device.lock().unwrap_or_else(|e| e.into_inner()) = Some(device_name.clone());
+    *state
+        .selected_input_device
+        .lock()
+        .unwrap_or_else(|e| e.into_inner()) = Some(device_name.clone());
 
     // Recreate engine with both device names preserved
-    let output_device = state.selected_output_device.lock().unwrap_or_else(|e| e.into_inner()).clone();
+    let output_device = state
+        .selected_output_device
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .clone();
     let mut engine = state.audio_engine.lock().unwrap_or_else(|e| e.into_inner());
     engine.stop_playout();
-    let new_engine = audio_engine::create_audio_engine(Some(&device_name), output_device.as_deref());
+    let new_engine =
+        audio_engine::create_audio_engine(Some(&device_name), output_device.as_deref());
     *engine = new_engine;
     engine.set_device_change_callback(Arc::new(|| {
         tracing::info!("audio devices changed — re-enumerating");
@@ -1191,9 +1205,16 @@ async fn select_audio_output(
     let audio_source = controls.audio_source().await;
     drop(controls);
 
-    *state.selected_output_device.lock().unwrap_or_else(|e| e.into_inner()) = Some(device_name.clone());
+    *state
+        .selected_output_device
+        .lock()
+        .unwrap_or_else(|e| e.into_inner()) = Some(device_name.clone());
 
-    let input_device = state.selected_input_device.lock().unwrap_or_else(|e| e.into_inner()).clone();
+    let input_device = state
+        .selected_input_device
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .clone();
     let mut engine = state.audio_engine.lock().unwrap_or_else(|e| e.into_inner());
     engine.stop_playout();
     let new_engine = audio_engine::create_audio_engine(input_device.as_deref(), Some(&device_name));
@@ -1437,11 +1458,13 @@ async fn launch_oidc(
     state: tauri::State<'_, VisioState>,
     meet_instance: String,
 ) -> Result<serde_json::Value, String> {
-    let auth_url = format!("https://{}/api/v1.0/authenticate/", meet_instance);
+    let auth_url = format!(
+        "https://{}/api/v1.0/authenticate/?returnTo=visio%3A%2F%2Fauth-callback",
+        meet_instance
+    );
 
     let (tx, rx) = tokio::sync::oneshot::channel::<String>();
     let tx = Arc::new(std::sync::Mutex::new(Some(tx)));
-    let instance = meet_instance.clone();
 
     tauri::WebviewWindowBuilder::new(
         &app,
@@ -1450,47 +1473,47 @@ async fn launch_oidc(
     )
     .title("Sign in")
     .inner_size(520.0, 700.0)
-    .on_navigation(|url| {
-        tracing::debug!("auth window navigating to: {}", url);
-        true // allow all navigation in the auth window
-    })
-    .on_page_load({
+    .on_navigation({
         let tx = tx.clone();
-        move |webview, payload| {
-            if !matches!(payload.event(), tauri::webview::PageLoadEvent::Finished) {
-                return;
-            }
-            let url = payload.url();
-            // After SSO callback, Meet redirects to the instance homepage
-            if url.host_str() == Some(instance.as_str())
-                && !url.path().contains("/oauth2/")
-                && !url.path().contains("/authenticate")
-                && !url.path().contains("/callback")
-            {
-                let meet_url: tauri::Url = format!("https://{}/", instance).parse().unwrap();
-                if let Ok(cookies) = webview.cookies_for_url(meet_url) {
-                    for cookie in &cookies {
-                        if cookie.name() == "sessionid" || cookie.name() == "meet_sessionid" {
-                            let mut guard = tx.lock().unwrap_or_else(|e| e.into_inner());
-                            if let Some(sender) = guard.take() {
-                                let _ = sender.send(cookie.value().to_string());
-                            }
-                            let _ = webview.close();
-                            return;
+        move |url| {
+            // Intercept the redirect to visio://auth-callback?code={uuid}
+            let url_str = url.as_str();
+            if url_str.starts_with("visio://auth-callback") {
+                if let Ok(parsed) = tauri::Url::parse(url_str) {
+                    if let Some(code) = parsed
+                        .query_pairs()
+                        .find(|(k, _)| k == "code")
+                        .map(|(_, v)| v.to_string())
+                    {
+                        let mut guard = tx.lock().unwrap_or_else(|e| e.into_inner());
+                        if let Some(sender) = guard.take() {
+                            let _ = sender.send(code);
                         }
                     }
                 }
+                return false; // Block navigation to custom scheme
             }
+            true // Allow all other navigation
         }
     })
     .build()
     .map_err(|e| format!("failed to open auth window: {e}"))?;
 
-    let session_cookie = rx
+    let code = rx
         .await
         .map_err(|_| "authentication window closed without completing login".to_string())?;
 
-    tracing::info!("OIDC auth complete, session cookie obtained");
+    // Close auth window
+    if let Some(window) = app.get_webview_window("auth") {
+        let _ = window.close();
+    }
+
+    tracing::info!("OIDC auth: exchange code received, exchanging for session");
+
+    // Exchange code for session ID
+    let session_cookie = SessionManager::exchange_oidc_code(&meet_instance, &code)
+        .await
+        .map_err(|e| e.to_string())?;
 
     // Fetch user info and store the authenticated session
     let meet_url = format!("https://{}", meet_instance);
@@ -1694,8 +1717,8 @@ pub fn run() {
             // Set the macOS dock icon via objc2-app-kit
             #[cfg(target_os = "macos")]
             {
-                use objc2::MainThreadMarker;
                 use objc2::AllocAnyThread;
+                use objc2::MainThreadMarker;
                 use objc2_app_kit::{NSApplication, NSImage};
                 use objc2_foundation::NSData;
 
@@ -1762,10 +1785,7 @@ pub fn run() {
                 let room = state.room.clone();
                 // Stop audio engine (capture + playout) before disconnect
                 {
-                    let mut engine = state
-                        .audio_engine
-                        .lock()
-                        .unwrap_or_else(|e| e.into_inner());
+                    let mut engine = state.audio_engine.lock().unwrap_or_else(|e| e.into_inner());
                     engine.stop_capture();
                     engine.stop_playout();
                 }
