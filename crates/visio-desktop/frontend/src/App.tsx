@@ -2548,12 +2548,11 @@ export default function App() {
 
   // ---- Device enumeration -------------------------------------------------
   // WORKAROUND: Defer device enumeration to avoid USB blocking at startup.
-  // Only enumerate when settings view is opened.
+  // Enumerate when settings, mic picker, or camera picker is opened.
   const [devicesEnumerated, setDevicesEnumerated] = useState(false);
 
   useEffect(() => {
-    // Only enumerate when settings modal is open to avoid USB blocking on some systems
-    if (!showSettings || devicesEnumerated) return;
+    if ((!showSettings && !showMicPicker && !showCamPicker) || devicesEnumerated) return;
 
     const enumerate = async () => {
       try {
@@ -2600,7 +2599,7 @@ export default function App() {
     return () => {
       unlistenFn?.();
     };
-  }, [showSettings, devicesEnumerated]);
+  }, [showSettings, showMicPicker, showCamPicker, devicesEnumerated]);
 
   // ---- Click outside to close device pickers ------------------------------
   useEffect(() => {
