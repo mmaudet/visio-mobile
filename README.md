@@ -387,6 +387,20 @@ scripts/            Build scripts (Android NDK, iOS fat libs)
 
 ## Changelog
 
+### v0.6.0
+
+- **Secure OIDC login** — Replace cookie-based auth with one-time exchange codes on all platforms (iOS ASWebAuthenticationSession, Android Chrome Custom Tab, Desktop system browser). Users with an existing SSO session are authenticated seamlessly. Requires server-side support (suitenumerique/meet#1170).
+- **iOS camera switch** — Fix mirroring and orientation when switching between front and back cameras
+- **Android video display** — Remote participant video now appears immediately without requiring a touch (SurfaceView layout fix)
+- **Desktop frozen video** — Fix macOS camera publishing stuck frame by matching AVCaptureSession preset (720p) to NativeVideoSource resolution
+- **Desktop audio devices** — Deduplicate USB/Bluetooth composite devices in picker, highlight active device selection
+- **Desktop Meet instances** — Newly added servers in Settings now appear in the OIDC server selector immediately
+- **Reaction self-echo** — Filter self-echoed reactions by participant SID to prevent duplicates on remote clients
+- **iOS error flash** — Eliminate transient "Disconnected" banner on room join by setting connecting state synchronously
+- **iOS strict concurrency** — Full Xcode 26 / Swift 6 strict concurrency migration
+- **UI polish** — Accent-tinted backgrounds for recent rooms list, room name display from URL query parameter
+- **Code quality** — Resolve Rust 1.94 clippy warnings, ktlint formatting, fix reaction emoji ID alignment
+
 ### v0.5.0
 
 - **Desktop app** — Full cross-platform desktop support (macOS, Windows, Linux) with CI/CD builds and GitHub Releases
