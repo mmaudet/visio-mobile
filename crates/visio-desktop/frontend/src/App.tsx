@@ -3061,15 +3061,12 @@ export default function App() {
               displayNameFromOidc={displayNameFromOidc}
               emailFromOidc={emailFromOidc}
               onLaunchOidc={async (meetInstance: string) => {
-                console.log("[OIDC] onLaunchOidc called with:", meetInstance);
                 try {
                   setPendingOidcInstance(meetInstance);
                   pendingOidcRef.current = meetInstance;
-                  console.log("[OIDC] Calling launch_oidc_browser...");
                   await invoke("launch_oidc_browser", { meetInstance });
-                  console.log("[OIDC] launch_oidc_browser succeeded");
                 } catch (e) {
-                  console.error("[OIDC] Failed to open browser:", e);
+                  console.error("Failed to open browser for OIDC:", e);
                   setPendingOidcInstance(null);
                   pendingOidcRef.current = null;
                 }
