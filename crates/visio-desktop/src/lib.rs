@@ -442,10 +442,7 @@ async fn connect(
     let room = state.room.lock().await;
     room.connect(&meet_url, username.as_deref(), cookie.as_deref())
         .await
-        .map_err(|e| e.to_string())?;
-
-    state.settings.add_room_to_history(meet_url);
-    Ok(())
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]

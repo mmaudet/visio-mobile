@@ -716,16 +716,10 @@ impl visio_core::VisioEventListener for BridgeListener {
         if let CoreVisioEvent::ConnectionStateChanged(visio_core::ConnectionState::Connected) = &event {
             let rm = self.room_manager.clone();
             let settings = self.settings.clone();
-            std::thread::spawn(move || {
-                let rt = tokio::runtime::Builder::new_current_thread()
-                    .enable_all()
-                    .build()
-                    .unwrap();
-                rt.block_on(async {
-                    if let Some((url, _)) = rm.last_connection_info().await {
-                        settings.add_room_to_history(url);
-                    }
-                });
+            tokio::spawn(async move {
+                if let Some((url, _)) = rm.last_connection_info().await {
+                    settings.add_room_to_history(url);
+                }
             });
         }
 
