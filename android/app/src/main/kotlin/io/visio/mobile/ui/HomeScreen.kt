@@ -113,13 +113,18 @@ fun HomeScreen(
         }
     }
 
-    LaunchedEffect(roomUrl) {
-        // Reload meet instances every time so newly added instances are used
+    // Reload meet instances when the screen becomes visible (e.g. returning
+    // from Settings where the user may have added/removed instances).
+    androidx.lifecycle.compose.LifecycleResumeEffect(Unit) {
         try {
             meetInstances = VisioManager.client.getMeetInstances()
         } catch (e: Exception) {
             Log.e(TAG, "Failed to load meet instances", e)
         }
+        onPauseOrDispose {}
+    }
+
+    LaunchedEffect(roomUrl) {
         val trimmed = roomUrl.trim()
         val isSlug = slugRegex.matches(trimmed)
         val candidate =
