@@ -553,6 +553,8 @@ public protocol VisioClientProtocol: AnyObject, Sendable {
     
     func disconnect() 
     
+    func exchangeOidcCode(meetInstance: String, code: String) throws  -> String
+    
     func getBackgroundMode()  -> String
     
     func getMeetInstances()  -> [String]
@@ -823,6 +825,15 @@ open func disconnect()  {try! rustCall() {
     uniffi_visio_ffi_fn_method_visioclient_disconnect(self.uniffiClonePointer(),$0
     )
 }
+}
+    
+open func exchangeOidcCode(meetInstance: String, code: String)throws  -> String  {
+    return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypeVisioError_lift) {
+    uniffi_visio_ffi_fn_method_visioclient_exchange_oidc_code(self.uniffiClonePointer(),
+        FfiConverterString.lower(meetInstance),
+        FfiConverterString.lower(code),$0
+    )
+})
 }
     
 open func getBackgroundMode() -> String  {
@@ -3555,6 +3566,9 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_visio_ffi_checksum_method_visioclient_disconnect() != 52651) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_visio_ffi_checksum_method_visioclient_exchange_oidc_code() != 58208) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_visio_ffi_checksum_method_visioclient_get_background_mode() != 47158) {

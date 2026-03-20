@@ -106,6 +106,43 @@ impl SessionManager {
         }
     }
 
+    /// Exchange a one-time OIDC code for a session ID.
+    ///
+    /// The Meet server generates a short-lived UUID code and redirects to
+    /// `visio://auth-callback?code={uuid}`. This method POSTs the code to the
+    /// exchange endpoint and returns the session cookie value.
+    pub async fn exchange_oidc_code(meet_instance: &str, code: &str) -> Result<String, VisioError> {
+        let url = format!("https://{}/api/v1.0/auth/session-exchange/", meet_instance);
+
+        let client = reqwest::Client::new();
+        let response = client
+            .post(&url)
+            .json(&serde_json::json!({ "code": code }))
+            .send()
+            .await
+            .map_err(|e| VisioError::Http(e.to_string()))?;
+
+        let status = response.status();
+        if !status.is_success() {
+            let body = response.text().await.unwrap_or_default();
+            return Err(VisioError::Auth(format!(
+                "code exchange failed ({status}): {body}"
+            )));
+        }
+
+        let body: serde_json::Value = response
+            .json()
+            .await
+            .map_err(|e| VisioError::Http(e.to_string()))?;
+
+        // The response key matches SESSION_COOKIE_NAME on the server (default: "meet_sessionid")
+        body.get("meet_sessionid")
+            .or_else(|| body.get("sessionid"))
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string())
+            .ok_or_else(|| VisioError::Auth("no session ID in exchange response".into()))
+    }
+
     pub async fn fetch_user(meet_url: &str, cookie: &str) -> Result<UserInfo, VisioError> {
         let url = format!("{}/api/v1.0/users/me/", meet_url);
 

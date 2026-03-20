@@ -249,6 +249,20 @@ object VisioManager : VisioEventListener {
         }
     }
 
+    fun exchangeOidcCode(
+        code: String,
+        meetInstance: String,
+    ) {
+        scope.launch {
+            try {
+                val sessionId = client.exchangeOidcCode(meetInstance, code)
+                onAuthCookieReceived(sessionId, meetInstance)
+            } catch (e: Exception) {
+                Log.e("VISIO", "OIDC code exchange failed: ${e.message}")
+            }
+        }
+    }
+
     fun onAuthCookieReceived(
         cookie: String,
         meetInstance: String,
@@ -287,9 +301,7 @@ object VisioManager : VisioEventListener {
             } catch (_: Exception) {
             }
             authManager.clearCookie()
-            // Clear WebView cookies so SSO session doesn't auto-reconnect
             withContext(Dispatchers.Main) {
-                android.webkit.CookieManager.getInstance().removeAllCookies(null)
                 isAuthenticated = false
                 authenticatedDisplayName = ""
                 authenticatedEmail = ""

@@ -1,5 +1,4 @@
 import SwiftUI
-import WebKit
 import visioFFI
 
 struct HomeView: View {
@@ -235,8 +234,8 @@ struct HomeView: View {
                                 .background(
                                     RoundedRectangle(cornerRadius: 8)
                                         .fill(isDark
-                                            ? VisioColors.primary500.opacity(0.12)
-                                            : VisioColors.primary500.opacity(0.08))
+                                            ? Color(red: 0.12, green: 0.12, blue: 0.18)
+                                            : Color(red: 0.95, green: 0.95, blue: 0.97))
                                 )
                             }
                             .disabled(historyJoinPending)
@@ -340,82 +339,22 @@ struct HomeView: View {
                 instances: meetInstances,
                 customServer: $customServer,
                 lang: lang,
-                onComplete: { cookie, instance in
-                    showServerPicker = false
-                    if let cookie {
-                        manager.onAuthCookieReceived(cookie, meetInstance: instance)
-                    }
-                },
                 onDismiss: { showServerPicker = false }
             )
-        }
-        .sheet(isPresented: Binding(
-            get: { manager.authManager.pendingInstance != nil },
-            set: { if !$0 { manager.authManager.onWebViewCookie(nil, meetInstance: "") } }
-        )) {
-            if let instance = manager.authManager.pendingInstance {
-                OidcFallbackWebView(meetInstance: instance) { cookie in
-                    manager.authManager.onWebViewCookie(cookie, meetInstance: instance)
-                    if let cookie {
-                        manager.onAuthCookieReceived(cookie, meetInstance: instance)
-                    }
-                }
-            }
         }
     }
 
     private func launchOidc(meetInstance: String) {
-        manager.authManager.launchOidcFlow(meetInstance: meetInstance) { [weak manager] cookie in
-            if let cookie, let manager {
-                manager.onAuthCookieReceived(cookie, meetInstance: meetInstance)
-            }
-        }
-    }
-}
-
-// MARK: - OIDC Fallback WebView
-
-/// WKWebView-based OIDC fallback for servers that don't support custom scheme returnTo.
-private struct OidcFallbackWebView: UIViewRepresentable {
-    let meetInstance: String
-    let onCookie: (String?) -> Void
-
-    private static let cookieNames = ["meet_sessionid", "sessionid"]
-
-    func makeCoordinator() -> Coordinator { Coordinator(self) }
-
-    func makeUIView(context: Context) -> WKWebView {
-        let config = WKWebViewConfiguration()
-        let webView = WKWebView(frame: .zero, configuration: config)
-        webView.navigationDelegate = context.coordinator
-        let returnTo = "https://\(meetInstance)/"
-        let encodedReturnTo = returnTo.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? returnTo
-        if let url = URL(string: "https://\(meetInstance)/api/v1.0/authenticate/?returnTo=\(encodedReturnTo)") {
-            webView.load(URLRequest(url: url))
-        }
-        return webView
-    }
-
-    func updateUIView(_ uiView: WKWebView, context: Context) {}
-
-    class Coordinator: NSObject, WKNavigationDelegate {
-        let parent: OidcFallbackWebView
-        init(_ parent: OidcFallbackWebView) { self.parent = parent }
-
-        func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
-            guard let url = webView.url else { return }
-            let instance = parent.meetInstance
-            // Detect when we've landed on the instance homepage after auth
-            guard url.host == instance,
-                  !url.path.contains("/authenticate"),
-                  !url.path.contains("/oauth2/"),
-                  !url.path.contains("/callback") else { return }
-
-            webView.configuration.websiteDataStore.httpCookieStore.getAllCookies { [parent] cookies in
-                if let cookie = cookies.first(where: {
-                    OidcFallbackWebView.cookieNames.contains($0.name) && $0.domain.contains(instance)
-                }) {
-                    Task { @MainActor in parent.onCookie(cookie.value) }
+        manager.authManager.launchOidcFlow(meetInstance: meetInstance) { [weak manager] code in
+            guard let code, let manager else { return }
+            DispatchQueue.global(qos: .userInitiated).async {
+                do {
+                    let sessionId = try manager.client.exchangeOidcCode(meetInstance: meetInstance, code: code)
+                    DispatchQueue.main.async {
+                        manager.onAuthCookieReceived(sessionId, meetInstance: meetInstance)
+                    }
+                } catch {
+                    NSLog("[HomeView] OIDC code exchange failed: \(error)")
                 }
             }
         }
@@ -429,7 +368,6 @@ private struct ServerPickerWithOidc: View {
     let instances: [String]
     @Binding var customServer: String
     let lang: String
-    let onComplete: (String?, String) -> Void  // (cookie?, meetInstance)
     let onDismiss: () -> Void
 
     @EnvironmentObject private var manager: VisioManager
@@ -451,10 +389,20 @@ private struct ServerPickerWithOidc: View {
     }
 
     private func selectInstance(_ instance: String) {
-        // Dismiss the server picker sheet, then launch ASWebAuthenticationSession
         onDismiss()
-        manager.authManager.launchOidcFlow(meetInstance: instance) { cookie in
-            onComplete(cookie, instance)
+        // Use ASWebAuthenticationSession + exchange code
+        manager.authManager.launchOidcFlow(meetInstance: instance) { [weak manager] code in
+            guard let code, let manager else { return }
+            DispatchQueue.global(qos: .userInitiated).async {
+                do {
+                    let sessionId = try manager.client.exchangeOidcCode(meetInstance: instance, code: code)
+                    DispatchQueue.main.async {
+                        manager.onAuthCookieReceived(sessionId, meetInstance: instance)
+                    }
+                } catch {
+                    NSLog("[ServerPicker] OIDC code exchange failed: \(error)")
+                }
+            }
         }
     }
 
@@ -626,17 +574,17 @@ private struct CreateRoomSheet: View {
                                         try? await Task.sleep(nanoseconds: 300_000_000)
                                         guard !Task.isCancelled else { return }
                                         let query = newValue
-                                        let client = manager.client
-                                        let currentInvited = invitedUsers
-                                        do {
-                                            let results = try await Task.detached {
-                                                try client.searchUsers(query: query)
-                                            }.value
-                                            searchResults = results.filter { user in
-                                                !currentInvited.contains(where: { $0.id == user.id })
+                                        DispatchQueue.global(qos: .userInitiated).async {
+                                            do {
+                                                let results = try manager.client.searchUsers(query: query)
+                                                DispatchQueue.main.async {
+                                                    searchResults = results.filter { user in
+                                                        !invitedUsers.contains(where: { $0.id == user.id })
+                                                    }
+                                                }
+                                            } catch {
+                                                DispatchQueue.main.async { searchResults = [] }
                                             }
-                                        } catch {
-                                            searchResults = []
                                         }
                                     }
                                 }
@@ -689,33 +637,29 @@ private struct CreateRoomSheet: View {
                             guard !meetInstance.isEmpty else { return }
                             creating = true
                             error = nil
-                            let client = manager.client
-                            let level = accessLevel
-                            let users = invitedUsers
-                            Task {
+                            DispatchQueue.global(qos: .userInitiated).async {
                                 do {
-                                    let result = try await Task.detached {
-                                        try client.createRoom(
-                                            meetUrl: "https://\(meetInstance)",
-                                            name: "",
-                                            accessLevel: level
-                                        )
-                                    }.value
+                                    let result = try manager.client.createRoom(
+                                        meetUrl: "https://\(meetInstance)",
+                                        name: "",
+                                        accessLevel: accessLevel
+                                    )
                                     // Add accesses for invited users
-                                    if level == "restricted" {
-                                        let roomId = result.id
-                                        await Task.detached {
-                                            for user in users {
-                                                _ = try? client.addAccess(userId: user.id, roomId: roomId)
-                                            }
-                                        }.value
+                                    if accessLevel == "restricted" {
+                                        for user in invitedUsers {
+                                            _ = try? manager.client.addAccess(userId: user.id, roomId: result.id)
+                                        }
                                     }
-                                    createdRoomId = result.id
-                                    createdUrl = "https://\(meetInstance)/\(result.slug)"
-                                    creating = false
+                                    DispatchQueue.main.async {
+                                        createdRoomId = result.id
+                                        createdUrl = "https://\(meetInstance)/\(result.slug)"
+                                        creating = false
+                                    }
                                 } catch {
-                                    self.error = error.localizedDescription
-                                    creating = false
+                                    DispatchQueue.main.async {
+                                        self.error = error.localizedDescription
+                                        creating = false
+                                    }
                                 }
                             }
                         } label: {
@@ -743,7 +687,7 @@ private struct CreateRoomSheet: View {
                                 Button {
                                     UIPasteboard.general.string = createdUrl
                                     copiedHttp = true
-                                    Task { try? await Task.sleep(for: .seconds(2)); copiedHttp = false }
+                                    DispatchQueue.main.asyncAfter(deadline: .now() + 2) { copiedHttp = false }
                                 } label: {
                                     Image(systemName: copiedHttp ? "checkmark" : "doc.on.doc")
                                         .font(.caption)
@@ -769,7 +713,7 @@ private struct CreateRoomSheet: View {
                                 Button {
                                     UIPasteboard.general.string = deepLink
                                     copiedDeep = true
-                                    Task { try? await Task.sleep(for: .seconds(2)); copiedDeep = false }
+                                    DispatchQueue.main.asyncAfter(deadline: .now() + 2) { copiedDeep = false }
                                 } label: {
                                     Image(systemName: copiedDeep ? "checkmark" : "doc.on.doc")
                                         .font(.caption)

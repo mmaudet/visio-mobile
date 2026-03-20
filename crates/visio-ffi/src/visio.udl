@@ -265,6 +265,9 @@ interface VisioClient {
     [Throws=VisioError]
     void authenticate(string meet_url, string cookie);
 
+    [Throws=VisioError]
+    string exchange_oidc_code(string meet_instance, string code);
+
     SessionState get_session_state();
 
     [Throws=VisioError]

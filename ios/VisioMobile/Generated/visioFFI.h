@@ -361,6 +361,11 @@ void uniffi_visio_ffi_fn_method_visioclient_deny_participant(void*_Nonnull ptr, 
 void uniffi_visio_ffi_fn_method_visioclient_disconnect(void*_Nonnull ptr, RustCallStatus *_Nonnull out_status
 );
 #endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_FN_METHOD_VISIOCLIENT_EXCHANGE_OIDC_CODE
+#define UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_FN_METHOD_VISIOCLIENT_EXCHANGE_OIDC_CODE
+RustBuffer uniffi_visio_ffi_fn_method_visioclient_exchange_oidc_code(void*_Nonnull ptr, RustBuffer meet_instance, RustBuffer code, RustCallStatus *_Nonnull out_status
+);
+#endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_FN_METHOD_VISIOCLIENT_GET_BACKGROUND_MODE
 #define UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_FN_METHOD_VISIOCLIENT_GET_BACKGROUND_MODE
 RustBuffer uniffi_visio_ffi_fn_method_visioclient_get_background_mode(void*_Nonnull ptr, RustCallStatus *_Nonnull out_status
@@ -986,6 +991,12 @@ uint16_t uniffi_visio_ffi_checksum_method_visioclient_deny_participant(void
 #ifndef UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_CHECKSUM_METHOD_VISIOCLIENT_DISCONNECT
 #define UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_CHECKSUM_METHOD_VISIOCLIENT_DISCONNECT
 uint16_t uniffi_visio_ffi_checksum_method_visioclient_disconnect(void
+    
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_CHECKSUM_METHOD_VISIOCLIENT_EXCHANGE_OIDC_CODE
+#define UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_CHECKSUM_METHOD_VISIOCLIENT_EXCHANGE_OIDC_CODE
+uint16_t uniffi_visio_ffi_checksum_method_visioclient_exchange_oidc_code(void
     
 );
 #endif
