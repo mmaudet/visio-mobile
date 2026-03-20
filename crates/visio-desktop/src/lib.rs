@@ -1452,74 +1452,39 @@ async fn remove_access(
 // OIDC authentication commands
 // ---------------------------------------------------------------------------
 
+/// Open the system browser for OIDC authentication.
+/// The browser has the user's existing SSO session, so login is seamless.
+/// After auth, the server redirects to visio://auth-callback?code={uuid}
+/// which the deep link plugin delivers to the frontend.
 #[tauri::command]
-async fn launch_oidc(
-    app: AppHandle,
-    state: tauri::State<'_, VisioState>,
-    meet_instance: String,
-) -> Result<serde_json::Value, String> {
+fn launch_oidc_browser(meet_instance: String) -> Result<(), String> {
     let auth_url = format!(
         "https://{}/api/v1.0/authenticate/?returnTo=visio%3A%2F%2Fauth-callback",
         meet_instance
     );
+    tracing::info!("Opening system browser for OIDC: {}", auth_url);
+    open::that(&auth_url).map_err(|e| format!("failed to open browser: {e}"))
+}
 
-    let (tx, rx) = tokio::sync::oneshot::channel::<String>();
-    let tx = Arc::new(std::sync::Mutex::new(Some(tx)));
+/// Exchange a one-time OIDC code for a session, completing authentication.
+/// Called by the frontend after receiving the visio://auth-callback?code= deep link.
+#[tauri::command]
+async fn exchange_oidc_code(
+    state: tauri::State<'_, VisioState>,
+    meet_instance: String,
+    code: String,
+) -> Result<serde_json::Value, String> {
+    tracing::info!("Exchanging OIDC code for session on {}", meet_instance);
 
-    tauri::WebviewWindowBuilder::new(
-        &app,
-        "auth",
-        tauri::WebviewUrl::External(auth_url.parse().map_err(|e| format!("bad URL: {e}"))?),
-    )
-    .title("Sign in")
-    .inner_size(520.0, 700.0)
-    .on_navigation({
-        let tx = tx.clone();
-        move |url| {
-            // Intercept the redirect to visio://auth-callback?code={uuid}
-            let url_str = url.as_str();
-            if url_str.starts_with("visio://auth-callback") {
-                if let Ok(parsed) = tauri::Url::parse(url_str) {
-                    if let Some(code) = parsed
-                        .query_pairs()
-                        .find(|(k, _)| k == "code")
-                        .map(|(_, v)| v.to_string())
-                    {
-                        let mut guard = tx.lock().unwrap_or_else(|e| e.into_inner());
-                        if let Some(sender) = guard.take() {
-                            let _ = sender.send(code);
-                        }
-                    }
-                }
-                return false; // Block navigation to custom scheme
-            }
-            true // Allow all other navigation
-        }
-    })
-    .build()
-    .map_err(|e| format!("failed to open auth window: {e}"))?;
-
-    let code = rx
-        .await
-        .map_err(|_| "authentication window closed without completing login".to_string())?;
-
-    // Close auth window
-    if let Some(window) = app.get_webview_window("auth") {
-        let _ = window.close();
-    }
-
-    tracing::info!("OIDC auth: exchange code received, exchanging for session");
-
-    // Exchange code for session ID
     let session_cookie = SessionManager::exchange_oidc_code(&meet_instance, &code)
         .await
         .map_err(|e| e.to_string())?;
 
-    // Fetch user info and store the authenticated session
     let meet_url = format!("https://{}", meet_instance);
     let user = SessionManager::fetch_user(&meet_url, &session_cookie)
         .await
         .map_err(|e| e.to_string())?;
+
     let mut session = state.session.lock().await;
     session.set_authenticated(user.clone(), session_cookie, meet_instance.clone());
 
@@ -1861,7 +1826,8 @@ pub fn run() {
             list_accesses,
             add_access,
             remove_access,
-            launch_oidc,
+            launch_oidc_browser,
+            exchange_oidc_code,
             authenticate,
             logout_session,
             create_room,

@@ -2404,6 +2404,8 @@ export default function App() {
   const [emailFromOidc, setEmailFromOidc] = useState("");
   const [authenticatedMeetInstance, setAuthenticatedMeetInstance] = useState("");
   const [meetInstances, setMeetInstances] = useState<string[]>([]);
+  const [pendingOidcInstance, setPendingOidcInstance] = useState<string | null>(null);
+  const pendingOidcRef = useRef<string | null>(null);
   const [bandwidthMode, setBandwidthMode] = useState<string>("full");
   const settingsRef = useRef<Settings | null>(null);
 
@@ -2453,6 +2455,37 @@ export default function App() {
         const parsed = new URL(url);
         if (parsed.protocol !== "visio:") return;
         const host = parsed.hostname;
+
+        // Handle OIDC auth callback: visio://auth-callback?code={uuid}
+        if (host === "auth-callback") {
+          const code = parsed.searchParams.get("code");
+          const meetInstance = pendingOidcRef.current;
+          if (code && meetInstance) {
+            pendingOidcRef.current = null;
+            setPendingOidcInstance(null);
+            invoke<{ display_name?: string; email?: string; meet_instance?: string }>(
+              "exchange_oidc_code", { meetInstance, code }
+            ).then((result) => {
+              setIsAuthenticated(true);
+              setAuthenticatedMeetInstance(meetInstance);
+              setDisplayNameFromOidc(result.display_name || "");
+              setEmailFromOidc(result.email || "");
+              if (result.display_name && !displayName.trim()) {
+                setDisplayName(result.display_name);
+              }
+              if (!meetInstances.includes(meetInstance)) {
+                const next = [...meetInstances, meetInstance];
+                setMeetInstances(next);
+                invoke("set_meet_instances", { instances: next });
+              }
+            }).catch((e) => {
+              console.error("OIDC code exchange failed:", e);
+            });
+          }
+          return;
+        }
+
+        // Handle room deep links: visio://{host}/{slug}
         const slug = parsed.pathname.replace(/^\//, "");
         if (!host || !slug) return;
 
@@ -3029,22 +3062,15 @@ export default function App() {
               emailFromOidc={emailFromOidc}
               onLaunchOidc={async (meetInstance: string) => {
                 try {
-                  const result = await invoke<{ display_name?: string; email?: string }>("launch_oidc", { meetInstance });
-                  setIsAuthenticated(true);
-                  setAuthenticatedMeetInstance(meetInstance);
-                  setDisplayNameFromOidc(result.display_name || "");
-                  setEmailFromOidc(result.email || "");
-                  if (result.display_name && !displayName.trim()) {
-                    setDisplayName(result.display_name);
-                  }
-                  // Auto-add the instance to saved Meet instances
-                  if (!meetInstances.includes(meetInstance)) {
-                    const next = [...meetInstances, meetInstance];
-                    setMeetInstances(next);
-                    invoke("set_meet_instances", { instances: next });
-                  }
+                  // Store pending instance so deep link handler knows which server to exchange with
+                  setPendingOidcInstance(meetInstance);
+                  pendingOidcRef.current = meetInstance;
+                  // Open system browser — user's existing SSO session handles login seamlessly
+                  await invoke("launch_oidc_browser", { meetInstance });
                 } catch (e) {
-                  console.error("OIDC auth failed:", e);
+                  console.error("Failed to open browser for OIDC:", e);
+                  setPendingOidcInstance(null);
+                  pendingOidcRef.current = null;
                 }
               }}
               meetInstances={meetInstances}
