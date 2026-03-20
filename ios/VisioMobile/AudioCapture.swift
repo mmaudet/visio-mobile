@@ -1,12 +1,27 @@
 import AVFoundation
 import visioFFI
 
+/// Thread-safe wrapper for AVAudioPCMBuffer used in @Sendable tap closures.
+private struct SendableAudioBuffer: @unchecked Sendable {
+    let buffer: AVAudioPCMBuffer
+}
+
 /// Captures microphone audio via AVAudioEngine, resamples to 48 kHz if the
 /// hardware rate differs (e.g. Bluetooth HFP), and pushes Int16 PCM frames
 /// to Rust via visio_push_ios_audio_frame().
-final class AudioCapture {
+///
+/// Thread safety: `@unchecked Sendable` because `start()`/`stop()` are called
+/// from MainActor (via VisioManager) and the audio tap closure runs on the
+/// AVAudioEngine render thread. The `isRunning` flag is protected by `lock`.
+final class AudioCapture: @unchecked Sendable {
     private let engine = AVAudioEngine()
-    private var isRunning = false
+    private let lock = NSLock()
+    private var _isRunning = false
+
+    private var isRunning: Bool {
+        get { lock.withLock { _isRunning } }
+        set { lock.withLock { _isRunning = newValue } }
+    }
 
     private let outputSampleRate: Double = 48_000
     private let channels: UInt32 = 1
@@ -68,15 +83,17 @@ final class AudioCapture {
                     return
                 }
                 var error: NSError?
-                var consumed = false
+                let inputBox = SendableAudioBuffer(buffer: buffer)
+                final class ConsumedFlag: @unchecked Sendable { var value = false }
+                let consumed = ConsumedFlag()
                 converter.convert(to: resampledBuffer, error: &error) { _, outStatus in
-                    if consumed {
+                    if consumed.value {
                         outStatus.pointee = .noDataNow
                         return nil
                     }
-                    consumed = true
+                    consumed.value = true
                     outStatus.pointee = .haveData
-                    return buffer
+                    return inputBox.buffer
                 }
                 if let error = error {
                     NSLog("AudioCapture: resample error: %@", error.localizedDescription)
