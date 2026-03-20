@@ -59,7 +59,7 @@ class OidcAuthManager(context: Context) {
         val returnTo = "visio://$AUTH_CALLBACK_HOST"
         val authUrl = "https://$meetInstance/api/v1.0/authenticate/?returnTo=${
             java.net.URLEncoder.encode(returnTo, "UTF-8")
-        }"
+        }&prompt=login"
 
         Log.d(TAG, "Starting OIDC flow via Custom Tab: $authUrl")
 

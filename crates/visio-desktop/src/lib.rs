@@ -1459,7 +1459,7 @@ async fn remove_access(
 #[tauri::command]
 fn launch_oidc_browser(meet_instance: String) -> Result<(), String> {
     let auth_url = format!(
-        "https://{}/api/v1.0/authenticate/?returnTo=visio%3A%2F%2Fauth-callback",
+        "https://{}/api/v1.0/authenticate/?returnTo=visio%3A%2F%2Fauth-callback&prompt=login",
         meet_instance
     );
     tracing::info!("Opening system browser for OIDC: {}", auth_url);

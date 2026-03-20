@@ -15,7 +15,7 @@ class OidcAuthManager: NSObject, ObservableObject, ASWebAuthenticationPresentati
 
         let returnTo = "visio://auth-callback"
         let encodedReturnTo = returnTo.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? returnTo
-        guard let authURL = URL(string: "https://\(meetInstance)/api/v1.0/authenticate/?returnTo=\(encodedReturnTo)") else {
+        guard let authURL = URL(string: "https://\(meetInstance)/api/v1.0/authenticate/?returnTo=\(encodedReturnTo)&prompt=login") else {
             completion(nil)
             return
         }
