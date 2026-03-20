@@ -348,6 +348,21 @@ impl From<visio_core::Settings> for Settings {
 }
 
 #[derive(Debug, Clone)]
+pub struct RoomHistoryEntry {
+    pub url: String,
+    pub name: Option<String>,
+}
+
+impl From<visio_core::RoomHistoryEntry> for RoomHistoryEntry {
+    fn from(e: visio_core::RoomHistoryEntry) -> Self {
+        Self {
+            url: e.url,
+            name: e.name,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
 pub enum RoomValidationResult {
     Valid { livekit_url: String, token: String },
     NotFound,
@@ -718,7 +733,7 @@ impl visio_core::VisioEventListener for BridgeListener {
             let settings = self.settings.clone();
             tokio::spawn(async move {
                 if let Some((url, _)) = rm.last_connection_info().await {
-                    settings.add_room_to_history(url);
+                    settings.add_room_to_history(url, None);
                 }
             });
         }
@@ -781,6 +796,11 @@ impl VisioClient {
     pub fn connect(&self, meet_url: String, username: Option<String>) -> Result<(), VisioError> {
         visio_log(&format!("VISIO FFI: connect() entered, url={meet_url}"));
 
+        // Extract the room name from ?name= query param before stripping it
+        let room_name = visio_core::AuthService::extract_room_name(&meet_url);
+        // Strip query params so the API gets a clean URL
+        let clean_url = visio_core::AuthService::strip_query_params(&meet_url);
+
         let cookie = {
             let session = self.session_manager.lock().unwrap();
             session.cookie()
@@ -797,7 +817,7 @@ impl VisioClient {
             let res = self.rt.block_on(async {
                 visio_log("VISIO FFI: inside block_on async block");
                 self.room_manager
-                    .connect(&meet_url, username.as_deref(), cookie.as_deref())
+                    .connect(&clean_url, username.as_deref(), cookie.as_deref())
                     .await
                     .map_err(VisioError::from)
             });
@@ -816,7 +836,7 @@ impl VisioClient {
                     *CLIENT_FOR_VIDEO.lock().unwrap() = self as *const VisioClient as usize;
                 }
 
-                self.settings.add_room_to_history(meet_url.clone());
+                self.settings.add_room_to_history(clean_url, room_name);
 
                 Ok(())
             }
@@ -1082,12 +1102,21 @@ impl VisioClient {
         self.settings.set_adaptive_mode_enabled(enabled);
     }
 
-    pub fn add_room_to_history(&self, url: String) {
-        self.settings.add_room_to_history(url);
+    pub fn add_room_to_history(&self, url: String, name: Option<String>) {
+        self.settings.add_room_to_history(url, name);
     }
 
-    pub fn get_room_history(&self) -> Vec<String> {
-        self.settings.get_room_history()
+    pub fn get_room_history(&self) -> Vec<RoomHistoryEntry> {
+        self.settings
+            .get_room_history()
+            .into_iter()
+            .map(RoomHistoryEntry::from)
+            .collect()
+    }
+
+    /// Extract the `name` query parameter from a URL.
+    pub fn extract_room_name(&self, url: String) -> Option<String> {
+        visio_core::AuthService::extract_room_name(&url)
     }
 
     pub fn clear_room_history(&self) {
@@ -1141,13 +1170,15 @@ impl VisioClient {
             let session = self.session_manager.lock().unwrap();
             session.cookie()
         };
-        if let Err(e) = visio_core::AuthService::extract_slug(&url) {
+        // Strip query params (e.g. ?name=...) before validation
+        let clean_url = visio_core::AuthService::strip_query_params(&url);
+        if let Err(e) = visio_core::AuthService::extract_slug(&clean_url) {
             return RoomValidationResult::InvalidFormat {
                 message: e.to_string(),
             };
         }
         match self.rt.block_on(visio_core::AuthService::validate_room(
-            &url,
+            &clean_url,
             username.as_deref(),
             cookie.as_deref(),
         )) {
