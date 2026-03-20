@@ -632,10 +632,21 @@ fun CallScreen(
         )
     }
 
+    // Extract room name once for use in both header and settings sheet
+    val roomNameFromUrl =
+        remember(roomUrl) {
+            try {
+                VisioManager.client.extractRoomName(roomUrl)
+            } catch (_: Exception) {
+                null
+            }
+        }
+
     // In-call settings bottom sheet (replaces audio device sheet)
     if (showInCallSettings) {
         InCallSettingsSheet(
-            roomUrl = roomUrl,
+            roomUrl = roomUrl.substringBefore("?"),
+            roomName = roomNameFromUrl,
             initialTab = inCallSettingsTab,
             onDismiss = { showInCallSettings = false },
             onSelectAudioInput = { device -> VisioManager.setAudioInputDevice(device) },
@@ -658,6 +669,22 @@ fun CallScreen(
                 .background(callBackground),
     ) {
         Column(modifier = Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()) {
+            // Room name header (from ?name= query parameter)
+            if (roomNameFromUrl != null) {
+                Text(
+                    text = roomNameFromUrl,
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = VisioColors.White,
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .background(VisioColors.PrimaryDark75)
+                            .padding(horizontal = 16.dp, vertical = 8.dp),
+                    maxLines = 1,
+                )
+            }
+
             // Connection state banner
             ConnectionStateBanner(connectionState, errorMessage)
 

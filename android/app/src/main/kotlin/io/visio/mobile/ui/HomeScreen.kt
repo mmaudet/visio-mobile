@@ -70,6 +70,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import uniffi.visio.RoomHistoryEntry
 import uniffi.visio.RoomValidationResult
 import uniffi.visio.UserSearchResult
 
@@ -84,7 +85,7 @@ fun HomeScreen(
     var roomUrl by remember { mutableStateOf("") }
     var resolvedRoomUrl by remember { mutableStateOf("") }
     var username by remember { mutableStateOf("") }
-    var roomHistory by remember { mutableStateOf(listOf<String>()) }
+    var roomHistory by remember { mutableStateOf(listOf<RoomHistoryEntry>()) }
     val lang = VisioManager.currentLang
     val isDark = VisioManager.currentTheme == "dark"
     var roomStatus by remember { mutableStateOf("idle") }
@@ -94,6 +95,7 @@ fun HomeScreen(
     var showCreateRoom by remember { mutableStateOf(false) }
     var customServer by remember { mutableStateOf("") }
     var historyJoining by remember { mutableStateOf<String?>(null) }
+    var roomName by remember { mutableStateOf<String?>(null) }
     var showOidcWebView by remember { mutableStateOf<String?>(null) }
     val coroutineScope = rememberCoroutineScope()
 
@@ -126,27 +128,37 @@ fun HomeScreen(
 
     LaunchedEffect(roomUrl) {
         val trimmed = roomUrl.trim()
-        val isSlug = slugRegex.matches(trimmed)
+        // Extract room name from ?name= query parameter
+        roomName =
+            try {
+                val uri = android.net.Uri.parse(trimmed)
+                uri.getQueryParameter("name")?.ifBlank { null }
+            } catch (_: Exception) {
+                null
+            }
+        // Strip query parameters for slug validation
+        val cleanInput = trimmed.substringBefore("?")
+        val isSlug = slugRegex.matches(cleanInput)
         val candidate =
             if (isSlug) {
-                trimmed
+                cleanInput
             } else {
-                val stripped = trimmed.trimEnd('/')
+                val stripped = cleanInput.trimEnd('/')
                 if ('/' in stripped) stripped.substringAfterLast('/') else stripped
             }
         if (!slugRegex.matches(candidate)) {
             roomStatus = "idle"
-            resolvedRoomUrl = trimmed
+            resolvedRoomUrl = cleanInput
             return@LaunchedEffect
         }
         roomStatus = "checking"
         delay(500)
-        // If input is a slug, try each configured server; otherwise validate the full URL
+        // If input is a slug, try each configured server; otherwise validate the full URL (without query params)
         val urlsToTry =
             if (isSlug && meetInstances.isNotEmpty()) {
-                meetInstances.map { server -> "https://$server/$trimmed" }
+                meetInstances.map { server -> "https://$server/$cleanInput" }
             } else {
-                listOf(trimmed)
+                listOf(cleanInput)
             }
         try {
             var foundValid = false
@@ -395,7 +407,16 @@ fun HomeScreen(
         Spacer(modifier = Modifier.height(24.dp))
 
         Button(
-            onClick = { onJoin(resolvedRoomUrl, username.trim()) },
+            onClick = {
+                val joinUrl =
+                    if (roomName != null) {
+                        val encoded = java.net.URLEncoder.encode(roomName, "UTF-8")
+                        "$resolvedRoomUrl?name=$encoded"
+                    } else {
+                        resolvedRoomUrl
+                    }
+                onJoin(joinUrl, username.trim())
+            },
             enabled = roomStatus == "valid",
             modifier = Modifier.fillMaxWidth().testTag("home_join_button"),
             colors =
@@ -439,32 +460,47 @@ fun HomeScreen(
                 modifier = Modifier.fillMaxWidth(),
             )
             Spacer(modifier = Modifier.height(8.dp))
-            roomHistory.forEachIndexed { index, url ->
-                val slug = if ('/' in url) url.substringAfterLast('/') else url
+            roomHistory.forEachIndexed { index, entry ->
+                val slug = if ('/' in entry.url) entry.url.substringAfterLast('/') else entry.url
                 val host =
                     try {
-                        java.net.URI(url).host ?: ""
+                        java.net.URI(entry.url).host ?: ""
                     } catch (_: Exception) {
                         ""
                     }
+                val displayLabel = entry.name ?: slug
                 Row(
                     modifier =
                         Modifier
                             .fillMaxWidth()
                             .testTag("home_room_history_item_$index")
                             .clickable(enabled = historyJoining == null) {
-                                roomUrl = url
-                                historyJoining = url
+                                // If the entry has a name, reconstruct the URL with ?name= so it propagates
+                                roomUrl =
+                                    if (entry.name != null) {
+                                        val encoded = java.net.URLEncoder.encode(entry.name, "UTF-8")
+                                        "${entry.url}?name=$encoded"
+                                    } else {
+                                        entry.url
+                                    }
+                                historyJoining = entry.url
                                 coroutineScope.launch {
                                     try {
                                         val uname = username.trim().ifEmpty { null }
                                         val result =
                                             withContext(Dispatchers.IO) {
-                                                VisioManager.client.validateRoom(url, uname)
+                                                VisioManager.client.validateRoom(entry.url, uname)
                                             }
                                         if (result is RoomValidationResult.Valid) {
                                             historyJoining = null
-                                            onJoin(url, username.trim())
+                                            val historyJoinUrl =
+                                                if (entry.name != null) {
+                                                    val enc = java.net.URLEncoder.encode(entry.name, "UTF-8")
+                                                    "${entry.url}?name=$enc"
+                                                } else {
+                                                    entry.url
+                                                }
+                                            onJoin(historyJoinUrl, username.trim())
                                         } else {
                                             // Validation failed — fall back to filling the URL field
                                             historyJoining = null
@@ -483,7 +519,7 @@ fun HomeScreen(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    if (historyJoining == url) {
+                    if (historyJoining == entry.url) {
                         androidx.compose.material3.CircularProgressIndicator(
                             modifier = Modifier.size(18.dp),
                             strokeWidth = 2.dp,
@@ -499,17 +535,26 @@ fun HomeScreen(
                     }
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = slug,
+                            text = displayLabel,
                             style = MaterialTheme.typography.bodyMedium,
                             fontWeight = FontWeight.Medium,
                             color = MaterialTheme.colorScheme.onSurface,
                         )
-                        if (host.isNotEmpty()) {
-                            Text(
-                                text = host,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = if (isDark) VisioColors.Greyscale400 else VisioColors.LightTextSecondary,
-                            )
+                        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                            if (entry.name != null) {
+                                Text(
+                                    text = slug,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = if (isDark) VisioColors.Greyscale400 else VisioColors.LightTextSecondary,
+                                )
+                            }
+                            if (host.isNotEmpty()) {
+                                Text(
+                                    text = if (entry.name != null) "· $host" else host,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = if (isDark) VisioColors.Greyscale400 else VisioColors.LightTextSecondary,
+                                )
+                            }
                         }
                     }
                 }

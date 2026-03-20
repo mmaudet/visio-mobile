@@ -73,6 +73,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import io.visio.mobile.R
 import io.visio.mobile.VisioManager
@@ -87,6 +88,7 @@ import uniffi.visio.UserSearchResult
 @Composable
 fun InCallSettingsSheet(
     roomUrl: String,
+    roomName: String? = null,
     initialTab: Int = 0,
     onDismiss: () -> Unit,
     onSelectAudioInput: (AudioDeviceInfo) -> Unit,
@@ -178,7 +180,7 @@ fun InCallSettingsSheet(
                         .padding(start = 8.dp, end = 8.dp, bottom = 32.dp),
             ) {
                 when (selectedTab) {
-                    0 -> RoomInfoTab(roomUrl, lang)
+                    0 -> RoomInfoTab(roomUrl, roomName, lang)
                     1 -> MicroTab(context, lang, onSelectAudioInput, onSelectAudioOutput)
                     2 -> CameraTab(lang, isFrontCamera, onSwitchCamera)
                     3 ->
@@ -690,10 +692,19 @@ private fun NotificationRow(
 @Composable
 private fun RoomInfoTab(
     roomUrl: String,
+    roomName: String?,
     lang: String,
 ) {
     val context = LocalContext.current
-    val displayUrl = roomUrl.removePrefix("https://").removePrefix("http://")
+    // Build shareable URL that includes ?name= if present
+    val shareableUrl =
+        if (roomName != null) {
+            val encoded = java.net.URLEncoder.encode(roomName, "UTF-8")
+            "$roomUrl?name=$encoded"
+        } else {
+            roomUrl
+        }
+    val displayUrl = shareableUrl.removePrefix("https://").removePrefix("http://")
     val deepLink = "visio://$displayUrl"
     var copiedHttp by remember { mutableStateOf(false) }
     var copiedDeep by remember { mutableStateOf(false) }
@@ -702,6 +713,16 @@ private fun RoomInfoTab(
         modifier = Modifier.padding(8.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
+        // Room name (if present)
+        if (roomName != null) {
+            Text(
+                text = roomName,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = VisioColors.White,
+            )
+        }
+
         // HTTPS link section
         Row(verticalAlignment = Alignment.CenterVertically) {
             Icon(Icons.Outlined.Language, contentDescription = null, tint = VisioColors.White, modifier = Modifier.size(18.dp))
@@ -714,7 +735,7 @@ private fun RoomInfoTab(
             )
             IconButton(onClick = {
                 val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
-                clipboard.setPrimaryClip(android.content.ClipData.newPlainText("Room URL", roomUrl))
+                clipboard.setPrimaryClip(android.content.ClipData.newPlainText("Room URL", shareableUrl))
                 copiedHttp = true
             }, modifier = Modifier.size(32.dp).testTag("incall_room_url_copy")) {
                 Icon(
@@ -728,7 +749,7 @@ private fun RoomInfoTab(
                 val shareIntent =
                     android.content.Intent(android.content.Intent.ACTION_SEND).apply {
                         type = "text/plain"
-                        putExtra(android.content.Intent.EXTRA_TEXT, roomUrl)
+                        putExtra(android.content.Intent.EXTRA_TEXT, shareableUrl)
                     }
                 context.startActivity(android.content.Intent.createChooser(shareIntent, null))
             }, modifier = Modifier.size(32.dp)) {
@@ -741,7 +762,7 @@ private fun RoomInfoTab(
             }
         }
         OutlinedTextField(
-            value = roomUrl,
+            value = shareableUrl,
             onValueChange = {},
             readOnly = true,
             singleLine = true,
@@ -783,7 +804,7 @@ private fun RoomInfoTab(
                 val shareIntent =
                     android.content.Intent(android.content.Intent.ACTION_SEND).apply {
                         type = "text/plain"
-                        putExtra(android.content.Intent.EXTRA_TEXT, roomUrl)
+                        putExtra(android.content.Intent.EXTRA_TEXT, shareableUrl)
                     }
                 context.startActivity(android.content.Intent.createChooser(shareIntent, null))
             }, modifier = Modifier.size(32.dp)) {

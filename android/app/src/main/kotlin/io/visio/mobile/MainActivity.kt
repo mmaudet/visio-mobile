@@ -41,7 +41,14 @@ class MainActivity : ComponentActivity() {
 
         val instances = VisioManager.client.getMeetInstances()
         return if (instances.contains(host)) {
-            "https://$host/$slug"
+            // Preserve the ?name= query parameter from deep links
+            val nameParam = uri.getQueryParameter("name")
+            if (!nameParam.isNullOrBlank()) {
+                val encoded = java.net.URLEncoder.encode(nameParam, "UTF-8")
+                "https://$host/$slug?name=$encoded"
+            } else {
+                "https://$host/$slug"
+            }
         } else {
             null
         }
