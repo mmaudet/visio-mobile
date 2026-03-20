@@ -184,7 +184,7 @@ unsafe extern "C" {
 #[link(name = "AVFoundation", kind = "framework")]
 unsafe extern "C" {
     static AVMediaTypeVideo: *const AnyObject;
-    static AVCaptureSessionPresetHigh: *const AnyObject;
+    static AVCaptureSessionPreset1280x720: *const AnyObject;
 }
 
 /// NV12 full-range: kCVPixelFormatType_420YpCbCr8BiPlanarFullRange = '420f'
@@ -431,7 +431,7 @@ impl MacCameraCapture {
         let session: Retained<AnyObject> = unsafe { msg_send![session_cls, new] };
 
         // Set session preset
-        let _: () = unsafe { msg_send![&*session, setSessionPreset: AVCaptureSessionPresetHigh] };
+        let _: () = unsafe { msg_send![&*session, setSessionPreset: AVCaptureSessionPreset1280x720] };
 
         // --- Find camera device by uniqueID ---
         let device_cls =
@@ -530,7 +530,7 @@ impl MacCameraCapture {
         let session: Retained<AnyObject> = unsafe { msg_send![session_cls, new] };
 
         // Set session preset
-        let _: () = unsafe { msg_send![&*session, setSessionPreset: AVCaptureSessionPresetHigh] };
+        let _: () = unsafe { msg_send![&*session, setSessionPreset: AVCaptureSessionPreset1280x720] };
 
         // --- Find camera device ---
         let device_cls =
