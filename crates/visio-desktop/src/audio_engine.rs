@@ -126,11 +126,15 @@ pub struct AudioDeviceInfo {
 pub fn list_input_devices() -> Vec<AudioDeviceInfo> {
     let host = cpal::default_host();
     let default_name = host.default_input_device().and_then(|d| d.name().ok());
+    let mut seen = std::collections::HashSet::new();
     host.input_devices()
         .map(|devices| {
             devices
                 .filter_map(|d| {
                     let name = d.name().ok()?;
+                    if !seen.insert(name.clone()) {
+                        return None;
+                    }
                     Some(AudioDeviceInfo {
                         is_default: default_name.as_deref() == Some(&name),
                         name,
@@ -144,11 +148,15 @@ pub fn list_input_devices() -> Vec<AudioDeviceInfo> {
 pub fn list_output_devices() -> Vec<AudioDeviceInfo> {
     let host = cpal::default_host();
     let default_name = host.default_output_device().and_then(|d| d.name().ok());
+    let mut seen = std::collections::HashSet::new();
     host.output_devices()
         .map(|devices| {
             devices
                 .filter_map(|d| {
                     let name = d.name().ok()?;
+                    if !seen.insert(name.clone()) {
+                        return None;
+                    }
                     Some(AudioDeviceInfo {
                         is_default: default_name.as_deref() == Some(&name),
                         name,
