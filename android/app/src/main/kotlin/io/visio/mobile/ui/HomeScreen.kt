@@ -94,7 +94,6 @@ fun HomeScreen(
     var showCreateRoom by remember { mutableStateOf(false) }
     var customServer by remember { mutableStateOf("") }
     var historyJoining by remember { mutableStateOf<String?>(null) }
-    var showOidcWebView by remember { mutableStateOf<String?>(null) }
     val coroutineScope = rememberCoroutineScope()
 
     LaunchedEffect(Unit) {
@@ -250,7 +249,7 @@ fun HomeScreen(
                 onClick = {
                     if (meetInstances.size <= 1) {
                         val meetInstance = meetInstances.firstOrNull() ?: return@Button
-                        showOidcWebView = meetInstance
+                        VisioManager.authManager.launchOidcFlow(context, meetInstance)
                     } else {
                         customServer = ""
                         showServerPicker = true
@@ -285,7 +284,7 @@ fun HomeScreen(
                 lang = lang,
                 onSelect = { instance ->
                     showServerPicker = false
-                    showOidcWebView = instance
+                    VisioManager.authManager.launchOidcFlow(context, instance)
                 },
                 onDismiss = { showServerPicker = false },
             )
@@ -516,17 +515,6 @@ fun HomeScreen(
                 Spacer(modifier = Modifier.height(6.dp))
             }
         }
-    }
-
-    if (showOidcWebView != null) {
-        OidcWebViewDialog(
-            meetInstance = showOidcWebView!!,
-            onAuthenticated = { sessionId, meetInstance ->
-                showOidcWebView = null
-                VisioManager.onAuthCookieReceived(sessionId, meetInstance)
-            },
-            onDismiss = { showOidcWebView = null },
-        )
     }
 
     if (showCreateRoom) {
