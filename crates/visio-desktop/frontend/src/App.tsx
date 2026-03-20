@@ -406,6 +406,7 @@ function HomeView({
   emailFromOidc,
   onLaunchOidc,
   onLogout,
+  meetInstances,
 }: {
   onJoin: (meetUrl: string, username: string | null, roomId?: string, accessLevel?: string) => void;
   onOpenSettings: () => void;
@@ -419,6 +420,7 @@ function HomeView({
   emailFromOidc: string;
   onLaunchOidc: (meetInstance: string) => void;
   onLogout: () => void;
+  meetInstances: string[];
 }) {
   const t = useT();
   const [meetUrl, setMeetUrl] = useState("");
@@ -431,14 +433,9 @@ function HomeView({
   const [error, setError] = useState("");
   const [joining, setJoining] = useState(false);
   const [roomStatus, setRoomStatus] = useState<"idle" | "checking" | "valid" | "not_found" | "auth_required" | "authenticating" | "error">("idle");
-  const [meetInstances, setMeetInstances] = useState<string[]>([]);
   const [showServerPicker, setShowServerPicker] = useState(false);
   const [customServer, setCustomServer] = useState("");
   const [showCreateRoom, setShowCreateRoom] = useState(false);
-
-  useEffect(() => {
-    invoke<string[]>("get_meet_instances").then(setMeetInstances).catch(() => {});
-  }, []);
 
   useEffect(() => {
     if (deepLinkUrl) {
@@ -3050,6 +3047,7 @@ export default function App() {
                   console.error("OIDC auth failed:", e);
                 }
               }}
+              meetInstances={meetInstances}
               onLogout={() => {
                 if (authenticatedMeetInstance) {
                   invoke("logout_session", { meetUrl: `https://${authenticatedMeetInstance}` }).then(() => {
@@ -3140,7 +3138,11 @@ export default function App() {
       </main>
       {showSettings && (
         <SettingsModal
-          onClose={() => setShowSettings(false)}
+          onClose={() => {
+            setShowSettings(false);
+            // Reload meet instances in case they were modified in settings
+            invoke<string[]>("get_meet_instances").then(setMeetInstances).catch(() => {});
+          }}
           onLanguageChange={(l) => setLang(l)}
           onThemeChange={(t) => setTheme(t)}
           onDisplayNameChange={setDisplayName}
