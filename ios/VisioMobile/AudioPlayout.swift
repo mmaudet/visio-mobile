@@ -6,7 +6,7 @@ import visioFFI
 ///
 /// Format: 48 kHz mono Int16 (matches the Rust playout buffer).
 /// Audio session category: .playback (no mic needed on simulator).
-final class AudioPlayout {
+final class AudioPlayout: @unchecked Sendable {
     private let engine = AVAudioEngine()
     private var sourceNode: AVAudioSourceNode?
 

@@ -219,6 +219,38 @@ impl SessionManager {
         Ok(())
     }
 
+    pub async fn exchange_oidc_code(meet_instance: &str, code: &str) -> Result<String, VisioError> {
+        let url = format!("https://{}/api/v1.0/auth/session-exchange/", meet_instance);
+
+        let client = reqwest::Client::new();
+        let response = client
+            .post(&url)
+            .json(&serde_json::json!({ "code": code }))
+            .send()
+            .await
+            .map_err(|e| VisioError::Http(e.to_string()))?;
+
+        let status = response.status();
+        if !status.is_success() {
+            let body = response.text().await.unwrap_or_default();
+            return Err(VisioError::Auth(format!(
+                "code exchange failed ({status}): {body}"
+            )));
+        }
+
+        let body: serde_json::Value = response
+            .json()
+            .await
+            .map_err(|e| VisioError::Http(e.to_string()))?;
+
+        // The response key matches SESSION_COOKIE_NAME on the server
+        body.get("meet_sessionid")
+            .or_else(|| body.get("sessionid"))
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string())
+            .ok_or_else(|| VisioError::Auth("no session ID in exchange response".into()))
+    }
+
     pub async fn create_room(
         meet_url: &str,
         cookie: &str,
@@ -394,6 +426,24 @@ mod tests {
             "invalid_cookie",
             "Test Room",
             "public",
+        )
+        .await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_exchange_oidc_code_with_invalid_code() {
+        let result =
+            SessionManager::exchange_oidc_code("dev-meet.linagora.com", "invalid-code-too-short")
+                .await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_exchange_oidc_code_formats_url_correctly() {
+        let result = SessionManager::exchange_oidc_code(
+            "nonexistent.example.com",
+            "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
         )
         .await;
         assert!(result.is_err());

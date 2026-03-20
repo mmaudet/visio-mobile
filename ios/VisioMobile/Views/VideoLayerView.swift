@@ -27,7 +27,7 @@ struct VideoLayerView: UIViewRepresentable {
     }
 }
 
-class VideoDisplayView: UIView {
+class VideoDisplayView: UIView, @unchecked Sendable {
     var trackSid: String = ""
     private var displayLayer: AVSampleBufferDisplayLayer?
 

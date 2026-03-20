@@ -1,6 +1,12 @@
 #!/bin/bash
 set -euo pipefail
 
+# Xcode build phases use a restricted PATH that excludes ~/.cargo/bin.
+# Source the Cargo environment so `cargo` and `rustc` are available.
+if [ -f "$HOME/.cargo/env" ]; then
+    source "$HOME/.cargo/env"
+fi
+
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$REPO_ROOT"
 

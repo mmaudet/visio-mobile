@@ -349,13 +349,13 @@ struct CallView: View {
             }
         }
         .task {
-            guard let (livekitUrl, token, mediaFile) = manager.pendingTestConnect else { return }
+            guard let params = manager.pendingTestConnect else { return }
             manager.pendingTestConnect = nil
 
             // Connect (audio playout starts automatically after connection)
-            manager.connectWithToken(livekitUrl: livekitUrl, token: token)
+            manager.connectWithToken(livekitUrl: params.livekitUrl, token: params.token)
 
-            let hasMediaFile = mediaFile != nil && FileManager.default.fileExists(atPath: mediaFile!)
+            let hasMediaFile = params.mediaFile != nil && FileManager.default.fileExists(atPath: params.mediaFile!)
 
             // Auto-chat messages (turn-based)
             let chatMessages: [(Int, String)] = [
@@ -372,14 +372,14 @@ struct CallView: View {
             }
 
             // Helpers for starting/stopping media capture
-            func startMedia() {
+            @MainActor func startMedia() {
                 if hasMediaFile {
-                    manager.startMediaFileCapture(mediaFile!)
+                    manager.startMediaFileCapture(params.mediaFile!)
                 } else {
                     manager.startSyntheticAudio()
                 }
             }
-            func stopMedia() {
+            @MainActor func stopMedia() {
                 if hasMediaFile {
                     manager.stopMediaFileCapture()
                 } else {

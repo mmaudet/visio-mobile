@@ -377,17 +377,18 @@ main {
   width: 100%;
   padding: 8px 12px;
   margin-bottom: 4px;
-  background: var(--surface, rgba(30, 30, 40, 0.6));
-  border: 1px solid var(--border, #333);
+  background: rgba(0, 0, 145, 0.08);
+  border: 1px solid transparent;
   border-radius: 8px;
   cursor: pointer;
   text-align: left;
   color: var(--text);
   font-size: 0.9rem;
+  transition: background 0.15s ease;
 }
 
 .room-history-item:hover {
-  background: var(--surface-hover, rgba(50, 50, 255, 0.1));
+  background: rgba(0, 0, 145, 0.18);
 }
 
 .room-history-item svg {

@@ -5,12 +5,23 @@ import visioFFI
 
 /// Decodes audio and video from an MP4 file and pushes frames through the C FFI,
 /// allowing E2E testing without real camera/microphone hardware.
-final class MediaFileCapture {
+final class MediaFileCapture: @unchecked Sendable {
     private let filePath: String
     private let audioQueue = DispatchQueue(label: "io.visio.media-file.audio", qos: .userInitiated)
     private let videoQueue = DispatchQueue(label: "io.visio.media-file.video", qos: .userInitiated)
-    private var audioRunning = false
-    private var videoRunning = false
+    private let lock = NSLock()
+    private var _audioRunning = false
+    private var _videoRunning = false
+
+    private var audioRunning: Bool {
+        get { lock.withLock { _audioRunning } }
+        set { lock.withLock { _audioRunning = newValue } }
+    }
+
+    private var videoRunning: Bool {
+        get { lock.withLock { _videoRunning } }
+        set { lock.withLock { _videoRunning = newValue } }
+    }
 
     private let sampleRate: Int = 48000
     private let numChannels: Int = 1
@@ -24,9 +35,10 @@ final class MediaFileCapture {
     // MARK: - Audio
 
     func startAudio() {
+        guard !audioRunning else { return }
+        audioRunning = true
+
         audioQueue.async { [self] in
-            guard !audioRunning else { return }
-            audioRunning = true
             NSLog("MediaFileCapture: audio start, file=%@", filePath)
 
             let samplesPerFrame = sampleRate * frameDurationMs / 1000  // 480
@@ -112,17 +124,16 @@ final class MediaFileCapture {
     }
 
     func stopAudio() {
-        audioQueue.async { [self] in
-            audioRunning = false
-        }
+        audioRunning = false
     }
 
     // MARK: - Video
 
     func startVideo() {
+        guard !videoRunning else { return }
+        videoRunning = true
+
         videoQueue.async { [self] in
-            guard !videoRunning else { return }
-            videoRunning = true
             NSLog("MediaFileCapture: video start, file=%@", filePath)
 
             let frameDuration = 1.0 / videoFps
@@ -176,9 +187,7 @@ final class MediaFileCapture {
     }
 
     func stopVideo() {
-        videoQueue.async { [self] in
-            videoRunning = false
-        }
+        videoRunning = false
     }
 
     // MARK: - Private helpers

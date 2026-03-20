@@ -4,15 +4,21 @@ import CoreMotion
 import AVFoundation
 import visioFFI
 
+@MainActor
 class ContextDetector: NSObject {
     private let pathMonitor = NWPathMonitor()
     private let motionManager = CMMotionActivityManager()
     private let monitorQueue = DispatchQueue(label: "io.visio.context")
 
-    private var isMoving = false
+    private let manager: VisioManager
 
-    deinit {
-        stop()
+    private var isMoving = false
+    private var routeChangeObserver: NSObjectProtocol?
+    private var interruptionObserver: NSObjectProtocol?
+
+    init(manager: VisioManager = VisioManager.shared) {
+        self.manager = manager
+        super.init()
     }
 
     func start() {
@@ -24,23 +30,28 @@ class ContextDetector: NSObject {
     func stop() {
         pathMonitor.cancel()
         motionManager.stopActivityUpdates()
-        NotificationCenter.default.removeObserver(self)
+        if let token = routeChangeObserver {
+            NotificationCenter.default.removeObserver(token)
+            routeChangeObserver = nil
+        }
+        if let token = interruptionObserver {
+            NotificationCenter.default.removeObserver(token)
+            interruptionObserver = nil
+        }
     }
 
     private func startNetworkMonitoring() {
         pathMonitor.pathUpdateHandler = { [weak self] path in
-            guard self != nil else { return }
-            let type: NetworkType
+            guard let self else { return }
+            let networkType: NetworkType
             if path.usesInterfaceType(.wifi) {
-                type = .wifi
+                networkType = .wifi
             } else if path.usesInterfaceType(.cellular) {
-                type = .cellular
+                networkType = .cellular
             } else {
-                type = .unknown
+                networkType = .unknown
             }
-            DispatchQueue.main.async {
-                VisioManager.shared.client.reportNetworkType(networkType: type)
-            }
+            self.manager.reportNetworkType(networkType)
         }
         pathMonitor.start(queue: monitorQueue)
     }
@@ -52,30 +63,38 @@ class ContextDetector: NSObject {
             let moving = activity.walking || activity.running || activity.cycling
             guard moving != self?.isMoving else { return }
             self?.isMoving = moving
-            VisioManager.shared.client.reportMotionDetected(detected: moving)
+            self?.manager.reportMotionDetected(moving)
         }
     }
 
     private func startBluetoothMonitoring() {
-        NotificationCenter.default.addObserver(
-            self,
-            selector: #selector(audioRouteChanged),
-            name: AVAudioSession.routeChangeNotification,
-            object: nil
-        )
-        NotificationCenter.default.addObserver(
-            self,
-            selector: #selector(audioInterrupted),
-            name: AVAudioSession.interruptionNotification,
-            object: nil
-        )
+        routeChangeObserver = NotificationCenter.default.addObserver(
+            forName: AVAudioSession.routeChangeNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in
+                self?.handleAudioRouteChange()
+            }
+        }
+
+        interruptionObserver = NotificationCenter.default.addObserver(
+            forName: AVAudioSession.interruptionNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in
+                self?.reportBluetoothCarKit()
+            }
+        }
+
         reportBluetoothCarKit()
     }
 
-    @objc private func audioRouteChanged(_ notification: Notification) {
+    private func handleAudioRouteChange() {
         reportBluetoothCarKit()
 
-        guard case .connected = VisioManager.shared.connectionState else { return }
+        guard case .connected = manager.connectionState else { return }
 
         let route = AVAudioSession.sharedInstance().currentRoute
         let hasBluetooth = route.outputs.contains { port in
@@ -87,9 +106,7 @@ class ContextDetector: NSObject {
 
         if hasBluetooth {
             // BT device connected — route audio to it
-            DispatchQueue.main.async {
-                VisioManager.shared.routeAudioToBluetooth()
-            }
+            manager.routeAudioToBluetooth()
         } else {
             // BT disconnected — check if another BT device is still available
             let session = AVAudioSession.sharedInstance()
@@ -101,20 +118,12 @@ class ContextDetector: NSObject {
 
             if hasRemainingBt {
                 // Another BT device available — route to it
-                DispatchQueue.main.async {
-                    VisioManager.shared.routeAudioToBluetooth()
-                }
+                manager.routeAudioToBluetooth()
             } else {
                 // No BT left — restore phone speaker/mic
-                DispatchQueue.main.async {
-                    VisioManager.shared.restoreDefaultAudioRoute()
-                }
+                manager.restoreDefaultAudioRoute()
             }
         }
-    }
-
-    @objc private func audioInterrupted(_ notification: Notification) {
-        reportBluetoothCarKit()
     }
 
     private func reportBluetoothCarKit() {
@@ -125,8 +134,6 @@ class ContextDetector: NSObject {
             port.portType == .bluetoothHFP ||
             port.portType == .carAudio
         }
-        DispatchQueue.main.async {
-            VisioManager.shared.client.reportBluetoothCarKit(connected: hasCarKit)
-        }
+        manager.reportBluetoothCarKit(connected: hasCarKit)
     }
 }
