@@ -1,5 +1,4 @@
 import SwiftUI
-import WebKit
 import visioFFI
 
 struct HomeView: View {
@@ -340,82 +339,22 @@ struct HomeView: View {
                 instances: meetInstances,
                 customServer: $customServer,
                 lang: lang,
-                onComplete: { cookie, instance in
-                    showServerPicker = false
-                    if let cookie {
-                        manager.onAuthCookieReceived(cookie, meetInstance: instance)
-                    }
-                },
                 onDismiss: { showServerPicker = false }
             )
-        }
-        .sheet(isPresented: Binding(
-            get: { manager.authManager.pendingInstance != nil },
-            set: { if !$0 { manager.authManager.onWebViewCookie(nil, meetInstance: "") } }
-        )) {
-            if let instance = manager.authManager.pendingInstance {
-                OidcFallbackWebView(meetInstance: instance) { cookie in
-                    manager.authManager.onWebViewCookie(cookie, meetInstance: instance)
-                    if let cookie {
-                        manager.onAuthCookieReceived(cookie, meetInstance: instance)
-                    }
-                }
-            }
         }
     }
 
     private func launchOidc(meetInstance: String) {
-        manager.authManager.launchOidcFlow(meetInstance: meetInstance) { [weak manager] cookie in
-            if let cookie, let manager {
-                manager.onAuthCookieReceived(cookie, meetInstance: meetInstance)
-            }
-        }
-    }
-}
-
-// MARK: - OIDC Fallback WebView
-
-/// WKWebView-based OIDC fallback for servers that don't support custom scheme returnTo.
-private struct OidcFallbackWebView: UIViewRepresentable {
-    let meetInstance: String
-    let onCookie: (String?) -> Void
-
-    private static let cookieNames = ["meet_sessionid", "sessionid"]
-
-    func makeCoordinator() -> Coordinator { Coordinator(self) }
-
-    func makeUIView(context: Context) -> WKWebView {
-        let config = WKWebViewConfiguration()
-        let webView = WKWebView(frame: .zero, configuration: config)
-        webView.navigationDelegate = context.coordinator
-        let returnTo = "https://\(meetInstance)/"
-        let encodedReturnTo = returnTo.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? returnTo
-        if let url = URL(string: "https://\(meetInstance)/api/v1.0/authenticate/?returnTo=\(encodedReturnTo)") {
-            webView.load(URLRequest(url: url))
-        }
-        return webView
-    }
-
-    func updateUIView(_ uiView: WKWebView, context: Context) {}
-
-    class Coordinator: NSObject, WKNavigationDelegate {
-        let parent: OidcFallbackWebView
-        init(_ parent: OidcFallbackWebView) { self.parent = parent }
-
-        func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
-            guard let url = webView.url else { return }
-            let instance = parent.meetInstance
-            // Detect when we've landed on the instance homepage after auth
-            guard url.host == instance,
-                  !url.path.contains("/authenticate"),
-                  !url.path.contains("/oauth2/"),
-                  !url.path.contains("/callback") else { return }
-
-            webView.configuration.websiteDataStore.httpCookieStore.getAllCookies { cookies in
-                if let cookie = cookies.first(where: {
-                    OidcFallbackWebView.cookieNames.contains($0.name) && $0.domain.contains(instance)
-                }) {
-                    DispatchQueue.main.async { self.parent.onCookie(cookie.value) }
+        manager.authManager.launchOidcFlow(meetInstance: meetInstance) { [weak manager] code in
+            guard let code, let manager else { return }
+            DispatchQueue.global(qos: .userInitiated).async {
+                do {
+                    let sessionId = try manager.client.exchangeOidcCode(meetInstance: meetInstance, code: code)
+                    DispatchQueue.main.async {
+                        manager.onAuthCookieReceived(sessionId, meetInstance: meetInstance)
+                    }
+                } catch {
+                    NSLog("[HomeView] OIDC code exchange failed: \(error)")
                 }
             }
         }
@@ -429,7 +368,6 @@ private struct ServerPickerWithOidc: View {
     let instances: [String]
     @Binding var customServer: String
     let lang: String
-    let onComplete: (String?, String) -> Void  // (cookie?, meetInstance)
     let onDismiss: () -> Void
 
     @EnvironmentObject private var manager: VisioManager
@@ -451,10 +389,20 @@ private struct ServerPickerWithOidc: View {
     }
 
     private func selectInstance(_ instance: String) {
-        // Dismiss the server picker sheet, then launch ASWebAuthenticationSession
         onDismiss()
-        manager.authManager.launchOidcFlow(meetInstance: instance) { cookie in
-            onComplete(cookie, instance)
+        // Use ASWebAuthenticationSession + exchange code
+        manager.authManager.launchOidcFlow(meetInstance: instance) { [weak manager] code in
+            guard let code, let manager else { return }
+            DispatchQueue.global(qos: .userInitiated).async {
+                do {
+                    let sessionId = try manager.client.exchangeOidcCode(meetInstance: instance, code: code)
+                    DispatchQueue.main.async {
+                        manager.onAuthCookieReceived(sessionId, meetInstance: instance)
+                    }
+                } catch {
+                    NSLog("[ServerPicker] OIDC code exchange failed: \(error)")
+                }
+            }
         }
     }
 

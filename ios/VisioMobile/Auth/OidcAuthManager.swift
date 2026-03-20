@@ -1,37 +1,18 @@
 import AuthenticationServices
 import Security
-import SwiftUI
 import UIKit
-import WebKit
-
-// MARK: - OidcAuthManager
 
 class OidcAuthManager: NSObject, ObservableObject, ASWebAuthenticationPresentationContextProviding {
 
-    /// Called when the OIDC flow completes (cookie or nil).
-    var onComplete: ((String?) -> Void)?
-
-    /// Tracks the active session so it isn't deallocated mid-flow.
+    @Published var pendingInstance: String?
     private var authSession: ASWebAuthenticationSession?
 
-    /// The meet instance being authenticated against.
-    @Published var pendingInstance: String?
-
-    /// Known session cookie names (Meet uses "meet_sessionid", others may use "sessionid").
-    private static let cookieNames = ["meet_sessionid", "sessionid"]
-
-    // MARK: - OIDC Flow
-
-    /// Launches the OIDC authentication flow.
-    ///
-    /// Tries ASWebAuthenticationSession with visio:// callback first (requires server
-    /// support for custom scheme returnTo). If the server rejects the custom scheme
-    /// (returns to homepage instead), falls back to WKWebView-based extraction.
+    /// Launch OIDC flow via ASWebAuthenticationSession.
+    /// The server redirects to visio://auth-callback?code={uuid}.
+    /// Returns the exchange code via completion handler.
     func launchOidcFlow(meetInstance: String, completion: @escaping (String?) -> Void) {
-        onComplete = completion
         pendingInstance = meetInstance
 
-        // Try ASWebAuthenticationSession first — best UX (password manager, saved sessions)
         let returnTo = "visio://auth-callback"
         let encodedReturnTo = returnTo.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? returnTo
         guard let authURL = URL(string: "https://\(meetInstance)/api/v1.0/authenticate/?returnTo=\(encodedReturnTo)") else {
@@ -48,33 +29,37 @@ class OidcAuthManager: NSObject, ObservableObject, ASWebAuthenticationPresentati
 
             if let error {
                 let nsError = error as NSError
-                // ASWebAuthenticationSessionErrorCodeCanceledLogin = 1
                 if nsError.domain == ASWebAuthenticationSessionError.errorDomain
                     && nsError.code == ASWebAuthenticationSessionError.canceledLogin.rawValue {
-                    // User cancelled — don't fallback, just report nil
-                    DispatchQueue.main.async { self.onComplete?(nil); self.onComplete = nil; self.pendingInstance = nil }
+                    DispatchQueue.main.async {
+                        self.pendingInstance = nil
+                        completion(nil)
+                    }
                     return
                 }
-                // Other error — try fallback
-                print("[OidcAuthManager] ASWebAuth failed: \(error.localizedDescription), falling back to webview")
-                DispatchQueue.main.async { self.pendingInstance = meetInstance }
+                NSLog("[OidcAuthManager] ASWebAuth error: \(error.localizedDescription)")
+                DispatchQueue.main.async {
+                    self.pendingInstance = nil
+                    completion(nil)
+                }
                 return
             }
 
-            // Success — try to extract cookie from shared storage
-            self.extractSessionCookie(meetInstance: meetInstance) { cookie in
-                if let cookie {
-                    DispatchQueue.main.async {
-                        self.onComplete?(cookie)
-                        self.onComplete = nil
-                        self.pendingInstance = nil
-                    }
-                } else {
-                    // Cookie not in shared storage — server may not support custom scheme returnTo
-                    // Fall back to webview
-                    print("[OidcAuthManager] No cookie after ASWebAuth, falling back to webview")
-                    DispatchQueue.main.async { self.pendingInstance = meetInstance }
+            // Extract exchange code from: visio://auth-callback?code={uuid}
+            guard let url = callbackURL,
+                  let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
+                  let code = components.queryItems?.first(where: { $0.name == "code" })?.value else {
+                NSLog("[OidcAuthManager] No code parameter in callback URL: \(callbackURL?.absoluteString ?? "nil")")
+                DispatchQueue.main.async {
+                    self.pendingInstance = nil
+                    completion(nil)
                 }
+                return
+            }
+
+            DispatchQueue.main.async {
+                self.pendingInstance = nil
+                completion(code)
             }
         }
 
@@ -82,35 +67,6 @@ class OidcAuthManager: NSObject, ObservableObject, ASWebAuthenticationPresentati
         session.presentationContextProvider = self
         authSession = session
         session.start()
-    }
-
-    /// Called by the webview fallback when it extracts a cookie.
-    func onWebViewCookie(_ cookie: String?, meetInstance: String) {
-        pendingInstance = nil
-        onComplete?(cookie)
-        onComplete = nil
-    }
-
-    // MARK: - Cookie Extraction
-
-    private func extractSessionCookie(meetInstance: String, completion: @escaping (String?) -> Void) {
-        guard let instanceURL = URL(string: "https://\(meetInstance)/") else {
-            completion(nil)
-            return
-        }
-
-        let cookies = HTTPCookieStorage.shared.cookies(for: instanceURL) ?? []
-        if let sessionCookie = cookies.first(where: { Self.cookieNames.contains($0.name) })?.value,
-           !sessionCookie.isEmpty {
-            completion(sessionCookie)
-        } else {
-            // Retry once after a short delay
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                let retryCookies = HTTPCookieStorage.shared.cookies(for: instanceURL) ?? []
-                let cookie = retryCookies.first(where: { Self.cookieNames.contains($0.name) })?.value
-                completion(cookie?.isEmpty == false ? cookie : nil)
-            }
-        }
     }
 
     // MARK: - ASWebAuthenticationPresentationContextProviding
