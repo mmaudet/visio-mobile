@@ -15,7 +15,8 @@ struct HomeView: View {
     @State private var showServerPicker: Bool = false
     @State private var customServer: String = ""
     @State private var showCreateRoom: Bool = false
-    @State private var roomHistory: [String] = []
+    @State private var roomHistory: [RoomHistoryEntry] = []
+    @State private var roomName: String? = nil
     @State private var historyJoinPending: Bool = false
     @State private var showCompactHeader: Bool = false
 
@@ -25,12 +26,40 @@ struct HomeView: View {
     private static let slugPattern = /^[a-z]{3}-[a-z]{4}-[a-z]{3}$/
 
     private func extractSlug(_ input: String) -> String? {
-        let trimmed = input.trimmingCharacters(in: .whitespacesAndNewlines)
+        // Strip query parameters before extracting slug
+        let stripped = input.components(separatedBy: "?").first ?? input
+        let trimmed = stripped.trimmingCharacters(in: .whitespacesAndNewlines)
             .trimmingCharacters(in: CharacterSet(charactersIn: "/"))
         let candidate = trimmed.contains("/")
             ? String(trimmed.split(separator: "/").last ?? "")
             : trimmed
         return candidate.wholeMatch(of: Self.slugPattern) != nil ? candidate : nil
+    }
+
+    /// Extract the `name` query parameter from a URL string.
+    private func extractRoomName(_ input: String) -> String? {
+        guard let url = URL(string: input),
+              let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
+              let nameValue = components.queryItems?.first(where: { $0.name == "name" })?.value,
+              !nameValue.isEmpty
+        else {
+            // Fallback: manual parsing for non-standard URLs
+            guard let queryStart = input.firstIndex(of: "?") else { return nil }
+            let query = String(input[input.index(after: queryStart)...])
+            for pair in query.components(separatedBy: "&") {
+                let kv = pair.components(separatedBy: "=")
+                if kv.first == "name", let value = kv.last, !value.isEmpty {
+                    return value.removingPercentEncoding?.replacingOccurrences(of: "+", with: " ")
+                }
+            }
+            return nil
+        }
+        return nameValue
+    }
+
+    /// Strip query parameters from a URL string.
+    private func stripQueryParams(_ input: String) -> String {
+        return input.components(separatedBy: "?").first ?? input
     }
 
     var body: some View {
@@ -116,19 +145,25 @@ struct HomeView: View {
                 .padding(.horizontal, 32)
                 .task(id: roomURL) {
                     let trimmed = roomURL.trimmingCharacters(in: .whitespacesAndNewlines)
-                    let isSlug = trimmed.wholeMatch(of: Self.slugPattern) != nil
+
+                    // Extract room name from ?name= query parameter
+                    roomName = extractRoomName(trimmed)
+
+                    // Strip query params for slug extraction
+                    let cleanInput = stripQueryParams(trimmed)
+                    let isSlug = cleanInput.wholeMatch(of: Self.slugPattern) != nil
 
                     // Build list of URLs to try
                     let urlsToTry: [String]
                     if isSlug, !meetInstances.isEmpty {
-                        urlsToTry = meetInstances.map { "https://\($0)/\(trimmed)" }
+                        urlsToTry = meetInstances.map { "https://\($0)/\(cleanInput)" }
                     } else {
-                        guard extractSlug(trimmed) != nil else {
+                        guard extractSlug(cleanInput) != nil else {
                             roomStatus = "idle"
-                            resolvedRoomURL = trimmed
+                            resolvedRoomURL = cleanInput
                             return
                         }
-                        urlsToTry = [trimmed]
+                        urlsToTry = [cleanInput]
                     }
 
                     roomStatus = "checking"
@@ -151,7 +186,7 @@ struct HomeView: View {
                     }
                     if !foundValid {
                         roomStatus = "not_found"
-                        resolvedRoomURL = urlsToTry.first ?? trimmed
+                        resolvedRoomURL = urlsToTry.first ?? cleanInput
                     }
                 }
 
@@ -191,13 +226,21 @@ struct HomeView: View {
                             .fontWeight(.medium)
                             .foregroundStyle(VisioColors.secondaryText(dark: isDark))
 
-                        ForEach(Array(roomHistory.enumerated()), id: \.offset) { index, url in
-                            let slug = url.contains("/") ? String(url.split(separator: "/").last ?? "") : url
-                            let host = URL(string: url)?.host ?? ""
+                        ForEach(Array(roomHistory.enumerated()), id: \.offset) { index, entry in
+                            let slug = entry.url.contains("/") ? String(entry.url.split(separator: "/").last ?? "") : entry.url
+                            let host = URL(string: entry.url)?.host ?? ""
+                            let displayLabel = entry.name ?? slug
 
                             Button {
-                                roomURL = url
-                                resolvedRoomURL = url
+                                // If the entry has a name, reconstruct the URL with ?name= so it propagates
+                                if let name = entry.name {
+                                    let encoded = name.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? name
+                                    roomURL = "\(entry.url)?name=\(encoded)"
+                                } else {
+                                    roomURL = entry.url
+                                }
+                                resolvedRoomURL = entry.url
+                                roomName = entry.name
                                 // If already validated, navigate immediately
                                 if roomStatus == "valid" {
                                     navigateToCall = true
@@ -206,7 +249,7 @@ struct HomeView: View {
                                 }
                             } label: {
                                 HStack(spacing: 10) {
-                                    if historyJoinPending && roomURL == url {
+                                    if historyJoinPending && resolvedRoomURL == entry.url {
                                         ProgressView()
                                             .scaleEffect(0.7)
                                             .frame(width: 14, height: 14)
@@ -217,14 +260,21 @@ struct HomeView: View {
                                     }
 
                                     VStack(alignment: .leading, spacing: 2) {
-                                        Text(slug)
+                                        Text(displayLabel)
                                             .font(.body)
                                             .fontWeight(.medium)
                                             .foregroundStyle(VisioColors.onBackground(dark: isDark))
-                                        if !host.isEmpty {
-                                            Text(host)
-                                                .font(.caption)
-                                                .foregroundStyle(VisioColors.secondaryText(dark: isDark))
+                                        HStack(spacing: 4) {
+                                            if entry.name != nil {
+                                                Text(slug)
+                                                    .font(.caption)
+                                                    .foregroundStyle(VisioColors.secondaryText(dark: isDark))
+                                            }
+                                            if !host.isEmpty {
+                                                Text(entry.name != nil ? "· \(host)" : host)
+                                                    .font(.caption)
+                                                    .foregroundStyle(VisioColors.secondaryText(dark: isDark))
+                                            }
                                         }
                                     }
 
@@ -277,7 +327,8 @@ struct HomeView: View {
         .navigationDestination(isPresented: $navigateToCall) {
             CallView(
                 roomURL: resolvedRoomURL,
-                displayName: displayName.trimmingCharacters(in: .whitespacesAndNewlines)
+                displayName: displayName.trimmingCharacters(in: .whitespacesAndNewlines),
+                roomName: roomName
             )
         }
         .sheet(isPresented: $showSettings) {

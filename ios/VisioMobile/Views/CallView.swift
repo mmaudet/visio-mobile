@@ -60,6 +60,7 @@ struct CallView: View {
 
     let roomURL: String
     let displayName: String
+    let roomName: String?
 
     @State private var showChat: Bool = false
     @State private var showAudioDevices: Bool = false
@@ -241,7 +242,7 @@ struct CallView: View {
                 }
             }
         }
-        .navigationTitle(Strings.t("call.title", lang: lang))
+        .navigationTitle(roomName ?? Strings.t("call.title", lang: lang))
         .navigationBarTitleDisplayMode(.inline)
         .navigationBarBackButtonHidden(true)
         .toolbarColorScheme(isDark ? .dark : .light, for: .navigationBar)
@@ -266,13 +267,18 @@ struct CallView: View {
                 .presentationDetents([.medium])
         }
         .sheet(isPresented: $showInCallSettings) {
-            InCallSettingsSheet(roomURL: roomURL, selectedTab: inCallSettingsTab)
+            InCallSettingsSheet(roomURL: roomURL, roomName: roomName, selectedTab: inCallSettingsTab)
                 .environmentObject(manager)
                 .presentationDetents([.medium, .large])
         }
         .onAppear {
             let name = displayName.isEmpty ? nil : displayName
-            manager.connect(url: roomURL, username: name)
+            // Reconstruct the URL with ?name= so the FFI can extract and store it in history
+            var connectUrl = roomURL
+            if let rn = roomName, let encoded = rn.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) {
+                connectUrl = "\(roomURL)?name=\(encoded)"
+            }
+            manager.connect(url: connectUrl, username: name)
             // Audio playout is now started automatically after connection succeeds (in VisioManager)
             CallKitManager.shared.reportCallStarted(roomName: roomURL)
             UIApplication.shared.isIdleTimerDisabled = true
@@ -443,7 +449,7 @@ struct CallView: View {
                 return count <= 2 ? 1 : 2
             }()
             let rowCount = max(1, (count + columnCount - 1) / columnCount)
-            let tileHeight = (geo.size.height - 16 - CGFloat(rowCount - 1) * 8) / CGFloat(rowCount)
+            let tileHeight = max(0, (geo.size.height - 16 - CGFloat(rowCount - 1) * 8) / CGFloat(rowCount))
 
             VStack(spacing: 8) {
                 ForEach(Array(stride(from: 0, to: count, by: columnCount)), id: \.self) { rowStart in
@@ -1439,7 +1445,7 @@ struct FloatingReaction: View {
 
 #Preview {
     NavigationStack {
-        CallView(roomURL: "meet.example.com/test", displayName: "Alice")
+        CallView(roomURL: "meet.example.com/test", displayName: "Alice", roomName: nil)
             .environmentObject(VisioManager())
     }
 }

@@ -7,10 +7,19 @@ struct InCallSettingsSheet: View {
     @Environment(\.dismiss) private var dismiss
 
     let roomURL: String
+    let roomName: String?
     @State var selectedTab: Int
 
     private var lang: String { manager.currentLang }
     private var isDark: Bool { manager.currentTheme == "dark" }
+
+    /// Build a shareable URL that includes the ?name= parameter if present.
+    private var shareableUrl: String {
+        guard let name = roomName,
+              let encoded = name.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed)
+        else { return roomURL }
+        return "\(roomURL)?name=\(encoded)"
+    }
 
     var body: some View {
         NavigationStack {
@@ -212,12 +221,22 @@ struct InCallSettingsSheet: View {
     // MARK: - Room Info Tab
 
     private var roomInfoTab: some View {
-        let displayUrl = roomURL.replacingOccurrences(of: "https://", with: "")
-                                .replacingOccurrences(of: "http://", with: "")
+        let displayUrl = shareableUrl.replacingOccurrences(of: "https://", with: "")
+                                     .replacingOccurrences(of: "http://", with: "")
         let deepLink = "visio://\(displayUrl)"
 
         return ScrollView {
             VStack(alignment: .leading, spacing: 20) {
+                // Room name (if present)
+                if let name = roomName {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(name)
+                            .font(.headline)
+                            .fontWeight(.bold)
+                            .foregroundStyle(VisioColors.onBackground(dark: isDark))
+                    }
+                }
+
                 // HTTPS link
                 VStack(alignment: .leading, spacing: 4) {
                     HStack {
@@ -230,17 +249,17 @@ struct InCallSettingsSheet: View {
                             .foregroundStyle(VisioColors.onBackground(dark: isDark))
                         Spacer()
                         Button {
-                            UIPasteboard.general.string = roomURL
+                            UIPasteboard.general.string = shareableUrl
                         } label: {
                             Image(systemName: "doc.on.doc")
                                 .font(.caption)
                         }
-                        ShareLink(item: roomURL) {
+                        ShareLink(item: shareableUrl) {
                             Image(systemName: "square.and.arrow.up")
                                 .font(.caption)
                         }
                     }
-                    TextField("", text: .constant(roomURL))
+                    TextField("", text: .constant(shareableUrl))
                         .font(.caption)
                         .textFieldStyle(.roundedBorder)
                         .disabled(true)
@@ -263,7 +282,7 @@ struct InCallSettingsSheet: View {
                             Image(systemName: "doc.on.doc")
                                 .font(.caption)
                         }
-                        ShareLink(item: roomURL) {
+                        ShareLink(item: shareableUrl) {
                             Image(systemName: "square.and.arrow.up")
                                 .font(.caption)
                         }
