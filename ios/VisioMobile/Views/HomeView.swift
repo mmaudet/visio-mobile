@@ -235,8 +235,8 @@ struct HomeView: View {
                                 .background(
                                     RoundedRectangle(cornerRadius: 8)
                                         .fill(isDark
-                                            ? Color(red: 0.12, green: 0.12, blue: 0.18)
-                                            : Color(red: 0.95, green: 0.95, blue: 0.97))
+                                            ? VisioColors.primary500.opacity(0.12)
+                                            : VisioColors.primary500.opacity(0.08))
                                 )
                             }
                             .disabled(historyJoinPending)
