@@ -36,4 +36,4 @@ pub use lobby::{LobbyPollResult, LobbyService, LobbyStatus, WaitingParticipant};
 pub use participants::ParticipantManager;
 pub use room::RoomManager;
 pub use session::{CreateRoomLiveKit, CreateRoomResponse, SessionManager, SessionState, UserInfo};
-pub use settings::{Settings, SettingsStore};
+pub use settings::{RoomHistoryEntry, Settings, SettingsStore};

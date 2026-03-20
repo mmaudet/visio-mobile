@@ -3,6 +3,50 @@ use std::sync::Mutex;
 
 use serde::{Deserialize, Serialize};
 
+/// A room history entry storing the URL and an optional friendly name
+/// (from the `?name=` query parameter).
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct RoomHistoryEntry {
+    pub url: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+}
+
+/// Custom deserializer that accepts both the old `Vec<String>` format and
+/// the new `Vec<RoomHistoryEntry>` format for backward compatibility.
+mod room_history_compat {
+    use super::RoomHistoryEntry;
+    use serde::{self, Deserialize, Deserializer, Serialize, Serializer};
+
+    pub fn serialize<S>(entries: &Vec<RoomHistoryEntry>, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        entries.serialize(serializer)
+    }
+
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<Vec<RoomHistoryEntry>, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        #[derive(Deserialize)]
+        #[serde(untagged)]
+        enum EntryOrString {
+            Entry(RoomHistoryEntry),
+            Url(String),
+        }
+
+        let items: Vec<EntryOrString> = Vec::deserialize(deserializer)?;
+        Ok(items
+            .into_iter()
+            .map(|item| match item {
+                EntryOrString::Entry(e) => e,
+                EntryOrString::Url(url) => RoomHistoryEntry { url, name: None },
+            })
+            .collect())
+    }
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct Settings {
     #[serde(default)]
@@ -27,8 +71,8 @@ pub struct Settings {
     pub background_mode: String,
     #[serde(default)]
     pub adaptive_mode_enabled: bool,
-    #[serde(default)]
-    pub room_history: Vec<String>,
+    #[serde(default, with = "room_history_compat")]
+    pub room_history: Vec<RoomHistoryEntry>,
     #[serde(default = "default_true")]
     pub noise_reduction_enabled: bool,
     /// Preferred audio input device name.
@@ -225,16 +269,16 @@ impl SettingsStore {
         self.save();
     }
 
-    pub fn add_room_to_history(&self, url: String) {
+    pub fn add_room_to_history(&self, url: String, name: Option<String>) {
         let mut s = self.settings.lock().unwrap_or_else(|e| e.into_inner());
-        s.room_history.retain(|u| u != &url);
-        s.room_history.insert(0, url);
+        s.room_history.retain(|entry| entry.url != url);
+        s.room_history.insert(0, RoomHistoryEntry { url, name });
         s.room_history.truncate(10);
         drop(s);
         self.save();
     }
 
-    pub fn get_room_history(&self) -> Vec<String> {
+    pub fn get_room_history(&self) -> Vec<RoomHistoryEntry> {
         self.settings
             .lock()
             .unwrap_or_else(|e| e.into_inner())
@@ -578,14 +622,19 @@ mod tests {
         let dir = temp_dir();
         let store = SettingsStore::new(dir.path().to_str().unwrap());
 
-        store.add_room_to_history("https://meet.example.com/room1".to_string());
-        store.add_room_to_history("https://meet.example.com/room2".to_string());
-        store.add_room_to_history("https://meet.example.com/room1".to_string()); // dedup, moves to front
+        store.add_room_to_history("https://meet.example.com/room1".to_string(), None);
+        store.add_room_to_history(
+            "https://meet.example.com/room2".to_string(),
+            Some("Team Standup".to_string()),
+        );
+        store.add_room_to_history("https://meet.example.com/room1".to_string(), None); // dedup, moves to front
 
         let history = store.get_room_history();
         assert_eq!(history.len(), 2);
-        assert_eq!(history[0], "https://meet.example.com/room1");
-        assert_eq!(history[1], "https://meet.example.com/room2");
+        assert_eq!(history[0].url, "https://meet.example.com/room1");
+        assert_eq!(history[0].name, None);
+        assert_eq!(history[1].url, "https://meet.example.com/room2");
+        assert_eq!(history[1].name, Some("Team Standup".to_string()));
 
         store.clear_room_history();
         assert!(store.get_room_history().is_empty());
@@ -597,12 +646,12 @@ mod tests {
         let store = SettingsStore::new(dir.path().to_str().unwrap());
 
         for i in 0..15 {
-            store.add_room_to_history(format!("https://meet.example.com/room{i}"));
+            store.add_room_to_history(format!("https://meet.example.com/room{i}"), None);
         }
 
         let history = store.get_room_history();
         assert_eq!(history.len(), 10);
-        assert_eq!(history[0], "https://meet.example.com/room14");
+        assert_eq!(history[0].url, "https://meet.example.com/room14");
     }
 
     #[test]
@@ -611,12 +660,35 @@ mod tests {
         let path = dir.path().to_str().unwrap();
         {
             let store = SettingsStore::new(path);
-            store.add_room_to_history("https://meet.example.com/room1".to_string());
+            store.add_room_to_history(
+                "https://meet.example.com/room1".to_string(),
+                Some("My Room".to_string()),
+            );
         }
         let store = SettingsStore::new(path);
         let history = store.get_room_history();
         assert_eq!(history.len(), 1);
-        assert_eq!(history[0], "https://meet.example.com/room1");
+        assert_eq!(history[0].url, "https://meet.example.com/room1");
+        assert_eq!(history[0].name, Some("My Room".to_string()));
+    }
+
+    #[test]
+    fn test_room_history_backward_compat_plain_strings() {
+        let dir = temp_dir();
+        let path = dir.path().to_str().unwrap();
+        // Write old-format settings with plain string room_history
+        fs::write(
+            dir.path().join("settings.json"),
+            r#"{"room_history":["https://meet.example.com/abc-defg-hij","https://meet.example.com/xyz-abcd-efg"]}"#,
+        )
+        .unwrap();
+        let store = SettingsStore::new(path);
+        let history = store.get_room_history();
+        assert_eq!(history.len(), 2);
+        assert_eq!(history[0].url, "https://meet.example.com/abc-defg-hij");
+        assert_eq!(history[0].name, None);
+        assert_eq!(history[1].url, "https://meet.example.com/xyz-abcd-efg");
+        assert_eq!(history[1].name, None);
     }
 
     #[test]

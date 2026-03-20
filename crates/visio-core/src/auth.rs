@@ -107,7 +107,9 @@ impl AuthService {
         use std::sync::OnceLock;
         static SLUG_RE: OnceLock<regex::Regex> = OnceLock::new();
 
-        let input = input.trim().trim_end_matches('/');
+        // Strip query parameters before extracting the slug
+        let stripped = Self::strip_query_params(input);
+        let input = stripped.trim().trim_end_matches('/');
         let candidate = if input.contains('/') {
             input.rsplit('/').next().unwrap_or("")
         } else {
@@ -141,7 +143,9 @@ impl AuthService {
     }
 
     /// Parse a Meet URL into (instance, room_slug).
+    /// Query parameters (e.g. `?name=...`) are stripped from the slug.
     pub fn parse_meet_url(url: &str) -> Result<(String, String), VisioError> {
+        let url = Self::strip_query_params(url);
         let url = url
             .trim()
             .trim_end_matches('/')
@@ -156,6 +160,36 @@ impl AuthService {
         }
 
         Ok((parts[0].to_string(), parts[1].to_string()))
+    }
+
+    /// Extract the `name` query parameter from a URL, if present.
+    /// E.g. `https://meet.example.com/abc-defg-hij?name=Team+Standup` → Some("Team Standup")
+    pub fn extract_room_name(url: &str) -> Option<String> {
+        let query_start = url.find('?')?;
+        let query = &url[query_start + 1..];
+        for pair in query.split('&') {
+            let mut kv = pair.splitn(2, '=');
+            let key = kv.next()?;
+            let value = kv.next().unwrap_or("");
+            if key == "name" {
+                let decoded = urlencoding::decode(value).unwrap_or_else(|_| value.into());
+                let decoded = decoded.replace('+', " ");
+                if decoded.is_empty() {
+                    return None;
+                }
+                return Some(decoded);
+            }
+        }
+        None
+    }
+
+    /// Strip all query parameters from a URL.
+    /// E.g. `https://meet.example.com/abc-defg-hij?name=Foo` → `https://meet.example.com/abc-defg-hij`
+    pub fn strip_query_params(url: &str) -> String {
+        match url.find('?') {
+            Some(pos) => url[..pos].to_string(),
+            None => url.to_string(),
+        }
     }
 }
 
@@ -216,5 +250,66 @@ mod tests {
     fn extract_slug_from_url_with_trailing_slash() {
         let slug = AuthService::extract_slug("https://meet.example.com/abc-defg-hij/").unwrap();
         assert_eq!(slug, "abc-defg-hij");
+    }
+
+    #[test]
+    fn extract_slug_strips_query_params() {
+        let slug =
+            AuthService::extract_slug("https://meet.example.com/abc-defg-hij?name=Team+Standup")
+                .unwrap();
+        assert_eq!(slug, "abc-defg-hij");
+    }
+
+    #[test]
+    fn parse_meet_url_strips_query_params() {
+        let (instance, slug) =
+            AuthService::parse_meet_url("https://meet.example.com/abc-defg-hij?name=My+Room")
+                .unwrap();
+        assert_eq!(instance, "meet.example.com");
+        assert_eq!(slug, "abc-defg-hij");
+    }
+
+    #[test]
+    fn extract_room_name_basic() {
+        let name = AuthService::extract_room_name(
+            "https://meet.example.com/abc-defg-hij?name=Team+Standup",
+        );
+        assert_eq!(name, Some("Team Standup".to_string()));
+    }
+
+    #[test]
+    fn extract_room_name_encoded() {
+        let name = AuthService::extract_room_name(
+            "https://meet.example.com/abc-defg-hij?name=My%20Room%21",
+        );
+        assert_eq!(name, Some("My Room!".to_string()));
+    }
+
+    #[test]
+    fn extract_room_name_missing() {
+        let name = AuthService::extract_room_name("https://meet.example.com/abc-defg-hij");
+        assert_eq!(name, None);
+    }
+
+    #[test]
+    fn extract_room_name_empty() {
+        let name = AuthService::extract_room_name("https://meet.example.com/abc-defg-hij?name=");
+        assert_eq!(name, None);
+    }
+
+    #[test]
+    fn strip_query_params_basic() {
+        assert_eq!(
+            AuthService::strip_query_params("https://meet.example.com/room?name=Foo&bar=1"),
+            "https://meet.example.com/room"
+        );
+    }
+
+    #[test]
+    fn strip_query_params_no_params() {
+        assert_eq!(
+            AuthService::strip_query_params("https://meet.example.com/room"),
+            "https://meet.example.com/room"
+        );
     }
 }
