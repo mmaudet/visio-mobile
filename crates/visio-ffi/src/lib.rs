@@ -658,6 +658,8 @@ impl SendSurfacePtr {
 
 struct BridgeListener {
     ffi_listener: Arc<dyn VisioEventListener>,
+    room_manager: visio_core::RoomManager,
+    settings: Arc<visio_core::SettingsStore>,
 }
 
 impl visio_core::VisioEventListener for BridgeListener {
@@ -709,6 +711,18 @@ impl visio_core::VisioEventListener for BridgeListener {
             }
         }
 
+        // Record room in history on successful connection (covers lobby acceptance path
+        // which bypasses VisioClient::connect's return-value path at line 805).
+        if let CoreVisioEvent::ConnectionStateChanged(visio_core::ConnectionState::Connected) = &event {
+            let rm = self.room_manager.clone();
+            let settings = self.settings.clone();
+            tokio::spawn(async move {
+                if let Some((url, _)) = rm.last_connection_info().await {
+                    settings.add_room_to_history(url);
+                }
+            });
+        }
+
         self.ffi_listener.on_event(event.into());
     }
 }
@@ -719,7 +733,7 @@ pub struct VisioClient {
     room_manager: visio_core::RoomManager,
     controls: visio_core::MeetingControls,
     chat: visio_core::ChatService,
-    settings: visio_core::SettingsStore,
+    settings: Arc<visio_core::SettingsStore>,
     session_manager: Arc<StdMutex<visio_core::SessionManager>>,
     rt: tokio::runtime::Runtime,
 }
@@ -729,7 +743,7 @@ impl VisioClient {
         visio_log("VISIO FFI: VisioClient::new() called");
         let rt = tokio::runtime::Runtime::new().expect("failed to create tokio runtime");
         visio_log("VISIO FFI: tokio runtime created successfully");
-        let settings = visio_core::SettingsStore::new(&data_dir);
+        let settings = Arc::new(visio_core::SettingsStore::new(&data_dir));
         let room_manager = visio_core::RoomManager::new();
 
         // Store playout buffer for Android JNI audio pull
@@ -1010,6 +1024,8 @@ impl VisioClient {
     pub fn add_listener(&self, listener: Box<dyn VisioEventListener>) {
         let bridge = Arc::new(BridgeListener {
             ffi_listener: Arc::from(listener),
+            room_manager: self.room_manager.clone(),
+            settings: self.settings.clone(),
         });
         self.room_manager.add_listener(bridge);
     }

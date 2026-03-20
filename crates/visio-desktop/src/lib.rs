@@ -67,7 +67,7 @@ struct VisioState {
     controls: Arc<Mutex<MeetingControls>>,
     chat: Arc<Mutex<ChatService>>,
     session: Mutex<SessionManager>,
-    settings: SettingsStore,
+    settings: Arc<SettingsStore>,
     #[cfg(target_os = "macos")]
     camera_capture: std::sync::Mutex<Option<camera_macos::MacCameraCapture>>,
     #[cfg(target_os = "linux")]
@@ -87,6 +87,7 @@ struct VisioState {
 
 struct DesktopEventListener {
     room: Arc<Mutex<RoomManager>>,
+    settings: Arc<SettingsStore>,
 }
 
 fn source_to_str(source: &TrackSource) -> &'static str {
@@ -110,6 +111,19 @@ impl VisioEventListener for DesktopEventListener {
                     visio_core::ConnectionState::WaitingForHost => "waiting_for_host",
                 };
                 tracing::info!("connection state changed: {name}");
+
+                // Record room in history on successful connection (covers
+                // both direct connect and lobby acceptance paths).
+                if matches!(state, visio_core::ConnectionState::Connected) {
+                    let room = self.room.clone();
+                    let settings = self.settings.clone();
+                    tokio::spawn(async move {
+                        if let Some((url, _)) = room.lock().await.last_connection_info().await {
+                            settings.add_room_to_history(url);
+                        }
+                    });
+                }
+
                 if let Some(app) = APP_HANDLE.get() {
                     let _ = app.emit("connection-state-changed", name);
                 }
@@ -1599,7 +1613,7 @@ pub fn run() {
         .unwrap_or_else(|| std::path::PathBuf::from("."))
         .join("io.visio.desktop");
     std::fs::create_dir_all(&data_dir).ok();
-    let settings = SettingsStore::new(data_dir.to_str().unwrap());
+    let settings = Arc::new(SettingsStore::new(data_dir.to_str().unwrap()));
 
     let room_manager = RoomManager::new();
     room_manager.set_high_quality_mode(true);
@@ -1618,6 +1632,7 @@ pub fn run() {
     {
         let listener = Arc::new(DesktopEventListener {
             room: room_arc.clone(),
+            settings: settings.clone(),
         });
         // We need to add the listener while we can still access room_manager
         // But room_manager is now behind Arc<Mutex>. We'll do it via block_on.
