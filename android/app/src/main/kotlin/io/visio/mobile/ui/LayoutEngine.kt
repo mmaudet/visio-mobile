@@ -39,9 +39,10 @@ fun computeLayout(
 
     // 1. Screen share has absolute priority
     if (screenShare != null) {
-        val main = displayItems.find {
-            it.participant.sid == screenShare.participantSid && it.source == screenShare.source
-        }
+        val main =
+            displayItems.find {
+                it.participant.sid == screenShare.participantSid && it.source == screenShare.source
+            }
         val secondary = displayItems.filter { it.key != main?.key }
         val speakerSid = activeSpeakers.firstOrNull()
         return Pair(
@@ -52,9 +53,10 @@ fun computeLayout(
 
     // 2. Pin has priority over auto-focus
     if (pinnedItem != null) {
-        val main = displayItems.find {
-            it.participant.sid == pinnedItem.participantSid && it.source == pinnedItem.source
-        }
+        val main =
+            displayItems.find {
+                it.participant.sid == pinnedItem.participantSid && it.source == pinnedItem.source
+            }
         val secondary = displayItems.filter { it.key != main?.key }
         val speakerSid = activeSpeakers.firstOrNull()
         return Pair(
@@ -70,23 +72,25 @@ fun computeLayout(
     if (currentSpeakerSid != null) {
         val newLastRemote = if (!isLocalSpeaking) currentSpeakerSid else previousState.lastRemoteSpeakerSid
 
-        val targetSid = if (isLocalSpeaking) {
-            previousState.lastRemoteSpeakerSid ?: participants.drop(1).firstOrNull()?.sid
-        } else {
-            currentSpeakerSid
-        }
+        val targetSid =
+            if (isLocalSpeaking) {
+                previousState.lastRemoteSpeakerSid ?: participants.drop(1).firstOrNull()?.sid
+            } else {
+                currentSpeakerSid
+            }
 
         if (targetSid != null) {
             val targetFocus = FocusItem(targetSid, "camera")
 
-            val shouldSwitch = if (previousState.currentFocus == null) {
-                true
-            } else if (previousState.currentFocus == targetFocus) {
-                false
-            } else {
-                val holdElapsed = previousState.focusHoldStartMs?.let { nowMs - it } ?: Long.MAX_VALUE
-                holdElapsed >= MIN_HOLD_MS
-            }
+            val shouldSwitch =
+                if (previousState.currentFocus == null) {
+                    true
+                } else if (previousState.currentFocus == targetFocus) {
+                    false
+                } else {
+                    val holdElapsed = previousState.focusHoldStartMs?.let { nowMs - it } ?: Long.MAX_VALUE
+                    holdElapsed >= MIN_HOLD_MS
+                }
 
             if (shouldSwitch) {
                 val main = displayItems.find { it.participant.sid == targetSid && it.source == "camera" }
@@ -96,10 +100,11 @@ fun computeLayout(
                     LayoutState(targetFocus, nowMs, newLastRemote),
                 )
             } else {
-                val currentMain = displayItems.find {
-                    it.participant.sid == previousState.currentFocus?.participantSid &&
-                        it.source == previousState.currentFocus?.source
-                }
+                val currentMain =
+                    displayItems.find {
+                        it.participant.sid == previousState.currentFocus?.participantSid &&
+                            it.source == previousState.currentFocus?.source
+                    }
                 val secondary = displayItems.filter { it.key != currentMain?.key }
                 return Pair(
                     LayoutDecision(LayoutMode.FOCUS, currentMain, secondary, currentSpeakerSid, null),
@@ -119,9 +124,10 @@ fun computeLayout(
     }
 
     // Keep current state
-    val currentMain = previousState.currentFocus?.let { focus ->
-        displayItems.find { it.participant.sid == focus.participantSid && it.source == focus.source }
-    }
+    val currentMain =
+        previousState.currentFocus?.let { focus ->
+            displayItems.find { it.participant.sid == focus.participantSid && it.source == focus.source }
+        }
     if (currentMain != null) {
         val secondary = displayItems.filter { it.key != currentMain.key }
         return Pair(

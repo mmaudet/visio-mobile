@@ -18,9 +18,9 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
@@ -243,16 +243,17 @@ fun CallScreen(
 
     LaunchedEffect(participants, activeSpeakers, userPinnedItem, effectiveAdaptiveMode, screenShareFocus) {
         val localSid = participants.firstOrNull()?.sid ?: return@LaunchedEffect
-        val (decision, newState) = computeLayout(
-            participants = participants,
-            activeSpeakers = activeSpeakers,
-            pinnedItem = userPinnedItem,
-            screenShare = screenShareFocus,
-            adaptiveMode = effectiveAdaptiveMode,
-            localParticipantSid = localSid,
-            previousState = layoutState,
-            nowMs = System.currentTimeMillis(),
-        )
+        val (decision, newState) =
+            computeLayout(
+                participants = participants,
+                activeSpeakers = activeSpeakers,
+                pinnedItem = userPinnedItem,
+                screenShare = screenShareFocus,
+                adaptiveMode = effectiveAdaptiveMode,
+                localParticipantSid = localSid,
+                previousState = layoutState,
+                nowMs = System.currentTimeMillis(),
+            )
         layoutState = newState
         // Update focusedItem based on decision
         when (decision.mode) {
@@ -671,16 +672,17 @@ fun CallScreen(
             // Compute layout decision for rendering
             val localSid = participants.firstOrNull()?.sid ?: ""
             val renderScreenShareFocus = if (screenShareSubscribed != null) FocusItem(screenShareSubscribed!!, "screen_share") else null
-            val (layoutDecision, _) = computeLayout(
-                participants = participants,
-                activeSpeakers = activeSpeakers,
-                pinnedItem = userPinnedItem,
-                screenShare = renderScreenShareFocus,
-                adaptiveMode = effectiveAdaptiveMode,
-                localParticipantSid = localSid,
-                previousState = layoutState,
-                nowMs = System.currentTimeMillis(),
-            )
+            val (layoutDecision, _) =
+                computeLayout(
+                    participants = participants,
+                    activeSpeakers = activeSpeakers,
+                    pinnedItem = userPinnedItem,
+                    screenShare = renderScreenShareFocus,
+                    adaptiveMode = effectiveAdaptiveMode,
+                    localParticipantSid = localSid,
+                    previousState = layoutState,
+                    nowMs = System.currentTimeMillis(),
+                )
 
             // Video grid area with reaction overlay
             val isFullscreenFocus = layoutDecision.mode == LayoutMode.FOCUS
@@ -694,8 +696,9 @@ fun CallScreen(
                 when (effectiveAdaptiveMode) {
                     AdaptiveMode.CAR -> {
                         // Car mode: audio-only view with speaker from layout decision
-                        val speaker = layoutDecision.mainTile?.participant
-                            ?: participants.firstOrNull()
+                        val speaker =
+                            layoutDecision.mainTile?.participant
+                                ?: participants.firstOrNull()
                         val speakerName = speaker?.name ?: speaker?.identity ?: ""
 
                         Box(
@@ -824,12 +827,13 @@ fun CallScreen(
                                     // Pin indicator (top-left, next to close button)
                                     if (layoutDecision.pinnedIndicatorSid == focusedDisplayItem.participant.sid) {
                                         Box(
-                                            modifier = Modifier
-                                                .align(Alignment.TopStart)
-                                                .padding(8.dp)
-                                                .size(28.dp)
-                                                .background(Color.Black.copy(alpha = 0.6f), CircleShape)
-                                                .padding(4.dp),
+                                            modifier =
+                                                Modifier
+                                                    .align(Alignment.TopStart)
+                                                    .padding(8.dp)
+                                                    .size(28.dp)
+                                                    .background(Color.Black.copy(alpha = 0.6f), CircleShape)
+                                                    .padding(4.dp),
                                         ) {
                                             Text(
                                                 text = "\uD83D\uDCCC",
@@ -1780,12 +1784,13 @@ fun ParticipantTile(
         // Pin indicator (top-right)
         if (isPinned) {
             Box(
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .padding(6.dp)
-                    .size(24.dp)
-                    .background(Color.Black.copy(alpha = 0.6f), CircleShape)
-                    .padding(4.dp),
+                modifier =
+                    Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(6.dp)
+                        .size(24.dp)
+                        .background(Color.Black.copy(alpha = 0.6f), CircleShape)
+                        .padding(4.dp),
             ) {
                 Text(
                     text = "\uD83D\uDCCC",
