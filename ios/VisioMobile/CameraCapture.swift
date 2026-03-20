@@ -5,7 +5,7 @@ import UIKit
 ///
 /// Uses kCVPixelFormatType_420YpCbCr8BiPlanarFullRange (NV12) from the camera,
 /// converts to I420 (Y + U + V planar), and calls visio_push_ios_camera_frame().
-final class CameraCapture: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
+final class CameraCapture: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate, @unchecked Sendable {
     private let session = AVCaptureSession()
     private let queue = DispatchQueue(label: "io.visio.camera", qos: .userInitiated)
     private var frameCount: UInt64 = 0
@@ -24,14 +24,15 @@ final class CameraCapture: NSObject, AVCaptureVideoDataOutputSampleBufferDelegat
 
             if authStatus == .notDetermined {
                 // Request permission synchronously on this queue (blocks until user responds).
+                final class GrantedBox: @unchecked Sendable { var value = false }
                 let semaphore = DispatchSemaphore(value: 0)
-                var granted = false
+                let granted = GrantedBox()
                 AVCaptureDevice.requestAccess(for: .video) { result in
-                    granted = result
+                    granted.value = result
                     semaphore.signal()
                 }
                 semaphore.wait()
-                if !granted {
+                if !granted.value {
                     NSLog("CameraCapture: user denied camera permission")
                     return
                 }
@@ -93,7 +94,8 @@ final class CameraCapture: NSObject, AVCaptureVideoDataOutputSampleBufferDelegat
                 self.videoOutput = output
                 if let connection = output.connection(with: .video) {
                     if connection.isVideoOrientationSupported {
-                        connection.videoOrientation = Self.currentVideoOrientation()
+                        let deviceOrientation = DispatchQueue.main.sync { UIDevice.current.orientation }
+                        connection.videoOrientation = Self.videoOrientation(for: deviceOrientation)
                     }
                     if connection.isVideoMirroringSupported && device.position == .front {
                         connection.isVideoMirrored = true
@@ -149,7 +151,8 @@ final class CameraCapture: NSObject, AVCaptureVideoDataOutputSampleBufferDelegat
                 // front camera's mirroring and orientation may be stale.
                 if let connection = videoOutput?.connection(with: .video) {
                     if connection.isVideoOrientationSupported {
-                        connection.videoOrientation = Self.currentVideoOrientation()
+                        let deviceOrientation = DispatchQueue.main.sync { UIDevice.current.orientation }
+                        connection.videoOrientation = Self.videoOrientation(for: deviceOrientation)
                     }
                     if connection.isVideoMirroringSupported {
                         connection.isVideoMirrored = (newPosition == .front)
@@ -179,9 +182,9 @@ final class CameraCapture: NSObject, AVCaptureVideoDataOutputSampleBufferDelegat
 
     // MARK: - Orientation
 
-    /// Map current device orientation to AVCaptureVideoOrientation.
-    static func currentVideoOrientation() -> AVCaptureVideoOrientation {
-        switch UIDevice.current.orientation {
+    /// Map a UIDeviceOrientation to AVCaptureVideoOrientation.
+    static func videoOrientation(for deviceOrientation: UIDeviceOrientation) -> AVCaptureVideoOrientation {
+        switch deviceOrientation {
         case .portrait:            return .portrait
         case .portraitUpsideDown:  return .portraitUpsideDown
         case .landscapeLeft:      return .landscapeRight  // UIKit and AVFoundation use opposite conventions
@@ -190,11 +193,13 @@ final class CameraCapture: NSObject, AVCaptureVideoDataOutputSampleBufferDelegat
         }
     }
 
-    @objc private func orientationDidChange() {
+    @MainActor @objc private func orientationDidChange() {
+        // Read orientation on main actor before dispatching to camera queue.
+        let deviceOrientation = UIDevice.current.orientation
         queue.async { [self] in
             guard let connection = videoOutput?.connection(with: .video),
                   connection.isVideoOrientationSupported else { return }
-            let newOrientation = Self.currentVideoOrientation()
+            let newOrientation = Self.videoOrientation(for: deviceOrientation)
             if connection.videoOrientation != newOrientation {
                 connection.videoOrientation = newOrientation
                 NSLog("CameraCapture: orientation updated to %d", newOrientation.rawValue)

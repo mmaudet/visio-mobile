@@ -3,9 +3,15 @@ import visioFFI
 
 /// Generates a 440Hz sine wave and pushes PCM frames to Rust via visio_push_ios_audio_frame().
 /// Used for E2E testing on simulators that have no real microphone.
-final class SyntheticAudioCapture {
+final class SyntheticAudioCapture: @unchecked Sendable {
     private let queue = DispatchQueue(label: "io.visio.synthetic-audio", qos: .userInitiated)
-    private var running = false
+    private let lock = NSLock()
+    private var _running = false
+
+    private var running: Bool {
+        get { lock.withLock { _running } }
+        set { lock.withLock { _running = newValue } }
+    }
 
     private let sampleRate: Int = 48000
     private let channels: Int = 1
@@ -14,17 +20,17 @@ final class SyntheticAudioCapture {
     private let amplitude: Double = 3000.0
 
     func start() {
-        queue.async { [self] in
-            guard !running else { return }
-            running = true
+        guard !running else { return }
+        running = true
 
+        queue.async { [self] in
             let samplesPerFrame = sampleRate * frameDurationMs / 1000  // 960
             var sampleOffset: UInt64 = 0
             var buffer = [Int16](repeating: 0, count: samplesPerFrame)
 
             NSLog("SyntheticAudioCapture: started (%.0fHz sine, %dHz, %dms frames)", frequency, sampleRate, frameDurationMs)
 
-            while self.running {
+            while running {
                 for i in 0..<samplesPerFrame {
                     let t = Double(sampleOffset + UInt64(i)) / Double(self.sampleRate)
                     let val = sin(t * self.frequency * 2.0 * .pi) * self.amplitude
@@ -50,8 +56,6 @@ final class SyntheticAudioCapture {
     }
 
     func stop() {
-        queue.async { [self] in
-            running = false
-        }
+        running = false
     }
 }

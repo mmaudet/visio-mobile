@@ -148,7 +148,7 @@ struct SettingsView: View {
         micOnJoin = settings.micEnabledOnJoin
         cameraOnJoin = settings.cameraEnabledOnJoin
         language = settings.language ?? Strings.detectSystemLang()
-        theme = settings.theme ?? "light"
+        theme = settings.theme
         adaptiveModeEnabled = manager.client.isAdaptiveModeEnabled()
         meetInstances = manager.client.getMeetInstances()
     }
@@ -172,7 +172,7 @@ struct SettingsView: View {
 }
 
 private struct PressedKey: PreferenceKey {
-    static var defaultValue = false
+    static let defaultValue = false
     static func reduce(value: inout Bool, nextValue: () -> Bool) {
         value = value || nextValue()
     }

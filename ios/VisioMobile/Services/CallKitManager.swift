@@ -1,6 +1,11 @@
 import CallKit
 import AVFoundation
 
+/// Thread-safe wrapper for CXAction subclasses used in nonisolated CallKit callbacks.
+private struct SendableAction<T: CXAction>: @unchecked Sendable {
+    let action: T
+}
+
 /// Manages CallKit integration for system call UI (green bar, Dynamic Island, lock screen controls).
 ///
 /// Flow:
@@ -8,6 +13,7 @@ import AVFoundation
 /// 2. Incoming phone call -> `performSetHeldCallAction` -> auto-mute mic
 /// 3. `disconnect()` -> `reportCallEnded()` -> indicator removed
 /// 4. Lock screen: native mute/hangup buttons -> actions relayed to VisioManager
+@MainActor
 class CallKitManager: NSObject, CXProviderDelegate {
 
     static let shared = CallKitManager()
@@ -43,8 +49,10 @@ class CallKitManager: NSObject, CXProviderDelegate {
             if let error {
                 NSLog("CallKitManager: start call failed: \(error.localizedDescription)")
             } else {
-                self?.provider.reportOutgoingCall(with: uuid, connectedAt: Date())
-                NSLog("CallKitManager: call started for room '\(roomName)'")
+                Task { @MainActor [weak self] in
+                    self?.provider.reportOutgoingCall(with: uuid, connectedAt: Date())
+                    NSLog("CallKitManager: call started for room '\(roomName)'")
+                }
             }
         }
 
@@ -69,42 +77,56 @@ class CallKitManager: NSObject, CXProviderDelegate {
 
     // MARK: - CXProviderDelegate
 
-    func providerDidReset(_ provider: CXProvider) {
+    nonisolated func providerDidReset(_ provider: CXProvider) {
         NSLog("CallKitManager: provider did reset")
-        currentCallUUID = nil
-    }
-
-    func provider(_ provider: CXProvider, perform action: CXStartCallAction) {
-        configureAudioSession()
-        action.fulfill()
-    }
-
-    func provider(_ provider: CXProvider, perform action: CXEndCallAction) {
-        // System ended the call (user tapped end on lock screen / Dynamic Island)
-        VisioManager.shared.disconnect()
-        currentCallUUID = nil
-        action.fulfill()
-    }
-
-    func provider(_ provider: CXProvider, perform action: CXSetMutedCallAction) {
-        // System toggled mute (lock screen mute button)
-        VisioManager.shared.setMicEnabled(!action.isMuted)
-        action.fulfill()
-    }
-
-    func provider(_ provider: CXProvider, perform action: CXSetHeldCallAction) {
-        // Phone call interrupted -- mute mic when held
-        if action.isOnHold {
-            VisioManager.shared.setMicEnabled(false)
+        Task { @MainActor in
+            currentCallUUID = nil
         }
-        action.fulfill()
     }
 
-    func provider(_ provider: CXProvider, didActivate audioSession: AVAudioSession) {
+    nonisolated func provider(_ provider: CXProvider, perform action: CXStartCallAction) {
+        let box = SendableAction(action: action)
+        Task { @MainActor in
+            configureAudioSession()
+            box.action.fulfill()
+        }
+    }
+
+    nonisolated func provider(_ provider: CXProvider, perform action: CXEndCallAction) {
+        // System ended the call (user tapped end on lock screen / Dynamic Island)
+        let box = SendableAction(action: action)
+        Task { @MainActor in
+            VisioManager.shared.disconnect()
+            currentCallUUID = nil
+            box.action.fulfill()
+        }
+    }
+
+    nonisolated func provider(_ provider: CXProvider, perform action: CXSetMutedCallAction) {
+        // System toggled mute (lock screen mute button)
+        let box = SendableAction(action: action)
+        Task { @MainActor in
+            VisioManager.shared.setMicEnabled(!box.action.isMuted)
+            box.action.fulfill()
+        }
+    }
+
+    nonisolated func provider(_ provider: CXProvider, perform action: CXSetHeldCallAction) {
+        // Phone call interrupted -- mute mic when held
+        let box = SendableAction(action: action)
+        Task { @MainActor in
+            if box.action.isOnHold {
+                VisioManager.shared.setMicEnabled(false)
+            }
+            box.action.fulfill()
+        }
+    }
+
+    nonisolated func provider(_ provider: CXProvider, didActivate audioSession: AVAudioSession) {
         NSLog("CallKitManager: audio session activated")
     }
 
-    func provider(_ provider: CXProvider, didDeactivate audioSession: AVAudioSession) {
+    nonisolated func provider(_ provider: CXProvider, didDeactivate audioSession: AVAudioSession) {
         NSLog("CallKitManager: audio session deactivated")
     }
 
