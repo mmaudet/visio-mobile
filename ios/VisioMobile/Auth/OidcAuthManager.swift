@@ -117,14 +117,12 @@ class OidcAuthManager: NSObject, ObservableObject, ASWebAuthenticationPresentati
 
     // MARK: - ASWebAuthenticationPresentationContextProviding
 
-    nonisolated func presentationAnchor(for session: ASWebAuthenticationSession) -> ASPresentationAnchor {
-        MainActor.assumeIsolated {
-            guard let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
-                  let window = scene.windows.first(where: { $0.isKeyWindow }) ?? scene.windows.first else {
-                return ASPresentationAnchor()
-            }
-            return window
+    func presentationAnchor(for session: ASWebAuthenticationSession) -> ASPresentationAnchor {
+        guard let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+              let window = scene.windows.first(where: { $0.isKeyWindow }) ?? scene.windows.first else {
+            return ASPresentationAnchor()
         }
+        return window
     }
 
     // MARK: - Keychain Storage
