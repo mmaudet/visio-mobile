@@ -476,7 +476,7 @@ fun HomeScreen(
                                 }
                             }
                             .background(
-                                MaterialTheme.colorScheme.surfaceVariant,
+                                VisioColors.Primary500.copy(alpha = if (isDark) 0.12f else 0.08f),
                                 RoundedCornerShape(8.dp),
                             )
                             .padding(horizontal = 12.dp, vertical = 10.dp),
