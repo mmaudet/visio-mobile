@@ -411,11 +411,11 @@ private struct OidcFallbackWebView: UIViewRepresentable {
                   !url.path.contains("/oauth2/"),
                   !url.path.contains("/callback") else { return }
 
-            webView.configuration.websiteDataStore.httpCookieStore.getAllCookies { cookies in
+            webView.configuration.websiteDataStore.httpCookieStore.getAllCookies { [parent] cookies in
                 if let cookie = cookies.first(where: {
                     OidcFallbackWebView.cookieNames.contains($0.name) && $0.domain.contains(instance)
                 }) {
-                    DispatchQueue.main.async { self.parent.onCookie(cookie.value) }
+                    Task { @MainActor in parent.onCookie(cookie.value) }
                 }
             }
         }
@@ -626,17 +626,17 @@ private struct CreateRoomSheet: View {
                                         try? await Task.sleep(nanoseconds: 300_000_000)
                                         guard !Task.isCancelled else { return }
                                         let query = newValue
-                                        DispatchQueue.global(qos: .userInitiated).async {
-                                            do {
-                                                let results = try manager.client.searchUsers(query: query)
-                                                DispatchQueue.main.async {
-                                                    searchResults = results.filter { user in
-                                                        !invitedUsers.contains(where: { $0.id == user.id })
-                                                    }
-                                                }
-                                            } catch {
-                                                DispatchQueue.main.async { searchResults = [] }
+                                        let client = manager.client
+                                        let currentInvited = invitedUsers
+                                        do {
+                                            let results = try await Task.detached {
+                                                try client.searchUsers(query: query)
+                                            }.value
+                                            searchResults = results.filter { user in
+                                                !currentInvited.contains(where: { $0.id == user.id })
                                             }
+                                        } catch {
+                                            searchResults = []
                                         }
                                     }
                                 }
@@ -689,29 +689,33 @@ private struct CreateRoomSheet: View {
                             guard !meetInstance.isEmpty else { return }
                             creating = true
                             error = nil
-                            DispatchQueue.global(qos: .userInitiated).async {
+                            let client = manager.client
+                            let level = accessLevel
+                            let users = invitedUsers
+                            Task {
                                 do {
-                                    let result = try manager.client.createRoom(
-                                        meetUrl: "https://\(meetInstance)",
-                                        name: "",
-                                        accessLevel: accessLevel
-                                    )
+                                    let result = try await Task.detached {
+                                        try client.createRoom(
+                                            meetUrl: "https://\(meetInstance)",
+                                            name: "",
+                                            accessLevel: level
+                                        )
+                                    }.value
                                     // Add accesses for invited users
-                                    if accessLevel == "restricted" {
-                                        for user in invitedUsers {
-                                            _ = try? manager.client.addAccess(userId: user.id, roomId: result.id)
-                                        }
+                                    if level == "restricted" {
+                                        let roomId = result.id
+                                        await Task.detached {
+                                            for user in users {
+                                                _ = try? client.addAccess(userId: user.id, roomId: roomId)
+                                            }
+                                        }.value
                                     }
-                                    DispatchQueue.main.async {
-                                        createdRoomId = result.id
-                                        createdUrl = "https://\(meetInstance)/\(result.slug)"
-                                        creating = false
-                                    }
+                                    createdRoomId = result.id
+                                    createdUrl = "https://\(meetInstance)/\(result.slug)"
+                                    creating = false
                                 } catch {
-                                    DispatchQueue.main.async {
-                                        self.error = error.localizedDescription
-                                        creating = false
-                                    }
+                                    self.error = error.localizedDescription
+                                    creating = false
                                 }
                             }
                         } label: {
@@ -739,7 +743,7 @@ private struct CreateRoomSheet: View {
                                 Button {
                                     UIPasteboard.general.string = createdUrl
                                     copiedHttp = true
-                                    DispatchQueue.main.asyncAfter(deadline: .now() + 2) { copiedHttp = false }
+                                    Task { try? await Task.sleep(for: .seconds(2)); copiedHttp = false }
                                 } label: {
                                     Image(systemName: copiedHttp ? "checkmark" : "doc.on.doc")
                                         .font(.caption)
@@ -765,7 +769,7 @@ private struct CreateRoomSheet: View {
                                 Button {
                                     UIPasteboard.general.string = deepLink
                                     copiedDeep = true
-                                    DispatchQueue.main.asyncAfter(deadline: .now() + 2) { copiedDeep = false }
+                                    Task { try? await Task.sleep(for: .seconds(2)); copiedDeep = false }
                                 } label: {
                                     Image(systemName: copiedDeep ? "checkmark" : "doc.on.doc")
                                         .font(.caption)

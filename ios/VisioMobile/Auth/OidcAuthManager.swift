@@ -6,6 +6,7 @@ import WebKit
 
 // MARK: - OidcAuthManager
 
+@MainActor
 class OidcAuthManager: NSObject, ObservableObject, ASWebAuthenticationPresentationContextProviding {
 
     /// Called when the OIDC flow completes (cookie or nil).
@@ -52,28 +53,28 @@ class OidcAuthManager: NSObject, ObservableObject, ASWebAuthenticationPresentati
                 if nsError.domain == ASWebAuthenticationSessionError.errorDomain
                     && nsError.code == ASWebAuthenticationSessionError.canceledLogin.rawValue {
                     // User cancelled — don't fallback, just report nil
-                    DispatchQueue.main.async { self.onComplete?(nil); self.onComplete = nil; self.pendingInstance = nil }
+                    self.onComplete?(nil)
+                    self.onComplete = nil
+                    self.pendingInstance = nil
                     return
                 }
                 // Other error — try fallback
                 print("[OidcAuthManager] ASWebAuth failed: \(error.localizedDescription), falling back to webview")
-                DispatchQueue.main.async { self.pendingInstance = meetInstance }
+                self.pendingInstance = meetInstance
                 return
             }
 
             // Success — try to extract cookie from shared storage
             self.extractSessionCookie(meetInstance: meetInstance) { cookie in
                 if let cookie {
-                    DispatchQueue.main.async {
-                        self.onComplete?(cookie)
-                        self.onComplete = nil
-                        self.pendingInstance = nil
-                    }
+                    self.onComplete?(cookie)
+                    self.onComplete = nil
+                    self.pendingInstance = nil
                 } else {
                     // Cookie not in shared storage — server may not support custom scheme returnTo
                     // Fall back to webview
                     print("[OidcAuthManager] No cookie after ASWebAuth, falling back to webview")
-                    DispatchQueue.main.async { self.pendingInstance = meetInstance }
+                    self.pendingInstance = meetInstance
                 }
             }
         }
@@ -105,7 +106,8 @@ class OidcAuthManager: NSObject, ObservableObject, ASWebAuthenticationPresentati
             completion(sessionCookie)
         } else {
             // Retry once after a short delay
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(500))
                 let retryCookies = HTTPCookieStorage.shared.cookies(for: instanceURL) ?? []
                 let cookie = retryCookies.first(where: { Self.cookieNames.contains($0.name) })?.value
                 completion(cookie?.isEmpty == false ? cookie : nil)
@@ -115,12 +117,14 @@ class OidcAuthManager: NSObject, ObservableObject, ASWebAuthenticationPresentati
 
     // MARK: - ASWebAuthenticationPresentationContextProviding
 
-    func presentationAnchor(for session: ASWebAuthenticationSession) -> ASPresentationAnchor {
-        guard let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
-              let window = scene.windows.first(where: { $0.isKeyWindow }) ?? scene.windows.first else {
-            return ASPresentationAnchor()
+    nonisolated func presentationAnchor(for session: ASWebAuthenticationSession) -> ASPresentationAnchor {
+        MainActor.assumeIsolated {
+            guard let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+                  let window = scene.windows.first(where: { $0.isKeyWindow }) ?? scene.windows.first else {
+                return ASPresentationAnchor()
+            }
+            return window
         }
-        return window
     }
 
     // MARK: - Keychain Storage

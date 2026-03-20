@@ -2,7 +2,13 @@ import AVFoundation
 import CoreMedia
 import CoreVideo
 
-final class VideoFrameRouter {
+/// Thread-safe wrapper for CMSampleBuffer, which is CM_SWIFT_NONSENDABLE but is
+/// internally reference-counted and safe to pass across isolation boundaries.
+struct SendableSampleBuffer: @unchecked Sendable {
+    let buffer: CMSampleBuffer
+}
+
+final class VideoFrameRouter: @unchecked Sendable {
     static let shared = VideoFrameRouter()
 
     private var views: [String: VideoDisplayView] = [:]
@@ -18,9 +24,10 @@ final class VideoFrameRouter {
         lock.unlock()
 
         if let buffered, let fresh = VideoFrameRouter.restampSampleBuffer(buffered) {
+            let box = SendableSampleBuffer(buffer: fresh)
             DispatchQueue.main.async {
                 view.flushDisplayLayer()
-                view.enqueueSampleBuffer(fresh)
+                view.enqueueSampleBuffer(box.buffer)
             }
         }
     }
@@ -78,8 +85,9 @@ final class VideoFrameRouter {
         lock.unlock()
 
         guard let view else { return }
+        let box = SendableSampleBuffer(buffer: converted)
         DispatchQueue.main.async {
-            view.enqueueSampleBuffer(converted)
+            view.enqueueSampleBuffer(box.buffer)
         }
     }
 
@@ -128,8 +136,9 @@ final class VideoFrameRouter {
 
         guard let view else { return }
 
+        let box = SendableSampleBuffer(buffer: sampleBuffer)
         DispatchQueue.main.async {
-            view.enqueueSampleBuffer(sampleBuffer)
+            view.enqueueSampleBuffer(box.buffer)
         }
     }
 

@@ -1,5 +1,6 @@
 import Foundation
 
+@MainActor
 enum Strings {
     static let supportedLangs = ["en", "fr", "de", "es", "it", "nl"]
     private static var translations: [String: [String: String]] = [:]

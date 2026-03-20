@@ -13,12 +13,22 @@ import CoreVideo
 /// 3. Tap PiP -> return to app
 /// 4. Close PiP -> audio-only (call continues, PiP closes)
 /// 5. App foregrounds -> PiP closes, back to CallView
-class PiPManager: NSObject, AVPictureInPictureControllerDelegate {
+///
+/// Thread safety: `@unchecked Sendable` because `pushFrame()` is called from
+/// the Rust video callback thread (via VideoFrameRouter) while all other methods
+/// run on MainActor (called from CallView). This is safe because:
+/// - `displayLayer` is `let` (immutable reference), and `enqueue()` is thread-safe
+/// - `pipController` and `isSetUp` are only accessed from MainActor callers
+/// - `pushFrame()` only touches local variables and the thread-safe `displayLayer`
+class PiPManager: NSObject, AVPictureInPictureControllerDelegate, @unchecked Sendable {
 
     static let shared = PiPManager()
 
+    /// Only accessed from MainActor (via CallView). Not touched by `pushFrame()`.
     private var pipController: AVPictureInPictureController?
+    /// Thread-safe: immutable reference, `enqueue()` is safe from any thread.
     private let displayLayer = AVSampleBufferDisplayLayer()
+    /// Only accessed from MainActor (via CallView). Not touched by `pushFrame()`.
     private var isSetUp = false
 
     override init() {

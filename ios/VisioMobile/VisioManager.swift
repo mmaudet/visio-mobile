@@ -3,8 +3,15 @@ import Foundation
 import SwiftUI
 import visioFFI
 
+struct TestConnectParams: Sendable {
+    let livekitUrl: String
+    let token: String
+    let mediaFile: String?
+}
+
 /// Central state manager for the Visio app, backed by UniFFI-generated VisioClient.
 /// Conforms to VisioEventListener to receive room events from Rust.
+@MainActor
 class VisioManager: ObservableObject {
 
     // MARK: - Shared singleton (for CallKit access)
@@ -31,7 +38,7 @@ class VisioManager: ObservableObject {
     @Published var pendingDeepLink: String? = nil
     /// For E2E testing: (livekitUrl, token, mediaFile?) from visio-test:// deep link.
     /// Only used in DEBUG builds.
-    @Published var pendingTestConnect: (String, String, String?)? = nil
+    @Published var pendingTestConnect: TestConnectParams? = nil
     @Published var isFrontCamera: Bool = true
     @Published var waitingParticipants: [WaitingParticipant] = []
     @Published var lobbyNotification: WaitingParticipant? = nil
@@ -53,7 +60,7 @@ class VisioManager: ObservableObject {
 
     // MARK: - Private
 
-    let client: VisioClient
+    nonisolated let client: VisioClient
     private var audioPlayout: AudioPlayout?
     private var audioCapture: AudioCapture?
     private var cameraCapture: CameraCapture?
@@ -82,7 +89,7 @@ class VisioManager: ObservableObject {
         // Load persisted settings
         let settings = client.getSettings()
         currentLang = settings.language ?? "fr"
-        currentTheme = settings.theme ?? "light"
+        currentTheme = settings.theme
         displayName = settings.displayName ?? ""
 
         // Register the video frame callback so Rust can deliver I420 frames to Swift.
@@ -118,63 +125,68 @@ class VisioManager: ObservableObject {
         // "Disconnected" banner before the async event arrives from Rust.
         self.connectionState = .connecting
 
-        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-            guard let self else { return }
+        let client = self.client
+        Task.detached {
             do {
-                let settings = self.client.getSettings()
+                let settings = client.getSettings()
 
-                let cameraNeeded = settings.cameraEnabledOnJoin || self.client.isCameraEnabled()
-                Self.ensureMediaPermissions(mic: settings.micEnabledOnJoin, camera: cameraNeeded)
+                let cameraNeeded = settings.cameraEnabledOnJoin || client.isCameraEnabled()
+                await Self.ensureMediaPermissions(mic: settings.micEnabledOnJoin, camera: cameraNeeded)
 
                 if settings.micEnabledOnJoin {
                     Self.configureAudioSession()
                 }
 
-                try self.client.connect(meetUrl: url, username: username)
+                try client.connect(meetUrl: url, username: username)
 
                 if settings.micEnabledOnJoin {
-                    try self.client.setMicrophoneEnabled(enabled: true)
+                    try client.setMicrophoneEnabled(enabled: true)
                 }
                 if cameraNeeded {
-                    try self.client.setCameraEnabled(enabled: true)
+                    try client.setCameraEnabled(enabled: true)
                 }
 
-                let parts = self.client.participants()
-                let mic = self.client.isMicrophoneEnabled()
-                let cam = self.client.isCameraEnabled()
-                let msgs = self.client.chatMessages()
-                let state = self.client.connectionState()
-                let hand = self.client.isHandRaised()
+                let parts = client.participants()
+                let mic = client.isMicrophoneEnabled()
+                let cam = client.isCameraEnabled()
+                let msgs = client.chatMessages()
+                let state = client.connectionState()
+                let hand = client.isHandRaised()
 
+                var audioCapture: AudioCapture?
                 if mic {
                     let capture = AudioCapture()
                     capture.start()
-                    DispatchQueue.main.async { self.audioCapture = capture }
+                    audioCapture = capture
                 }
 
-                DispatchQueue.main.async {
-                    self.participants = parts
-                    self.isMicEnabled = mic
-                    self.isCameraEnabled = cam
-                    self.chatMessages = msgs
-                    self.connectionState = state
-                    self.isHandRaised = hand
-                    self.errorMessage = nil
-                    if cam {
-                        let capture = CameraCapture()
-                        capture.start()
-                        self.cameraCapture = capture
-                    }
+                var cameraCapture: CameraCapture?
+                if cam {
+                    let capture = CameraCapture()
+                    capture.start()
+                    cameraCapture = capture
+                }
+
+                await MainActor.run { [weak self] in
+                    self?.audioCapture = audioCapture
+                    self?.participants = parts
+                    self?.isMicEnabled = mic
+                    self?.isCameraEnabled = cam
+                    self?.chatMessages = msgs
+                    self?.connectionState = state
+                    self?.isHandRaised = hand
+                    self?.errorMessage = nil
+                    self?.cameraCapture = cameraCapture
 
                     // Start audio playout now that connection is established
-                    self.startAudioPlayout()
+                    self?.startAudioPlayout()
 
                     // Start context detection for adaptive modes
-                    self.startContextDetection()
+                    self?.startContextDetection()
                 }
             } catch {
-                DispatchQueue.main.async {
-                    self.errorMessage = "Connection failed: \(error.localizedDescription)"
+                await MainActor.run { [weak self] in
+                    self?.errorMessage = "Connection failed: \(error.localizedDescription)"
                 }
             }
         }
@@ -183,51 +195,56 @@ class VisioManager: ObservableObject {
     func connectWithToken(livekitUrl: String, token: String) {
         self.connectionState = .connecting
 
-        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-            guard let self else { return }
+        let client = self.client
+        Task.detached {
             do {
-                let settings = self.client.getSettings()
+                let settings = client.getSettings()
 
-                let cameraNeeded = settings.cameraEnabledOnJoin || self.client.isCameraEnabled()
-                Self.ensureMediaPermissions(mic: settings.micEnabledOnJoin, camera: cameraNeeded)
+                let cameraNeeded = settings.cameraEnabledOnJoin || client.isCameraEnabled()
+                await Self.ensureMediaPermissions(mic: settings.micEnabledOnJoin, camera: cameraNeeded)
 
-                try self.client.connectWithToken(livekitUrl: livekitUrl, token: token)
+                try client.connectWithToken(livekitUrl: livekitUrl, token: token)
 
                 if settings.micEnabledOnJoin {
-                    try self.client.setMicrophoneEnabled(enabled: true)
+                    try client.setMicrophoneEnabled(enabled: true)
                 }
                 if cameraNeeded {
-                    try self.client.setCameraEnabled(enabled: true)
+                    try client.setCameraEnabled(enabled: true)
                 }
 
-                let parts = self.client.participants()
-                let mic = self.client.isMicrophoneEnabled()
-                let cam = self.client.isCameraEnabled()
-                let state = self.client.connectionState()
+                let parts = client.participants()
+                let mic = client.isMicrophoneEnabled()
+                let cam = client.isCameraEnabled()
+                let state = client.connectionState()
 
+                var audioCapture: AudioCapture?
                 if mic {
                     let capture = AudioCapture()
                     capture.start()
-                    DispatchQueue.main.async { self.audioCapture = capture }
+                    audioCapture = capture
                 }
 
-                DispatchQueue.main.async {
-                    self.participants = parts
-                    self.isMicEnabled = mic
-                    self.isCameraEnabled = cam
-                    self.connectionState = state
-                    self.errorMessage = nil
-                    if cam {
-                        let capture = CameraCapture()
-                        capture.start()
-                        self.cameraCapture = capture
-                    }
+                var cameraCapture: CameraCapture?
+                if cam {
+                    let capture = CameraCapture()
+                    capture.start()
+                    cameraCapture = capture
+                }
+
+                await MainActor.run { [weak self] in
+                    self?.audioCapture = audioCapture
+                    self?.participants = parts
+                    self?.isMicEnabled = mic
+                    self?.isCameraEnabled = cam
+                    self?.connectionState = state
+                    self?.errorMessage = nil
+                    self?.cameraCapture = cameraCapture
                     // Start audio playout now that connection is established
-                    self.startAudioPlayout()
+                    self?.startAudioPlayout()
                 }
             } catch {
-                DispatchQueue.main.async {
-                    self.errorMessage = "Test connect failed: \(error.localizedDescription)"
+                await MainActor.run { [weak self] in
+                    self?.errorMessage = "Test connect failed: \(error.localizedDescription)"
                 }
             }
         }
@@ -259,33 +276,31 @@ class VisioManager: ObservableObject {
         contextDetector?.stop()
         contextDetector = nil
         let sids = videoTrackSids
-        for sid in sids {
-            DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-                self?.client.stopVideoRenderer(trackSid: sid)
-            }
-        }
         VideoFrameRouter.shared.clearAll()
-        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-            guard let self else { return }
-            self.client.disconnect()
-            DispatchQueue.main.async {
-                self.connectionState = .disconnected
-                self.participants = []
-                self.activeSpeakers = []
-                self.chatMessages = []
-                self.isMicEnabled = false
-                self.isCameraEnabled = false
-                self.isHandRaised = false
-                self.handRaisedMap = [:]
-                self.unreadCount = 0
-                self.errorMessage = nil
-                self.videoTrackSids = []
-                self.isChatOpen = false
-                self.waitingParticipants = []
-                self.lobbyNotification = nil
-                self.lobbyDenied = false
-                self.reactions = []
-                self.lastScreenShareParticipantSid = nil
+        let client = self.client
+        Task.detached {
+            for sid in sids {
+                client.stopVideoRenderer(trackSid: sid)
+            }
+            client.disconnect()
+            await MainActor.run { [weak self] in
+                self?.connectionState = .disconnected
+                self?.participants = []
+                self?.activeSpeakers = []
+                self?.chatMessages = []
+                self?.isMicEnabled = false
+                self?.isCameraEnabled = false
+                self?.isHandRaised = false
+                self?.handRaisedMap = [:]
+                self?.unreadCount = 0
+                self?.errorMessage = nil
+                self?.videoTrackSids = []
+                self?.isChatOpen = false
+                self?.waitingParticipants = []
+                self?.lobbyNotification = nil
+                self?.lobbyDenied = false
+                self?.reactions = []
+                self?.lastScreenShareParticipantSid = nil
             }
         }
     }
@@ -296,33 +311,36 @@ class VisioManager: ObservableObject {
     }
 
     func setMicEnabled(_ enabled: Bool) {
-        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-            guard let self else { return }
+        let client = self.client
+        Task.detached {
             do {
                 if enabled {
                     // Configure audio session before enabling mic
                     Self.configureAudioSession()
                 }
-                try self.client.setMicrophoneEnabled(enabled: enabled)
+                try client.setMicrophoneEnabled(enabled: enabled)
 
+                var newCapture: AudioCapture?
                 if enabled {
                     // Start mic capture on background thread (AVAudioEngine must not start on main)
-                    if self.audioCapture == nil {
-                        let capture = AudioCapture()
-                        capture.start()
-                        DispatchQueue.main.async { self.audioCapture = capture }
-                    }
-                } else {
-                    self.audioCapture?.stop()
-                    DispatchQueue.main.async { self.audioCapture = nil }
+                    let capture = AudioCapture()
+                    capture.start()
+                    newCapture = capture
                 }
 
-                DispatchQueue.main.async {
-                    self.isMicEnabled = enabled
+                await MainActor.run { [weak self] in
+                    if enabled {
+                        self?.audioCapture?.stop()
+                        self?.audioCapture = newCapture
+                    } else {
+                        self?.audioCapture?.stop()
+                        self?.audioCapture = nil
+                    }
+                    self?.isMicEnabled = enabled
                 }
             } catch {
-                DispatchQueue.main.async {
-                    self.errorMessage = "Mic toggle failed: \(error.localizedDescription)"
+                await MainActor.run { [weak self] in
+                    self?.errorMessage = "Mic toggle failed: \(error.localizedDescription)"
                 }
             }
         }
@@ -359,35 +377,26 @@ class VisioManager: ObservableObject {
     }
 
     /// Request camera and/or microphone permissions before using them.
-    /// Blocks the calling thread until the user responds (must not be called on main).
-    static func ensureMediaPermissions(mic: Bool, camera: Bool) {
-        let semaphore = DispatchSemaphore(value: 0)
-
+    static func ensureMediaPermissions(mic: Bool, camera: Bool) async {
         if mic {
             let micStatus = AVCaptureDevice.authorizationStatus(for: .audio)
             if micStatus == .notDetermined {
-                AVCaptureDevice.requestAccess(for: .audio) { granted in
-                    NSLog("VisioManager: mic permission %@", granted ? "granted" : "denied")
-                    semaphore.signal()
-                }
-                semaphore.wait()
+                let granted = await AVCaptureDevice.requestAccess(for: .audio)
+                NSLog("VisioManager: mic permission %@", granted ? "granted" : "denied")
             }
         }
 
         if camera {
             let camStatus = AVCaptureDevice.authorizationStatus(for: .video)
             if camStatus == .notDetermined {
-                AVCaptureDevice.requestAccess(for: .video) { granted in
-                    NSLog("VisioManager: camera permission %@", granted ? "granted" : "denied")
-                    semaphore.signal()
-                }
-                semaphore.wait()
+                let granted = await AVCaptureDevice.requestAccess(for: .video)
+                NSLog("VisioManager: camera permission %@", granted ? "granted" : "denied")
             }
         }
     }
 
     /// Configure AVAudioSession for voice chat (play + record).
-    static func configureAudioSession() {
+    nonisolated static func configureAudioSession() {
         let session = AVAudioSession.sharedInstance()
         do {
             try session.setCategory(.playAndRecord, mode: .voiceChat, options: [.defaultToSpeaker, .allowBluetooth])
@@ -404,9 +413,7 @@ class VisioManager: ObservableObject {
         if !isCameraEnabled {
             let status = AVCaptureDevice.authorizationStatus(for: .video)
             if status == .denied || status == .restricted {
-                DispatchQueue.main.async {
-                    self.errorMessage = "Camera permission denied. Enable in Settings → Visio Mobile → Camera."
-                }
+                self.errorMessage = "Camera permission denied. Enable in Settings → Visio Mobile → Camera."
                 return
             }
         }
@@ -414,26 +421,28 @@ class VisioManager: ObservableObject {
     }
 
     func setCameraEnabled(_ enabled: Bool) {
-        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-            guard let self else { return }
+        let client = self.client
+        Task.detached {
             do {
-                try self.client.setCameraEnabled(enabled: enabled)
-                let parts = self.client.participants()
-                DispatchQueue.main.async {
-                    self.isCameraEnabled = enabled
-                    self.participants = parts
-                    if enabled {
-                        let capture = CameraCapture()
-                        capture.start()
-                        self.cameraCapture = capture
-                    } else {
-                        self.cameraCapture?.stop()
-                        self.cameraCapture = nil
-                    }
+                try client.setCameraEnabled(enabled: enabled)
+                let parts = client.participants()
+
+                var cameraCapture: CameraCapture?
+                if enabled {
+                    let capture = CameraCapture()
+                    capture.start()
+                    cameraCapture = capture
+                }
+
+                await MainActor.run { [weak self] in
+                    self?.isCameraEnabled = enabled
+                    self?.participants = parts
+                    self?.cameraCapture?.stop()
+                    self?.cameraCapture = enabled ? cameraCapture : nil
                 }
             } catch {
-                DispatchQueue.main.async {
-                    self.errorMessage = "Camera toggle failed: \(error.localizedDescription)"
+                await MainActor.run { [weak self] in
+                    self?.errorMessage = "Camera toggle failed: \(error.localizedDescription)"
                 }
             }
         }
@@ -441,33 +450,35 @@ class VisioManager: ObservableObject {
 
     func toggleHandRaise() {
         let shouldRaise = !isHandRaised
-        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-            guard let self else { return }
+        let client = self.client
+        Task.detached {
             do {
                 if shouldRaise {
-                    try self.client.raiseHand()
+                    try client.raiseHand()
                 } else {
-                    try self.client.lowerHand()
+                    try client.lowerHand()
                 }
             } catch {
-                DispatchQueue.main.async {
-                    self.errorMessage = "Hand raise failed: \(error.localizedDescription)"
+                await MainActor.run { [weak self] in
+                    self?.errorMessage = "Hand raise failed: \(error.localizedDescription)"
                 }
             }
         }
     }
 
     func sendReaction(_ emoji: String) {
-        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-            guard let self else { return }
+        let client = self.client
+        Task.detached {
             do {
-                try self.client.sendReaction(emoji: emoji)
+                try client.sendReaction(emoji: emoji)
+                let displayName = client.getSettings().displayName ?? ""
                 // Show reaction locally (server echo is filtered out in Rust)
-                DispatchQueue.main.async {
+                await MainActor.run { [weak self] in
+                    guard let self else { return }
                     let reaction = ReactionData(
                         id: self.reactionIdCounter,
                         participantSid: "local",
-                        participantName: self.client.getSettings().displayName ?? "",
+                        participantName: displayName,
                         emoji: emoji,
                         timestamp: Date()
                     )
@@ -475,8 +486,8 @@ class VisioManager: ObservableObject {
                     self.reactions.append(reaction)
                 }
             } catch {
-                DispatchQueue.main.async {
-                    self.errorMessage = "Reaction failed: \(error.localizedDescription)"
+                await MainActor.run { [weak self] in
+                    self?.errorMessage = "Reaction failed: \(error.localizedDescription)"
                 }
             }
         }
@@ -493,16 +504,16 @@ class VisioManager: ObservableObject {
     func sendMessage(_ text: String) {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
-        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-            guard let self else { return }
+        let client = self.client
+        Task.detached {
             do {
-                let msg = try self.client.sendChatMessage(text: trimmed)
-                DispatchQueue.main.async {
-                    self.chatMessages.append(msg)
+                let msg = try client.sendChatMessage(text: trimmed)
+                await MainActor.run { [weak self] in
+                    self?.chatMessages.append(msg)
                 }
             } catch {
-                DispatchQueue.main.async {
-                    self.errorMessage = "Send failed: \(error.localizedDescription)"
+                await MainActor.run { [weak self] in
+                    self?.errorMessage = "Send failed: \(error.localizedDescription)"
                 }
             }
         }
@@ -511,12 +522,12 @@ class VisioManager: ObservableObject {
     // MARK: - Lobby
 
     func admitParticipant(_ id: String) {
-        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-            guard let self else { return }
+        let client = self.client
+        Task.detached {
             do {
-                try self.client.admitParticipant(participantId: id)
-                DispatchQueue.main.async {
-                    self.waitingParticipants.removeAll { $0.id == id }
+                try client.admitParticipant(participantId: id)
+                await MainActor.run { [weak self] in
+                    self?.waitingParticipants.removeAll { $0.id == id }
                 }
             } catch {
                 NSLog("VisioManager: admit failed: \(error)")
@@ -525,12 +536,12 @@ class VisioManager: ObservableObject {
     }
 
     func denyParticipant(_ id: String) {
-        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-            guard let self else { return }
+        let client = self.client
+        Task.detached {
             do {
-                try self.client.denyParticipant(participantId: id)
-                DispatchQueue.main.async {
-                    self.waitingParticipants.removeAll { $0.id == id }
+                try client.denyParticipant(participantId: id)
+                await MainActor.run { [weak self] in
+                    self?.waitingParticipants.removeAll { $0.id == id }
                 }
             } catch {
                 NSLog("VisioManager: deny failed: \(error)")
@@ -543,8 +554,9 @@ class VisioManager: ObservableObject {
     }
 
     func cancelLobby() {
-        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-            self?.client.cancelLobby()
+        let client = self.client
+        Task.detached {
+            client.cancelLobby()
         }
     }
 
@@ -554,16 +566,19 @@ class VisioManager: ObservableObject {
         guard let cookie = authManager.getSavedCookie(),
               let meetInstance = client.getMeetInstances().first else { return }
 
-        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-            guard let self else { return }
+        let client = self.client
+        let authManager = self.authManager
+        Task.detached {
             do {
-                try self.client.authenticate(meetUrl: "https://\(meetInstance)", cookie: cookie)
-                let state = self.client.getSessionState()
-                DispatchQueue.main.async {
-                    self.updateSessionFromState(state)
+                try client.authenticate(meetUrl: "https://\(meetInstance)", cookie: cookie)
+                let state = client.getSessionState()
+                await MainActor.run { [weak self] in
+                    self?.updateSessionFromState(state)
                 }
             } catch {
-                self.authManager.clearCookie()
+                await MainActor.run {
+                    authManager.clearCookie()
+                }
             }
         }
     }
@@ -595,16 +610,19 @@ class VisioManager: ObservableObject {
             client.setMeetInstances(instances: instances)
         }
 
-        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-            guard let self else { return }
+        let client = self.client
+        let authManager = self.authManager
+        Task.detached {
             do {
-                try self.client.authenticate(meetUrl: "https://\(meetInstance)", cookie: cookie)
-                let state = self.client.getSessionState()
-                DispatchQueue.main.async {
-                    self.updateSessionFromState(state)
+                try client.authenticate(meetUrl: "https://\(meetInstance)", cookie: cookie)
+                let state = client.getSessionState()
+                await MainActor.run { [weak self] in
+                    self?.updateSessionFromState(state)
                 }
             } catch {
-                self.authManager.clearCookie()
+                await MainActor.run {
+                    authManager.clearCookie()
+                }
             }
         }
     }
@@ -614,15 +632,16 @@ class VisioManager: ObservableObject {
             ? client.getMeetInstances().first ?? ""
             : authenticatedMeetInstance
         guard !instance.isEmpty else { return }
-        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-            guard let self else { return }
-            try? self.client.logout(meetUrl: "https://\(instance)")
-            self.authManager.clearCookie()
-            DispatchQueue.main.async {
-                self.isAuthenticated = false
-                self.authenticatedDisplayName = ""
-                self.authenticatedEmail = ""
-                self.authenticatedMeetInstance = ""
+        let client = self.client
+        let authManager = self.authManager
+        Task.detached {
+            try? client.logout(meetUrl: "https://\(instance)")
+            await MainActor.run { [weak self] in
+                authManager.clearCookie()
+                self?.isAuthenticated = false
+                self?.authenticatedDisplayName = ""
+                self?.authenticatedEmail = ""
+                self?.authenticatedMeetInstance = ""
             }
         }
     }
@@ -636,32 +655,45 @@ class VisioManager: ObservableObject {
 
     func refreshAccesses() {
         guard let roomId = currentRoomId else { return }
-        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+        let client = self.client
+        Task.detached {
             do {
-                let accesses = try self?.client.listAccesses(roomId: roomId) ?? []
-                DispatchQueue.main.async {
+                let accesses = try client.listAccesses(roomId: roomId)
+                await MainActor.run { [weak self] in
                     self?.roomAccesses = accesses
                 }
-            } catch { }
+            } catch {
+                NSLog("VisioManager: refreshAccesses failed: %@", error.localizedDescription)
+            }
         }
     }
 
     func addAccessMember(userId: String) {
         guard let roomId = currentRoomId else { return }
-        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+        let client = self.client
+        Task.detached {
             do {
-                _ = try self?.client.addAccess(userId: userId, roomId: roomId)
-                self?.refreshAccesses()
-            } catch { }
+                _ = try client.addAccess(userId: userId, roomId: roomId)
+                await MainActor.run { [weak self] in
+                    self?.refreshAccesses()
+                }
+            } catch {
+                NSLog("VisioManager: addAccessMember failed: %@", error.localizedDescription)
+            }
         }
     }
 
     func removeAccessMember(accessId: String) {
-        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+        let client = self.client
+        Task.detached {
             do {
-                try self?.client.removeAccess(accessId: accessId)
-                self?.refreshAccesses()
-            } catch { }
+                try client.removeAccess(accessId: accessId)
+                await MainActor.run { [weak self] in
+                    self?.refreshAccesses()
+                }
+            } catch {
+                NSLog("VisioManager: removeAccessMember failed: %@", error.localizedDescription)
+            }
         }
     }
 
@@ -714,6 +746,20 @@ class VisioManager: ObservableObject {
         client.setNotificationMessageReceived(enabled: enabled)
     }
 
+    // MARK: - Nonisolated FFI wrappers (for use from non-MainActor contexts)
+
+    nonisolated func reportNetworkType(_ type: NetworkType) {
+        client.reportNetworkType(networkType: type)
+    }
+
+    nonisolated func reportMotionDetected(_ detected: Bool) {
+        client.reportMotionDetected(detected: detected)
+    }
+
+    nonisolated func reportBluetoothCarKit(connected: Bool) {
+        client.reportBluetoothCarKit(connected: connected)
+    }
+
     // MARK: - Lifecycle
 
     func onAppBackgrounded() {
@@ -733,13 +779,13 @@ class VisioManager: ObservableObject {
                 cameraCapture = capture
             }
         case .disconnected:
-            DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-                guard let self else { return }
+            let client = self.client
+            Task.detached {
                 do {
-                    try self.client.reconnect()
+                    try client.reconnect()
                 } catch {
-                    DispatchQueue.main.async {
-                        self.errorMessage = "Reconnection failed: \(error.localizedDescription)"
+                    await MainActor.run { [weak self] in
+                        self?.errorMessage = "Reconnection failed: \(error.localizedDescription)"
                     }
                 }
             }
@@ -792,249 +838,257 @@ class VisioManager: ObservableObject {
             print("[VisioManager] Failed to restore audio input: \(error)")
         }
     }
+
+    // MARK: - Event Handling
+
+    private func handleEvent(_ event: VisioEvent) {
+        switch event {
+        case .connectionStateChanged(let state):
+            // Ignore stale .connecting events that arrive after we're already .connected
+            // (race between sync state read in connect() and async event dispatch)
+            if case .connecting = state, case .connected = self.connectionState {
+                break
+            }
+            self.connectionState = state
+            if case .connected = state {
+                self.connectionTimestamp = Date()
+            }
+
+        case .participantJoined(let info):
+            if let idx = self.participants.firstIndex(where: { $0.sid == info.sid }) {
+                self.participants[idx] = info
+            } else {
+                self.participants.append(info)
+            }
+
+        case .participantLeft(let sid):
+            self.participants.removeAll { $0.sid == sid }
+            self.handRaisedMap.removeValue(forKey: sid)
+
+        case .trackMuted(let sid, let source):
+            if let idx = self.participants.firstIndex(where: { $0.sid == sid }) {
+                var p = self.participants[idx]
+                switch source {
+                case .microphone:
+                    p.isMuted = true
+                case .camera:
+                    if let trackSid = p.videoTrackSid {
+                        VideoFrameRouter.shared.invalidateTrack(trackSid: trackSid)
+                    }
+                    p.hasVideo = false
+                    p.videoTrackSid = nil
+                case .screenShare:
+                    if let trackSid = p.screenShareTrackSid {
+                        VideoFrameRouter.shared.invalidateTrack(trackSid: trackSid)
+                    }
+                    p.hasScreenShare = false
+                    p.screenShareTrackSid = nil
+                case .unknown:
+                    break
+                }
+                self.participants[idx] = p
+            }
+
+        case .trackUnmuted(let sid, let source):
+            switch source {
+            case .microphone:
+                if let idx = self.participants.firstIndex(where: { $0.sid == sid }) {
+                    var p = self.participants[idx]
+                    p.isMuted = false
+                    self.participants[idx] = p
+                }
+            case .camera, .screenShare:
+                let client = self.client
+                Task.detached {
+                    let updated = client.participants()
+                    await MainActor.run { [weak self] in
+                        self?.participants = updated
+                    }
+                }
+            case .unknown:
+                break
+            }
+
+        case .activeSpeakersChanged(let sids):
+            self.activeSpeakers = sids
+
+        case .connectionQualityChanged(let sid, let quality):
+            if let idx = self.participants.firstIndex(where: { $0.sid == sid }) {
+                var p = self.participants[idx]
+                p.connectionQuality = quality
+                self.participants[idx] = p
+            }
+
+        case .chatMessageReceived(let message):
+            if !self.chatMessages.contains(where: { $0.id == message.id }) {
+                self.chatMessages.append(message)
+            }
+
+        case .trackSubscribed(let info):
+            if info.kind == .video {
+                let sid = info.sid
+                if !self.videoTrackSids.contains(sid) {
+                    self.videoTrackSids.append(sid)
+                }
+                let participantSid = info.participantSid
+                let isScreenShare = info.source == .screenShare
+                let client = self.client
+                Task.detached {
+                    client.startVideoRenderer(trackSid: sid)
+                    let updated = client.participants()
+                    await MainActor.run { [weak self] in
+                        self?.participants = updated
+                        if isScreenShare {
+                            self?.lastScreenShareParticipantSid = nil
+                            self?.lastScreenShareParticipantSid = participantSid
+                        }
+                    }
+                }
+            }
+
+        case .trackUnsubscribed(let trackSid):
+            self.videoTrackSids.removeAll { $0 == trackSid }
+            VideoFrameRouter.shared.invalidateTrack(trackSid: trackSid)
+            let client = self.client
+            Task.detached {
+                client.stopVideoRenderer(trackSid: trackSid)
+            }
+            if let idx = self.participants.firstIndex(where: {
+                $0.videoTrackSid == trackSid || $0.screenShareTrackSid == trackSid
+            }) {
+                var p = self.participants[idx]
+                if p.videoTrackSid == trackSid {
+                    p.hasVideo = false
+                    p.videoTrackSid = nil
+                }
+                if p.screenShareTrackSid == trackSid {
+                    p.hasScreenShare = false
+                    p.screenShareTrackSid = nil
+                }
+                self.participants[idx] = p
+            }
+
+        case .handRaisedChanged(let participantSid, let raised, let position):
+            if raised {
+                self.handRaisedMap[participantSid] = Int(position)
+            } else {
+                self.handRaisedMap.removeValue(forKey: participantSid)
+            }
+            // Update local hand raise state — always sync from client truth
+            if self.client.isHandRaised() != self.isHandRaised {
+                self.isHandRaised = self.client.isHandRaised()
+            }
+
+        case .reactionReceived(let participantSid, let participantName, let emoji):
+            let reaction = ReactionData(
+                id: self.reactionIdCounter,
+                participantSid: participantSid,
+                participantName: participantName,
+                emoji: emoji,
+                timestamp: Date()
+            )
+            self.reactionIdCounter += 1
+            self.reactions.append(reaction)
+
+        case .unreadCountChanged(let count):
+            self.unreadCount = Int(count)
+
+        case .lobbyParticipantJoined(let id, let username):
+            if !self.waitingParticipants.contains(where: { $0.id == id }) {
+                let participant = WaitingParticipant(id: id, username: username)
+                self.waitingParticipants.append(participant)
+                self.lobbyNotification = participant
+            }
+
+        case .lobbyParticipantLeft(let id):
+            self.waitingParticipants.removeAll { $0.id == id }
+
+        case .lobbyDenied:
+            self.lobbyDenied = true
+
+        case .adaptiveModeChanged(let mode):
+            let previousMode = self.adaptiveMode
+            self.adaptiveMode = mode
+            if mode == .car {
+                self.cameraWasEnabledBeforeCar = self.isCameraEnabled
+                if self.isCameraEnabled {
+                    // Grace period: don't disable camera if we just connected
+                    let grace = self.connectionTimestamp.map { Date().timeIntervalSince($0) } ?? 999
+                    if grace < self.connectionGraceSeconds {
+                        // Delay camera disable to let camera-on-join complete
+                        Task { @MainActor [weak self] in
+                            try? await Task.sleep(for: .seconds(self?.connectionGraceSeconds ?? 5))
+                            guard let self, self.adaptiveMode == .car else { return }
+                            self.cameraWasEnabledBeforeCar = self.isCameraEnabled
+                            if self.isCameraEnabled { self.toggleCamera() }
+                        }
+                    } else {
+                        self.toggleCamera()
+                    }
+                }
+                self.routeAudioToBluetooth()
+            } else if previousMode == .car {
+                self.restoreDefaultAudioRoute()
+                if self.cameraWasEnabledBeforeCar {
+                    self.cameraWasEnabledBeforeCar = false
+                    if !self.isCameraEnabled {
+                        self.toggleCamera()
+                    }
+                }
+            }
+
+        case .bandwidthModeChanged:
+            break
+
+        case .connectionLost:
+            let client = self.client
+            Task.detached {
+                do {
+                    try client.reconnect()
+                } catch {
+                    await MainActor.run { [weak self] in
+                        self?.errorMessage = "Reconnection failed: \(error.localizedDescription)"
+                    }
+                }
+            }
+
+        case .lobbyTimeout:
+            self.lobbyDenied = true
+
+        case .disconnectedDuplicateIdentity:
+            self.errorMessage = "Déconnecté : un autre appareil a rejoint avec le même identifiant"
+
+        case .disconnectedByAdmin:
+            self.errorMessage = "Vous avez été déconnecté par un administrateur"
+
+        case .aloneInRoom(let remainingSecs):
+            self.errorMessage = "Vous êtes seul — déconnexion dans \(remainingSecs)s"
+
+        case .aloneInRoomCancelled:
+            self.errorMessage = nil
+
+        case .muteRequested:
+            if self.isMicEnabled {
+                self.toggleMic()
+            }
+        }
+    }
 }
 
 // MARK: - VisioEventListener
 
 extension VisioManager: VisioEventListener {
 
-    func onEvent(event: VisioEvent) {
-        DispatchQueue.main.async { [weak self] in
-            guard let self else { return }
-            switch event {
-            case .connectionStateChanged(let state):
-                // Ignore stale .connecting events that arrive after we're already .connected
-                // (race between sync state read in connect() and async event dispatch)
-                if case .connecting = state, case .connected = self.connectionState {
-                    break
-                }
-                self.connectionState = state
-                if case .connected = state {
-                    self.connectionTimestamp = Date()
-                }
-
-            case .participantJoined(let info):
-                if let idx = self.participants.firstIndex(where: { $0.sid == info.sid }) {
-                    self.participants[idx] = info
-                } else {
-                    self.participants.append(info)
-                }
-
-            case .participantLeft(let sid):
-                self.participants.removeAll { $0.sid == sid }
-                self.handRaisedMap.removeValue(forKey: sid)
-
-            case .trackMuted(let sid, let source):
-                if let idx = self.participants.firstIndex(where: { $0.sid == sid }) {
-                    var p = self.participants[idx]
-                    switch source {
-                    case .microphone:
-                        p.isMuted = true
-                    case .camera:
-                        if let trackSid = p.videoTrackSid {
-                            VideoFrameRouter.shared.invalidateTrack(trackSid: trackSid)
-                        }
-                        p.hasVideo = false
-                        p.videoTrackSid = nil
-                    case .screenShare:
-                        if let trackSid = p.screenShareTrackSid {
-                            VideoFrameRouter.shared.invalidateTrack(trackSid: trackSid)
-                        }
-                        p.hasScreenShare = false
-                        p.screenShareTrackSid = nil
-                    case .unknown:
-                        break
-                    }
-                    self.participants[idx] = p
-                }
-
-            case .trackUnmuted(let sid, let source):
-                switch source {
-                case .microphone:
-                    if let idx = self.participants.firstIndex(where: { $0.sid == sid }) {
-                        var p = self.participants[idx]
-                        p.isMuted = false
-                        self.participants[idx] = p
-                    }
-                case .camera, .screenShare:
-                    DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-                        guard let self else { return }
-                        let updated = self.client.participants()
-                        DispatchQueue.main.async { self.participants = updated }
-                    }
-                case .unknown:
-                    break
-                }
-
-            case .activeSpeakersChanged(let sids):
-                self.activeSpeakers = sids
-
-            case .connectionQualityChanged(let sid, let quality):
-                if let idx = self.participants.firstIndex(where: { $0.sid == sid }) {
-                    var p = self.participants[idx]
-                    p.connectionQuality = quality
-                    self.participants[idx] = p
-                }
-
-            case .chatMessageReceived(let message):
-                if !self.chatMessages.contains(where: { $0.id == message.id }) {
-                    self.chatMessages.append(message)
-                }
-
-            case .trackSubscribed(let info):
-                if info.kind == .video {
-                    let sid = info.sid
-                    if !self.videoTrackSids.contains(sid) {
-                        self.videoTrackSids.append(sid)
-                    }
-                    let participantSid = info.participantSid
-                    let isScreenShare = info.source == .screenShare
-                    DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-                        guard let self else { return }
-                        self.client.startVideoRenderer(trackSid: sid)
-                        let updated = self.client.participants()
-                        DispatchQueue.main.async {
-                            self.participants = updated
-                            if isScreenShare {
-                                self.lastScreenShareParticipantSid = nil
-                                self.lastScreenShareParticipantSid = participantSid
-                            }
-                        }
-                    }
-                }
-
-            case .trackUnsubscribed(let trackSid):
-                self.videoTrackSids.removeAll { $0 == trackSid }
-                VideoFrameRouter.shared.invalidateTrack(trackSid: trackSid)
-                DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-                    self?.client.stopVideoRenderer(trackSid: trackSid)
-                }
-                if let idx = self.participants.firstIndex(where: {
-                    $0.videoTrackSid == trackSid || $0.screenShareTrackSid == trackSid
-                }) {
-                    var p = self.participants[idx]
-                    if p.videoTrackSid == trackSid {
-                        p.hasVideo = false
-                        p.videoTrackSid = nil
-                    }
-                    if p.screenShareTrackSid == trackSid {
-                        p.hasScreenShare = false
-                        p.screenShareTrackSid = nil
-                    }
-                    self.participants[idx] = p
-                }
-
-            case .handRaisedChanged(let participantSid, let raised, let position):
-                if raised {
-                    self.handRaisedMap[participantSid] = Int(position)
-                } else {
-                    self.handRaisedMap.removeValue(forKey: participantSid)
-                }
-                // Update local hand raise state — always sync from client truth
-                if self.client.isHandRaised() != self.isHandRaised {
-                    self.isHandRaised = self.client.isHandRaised()
-                }
-
-            case .reactionReceived(let participantSid, let participantName, let emoji):
-                let reaction = ReactionData(
-                    id: self.reactionIdCounter,
-                    participantSid: participantSid,
-                    participantName: participantName,
-                    emoji: emoji,
-                    timestamp: Date()
-                )
-                self.reactionIdCounter += 1
-                self.reactions.append(reaction)
-
-            case .unreadCountChanged(let count):
-                self.unreadCount = Int(count)
-
-            case .lobbyParticipantJoined(let id, let username):
-                if !self.waitingParticipants.contains(where: { $0.id == id }) {
-                    let participant = WaitingParticipant(id: id, username: username)
-                    self.waitingParticipants.append(participant)
-                    self.lobbyNotification = participant
-                }
-
-            case .lobbyParticipantLeft(let id):
-                self.waitingParticipants.removeAll { $0.id == id }
-
-            case .lobbyDenied:
-                self.lobbyDenied = true
-
-            case .adaptiveModeChanged(let mode):
-                let previousMode = self.adaptiveMode
-                self.adaptiveMode = mode
-                if mode == .car {
-                    self.cameraWasEnabledBeforeCar = self.isCameraEnabled
-                    if self.isCameraEnabled {
-                        // Grace period: don't disable camera if we just connected
-                        let grace = self.connectionTimestamp.map { Date().timeIntervalSince($0) } ?? 999
-                        if grace < self.connectionGraceSeconds {
-                            // Delay camera disable to let camera-on-join complete
-                            DispatchQueue.main.asyncAfter(deadline: .now() + self.connectionGraceSeconds) {
-                                if self.adaptiveMode == .car {
-                                    self.cameraWasEnabledBeforeCar = self.isCameraEnabled
-                                    if self.isCameraEnabled { self.toggleCamera() }
-                                }
-                            }
-                        } else {
-                            self.toggleCamera()
-                        }
-                    }
-                    self.routeAudioToBluetooth()
-                } else if previousMode == .car {
-                    self.restoreDefaultAudioRoute()
-                    if self.cameraWasEnabledBeforeCar {
-                        self.cameraWasEnabledBeforeCar = false
-                        if !self.isCameraEnabled {
-                            self.toggleCamera()
-                        }
-                    }
-                }
-
-            case .bandwidthModeChanged:
-                break
-
-            case .connectionLost:
-                DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-                    guard let self else { return }
-                    do {
-                        try self.client.reconnect()
-                    } catch {
-                        DispatchQueue.main.async {
-                            self.errorMessage = "Reconnection failed: \(error.localizedDescription)"
-                        }
-                    }
-                }
-
-            case .lobbyTimeout:
-                self.lobbyDenied = true
-
-            case .disconnectedDuplicateIdentity:
-                self.errorMessage = "Déconnecté : un autre appareil a rejoint avec le même identifiant"
-
-            case .disconnectedByAdmin:
-                self.errorMessage = "Vous avez été déconnecté par un administrateur"
-
-            case .aloneInRoom(let remainingSecs):
-                self.errorMessage = "Vous êtes seul — déconnexion dans \(remainingSecs)s"
-
-            case .aloneInRoomCancelled:
-                self.errorMessage = nil
-
-            case .muteRequested:
-                if self.isMicEnabled {
-                    self.toggleMic()
-                }
-            }
+    nonisolated func onEvent(event: VisioEvent) {
+        Task { @MainActor [weak self] in
+            self?.handleEvent(event)
         }
     }
 }
 
 // MARK: - Reaction Data
 
-struct ReactionData: Identifiable {
+struct ReactionData: Identifiable, Sendable {
     let id: Int64
     let participantSid: String
     let participantName: String

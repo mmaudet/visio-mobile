@@ -183,14 +183,15 @@ struct InCallSettingsSheet: View {
 
     private func setBackgroundMode(_ mode: String) {
         manager.backgroundMode = mode
-        DispatchQueue.global(qos: .userInitiated).async {
+        let client = manager.client
+        Task.detached {
             if mode.hasPrefix("image:") {
                 let id = UInt8(mode.dropFirst(6)) ?? 0
                 if let path = Bundle.main.path(forResource: "\(id)", ofType: "jpg", inDirectory: "backgrounds") {
-                    try? manager.client.loadBackgroundImage(id: id, jpegPath: path)
+                    try? client.loadBackgroundImage(id: id, jpegPath: path)
                 }
             }
-            manager.client.setBackgroundMode(mode: mode)
+            client.setBackgroundMode(mode: mode)
         }
     }
 
@@ -502,17 +503,17 @@ private struct MembersTabContent: View {
                             try? await Task.sleep(nanoseconds: 300_000_000)
                             guard !Task.isCancelled else { return }
                             let query = newValue
-                            DispatchQueue.global(qos: .userInitiated).async {
-                                do {
-                                    let results = try manager.client.searchUsers(query: query)
-                                    DispatchQueue.main.async {
-                                        searchResults = results.filter { user in
-                                            !manager.roomAccesses.contains(where: { $0.user.id == user.id })
-                                        }
-                                    }
-                                } catch {
-                                    DispatchQueue.main.async { searchResults = [] }
+                            let client = manager.client
+                            let currentAccesses = manager.roomAccesses
+                            do {
+                                let results = try await Task.detached {
+                                    try client.searchUsers(query: query)
+                                }.value
+                                searchResults = results.filter { user in
+                                    !currentAccesses.contains(where: { $0.user.id == user.id })
                                 }
+                            } catch {
+                                searchResults = []
                             }
                         }
                     }
