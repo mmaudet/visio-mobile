@@ -17,16 +17,17 @@ export function isDeviceConnected(): boolean {
  * Dump the current UI hierarchy via uiautomator and return the raw XML string.
  */
 export function dumpUiTree(): string {
-  const out = execSync("adb shell uiautomator dump /dev/tty", {
-    encoding: "utf-8",
+  // Dump to a temp file on the device, then read its contents.
+  // /dev/tty does not work reliably on all devices (e.g. Pixel Fold).
+  const dumpPath = "/sdcard/e2e-ui-dump.xml";
+  execSync(`adb shell uiautomator dump ${dumpPath}`, {
     timeout: 15_000,
+    stdio: "pipe",
   });
-  // uiautomator prints the XML followed by "UI hierachy dumped to: /dev/tty"
-  // Strip the trailing status line if present.
-  const idx = out.lastIndexOf("</hierarchy>");
-  if (idx !== -1) {
-    return out.slice(0, idx + "</hierarchy>".length);
-  }
+  const out = execSync(`adb shell cat ${dumpPath}`, {
+    encoding: "utf-8",
+    timeout: 10_000,
+  });
   return out;
 }
 
@@ -135,10 +136,10 @@ export function screencap(outputPath: string): void {
  * Launch the Visio Mobile app with the given deep link URL.
  */
 export function launchDeepLink(url: string): void {
-  // Escape shell metacharacters for the Android shell (adb shell concatenates args into a command).
-  const escaped = url.replace(/[&;|$`"\\(){}]/g, "\\$&");
+  // Wrap the URL in single quotes so the Android shell does not interpret & or other metacharacters.
+  // The URL must not contain single quotes itself (safe for our use case).
   execFileSync("adb", [
-    "shell", `am start -a android.intent.action.VIEW -d '${escaped}' io.visio.mobile`,
+    "shell", `am start -a android.intent.action.VIEW -d '${url}' io.visio.mobile`,
   ], { timeout: 10_000, stdio: "pipe" });
 }
 

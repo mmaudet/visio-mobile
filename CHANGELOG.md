@@ -15,3 +15,9 @@ and this project adheres to
 - Semantic test tags for layout assertions
 - 4 test suites, 11 scenarios
 - HTML/JSON/terminal reporting with screenshots
+
+### Fixed
+
+- Bot interactive mode now uses --media-file audio
+- UIAutomator dump uses temp file for device compat
+- Deep link URL escaping no longer corrupts params
