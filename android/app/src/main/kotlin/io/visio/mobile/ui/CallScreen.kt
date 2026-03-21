@@ -18,9 +18,11 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -197,6 +199,7 @@ fun CallScreen(
     var focusedItem by remember { mutableStateOf<FocusItem?>(null) }
     // Track whether focus was set by user (pin) vs auto (active speaker / screen share)
     var userPinnedItem by remember { mutableStateOf<FocusItem?>(null) }
+    var layoutState by remember { mutableStateOf(LayoutState()) }
     var showReactionPicker by remember { mutableStateOf(false) }
     // Fullscreen controls visibility: toggles on tap, auto-hides after 3s
     var controlsVisible by remember { mutableStateOf(false) }
@@ -232,26 +235,33 @@ fun CallScreen(
         }
     }
 
-    // Active speaker auto-focus: when 3+ participants, no user pin, and no screen share focus,
-    // automatically focus the active speaker's camera tile
-    LaunchedEffect(activeSpeakers, participants.size, userPinnedItem) {
-        if (userPinnedItem != null) return@LaunchedEffect // user pinned someone, don't override
-        if (focusedItem?.source == "screen_share") return@LaunchedEffect // screen share takes priority
-        if (participants.size < 3) {
-            // Fewer than 3 participants: clear auto-focus (grid is fine)
-            if (focusedItem?.source == "camera" && userPinnedItem == null) {
-                focusedItem = null
-            }
-            return@LaunchedEffect
-        }
-        val speakerSid = activeSpeakers.firstOrNull()
-        if (speakerSid != null) {
-            // Don't auto-focus the local participant (first in list)
-            val isLocal = participants.firstOrNull()?.sid == speakerSid
-            if (!isLocal) {
-                val newFocus = FocusItem(speakerSid, "camera")
-                if (focusedItem != newFocus) {
-                    focusedItem = newFocus
+    // When adaptive mode is disabled, always use Office layout
+    val effectiveAdaptiveMode = if (isAdaptiveModeEnabled) adaptiveMode else AdaptiveMode.OFFICE
+
+    // Layout engine: replaces old active speaker auto-focus with unified layout computation
+    val screenShareFocus = screenShareSubscribed?.let { FocusItem(it, "screen_share") }
+
+    LaunchedEffect(participants, activeSpeakers, userPinnedItem, effectiveAdaptiveMode, screenShareFocus) {
+        val localSid = participants.firstOrNull()?.sid ?: return@LaunchedEffect
+        val (decision, newState) =
+            computeLayout(
+                participants = participants,
+                activeSpeakers = activeSpeakers,
+                pinnedItem = userPinnedItem,
+                screenShare = screenShareFocus,
+                adaptiveMode = effectiveAdaptiveMode,
+                localParticipantSid = localSid,
+                previousState = layoutState,
+                nowMs = System.currentTimeMillis(),
+            )
+        layoutState = newState
+        // Update focusedItem based on decision
+        when (decision.mode) {
+            LayoutMode.GRID -> focusedItem = null
+            LayoutMode.FOCUS -> {
+                val main = decision.mainTile
+                if (main != null) {
+                    focusedItem = FocusItem(main.participant.sid, main.source)
                 }
             }
         }
@@ -648,8 +658,6 @@ fun CallScreen(
     }
 
     // Main call layout
-    // When adaptive mode is disabled, always use Office layout
-    val effectiveAdaptiveMode = if (isAdaptiveModeEnabled) adaptiveMode else AdaptiveMode.OFFICE
     val callBackground = if (effectiveAdaptiveMode == AdaptiveMode.OFFICE) VisioColors.PrimaryDark50 else Color.Black
     Box(
         modifier =
@@ -661,8 +669,23 @@ fun CallScreen(
             // Connection state banner
             ConnectionStateBanner(connectionState, errorMessage)
 
+            // Compute layout decision for rendering
+            val localSid = participants.firstOrNull()?.sid ?: ""
+            val renderScreenShareFocus = if (screenShareSubscribed != null) FocusItem(screenShareSubscribed!!, "screen_share") else null
+            val (layoutDecision, _) =
+                computeLayout(
+                    participants = participants,
+                    activeSpeakers = activeSpeakers,
+                    pinnedItem = userPinnedItem,
+                    screenShare = renderScreenShareFocus,
+                    adaptiveMode = effectiveAdaptiveMode,
+                    localParticipantSid = localSid,
+                    previousState = layoutState,
+                    nowMs = System.currentTimeMillis(),
+                )
+
             // Video grid area with reaction overlay
-            val isFullscreenFocus = focusedItem != null
+            val isFullscreenFocus = layoutDecision.mode == LayoutMode.FOCUS
             Box(
                 modifier =
                     Modifier
@@ -672,9 +695,10 @@ fun CallScreen(
             ) {
                 when (effectiveAdaptiveMode) {
                     AdaptiveMode.CAR -> {
-                        // Car mode: audio-only view with active speaker name
-                        val activeSpeakerSid = activeSpeakers.firstOrNull()
-                        val speaker = participants.find { it.sid == activeSpeakerSid } ?: participants.firstOrNull()
+                        // Car mode: audio-only view with speaker from layout decision
+                        val speaker =
+                            layoutDecision.mainTile?.participant
+                                ?: participants.firstOrNull()
                         val speakerName = speaker?.name ?: speaker?.identity ?: ""
 
                         Box(
@@ -713,16 +737,9 @@ fun CallScreen(
                     }
 
                     AdaptiveMode.PEDESTRIAN -> {
-                        // Pedestrian mode: single active speaker tile
-                        val activeSpeakerSid = activeSpeakers.firstOrNull()
-                        // Find if active speaker is a remote participant
-                        // (participants[0] is local, so skip it when looking for remote speaker)
-                        val remoteSpeaker =
-                            if (activeSpeakerSid != null) {
-                                participants.drop(1).find { it.sid == activeSpeakerSid }
-                            } else {
-                                null
-                            }
+                        // Pedestrian mode: single tile from layout decision
+                        val mainItem = layoutDecision.mainTile
+                        val mainParticipant = mainItem?.participant ?: participants.firstOrNull()
 
                         Box(
                             modifier =
@@ -730,38 +747,23 @@ fun CallScreen(
                                     .fillMaxSize()
                                     .clip(RoundedCornerShape(8.dp)),
                         ) {
-                            if (remoteSpeaker != null) {
-                                // Show remote active speaker
+                            if (mainParticipant != null) {
                                 ParticipantTile(
-                                    participant = remoteSpeaker,
-                                    isActiveSpeaker = true,
-                                    handRaisePosition = handRaisedMap[remoteSpeaker.sid] ?: 0,
+                                    participant = mainParticipant,
+                                    isActiveSpeaker = layoutDecision.speakerIndicatorSid == mainParticipant.sid,
+                                    handRaisePosition = handRaisedMap[mainParticipant.sid] ?: 0,
                                     onClick = {},
                                 )
-                            } else {
-                                // No remote speaker talking — show first remote participant or local preview
-                                val fallback = participants.firstOrNull()
-                                if (fallback != null) {
-                                    ParticipantTile(
-                                        participant = fallback,
-                                        isActiveSpeaker = activeSpeakers.contains(fallback.sid),
-                                        handRaisePosition = handRaisedMap[fallback.sid] ?: 0,
-                                        onClick = {},
-                                    )
-                                }
                             }
                         }
                     }
 
                     AdaptiveMode.OFFICE -> {
-                        // Office mode: full grid with screen share support
+                        // Office mode: use layout decision for grid vs focus
                         val displayItems = buildDisplayItems(participants)
-                        val focusedDisplayItem =
-                            focusedItem?.let { fi ->
-                                displayItems.find { it.participant.sid == fi.participantSid && it.source == fi.source }
-                            }
 
-                        if (focusedDisplayItem != null) {
+                        if (layoutDecision.mode == LayoutMode.FOCUS && layoutDecision.mainTile != null) {
+                            val focusedDisplayItem = layoutDecision.mainTile
                             // Focus layout: main item + thumbnail bar
                             Column(modifier = Modifier.fillMaxSize()) {
                                 // Main focused item
@@ -790,8 +792,9 @@ fun CallScreen(
                                     } else {
                                         ParticipantTile(
                                             participant = focusedDisplayItem.participant,
-                                            isActiveSpeaker = activeSpeakers.contains(focusedDisplayItem.participant.sid),
+                                            isActiveSpeaker = layoutDecision.speakerIndicatorSid == focusedDisplayItem.participant.sid,
                                             handRaisePosition = handRaisedMap[focusedDisplayItem.participant.sid] ?: 0,
+                                            isPinned = layoutDecision.pinnedIndicatorSid == focusedDisplayItem.participant.sid,
                                             onClick = { controlsVisible = !controlsVisible },
                                         )
                                     }
@@ -821,6 +824,25 @@ fun CallScreen(
                                         )
                                     }
 
+                                    // Pin indicator (top-left, next to close button)
+                                    if (layoutDecision.pinnedIndicatorSid == focusedDisplayItem.participant.sid) {
+                                        Box(
+                                            modifier =
+                                                Modifier
+                                                    .align(Alignment.TopStart)
+                                                    .padding(8.dp)
+                                                    .size(28.dp)
+                                                    .background(Color.Black.copy(alpha = 0.6f), CircleShape)
+                                                    .padding(4.dp),
+                                        ) {
+                                            Text(
+                                                text = "\uD83D\uDCCC",
+                                                fontSize = 12.sp,
+                                                modifier = Modifier.align(Alignment.Center),
+                                            )
+                                        }
+                                    }
+
                                     // Close/exit focus button (top-right)
                                     IconButton(
                                         onClick = {
@@ -848,7 +870,7 @@ fun CallScreen(
 
                                 // Thumbnail bar — hidden in fullscreen focus mode
                                 if (controlsVisible) {
-                                    val thumbnailItems = displayItems.filter { it.key != focusedDisplayItem.key }
+                                    val thumbnailItems = layoutDecision.secondaryTiles
                                     if (thumbnailItems.isNotEmpty()) {
                                         Spacer(modifier = Modifier.height(8.dp))
                                         Row(
@@ -868,13 +890,18 @@ fun CallScreen(
                                                 ) {
                                                     ParticipantTile(
                                                         participant = item.participant,
-                                                        isActiveSpeaker = activeSpeakers.contains(item.participant.sid),
+                                                        isActiveSpeaker = layoutDecision.speakerIndicatorSid == item.participant.sid,
                                                         handRaisePosition = handRaisedMap[item.participant.sid] ?: 0,
                                                         isScreenShare = item.isScreenShare,
+                                                        isPinned = layoutDecision.pinnedIndicatorSid == item.participant.sid,
                                                         onClick = {
                                                             val fi = FocusItem(item.participant.sid, item.source)
                                                             focusedItem = fi
-                                                            userPinnedItem = fi // user-initiated pin
+                                                            userPinnedItem = fi
+                                                        },
+                                                        onLongPress = {
+                                                            val fi = FocusItem(item.participant.sid, item.source)
+                                                            userPinnedItem = if (userPinnedItem == fi) null else fi
                                                         },
                                                     )
                                                 }
@@ -923,13 +950,17 @@ fun CallScreen(
                                                     ) {
                                                         ParticipantTile(
                                                             participant = item.participant,
-                                                            isActiveSpeaker = activeSpeakers.contains(item.participant.sid),
+                                                            isActiveSpeaker = layoutDecision.speakerIndicatorSid == item.participant.sid,
                                                             handRaisePosition = handRaisedMap[item.participant.sid] ?: 0,
                                                             isScreenShare = item.isScreenShare,
                                                             onClick = {
                                                                 val fi = FocusItem(item.participant.sid, item.source)
                                                                 focusedItem = fi
-                                                                userPinnedItem = fi // user-initiated pin
+                                                                userPinnedItem = fi
+                                                            },
+                                                            onLongPress = {
+                                                                val fi = FocusItem(item.participant.sid, item.source)
+                                                                userPinnedItem = if (userPinnedItem == fi) null else fi
                                                             },
                                                         )
                                                         // Fullscreen icon overlay for screen share tiles
@@ -938,7 +969,7 @@ fun CallScreen(
                                                                 onClick = {
                                                                     val fi = FocusItem(item.participant.sid, item.source)
                                                                     focusedItem = fi
-                                                                    userPinnedItem = fi // user-initiated pin
+                                                                    userPinnedItem = fi
                                                                 },
                                                                 modifier =
                                                                     Modifier
@@ -1650,13 +1681,16 @@ private fun ControlBar(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun ParticipantTile(
     participant: ParticipantInfo,
     isActiveSpeaker: Boolean,
     handRaisePosition: Int,
     isScreenShare: Boolean = false,
+    isPinned: Boolean = false,
     onClick: () -> Unit,
+    onLongPress: (() -> Unit)? = null,
 ) {
     val lang = VisioManager.currentLang
     val name = participant.name ?: participant.identity
@@ -1698,7 +1732,10 @@ fun ParticipantTile(
                 .then(borderMod)
                 .clip(RoundedCornerShape(8.dp))
                 .background(VisioColors.PrimaryDark50)
-                .clickable(onClick = onClick),
+                .combinedClickable(
+                    onClick = onClick,
+                    onLongClick = onLongPress,
+                ),
     ) {
         // Video surface or avatar fallback
         if (hasTrack && trackSid != null) {
@@ -1741,6 +1778,25 @@ fun ParticipantTile(
                         overflow = TextOverflow.Ellipsis,
                     )
                 }
+            }
+        }
+
+        // Pin indicator (top-right)
+        if (isPinned) {
+            Box(
+                modifier =
+                    Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(6.dp)
+                        .size(24.dp)
+                        .background(Color.Black.copy(alpha = 0.6f), CircleShape)
+                        .padding(4.dp),
+            ) {
+                Text(
+                    text = "\uD83D\uDCCC",
+                    fontSize = 12.sp,
+                    modifier = Modifier.align(Alignment.Center),
+                )
             }
         }
 

@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback, createContext, useContext } from "react";
+import { computeLayout, initialLayoutState, type LayoutState } from "./layout-engine";
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { resolveResource } from "@tauri-apps/api/path";
@@ -1372,6 +1373,7 @@ function CallView({
   const t = useT();
   const [focusedItem, setFocusedItem] = useState<FocusItem>(null);
   const userPinnedRef = useRef(false); // tracks whether user manually pinned a participant
+  const layoutStateRef = useRef<LayoutState>(initialLayoutState());
   const [showFocusThumbnails, setShowFocusThumbnails] = useState(true);
   const [isScreenSharing, setIsScreenSharing] = useState(false);
   const [showSourcePicker, setShowSourcePicker] = useState(false);
@@ -1449,27 +1451,38 @@ function CallView({
     }
   }, [participants, focusedItem, localParticipant, isScreenSharing]);
 
-  // Auto-focus on active speaker when there are 3+ participants and user hasn't manually pinned
+  // Unified layout engine: auto-focus with stabilization
   useEffect(() => {
-    // Only auto-focus when there are enough participants to benefit from speaker view
     const allP: Participant[] = [];
     if (localParticipant) allP.push(localParticipant);
     allP.push(...participants.filter((p) => !localParticipant || p.sid !== localParticipant.sid));
-    if (allP.length < 3) return;
+    if (allP.length < 2) return;
     if (userPinnedRef.current) return;
-    if (activeSpeakers.length === 0) return;
 
-    // Find the first active speaker that is NOT the local participant
-    const remoteSpeaker = activeSpeakers.find(
-      (sid) => !localParticipant || sid !== localParticipant.sid
+    const items = buildDisplayItems(allP, t);
+    const screenShareFocus = focusedItem?.source === "screen_share" ? focusedItem : null;
+
+    const [decision, newState] = computeLayout(
+      items,
+      activeSpeakers,
+      null, // pinnedItem — handled separately via userPinnedRef
+      screenShareFocus,
+      localParticipant?.sid ?? "",
+      layoutStateRef.current,
+      Date.now(),
     );
-    const speakerSid = remoteSpeaker || activeSpeakers[0];
-    if (!speakerSid) return;
+    layoutStateRef.current = newState;
 
-    // Only switch if the speaker is different from the currently focused participant
-    if (focusedItem?.participantSid === speakerSid && focusedItem?.source === "camera") return;
-
-    setFocusedItem({ participantSid: speakerSid, source: "camera" });
+    if (decision.mode === "grid") {
+      if (focusedItem?.source !== "screen_share") {
+        setFocusedItem(null);
+      }
+    } else if (decision.mainTile) {
+      const newFocus = { participantSid: decision.mainTile.participant.sid, source: decision.mainTile.source as "camera" | "screen_share" };
+      if (focusedItem?.participantSid !== newFocus.participantSid || focusedItem?.source !== newFocus.source) {
+        setFocusedItem(newFocus);
+      }
+    }
   }, [activeSpeakers, participants, localParticipant]);
 
   const handleSendReaction = async (emojiId: string) => {
