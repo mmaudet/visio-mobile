@@ -57,7 +57,6 @@ jobs:
   gitguardian:
     name: GitGuardian - Secret detection
     runs-on: ubuntu-latest
-    if: ${{ secrets.GITGUARDIAN_API_KEY != '' }}
     steps:
       - uses: actions/checkout@v4
         with:
