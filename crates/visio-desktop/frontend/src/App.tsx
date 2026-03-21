@@ -31,6 +31,7 @@ import {
   RiSmartphoneLine,
   RiApps2Line,
   RiArrowRightSLine,
+  RiRefreshLine,
   RiPhoneFill,
   RiCloseLine,
   RiSendPlane2Fill,
@@ -628,18 +629,33 @@ function MeetingsTab({
     )
   }
 
+  const formatPeriod = () => {
+    if (meetings.length === 0) return ''
+    const first = new Date(meetings[0].start_time * 1000)
+    const last = new Date(meetings[meetings.length - 1].start_time * 1000)
+    const opts: Intl.DateTimeFormatOptions = {
+      weekday: 'short',
+      day: 'numeric',
+      month: 'short',
+    }
+    const firstStr = first.toLocaleDateString('fr-FR', opts)
+    const lastStr = last.toLocaleDateString('fr-FR', opts)
+    return firstStr === lastStr ? firstStr : `${firstStr} – ${lastStr}`
+  }
+
   return (
     <div className="meetings-list">
       <div className="meetings-list-header">
         <span className="meetings-count">
           {meetings.length} {t('meetings.count')}
+          {meetings.length > 0 && ` · ${formatPeriod()}`}
         </span>
         <button
           className="btn-icon"
           onClick={handleRefresh}
           title={t('meetings.refresh')}
         >
-          <RiArrowRightSLine size={18} />
+          <RiRefreshLine size={18} />
         </button>
       </div>
       {meetings.map((m) => (

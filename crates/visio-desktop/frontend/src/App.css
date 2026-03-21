@@ -2896,9 +2896,8 @@ main {
   padding: 4px 0;
   overflow-y: auto;
   max-height: 360px;
-  align-self: flex-start;
   width: 100%;
-  max-width: 360px;
+  max-width: 500px;
 }
 
 .meetings-list-header {
@@ -2954,6 +2953,7 @@ main {
 }
 
 .meeting-join-btn {
+  white-space: nowrap;
   flex-shrink: 0;
   padding: 6px 14px;
   font-size: 13px;
