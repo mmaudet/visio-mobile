@@ -494,9 +494,11 @@ function ParticipantTile({
 function MeetingsTab({
   onJoin,
   displayName,
+  onMeetingCountChange,
 }: {
   onJoin: (meetUrl: string, username: string | null) => void
   displayName: string
+  onMeetingCountChange?: (count: number) => void
 }) {
   const t = useT()
   const [status, setStatus] = useState<
@@ -506,6 +508,12 @@ function MeetingsTab({
   const [calendarUrl, setCalendarUrl] = useState<string | null>(null)
   const [joining, setJoining] = useState<string | null>(null)
   const [loadingMessage, setLoadingMessage] = useState<string>('')
+  const [lastSyncTime, setLastSyncTime] = useState<Date | null>(null)
+
+  // Notify parent of meeting count changes
+  useEffect(() => {
+    onMeetingCountChange?.(meetings.length)
+  }, [meetings.length, onMeetingCountChange])
 
   // Load calendar URL and meetings on mount
   useEffect(() => {
@@ -520,6 +528,7 @@ function MeetingsTab({
         invoke<Meeting[]>('get_upcoming_meetings')
           .then((list) => {
             setMeetings(list)
+            setLastSyncTime(new Date())
             setStatus(list.length === 0 ? 'empty' : 'list')
           })
           .catch(() => setStatus('empty'))
@@ -532,6 +541,7 @@ function MeetingsTab({
     let unlisten: (() => void) | null = null
     listen<Meeting[]>('meetings-updated', (event) => {
       setMeetings(event.payload)
+      setLastSyncTime(new Date())
       setStatus(event.payload.length === 0 ? 'empty' : 'list')
     }).then((fn) => {
       unlisten = fn
@@ -553,6 +563,7 @@ function MeetingsTab({
       setLoadingMessage('Mise à jour...')
       const list: Meeting[] = await invoke('get_upcoming_meetings')
       setMeetings(list)
+      setLastSyncTime(new Date())
       setStatus(list.length === 0 ? 'empty' : 'list')
     } catch {
       clearTimeout(t2)
@@ -572,31 +583,78 @@ function MeetingsTab({
     }
   }
 
-  const formatMeetingTime = (startTs: number, endTs: number) => {
-    const start = new Date(startTs * 1000)
-    const end = new Date(endTs * 1000)
-    const opts: Intl.DateTimeFormatOptions = {
-      hour: '2-digit',
-      minute: '2-digit',
-    }
-    const now = new Date()
-    const isToday =
-      start.getDate() === now.getDate() &&
-      start.getMonth() === now.getMonth() &&
-      start.getFullYear() === now.getFullYear()
-    const datePart = isToday
-      ? t('meetings.today')
-      : start.toLocaleDateString([], {
-          weekday: 'short',
-          month: 'short',
-          day: 'numeric',
-        })
-    return `${datePart} ${start.toLocaleTimeString([], opts)} – ${end.toLocaleTimeString([], opts)}`
+  const isImminent = (m: Meeting) => {
+    const nowSec = Date.now() / 1000
+    const minutesUntil = (m.start_time - nowSec) / 60
+    return minutesUntil >= 0 && minutesUntil < 15
   }
 
   const isOngoing = (m: Meeting) => {
     const now = Date.now() / 1000
     return m.start_time <= now && now <= m.end_time
+  }
+
+  const formatRelativeTime = (m: Meeting) => {
+    const nowSec = Date.now() / 1000
+    const minutesUntil = Math.round((m.start_time - nowSec) / 60)
+    const start = new Date(m.start_time * 1000)
+    const now = new Date()
+    const isToday =
+      start.getDate() === now.getDate() &&
+      start.getMonth() === now.getMonth() &&
+      start.getFullYear() === now.getFullYear()
+
+    if (isOngoing(m)) {
+      const end = new Date(m.end_time * 1000)
+      return `Jusqu'à ${end.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
+    }
+    if (minutesUntil < 60) {
+      return `Dans ${minutesUntil} min`
+    }
+    if (minutesUntil < 240) {
+      const hours = Math.floor(minutesUntil / 60)
+      const mins = minutesUntil % 60
+      return mins > 0 ? `Dans ${hours}h${mins.toString().padStart(2, '0')}` : `Dans ${hours}h`
+    }
+    if (isToday) {
+      return start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    }
+    return start.toLocaleDateString([], { weekday: 'short' }) +
+      ' ' +
+      start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+  }
+
+  const getDayLabel = (ts: number): string => {
+    const date = new Date(ts * 1000)
+    const now = new Date()
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+    const meetDay = new Date(date.getFullYear(), date.getMonth(), date.getDate())
+    const diffDays = Math.round((meetDay.getTime() - today.getTime()) / 86400000)
+    if (diffDays === 0) return t('meetings.today')
+    if (diffDays === 1) return t('meetings.tomorrow')
+    return date.toLocaleDateString([], { weekday: 'long', day: 'numeric', month: 'long' })
+  }
+
+  const groupMeetingsByDay = (list: Meeting[]) => {
+    const groups: { label: string; meetings: Meeting[] }[] = []
+    for (const m of list) {
+      const label = getDayLabel(m.start_time)
+      const last = groups[groups.length - 1]
+      if (last && last.label === label) {
+        last.meetings.push(m)
+      } else {
+        groups.push({ label, meetings: [m] })
+      }
+    }
+    return groups
+  }
+
+  const formatSyncTime = () => {
+    if (!lastSyncTime) return ''
+    const diffMs = Date.now() - lastSyncTime.getTime()
+    const diffMin = Math.round(diffMs / 60000)
+    if (diffMin < 1) return t('meetings.sync').replace('{time}', '< 1 min')
+    return t('meetings.sync').replace('{time}', `${diffMin} min`)
   }
 
   if (status === 'onboarding') {
@@ -629,26 +687,13 @@ function MeetingsTab({
     )
   }
 
-  const formatPeriod = () => {
-    if (meetings.length === 0) return ''
-    const first = new Date(meetings[0].start_time * 1000)
-    const last = new Date(meetings[meetings.length - 1].start_time * 1000)
-    const opts: Intl.DateTimeFormatOptions = {
-      weekday: 'short',
-      day: 'numeric',
-      month: 'short',
-    }
-    const firstStr = first.toLocaleDateString('fr-FR', opts)
-    const lastStr = last.toLocaleDateString('fr-FR', opts)
-    return firstStr === lastStr ? firstStr : `${firstStr} – ${lastStr}`
-  }
+  const grouped = groupMeetingsByDay(meetings)
 
   return (
     <div className="meetings-list">
       <div className="meetings-list-header">
         <span className="meetings-count">
           {meetings.length} {t('meetings.count')}
-          {meetings.length > 0 && ` · ${formatPeriod()}`}
         </span>
         <button
           className="btn-icon"
@@ -658,29 +703,41 @@ function MeetingsTab({
           <RiRefreshLine size={18} />
         </button>
       </div>
-      {meetings.map((m) => (
-        <div
-          key={m.id}
-          className={`meeting-item${isOngoing(m) ? ' meeting-ongoing' : ''}`}
-        >
-          <div className="meeting-info">
-            <span className="meeting-summary">
-              {m.summary || t('meetings.noTitle')}
-            </span>
-            <span className="meeting-time">
-              {formatMeetingTime(m.start_time, m.end_time)}
-            </span>
-            <span className="meeting-server">{m.server_name}</span>
-          </div>
-          <button
-            className="btn btn-primary meeting-join-btn"
-            disabled={joining === m.id}
-            onClick={() => handleJoinMeeting(m)}
-          >
-            {joining === m.id ? t('home.connecting') : t('home.join')}
-          </button>
+      {grouped.map((group) => (
+        <div key={group.label}>
+          <div className="meetings-day-header">{group.label}</div>
+          {group.meetings.map((m) => {
+            const imminent = isImminent(m) || isOngoing(m)
+            return (
+              <div
+                key={m.id}
+                className={`meeting-item${imminent ? ' meeting-imminent' : ''}`}
+              >
+                <div className="meeting-info">
+                  <span className="meeting-summary">
+                    {imminent && <span className="meeting-imminent-dot" />}
+                    {m.summary || t('meetings.noTitle')}
+                  </span>
+                  <span className="meeting-time">
+                    {formatRelativeTime(m)}
+                  </span>
+                  <span className="meeting-server">{m.server_name}</span>
+                </div>
+                <button
+                  className="meeting-join-btn"
+                  disabled={joining === m.id}
+                  onClick={() => handleJoinMeeting(m)}
+                >
+                  {joining === m.id ? t('home.connecting') : t('home.join')}
+                </button>
+              </div>
+            )
+          })}
         </div>
       ))}
+      {lastSyncTime && (
+        <div className="meetings-sync-footer">{formatSyncTime()}</div>
+      )}
     </div>
   )
 }
@@ -726,12 +783,27 @@ function HomeView({
   const [meetUrl, setMeetUrl] = useState('')
   const [resolvedUrl, setResolvedUrl] = useState('')
   const [roomHistory, setRoomHistory] = useState<string[]>([])
+  const [meetingCount, setMeetingCount] = useState(0)
 
   useEffect(() => {
     invoke<string[]>('get_room_history')
       .then(setRoomHistory)
       .catch(() => {})
   }, [])
+
+  // Also listen for meetings-updated to keep badge in sync even when not on meetings tab
+  useEffect(() => {
+    let unlisten: (() => void) | null = null
+    listen<Meeting[]>('meetings-updated', (event) => {
+      setMeetingCount(event.payload.length)
+    }).then((fn) => {
+      unlisten = fn
+    })
+    return () => {
+      if (unlisten) unlisten()
+    }
+  }, [])
+
   const [error, setError] = useState('')
   const [joining, setJoining] = useState(false)
   const [roomStatus, setRoomStatus] = useState<
@@ -876,10 +948,11 @@ function HomeView({
           onClick={() => setActiveTab('meetings')}
         >
           {t('home.tab.meetings')}
+          {meetingCount > 0 && <span className="tab-badge">{meetingCount}</span>}
         </button>
       </div>
       {activeTab === 'meetings' ? (
-        <MeetingsTab onJoin={onJoin} displayName={displayName} />
+        <MeetingsTab onJoin={onJoin} displayName={displayName} onMeetingCountChange={setMeetingCount} />
       ) : (
         <div className="join-form">
           <img src="/logo.png?v=2" alt="Visio Mobile" className="home-logo" />

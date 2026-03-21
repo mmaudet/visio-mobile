@@ -377,7 +377,7 @@ fun HomeScreen(
                             },
                         ) {
                             Text(
-                                if (lang == "fr") "Réunions" else "Meetings",
+                                if (lang == "fr") "Réunions planifiées" else "Scheduled meetings",
                                 color =
                                     if (selectedTab == 1) {
                                         VisioColors.Primary500

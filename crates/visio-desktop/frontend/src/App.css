@@ -2895,9 +2895,9 @@ main {
   gap: 8px;
   padding: 4px 0;
   overflow-y: auto;
-  max-height: 360px;
+  max-height: 460px;
   width: 100%;
-  max-width: 500px;
+  max-width: 480px;
 }
 
 .meetings-list-header {
@@ -2909,16 +2909,51 @@ main {
   color: var(--text-secondary);
 }
 
+.tab-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  border-radius: 10px;
+  background: var(--accent);
+  color: white;
+  font-size: 11px;
+  font-weight: 600;
+  margin-left: 6px;
+  padding: 0 6px;
+}
+
+.meetings-day-header {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--text-secondary);
+  padding: 12px 0 4px;
+}
+
 .meeting-item {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 10px 12px;
+  padding: 12px 14px;
   background: var(--bg-secondary);
-  border-radius: 8px;
+  border-radius: 10px;
   border: 1px solid var(--border);
   transition: border-color 0.15s;
+}
+
+.meeting-item.meeting-imminent {
+  background: linear-gradient(135deg, var(--accent) 0%, #5c3cdc 100%);
+  border-color: transparent;
+  color: white;
+}
+
+.meeting-item.meeting-imminent .meeting-time,
+.meeting-item.meeting-imminent .meeting-server {
+  color: rgba(255,255,255,0.8);
 }
 
 .meeting-item.meeting-ongoing {
@@ -2934,11 +2969,26 @@ main {
 }
 
 .meeting-summary {
-  font-weight: 500;
+  font-weight: 600;
   font-size: 14px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.meeting-imminent-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #4ade80;
+  margin-right: 6px;
+  animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
 }
 
 .meeting-time {
@@ -2955,8 +3005,32 @@ main {
 .meeting-join-btn {
   white-space: nowrap;
   flex-shrink: 0;
-  padding: 6px 14px;
+  padding: 6px 16px;
   font-size: 13px;
+  font-weight: 600;
+  border-radius: 8px;
+  border: 1.5px solid var(--accent);
+  background: transparent;
+  color: var(--accent);
+  cursor: pointer;
+}
+
+.meeting-item.meeting-imminent .meeting-join-btn {
+  border-color: white;
+  color: white;
+}
+
+.meeting-join-btn:hover {
+  background: var(--accent);
+  color: white;
+}
+
+.meetings-sync-footer {
+  font-size: 11px;
+  color: var(--text-secondary);
+  text-align: center;
+  padding: 12px 0 4px;
+  opacity: 0.7;
 }
 
 /* ---------------------------------------------------------------------------

@@ -40,10 +40,10 @@ struct HomeView: View {
             VStack(spacing: 0) {
                 // Tab segment control (Rejoindre / Réunions)
                 let meetingsLabel = manager.upcomingMeetings.isEmpty
-                    ? "Réunions"
-                    : "Réunions (\(manager.upcomingMeetings.count))"
+                    ? (lang == "fr" ? "Réunions planifiées" : "Scheduled meetings")
+                    : (lang == "fr" ? "Réunions planifiées" : "Scheduled meetings") + " (\(manager.upcomingMeetings.count))"
                 Picker("", selection: $selectedTab) {
-                    Text("Rejoindre").tag(0)
+                    Text(lang == "fr" ? "Rejoindre" : "Join").tag(0)
                     Text(meetingsLabel).tag(1)
                 }
                 .pickerStyle(.segmented)

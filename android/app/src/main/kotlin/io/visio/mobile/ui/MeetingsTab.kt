@@ -34,7 +34,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.visio.mobile.VisioManager
@@ -170,7 +173,7 @@ private fun MeetingsEmpty(
         verticalArrangement = Arrangement.Center,
     ) {
         Text(
-            text = "\uD83C\uDF89",
+            text = "\u2600\uFE0F",
             fontSize = 64.sp,
         )
         Spacer(modifier = Modifier.height(16.dp))
@@ -180,12 +183,19 @@ private fun MeetingsEmpty(
             color = if (isDark) VisioColors.White else VisioColors.LightOnBackground,
             fontWeight = FontWeight.Bold,
         )
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            text = if (lang == "fr") "Profitez de votre temps libre !" else "Enjoy your free time!",
+            style = MaterialTheme.typography.bodyMedium,
+            color = if (isDark) VisioColors.Greyscale400 else VisioColors.LightTextSecondary,
+            textAlign = TextAlign.Center,
+        )
         Spacer(modifier = Modifier.height(24.dp))
         OutlinedButton(
             onClick = onRefresh,
             shape = RoundedCornerShape(12.dp),
         ) {
-            Text(if (lang == "fr") "Actualiser" else "Refresh")
+            Text(if (lang == "fr") "Rafraîchir" else "Refresh")
         }
     }
 }
@@ -207,68 +217,50 @@ private fun MeetingsList(
     // Group upcoming by day label
     val groupedUpcoming = groupMeetingsByDay(upcoming, lang)
 
+    // Combine in-progress and upcoming into a unified grouped list
+    val allMeetings = inProgress + upcoming
+    val allGrouped = groupMeetingsByDay(allMeetings, lang)
+
     LazyColumn(
         modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         item { Spacer(modifier = Modifier.height(8.dp)) }
 
-        if (inProgress.isNotEmpty()) {
+        allGrouped.forEach { (dayLabel, dayMeetings) ->
             item {
                 Text(
-                    text = if (lang == "fr") "En cours" else "In progress",
-                    style = MaterialTheme.typography.labelLarge,
-                    color = VisioColors.Primary500,
-                    modifier = Modifier.padding(vertical = 4.dp),
-                )
-            }
-            items(inProgress) { meeting ->
-                MeetingCard(
-                    meeting = meeting,
-                    isDark = isDark,
-                    lang = lang,
-                    now = now,
-                    isInProgress = true,
-                    onJoin = { onJoinMeeting(meeting.roomUrl, meeting.serverName) },
-                )
-            }
-            item { Spacer(modifier = Modifier.height(8.dp)) }
-        }
-
-        groupedUpcoming.forEach { (dayLabel, dayMeetings) ->
-            item {
-                Text(
-                    text = dayLabel,
-                    style = MaterialTheme.typography.labelLarge,
+                    text = dayLabel.uppercase(),
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    letterSpacing = 1.sp,
                     color = if (isDark) VisioColors.Greyscale400 else VisioColors.LightTextSecondary,
-                    modifier = Modifier.padding(vertical = 4.dp),
+                    modifier = Modifier.padding(top = 12.dp, bottom = 4.dp),
                 )
             }
             items(dayMeetings) { meeting ->
                 val minutesUntil = (meeting.startTime - now) / 60
+                val isInProgressItem = meeting.startTime <= now && meeting.endTime > now
                 MeetingCard(
                     meeting = meeting,
                     isDark = isDark,
                     lang = lang,
                     now = now,
-                    isImminent = minutesUntil < 15,
+                    isInProgress = isInProgressItem,
+                    isImminent = !isInProgressItem && minutesUntil in 0..14,
                     onJoin = { onJoinMeeting(meeting.roomUrl, meeting.serverName) },
                 )
             }
         }
 
         item {
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp),
-                horizontalArrangement = Arrangement.Center,
-            ) {
-                OutlinedButton(
-                    onClick = onRefresh,
-                    shape = RoundedCornerShape(12.dp),
-                ) {
-                    Text(if (lang == "fr") "Actualiser" else "Refresh")
-                }
-            }
+            Text(
+                text = if (lang == "fr") "Synchro : il y a < 1 min" else "Sync: < 1 min ago",
+                style = MaterialTheme.typography.bodySmall,
+                color = if (isDark) VisioColors.Greyscale400 else VisioColors.LightTextSecondary,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp),
+            )
         }
     }
 }
@@ -283,21 +275,25 @@ private fun MeetingCard(
     isImminent: Boolean = false,
     onJoin: () -> Unit,
 ) {
-    val cardColor =
-        when {
-            isInProgress || isImminent ->
-                if (isDark) VisioColors.Primary500.copy(alpha = 0.15f) else VisioColors.Primary500.copy(alpha = 0.08f)
-            else ->
-                if (isDark) VisioColors.PrimaryDark100 else VisioColors.LightSurfaceVariant
-        }
+    val isAccent = isInProgress || isImminent
+    val accentGradient = Brush.linearGradient(
+        colors = listOf(VisioColors.Primary500, Color(0xFF5C3CDC)),
+    )
 
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = cardColor),
+        shape = RoundedCornerShape(10.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = if (isAccent) Color.Transparent else if (isDark) VisioColors.PrimaryDark100 else VisioColors.LightSurfaceVariant,
+        ),
     ) {
         Row(
-            modifier = Modifier.padding(12.dp),
+            modifier = Modifier
+                .then(
+                    if (isAccent) Modifier.background(accentGradient, RoundedCornerShape(10.dp)) else Modifier
+                )
+                .fillMaxWidth()
+                .padding(12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Column(modifier = Modifier.weight(1f)) {
@@ -305,58 +301,47 @@ private fun MeetingCard(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                 ) {
-                    if (isImminent && !isInProgress) {
-                        PulsingDot()
+                    if (isImminent || isInProgress) {
+                        PulsingDot(color = Color(0xFF4ADE80))
                     }
                     Text(
                         text = meeting.summary,
                         style = MaterialTheme.typography.bodyLarge,
-                        fontWeight = FontWeight.SemiBold,
-                        color = if (isDark) VisioColors.White else VisioColors.LightOnBackground,
+                        fontWeight = FontWeight.Bold,
+                        color = if (isAccent) VisioColors.White else if (isDark) VisioColors.White else VisioColors.LightOnBackground,
                     )
                 }
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
                     text = formatMeetingTime(meeting, now, lang),
                     style = MaterialTheme.typography.bodySmall,
-                    color =
-                        if (isImminent || isInProgress) {
-                            VisioColors.Primary500
-                        } else {
-                            if (isDark) VisioColors.Greyscale400 else VisioColors.LightTextSecondary
-                        },
+                    color = if (isAccent) VisioColors.White.copy(alpha = 0.8f) else if (isDark) VisioColors.Greyscale400 else VisioColors.LightTextSecondary,
                 )
                 if (meeting.serverName.isNotBlank()) {
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
                         text = meeting.serverName,
                         style = MaterialTheme.typography.bodySmall,
-                        color = if (isDark) VisioColors.Greyscale400 else VisioColors.LightTextSecondary,
-                    )
-                }
-                if (isInProgress) {
-                    Spacer(modifier = Modifier.height(2.dp))
-                    Text(
-                        text = if (lang == "fr") "En cours" else "In progress",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = VisioColors.Primary500,
-                        fontWeight = FontWeight.Bold,
+                        color = if (isAccent) VisioColors.White.copy(alpha = 0.8f) else if (isDark) VisioColors.Greyscale400 else VisioColors.LightTextSecondary,
                     )
                 }
             }
             Spacer(modifier = Modifier.width(8.dp))
-            Button(
+            OutlinedButton(
                 onClick = onJoin,
-                colors =
-                    ButtonDefaults.buttonColors(
-                        containerColor = VisioColors.Primary500,
-                        contentColor = VisioColors.White,
-                    ),
                 shape = RoundedCornerShape(8.dp),
+                colors = ButtonDefaults.outlinedButtonColors(
+                    contentColor = if (isAccent) VisioColors.White else VisioColors.Primary500,
+                ),
+                border = androidx.compose.foundation.BorderStroke(
+                    1.5.dp,
+                    if (isAccent) VisioColors.White else VisioColors.Primary500,
+                ),
             ) {
                 Text(
                     if (lang == "fr") "Rejoindre" else "Join",
                     style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.SemiBold,
                 )
             }
         }
@@ -364,7 +349,7 @@ private fun MeetingCard(
 }
 
 @Composable
-private fun PulsingDot() {
+private fun PulsingDot(color: Color = Color(0xFF4ADE80)) {
     val infiniteTransition = rememberInfiniteTransition(label = "pulse")
     val alpha by
         infiniteTransition.animateFloat(
@@ -382,7 +367,7 @@ private fun PulsingDot() {
             Modifier
                 .size(8.dp)
                 .alpha(alpha)
-                .background(VisioColors.Primary500, CircleShape),
+                .background(color, CircleShape),
     )
 }
 
@@ -456,6 +441,6 @@ private fun groupMeetingsByDay(
                     tomorrow -> if (lang == "fr") "Demain" else "Tomorrow"
                     else -> dayFormatter.format(date).replaceFirstChar { it.uppercase() }
                 }
-            label to dayMeetings.sortedBy { it.startTime }
+            label.uppercase() to dayMeetings.sortedBy { it.startTime }
         }
 }
