@@ -1598,8 +1598,10 @@ main {
   background: var(--bg-secondary);
   border: 1px solid var(--border);
   border-radius: 12px;
-  width: 360px;
+  width: 420px;
   max-width: 90vw;
+  max-height: 85vh;
+  overflow-y: auto;
   box-shadow: 0 16px 48px rgba(0, 0, 0, 0.3);
 }
 
