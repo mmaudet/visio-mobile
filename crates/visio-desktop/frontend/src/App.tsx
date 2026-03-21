@@ -704,7 +704,7 @@ function MeetingsTab({
         </button>
       </div>
       {grouped.map((group) => (
-        <div key={group.label}>
+        <div key={group.label} className="meetings-day-group">
           <div className="meetings-day-header">{group.label}</div>
           {group.meetings.map((m) => {
             const imminent = isImminent(m) || isOngoing(m)

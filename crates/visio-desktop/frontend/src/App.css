@@ -2924,6 +2924,12 @@ main {
   padding: 0 6px;
 }
 
+.meetings-day-group {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
 .meetings-day-header {
   font-size: 11px;
   font-weight: 600;
