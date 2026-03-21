@@ -16,15 +16,15 @@ jobs:
         working-directory: .
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@b3b07ba8b418998c39fb20f53e18c1f174353f07 # stable
         with:
           targets: aarch64-apple-ios
 
       - name: Cache Rust build artifacts
-        uses: Swatinem/rust-cache@v2
+        uses: Swatinem/rust-cache@9d47f7b6ad368c3a68de1e1b7e3fa85affed6e4e # v2
         with:
           key: ios-arm64
 
@@ -34,13 +34,13 @@ jobs:
           rm -f target/aarch64-apple-ios/release/*.dylib
 
       - name: Set up Ruby
-        uses: ruby/setup-ruby@v1
+        uses: ruby/setup-ruby@a4effe49ee3ee5b8916cc14be7688007e498fa3d # v1
         with:
           ruby-version: "3.3"
           bundler-cache: true
 
       - name: Set up SSH key for Match certificates repo
-        uses: webfactory/ssh-agent@v0.9.0
+        uses: webfactory/ssh-agent@dc588b651fe13675774614f8e6a936a468676387 # v0.9.0
         with:
           ssh-private-key: ${{ secrets.MATCH_DEPLOY_KEY }}
 
@@ -59,7 +59,7 @@ jobs:
         run: bundle exec fastlane distribute
 
       - name: Upload IPA artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with:
           name: ios-ipa

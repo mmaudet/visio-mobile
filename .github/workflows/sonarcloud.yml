@@ -12,10 +12,10 @@ jobs:
     runs-on: ubuntu-latest
     continue-on-error: true
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
         with:
           fetch-depth: 0
       - name: SonarCloud Scan
-        uses: SonarSource/sonarqube-scan-action@v5
+        uses: SonarSource/sonarqube-scan-action@0248c511b6b09dfe8b5f10ab01a8e34b5d021281 # v5
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
