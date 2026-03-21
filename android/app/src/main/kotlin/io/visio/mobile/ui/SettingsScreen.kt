@@ -77,6 +77,7 @@ fun SettingsScreen(onBack: () -> Unit) {
     var calendarUrl by remember { mutableStateOf("") }
     var calendarRefreshInterval by remember { mutableStateOf(CalendarRefreshInterval.MINUTES15) }
     val coroutineScope = rememberCoroutineScope()
+    val context = androidx.compose.ui.platform.LocalContext.current
 
     // Use VisioManager.currentLang for live i18n (updates instantly when language radio changes)
     val lang = VisioManager.currentLang
@@ -396,12 +397,22 @@ fun SettingsScreen(onBack: () -> Unit) {
                             VisioManager.startContextDetection()
                         }
                         VisioManager.client.setMeetInstances(instancesToSave)
-                        VisioManager.client.setCalendarUrl(calendarUrl.trim().ifBlank { null })
+                        val calUrl = calendarUrl.trim().ifBlank { null }
+                        VisioManager.client.setCalendarUrl(calUrl)
+                        // Trigger immediate refresh if calendar URL is set
+                        if (calUrl != null) {
+                            VisioManager.refreshCalendarNow()
+                        }
                     } catch (e: Exception) {
                         Log.e(TAG, "Failed to save settings", e)
                     }
                 }
                 VisioManager.updateDisplayName(displayName)
+                android.widget.Toast.makeText(
+                    context,
+                    if (lang == "fr") "Paramètres enregistrés" else "Settings saved",
+                    android.widget.Toast.LENGTH_SHORT,
+                ).show()
                 onBack()
             },
             modifier =

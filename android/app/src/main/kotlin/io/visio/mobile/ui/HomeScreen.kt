@@ -327,7 +327,9 @@ fun HomeScreen(
             }
         } // end header Column
 
-        // Tab strip (Rejoindre / Réunions)
+        Spacer(modifier = Modifier.height(12.dp))
+
+        // Tab strip (Rejoindre / Réunions planifiées)
         run {
             TabRow(
                 selectedTabIndex = selectedTab,
@@ -634,7 +636,7 @@ fun HomeScreen(
             } // end if tab 0
 
             // Réunions tab
-            if (VisioManager.isAuthenticated && selectedTab == 1) {
+            if (selectedTab == 1) {
                 MeetingsTab(
                     meetings = upcomingMeetings,
                     hasCalendarUrl = hasCalendarUrl,
