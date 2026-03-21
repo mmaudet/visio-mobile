@@ -71,3 +71,7 @@ Gemfile.lock
 # Test media assets (downloaded, not committed)
 e2e/test-assets/
 crates/visio-desktop/frontend/test-results/
+
+# E2E test reports
+e2e/reports/
+e2e/node_modules/

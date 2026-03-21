@@ -162,15 +162,18 @@ struct CallView: View {
                             nowMs: Date().timeIntervalSince1970 * 1000
                         )
 
-                        if effectiveAdaptiveMode == .car {
-                            carAudioOnlyView(speaker: layoutDecision.mainTile?.participant)
-                        } else if effectiveAdaptiveMode == .pedestrian {
-                            pedestrianSingleTile(speaker: layoutDecision.mainTile?.participant)
-                        } else if layoutDecision.mode == .focus, let main = layoutDecision.mainTile {
-                            focusLayout(focused: main, allItems: [main] + layoutDecision.secondaryTiles, pinnedIndicatorSid: layoutDecision.pinnedIndicatorSid, speakerIndicatorSid: layoutDecision.speakerIndicatorSid)
-                        } else {
-                            gridLayout
+                        Group {
+                            if effectiveAdaptiveMode == .car {
+                                carAudioOnlyView(speaker: layoutDecision.mainTile?.participant)
+                            } else if effectiveAdaptiveMode == .pedestrian {
+                                pedestrianSingleTile(speaker: layoutDecision.mainTile?.participant)
+                            } else if layoutDecision.mode == .focus, let main = layoutDecision.mainTile {
+                                focusLayout(focused: main, allItems: [main] + layoutDecision.secondaryTiles, pinnedIndicatorSid: layoutDecision.pinnedIndicatorSid, speakerIndicatorSid: layoutDecision.speakerIndicatorSid)
+                            } else {
+                                gridLayout
+                            }
                         }
+                        .accessibilityIdentifier("layout-mode:\(layoutDecision.mode == .focus ? "FOCUS" : "GRID")")
                     }
 
                     // Reaction overlay
@@ -616,6 +619,7 @@ struct CallView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .clipShape(RoundedRectangle(cornerRadius: 8))
+            .accessibilityIdentifier("main-tile:\(focused.participant.sid)")
             .padding(.horizontal, 8)
             .padding(.top, 8)
 
@@ -748,6 +752,7 @@ struct CallView: View {
                 )
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .clipShape(RoundedRectangle(cornerRadius: 8))
+                .accessibilityIdentifier("main-tile:\(speaker.sid)")
                 .padding(8)
             }
         }

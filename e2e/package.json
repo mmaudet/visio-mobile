@@ -1,0 +1,17 @@
+{
+  "name": "visio-e2e",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "e2e": "tsx framework/cli.ts",
+    "e2e:list": "tsx framework/cli.ts list"
+  },
+  "dependencies": {
+    "playwright-core": "^1.50.0",
+    "tsx": "^4.19.0"
+  },
+  "devDependencies": {
+    "@types/node": "^25.5.0",
+    "typescript": "^5.9.3"
+  }
+}

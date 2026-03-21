@@ -1031,7 +1031,14 @@ function CreateRoomDialog({
   }
 
   return (
-    <div className="modal-overlay" onClick={onCancel} onKeyDown={(e) => { if (e.key === 'Escape') onCancel() }} role="presentation">
+    <div
+      className="modal-overlay"
+      onClick={onCancel}
+      onKeyDown={(e) => {
+        if (e.key === 'Escape') onCancel()
+      }}
+      role="presentation"
+    >
       <div
         className="settings-modal create-room-dialog"
         onClick={(e) => e.stopPropagation()}
@@ -1447,7 +1454,10 @@ function InfoSidebar({
                     onKeyDown={async (e) => {
                       if (e.key === 'Enter' || e.key === ' ') {
                         try {
-                          await invoke('add_access', { userId: user.id, roomId })
+                          await invoke('add_access', {
+                            userId: user.id,
+                            roomId,
+                          })
                           const updated = await invoke<any[]>('list_accesses', {
                             roomId,
                           })
@@ -1626,7 +1636,14 @@ function SourcePickerModal({
   const windows = sources.filter((s) => s.source_type === 'window')
 
   return (
-    <div className="modal-overlay" onClick={onClose} onKeyDown={(e) => { if (e.key === 'Escape') onClose() }} role="presentation">
+    <div
+      className="modal-overlay"
+      onClick={onClose}
+      onKeyDown={(e) => {
+        if (e.key === 'Escape') onClose()
+      }}
+      role="presentation"
+    >
       <div
         className="settings-modal source-picker"
         data-testid="screen-share-source-picker"
@@ -2086,10 +2103,16 @@ function CallView({
         })()}
       <div className="call-body">
         {/* Main video area */}
-        <div className="call-content">
+        <div
+          className="call-content"
+          data-testid={`layout-mode:${focusedDisplayItem ? 'FOCUS' : 'GRID'}`}
+        >
           {focusedDisplayItem ? (
             <div className="focus-layout">
-              <div className="focus-main">
+              <div
+                className="focus-main"
+                data-testid={`main-tile:${focusedDisplayItem.participant.sid}`}
+              >
                 <ParticipantTile
                   participant={focusedDisplayItem.participant}
                   videoFrames={videoFrames}
@@ -2132,10 +2155,11 @@ function CallView({
               </div>
               {showFocusThumbnails && thumbnailItems.length > 0 && (
                 <div className="focus-thumbnails">
-                  {thumbnailItems.map((d) => (
+                  {thumbnailItems.map((d, i) => (
                     <div
                       key={d.key}
                       className="tile"
+                      data-testid={`secondary-tile-${i}:${d.participant.sid}`}
                       onClick={() => {
                         userPinnedRef.current = true
                         setFocusedItem({
@@ -2178,9 +2202,10 @@ function CallView({
               {displayItems.length === 0 ? (
                 <div className="empty-state">{t('call.noParticipants')}</div>
               ) : (
-                displayItems.map((d) => (
+                displayItems.map((d, i) => (
                   <div
                     key={d.key}
+                    data-testid={`grid-tile-${i}:${d.participant.sid}`}
                     onClick={() => {
                       userPinnedRef.current = true
                       setFocusedItem({
@@ -2423,7 +2448,8 @@ function CallView({
                               className="participant-context-menu"
                               onClick={() => setParticipantMenu(null)}
                               onKeyDown={(e) => {
-                                if (e.key === 'Enter' || e.key === ' ') setParticipantMenu(null)
+                                if (e.key === 'Enter' || e.key === ' ')
+                                  setParticipantMenu(null)
                               }}
                               role="button"
                               tabIndex={0}
@@ -2946,7 +2972,14 @@ function SettingsModal({
   }
 
   return (
-    <div className="modal-overlay" onClick={onClose} onKeyDown={(e) => { if (e.key === 'Escape') onClose() }} role="presentation">
+    <div
+      className="modal-overlay"
+      onClick={onClose}
+      onKeyDown={(e) => {
+        if (e.key === 'Escape') onClose()
+      }}
+      role="presentation"
+    >
       <div className="settings-modal" onClick={(e) => e.stopPropagation()}>
         <div className="settings-header">
           <span>{t('settings')}</span>

@@ -19,8 +19,8 @@
 
 use std::io::Read as IoRead;
 use std::process::{Command, Stdio};
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 
 use clap::Parser;
@@ -31,7 +31,10 @@ use visio_core::{ConnectionState, RoomManager, TrackKind, VisioEvent, VisioEvent
 
 /// Visio E2E Bot — headless test participant.
 #[derive(Parser, Debug)]
-#[command(name = "visio-bot", about = "Headless LiveKit participant for E2E testing")]
+#[command(
+    name = "visio-bot",
+    about = "Headless LiveKit participant for E2E testing"
+)]
 struct Args {
     /// LiveKit server WebSocket URL.
     #[arg(long, default_value = "ws://localhost:7880")]
@@ -114,6 +117,11 @@ struct Args {
     #[arg(long, default_value_t = false)]
     token_only: bool,
 
+    /// Interactive mode: listen on stdin for commands, emit structured events on stdout.
+    /// Does NOT run the turn-based scenario. Audio/video tracks are published muted.
+    #[arg(long, default_value_t = false)]
+    interactive: bool,
+
     /// Send "mute everyone" admin action after the bot's speaking turn.
     #[arg(long, default_value_t = false)]
     mute_everyone: bool,
@@ -175,7 +183,11 @@ impl AudioStats {
         let duration_s = total as f64 * 0.02; // 20ms per frame
         format!(
             "frames={total}, duration={duration_s:.1}s, silent={silent} ({:.1}%), max_gap={max_gap}ms",
-            if total > 0 { silent as f64 / total as f64 * 100.0 } else { 0.0 }
+            if total > 0 {
+                silent as f64 / total as f64 * 100.0
+            } else {
+                0.0
+            }
         )
     }
 }
@@ -223,10 +235,17 @@ impl VideoStats {
     fn report(&self) -> String {
         let total = self.frames_received.load(Ordering::Relaxed);
         let max_gap = self.max_gap_ms.load(Ordering::Relaxed);
-        let duration_s = self.start_time.lock().unwrap()
+        let duration_s = self
+            .start_time
+            .lock()
+            .unwrap()
             .map(|t| t.elapsed().as_secs_f64())
             .unwrap_or(0.0);
-        let avg_fps = if duration_s > 0.0 { total as f64 / duration_s } else { 0.0 };
+        let avg_fps = if duration_s > 0.0 {
+            total as f64 / duration_s
+        } else {
+            0.0
+        };
         format!(
             "frames={total}, duration={duration_s:.1}s, avg_fps={avg_fps:.1}, max_gap={max_gap}ms"
         )
@@ -274,7 +293,8 @@ impl WebRtcParticipantStats {
     }
 }
 
-type WebRtcStatsMap = std::sync::Mutex<std::collections::HashMap<String, Arc<WebRtcParticipantStats>>>;
+type WebRtcStatsMap =
+    std::sync::Mutex<std::collections::HashMap<String, Arc<WebRtcParticipantStats>>>;
 
 /// Extract quality info from a Vec<RtcStats> returned by track.get_stats().
 fn extract_inbound_stats(stats: &[RtcStats], kind: &str) -> Option<WebRtcQualitySnapshot> {
@@ -292,7 +312,8 @@ fn extract_inbound_stats(stats: &[RtcStats], kind: &str) -> Option<WebRtcQuality
             if inbound.stream.kind != kind {
                 continue;
             }
-            let codec_mime = codec_map.get(&inbound.stream.codec_id)
+            let codec_mime = codec_map
+                .get(&inbound.stream.codec_id)
                 .cloned()
                 .unwrap_or_else(|| format!("unknown({})", inbound.stream.codec_id));
 
@@ -320,6 +341,8 @@ fn extract_inbound_stats(stats: &[RtcStats], kind: &str) -> Option<WebRtcQuality
 
 /// Event logger that prints all received events and tracks subscription stats.
 struct BotEventLogger {
+    /// When true, emit structured events on stdout (for framework parsing).
+    interactive: std::sync::atomic::AtomicBool,
     tracks_subscribed: AtomicU64,
     tracks_unsubscribed: AtomicU64,
     participants_joined: AtomicU64,
@@ -339,6 +362,7 @@ struct BotEventLogger {
 impl BotEventLogger {
     fn new() -> Arc<Self> {
         Arc::new(Self {
+            interactive: std::sync::atomic::AtomicBool::new(false),
             tracks_subscribed: AtomicU64::new(0),
             tracks_unsubscribed: AtomicU64::new(0),
             participants_joined: AtomicU64::new(0),
@@ -374,7 +398,12 @@ impl BotEventLogger {
 
     /// Reset gap timers for a participant so intentional mute/unmute periods don't inflate max_gap.
     fn reset_gap_timers_for(&self, participant_sid: &str) {
-        let identity = self.participant_identities.lock().unwrap().get(participant_sid).cloned();
+        let identity = self
+            .participant_identities
+            .lock()
+            .unwrap()
+            .get(participant_sid)
+            .cloned();
         if let Some(id) = &identity {
             if let Some(stats) = self.per_participant_audio.lock().unwrap().get(id) {
                 stats.reset_gap_timer();
@@ -394,11 +423,19 @@ impl VisioEventListener for BotEventLogger {
             }
             VisioEvent::ParticipantJoined(info) => {
                 self.participants_joined.fetch_add(1, Ordering::Relaxed);
-                tracing::info!(
-                    "[EVENT] ParticipantJoined: {} ({})",
-                    info.identity,
-                    info.name.as_deref().unwrap_or("?")
+                let msg = format!(
+                    "[EVENT] ParticipantJoined: identity={} sid={}",
+                    info.identity, info.sid
                 );
+                tracing::info!("{msg}");
+                if self.interactive.load(Ordering::Relaxed) {
+                    println!("{msg}");
+                }
+                // Store identity mapping
+                self.participant_identities
+                    .lock()
+                    .unwrap()
+                    .insert(info.sid.clone(), info.identity.clone());
             }
             VisioEvent::ParticipantLeft(sid) => {
                 tracing::info!("[EVENT] ParticipantLeft: {sid}");
@@ -407,43 +444,86 @@ impl VisioEventListener for BotEventLogger {
                 let count = self.tracks_subscribed.fetch_add(1, Ordering::Relaxed) + 1;
                 tracing::info!(
                     "[EVENT] TrackSubscribed: {:?} from {} ({}) (total: {count})",
-                    info.source, info.participant_identity, info.participant_sid
+                    info.source,
+                    info.participant_identity,
+                    info.participant_sid
                 );
                 // Store participant_sid → identity mapping
-                self.participant_identities.lock().unwrap()
-                    .insert(info.participant_sid.clone(), info.participant_identity.clone());
+                self.participant_identities.lock().unwrap().insert(
+                    info.participant_sid.clone(),
+                    info.participant_identity.clone(),
+                );
                 if info.kind == TrackKind::Audio {
-                    self.audio_track_sids.lock().unwrap().push((info.sid.clone(), info.participant_identity.clone()));
+                    self.audio_track_sids
+                        .lock()
+                        .unwrap()
+                        .push((info.sid.clone(), info.participant_identity.clone()));
                 }
                 if info.kind == TrackKind::Video {
-                    self.video_track_sids.lock().unwrap().push((info.sid.clone(), info.participant_identity.clone()));
+                    self.video_track_sids
+                        .lock()
+                        .unwrap()
+                        .push((info.sid.clone(), info.participant_identity.clone()));
                 }
             }
             VisioEvent::TrackUnsubscribed(sid) => {
                 self.tracks_unsubscribed.fetch_add(1, Ordering::Relaxed);
                 tracing::info!("[EVENT] TrackUnsubscribed: {sid}");
             }
-            VisioEvent::TrackMuted { participant_sid, source } => {
+            VisioEvent::TrackMuted {
+                participant_sid,
+                source,
+            } => {
                 tracing::info!("[EVENT] TrackMuted: {source:?} from {participant_sid}");
                 self.reset_gap_timers_for(participant_sid);
             }
-            VisioEvent::TrackUnmuted { participant_sid, source } => {
+            VisioEvent::TrackUnmuted {
+                participant_sid,
+                source,
+            } => {
                 tracing::info!("[EVENT] TrackUnmuted: {source:?} from {participant_sid}");
                 self.reset_gap_timers_for(participant_sid);
             }
             VisioEvent::ChatMessageReceived(msg) => {
-                tracing::info!("[EVENT] ChatMessage: '{}' from {}", msg.text, msg.sender_name);
+                tracing::info!(
+                    "[EVENT] ChatMessage: '{}' from {}",
+                    msg.text,
+                    msg.sender_name
+                );
             }
-            VisioEvent::ReactionReceived { participant_name, emoji, .. } => {
+            VisioEvent::ReactionReceived {
+                participant_name,
+                emoji,
+                ..
+            } => {
                 tracing::info!("[EVENT] Reaction: {emoji} from {participant_name}");
             }
-            VisioEvent::HandRaisedChanged { participant_sid, raised, position } => {
-                tracing::info!("[EVENT] HandRaised: {participant_sid} raised={raised} pos={position}");
+            VisioEvent::HandRaisedChanged {
+                participant_sid,
+                raised,
+                position,
+            } => {
+                tracing::info!(
+                    "[EVENT] HandRaised: {participant_sid} raised={raised} pos={position}"
+                );
             }
             VisioEvent::ActiveSpeakersChanged(sids) => {
-                tracing::debug!("[EVENT] ActiveSpeakers: {sids:?}");
+                let identities: Vec<String> = {
+                    let map = self.participant_identities.lock().unwrap();
+                    sids.iter()
+                        .map(|sid| map.get(sid).cloned().unwrap_or_else(|| sid.clone()))
+                        .collect()
+                };
+                let identity_str = identities.join(",");
+                tracing::info!("[EVENT] ActiveSpeakers: {identity_str}");
+                if self.interactive.load(Ordering::Relaxed) {
+                    println!("[EVENT] ActiveSpeakers: {identity_str}");
+                }
             }
-            VisioEvent::ConnectionQualityChanged { participant_sid, quality } => {
+            VisioEvent::ConnectionQualityChanged {
+                participant_sid,
+                quality,
+            } => {
                 tracing::debug!("[EVENT] ConnectionQuality: {participant_sid} {quality:?}");
             }
             VisioEvent::AdaptiveModeChanged { mode } => {
@@ -506,6 +586,65 @@ fn generate_token(args: &Args) -> String {
         .expect("failed to generate token")
 }
 
+async fn handle_interactive_command(
+    line: &str,
+    controls: &visio_core::controls::MeetingControls,
+) -> bool {
+    let cmd = line.trim();
+    match cmd {
+        "SPEAK" => {
+            if let Err(e) = controls.set_microphone_enabled(true).await {
+                tracing::error!("SPEAK failed: {e}");
+            }
+            println!("[ACK] SPEAK");
+        }
+        "MUTE" => {
+            if let Err(e) = controls.set_microphone_enabled(false).await {
+                tracing::error!("MUTE failed: {e}");
+            }
+            println!("[ACK] MUTE");
+        }
+        "VIDEO_ON" => {
+            if let Err(e) = controls.set_camera_enabled(true).await {
+                tracing::error!("VIDEO_ON failed: {e}");
+            }
+            println!("[ACK] VIDEO_ON");
+        }
+        "VIDEO_OFF" => {
+            if let Err(e) = controls.set_camera_enabled(false).await {
+                tracing::error!("VIDEO_OFF failed: {e}");
+            }
+            println!("[ACK] VIDEO_OFF");
+        }
+        "SCREEN_SHARE_START" => {
+            match controls.publish_screen_share().await {
+                Ok(source) => {
+                    spawn_synthetic_video(source);
+                    tracing::info!("Screen share started");
+                }
+                Err(e) => tracing::error!("SCREEN_SHARE_START failed: {e}"),
+            }
+            println!("[ACK] SCREEN_SHARE_START");
+        }
+        "SCREEN_SHARE_STOP" => {
+            if let Err(e) = controls.stop_screen_share().await {
+                tracing::error!("SCREEN_SHARE_STOP failed: {e}");
+            }
+            println!("[ACK] SCREEN_SHARE_STOP");
+        }
+        "QUIT" => {
+            println!("[ACK] QUIT");
+            return false;
+        }
+        "" => {}
+        other => {
+            tracing::warn!("Unknown command: {other}");
+            println!("[ACK] UNKNOWN:{other}");
+        }
+    }
+    true
+}
+
 // ---------------------------------------------------------------------------
 // Synthetic media generators (fallback when no --media-file)
 // ---------------------------------------------------------------------------
@@ -534,9 +673,9 @@ fn generate_color_frame(width: u32, height: u32, frame_num: u64) -> I420Buffer {
 
     let phase = (frame_num / 30) % 3;
     let (y_val, u_val, v_val) = match phase {
-        0 => (82u8, 90u8, 240u8),   // Red
-        1 => (145u8, 54u8, 34u8),   // Green
-        _ => (41u8, 240u8, 110u8),  // Blue
+        0 => (82u8, 90u8, 240u8),  // Red
+        1 => (145u8, 54u8, 34u8),  // Green
+        _ => (41u8, 240u8, 110u8), // Blue
     };
 
     y_data.fill(y_val);
@@ -601,14 +740,20 @@ fn spawn_ffmpeg_audio(path: &str, do_loop: bool) -> std::process::Child {
         cmd.args(["-stream_loop", "-1"]);
     }
     cmd.args([
-        "-i", path,
-        "-vn",                         // no video
-        "-f", "s16le",                 // raw signed 16-bit little-endian
-        "-acodec", "pcm_s16le",
-        "-ar", &AUDIO_SAMPLE_RATE.to_string(),
-        "-ac", &AUDIO_CHANNELS.to_string(),
-        "-loglevel", "error",
-        "-",                           // pipe to stdout
+        "-i",
+        path,
+        "-vn", // no video
+        "-f",
+        "s16le", // raw signed 16-bit little-endian
+        "-acodec",
+        "pcm_s16le",
+        "-ar",
+        &AUDIO_SAMPLE_RATE.to_string(),
+        "-ac",
+        &AUDIO_CHANNELS.to_string(),
+        "-loglevel",
+        "error",
+        "-", // pipe to stdout
     ]);
     cmd.stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -623,14 +768,20 @@ fn spawn_ffmpeg_video(path: &str, do_loop: bool) -> std::process::Child {
         cmd.args(["-stream_loop", "-1"]);
     }
     cmd.args([
-        "-i", path,
-        "-an",                         // no audio
-        "-f", "rawvideo",
-        "-pix_fmt", "yuv420p",        // I420
-        "-s", &format!("{VIDEO_WIDTH}x{VIDEO_HEIGHT}"),
-        "-r", &VIDEO_FPS.to_string(),
-        "-loglevel", "error",
-        "-",                           // pipe to stdout
+        "-i",
+        path,
+        "-an", // no audio
+        "-f",
+        "rawvideo",
+        "-pix_fmt",
+        "yuv420p", // I420
+        "-s",
+        &format!("{VIDEO_WIDTH}x{VIDEO_HEIGHT}"),
+        "-r",
+        &VIDEO_FPS.to_string(),
+        "-loglevel",
+        "error",
+        "-", // pipe to stdout
     ]);
     cmd.stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -790,7 +941,13 @@ async fn main() {
             std::process::exit(1);
         }
         // Check ffmpeg is available
-        if Command::new("ffmpeg").arg("-version").stdout(Stdio::null()).stderr(Stdio::null()).status().is_err() {
+        if Command::new("ffmpeg")
+            .arg("-version")
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status()
+            .is_err()
+        {
             eprintln!("ffmpeg not found — required for --media-file");
             eprintln!("Install: brew install ffmpeg");
             std::process::exit(1);
@@ -804,14 +961,27 @@ async fn main() {
         return;
     }
 
-    let media_label = if args.media_file.is_some() { "file" } else { "synthetic" };
+    let media_label = if args.media_file.is_some() {
+        "file"
+    } else {
+        "synthetic"
+    };
     tracing::info!(
         "Visio Bot starting: room={}, identity={}, name={}, media={}, audio={}, video={}, duration={}s",
-        args.room, args.identity, args.name, media_label, args.audio, args.video, args.duration
+        args.room,
+        args.identity,
+        args.name,
+        media_label,
+        args.audio,
+        args.video,
+        args.duration
     );
 
     let rm = RoomManager::new();
     let event_logger = BotEventLogger::new();
+    if args.interactive {
+        event_logger.interactive.store(true, Ordering::Relaxed);
+    }
     rm.add_listener(event_logger.clone());
 
     // Connect
@@ -821,7 +991,63 @@ async fn main() {
         .expect("Failed to connect to LiveKit server");
     tracing::info!("Connected!");
 
+    // Print connected message and register own identity in the map
+    let my_sid = rm
+        .local_participant_info()
+        .await
+        .map(|p| p.sid)
+        .unwrap_or_default();
+    println!("[CONNECTED] identity={} sid={my_sid}", args.identity);
+    event_logger
+        .participant_identities
+        .lock()
+        .unwrap()
+        .insert(my_sid.clone(), args.identity.clone());
+
     let controls = rm.controls();
+
+    // Interactive mode: publish tracks muted, then read commands from stdin
+    if args.interactive {
+        // Publish audio (muted initially) so SPEAK can unmute it
+        if args.audio {
+            match controls.publish_microphone().await {
+                Ok(source) => {
+                    spawn_synthetic_audio(source);
+                    controls.set_microphone_enabled(false).await.ok();
+                    tracing::info!("Audio track published (muted)");
+                }
+                Err(e) => tracing::warn!("Failed to publish mic: {e}"),
+            }
+        }
+
+        // Publish video (muted initially)
+        if args.video {
+            match controls.publish_camera("720p").await {
+                Ok(source) => {
+                    spawn_synthetic_video(source);
+                    controls.set_camera_enabled(false).await.ok();
+                    tracing::info!("Video track published (muted)");
+                }
+                Err(e) => tracing::warn!("Failed to publish camera: {e}"),
+            }
+        }
+
+        tracing::info!("Interactive mode: waiting for stdin commands...");
+
+        let stdin = tokio::io::BufReader::new(tokio::io::stdin());
+        use tokio::io::AsyncBufReadExt;
+        let mut lines = stdin.lines();
+
+        while let Ok(Some(line)) = lines.next_line().await {
+            if !handle_interactive_command(&line, &controls).await {
+                break;
+            }
+        }
+
+        rm.disconnect().await;
+        tracing::info!("Interactive session ended");
+        return;
+    }
 
     // Publish audio
     if args.audio {
@@ -844,7 +1070,12 @@ async fn main() {
         match controls.publish_camera("720p").await {
             Ok(source) => {
                 if let Some(ref path) = args.media_file {
-                    tracing::info!("Publishing video from file: {path} ({}x{} @{}fps)", VIDEO_WIDTH, VIDEO_HEIGHT, VIDEO_FPS);
+                    tracing::info!(
+                        "Publishing video from file: {path} ({}x{} @{}fps)",
+                        VIDEO_WIDTH,
+                        VIDEO_HEIGHT,
+                        VIDEO_FPS
+                    );
                     spawn_file_video(source, path.clone(), args.loop_media);
                 } else {
                     tracing::info!("Publishing synthetic video (640x480 color cycling)");
@@ -873,19 +1104,29 @@ async fn main() {
 
     // Wait for expected participants
     if args.expect_participants > 0 {
-        tracing::info!("Waiting for {} remote participant(s)...", args.expect_participants);
+        tracing::info!(
+            "Waiting for {} remote participant(s)...",
+            args.expect_participants
+        );
         let timeout = Duration::from_secs(60);
         let start_wait = std::time::Instant::now();
         loop {
             let participants = rm.participants().await;
-            let remote_count = participants.iter().filter(|p| p.identity != args.identity).count();
+            let remote_count = participants
+                .iter()
+                .filter(|p| p.identity != args.identity)
+                .count();
             if remote_count >= args.expect_participants {
-                tracing::info!("All {} expected participant(s) joined", args.expect_participants);
+                tracing::info!(
+                    "All {} expected participant(s) joined",
+                    args.expect_participants
+                );
                 break;
             }
             if start_wait.elapsed() > timeout {
                 tracing::warn!(
-                    "Timeout waiting for participants: got {remote_count}/{}", args.expect_participants
+                    "Timeout waiting for participants: got {remote_count}/{}",
+                    args.expect_participants
                 );
                 break;
             }
@@ -902,13 +1143,23 @@ async fn main() {
             async move {
                 loop {
                     tokio::time::sleep(Duration::from_secs(5)).await;
-                    let audio_entries: Vec<_> = event_logger.per_participant_audio.lock().unwrap()
-                        .iter().map(|(k, v)| (k.clone(), v.clone())).collect();
+                    let audio_entries: Vec<_> = event_logger
+                        .per_participant_audio
+                        .lock()
+                        .unwrap()
+                        .iter()
+                        .map(|(k, v)| (k.clone(), v.clone()))
+                        .collect();
                     for (identity, stats) in &audio_entries {
                         tracing::info!("[AUDIO QUALITY] {identity}: {}", stats.report());
                     }
-                    let video_entries: Vec<_> = event_logger.per_participant_video.lock().unwrap()
-                        .iter().map(|(k, v)| (k.clone(), v.clone())).collect();
+                    let video_entries: Vec<_> = event_logger
+                        .per_participant_video
+                        .lock()
+                        .unwrap()
+                        .iter()
+                        .map(|(k, v)| (k.clone(), v.clone()))
+                        .collect();
                     for (identity, stats) in &video_entries {
                         tracing::info!("[VIDEO QUALITY] {identity}: {}", stats.report());
                     }
@@ -921,7 +1172,8 @@ async fn main() {
             let event_logger = event_logger.clone();
             let rm = rm.clone();
             async move {
-                let mut monitored_sids: std::collections::HashSet<String> = std::collections::HashSet::new();
+                let mut monitored_sids: std::collections::HashSet<String> =
+                    std::collections::HashSet::new();
                 loop {
                     tokio::time::sleep(Duration::from_secs(2)).await;
                     let current_entries = event_logger.audio_track_sids.lock().unwrap().clone();
@@ -937,18 +1189,26 @@ async fn main() {
                             let id_clone = identity.clone();
                             tokio::spawn(async move {
                                 use futures_util::StreamExt;
-                                let mut stream = livekit::webrtc::audio_stream::native::NativeAudioStream::new(
-                                    rtc_track, 48_000, 1,
+                                let mut stream =
+                                    livekit::webrtc::audio_stream::native::NativeAudioStream::new(
+                                        rtc_track, 48_000, 1,
+                                    );
+                                tracing::info!(
+                                    "[AUDIO MONITOR] Listening on track {sid_clone} from {id_clone}"
                                 );
-                                tracing::info!("[AUDIO MONITOR] Listening on track {sid_clone} from {id_clone}");
                                 while let Some(frame) = stream.next().await {
-                                    let is_silent = frame.data.iter().all(|&s| s.unsigned_abs() < 100);
+                                    let is_silent =
+                                        frame.data.iter().all(|&s| s.unsigned_abs() < 100);
                                     stats.record_frame(is_silent);
                                 }
-                                tracing::info!("[AUDIO MONITOR] Stream ended for track {sid_clone} ({id_clone})");
+                                tracing::info!(
+                                    "[AUDIO MONITOR] Stream ended for track {sid_clone} ({id_clone})"
+                                );
                             });
                         } else {
-                            tracing::warn!("[AUDIO MONITOR] Could not find audio track {sid} ({identity})");
+                            tracing::warn!(
+                                "[AUDIO MONITOR] Could not find audio track {sid} ({identity})"
+                            );
                         }
                     }
                 }
@@ -960,7 +1220,8 @@ async fn main() {
             let event_logger = event_logger.clone();
             let rm = rm.clone();
             async move {
-                let mut monitored_sids: std::collections::HashSet<String> = std::collections::HashSet::new();
+                let mut monitored_sids: std::collections::HashSet<String> =
+                    std::collections::HashSet::new();
                 loop {
                     tokio::time::sleep(Duration::from_secs(2)).await;
                     let current_entries = event_logger.video_track_sids.lock().unwrap().clone();
@@ -976,12 +1237,19 @@ async fn main() {
                             let id_clone = identity.clone();
                             tokio::spawn(async move {
                                 use futures_util::StreamExt;
-                                let mut stream = livekit::webrtc::video_stream::native::NativeVideoStream::new(rtc_track);
-                                tracing::info!("[VIDEO MONITOR] Listening on track {sid_clone} from {id_clone}");
+                                let mut stream =
+                                    livekit::webrtc::video_stream::native::NativeVideoStream::new(
+                                        rtc_track,
+                                    );
+                                tracing::info!(
+                                    "[VIDEO MONITOR] Listening on track {sid_clone} from {id_clone}"
+                                );
                                 while let Some(_frame) = stream.next().await {
                                     stats.record_frame();
                                 }
-                                tracing::info!("[VIDEO MONITOR] Stream ended for track {sid_clone} ({id_clone})");
+                                tracing::info!(
+                                    "[VIDEO MONITOR] Stream ended for track {sid_clone} ({id_clone})"
+                                );
                             });
                         }
                     }
@@ -1005,10 +1273,13 @@ async fn main() {
                                 if let Some(snapshot) = extract_inbound_stats(&stats, "audio") {
                                     tracing::info!(
                                         "[WEBRTC AUDIO] {identity}: codec={}, bytes={}, pkts={}, lost={}, jitter={:.3}ms, concealed={}/{}",
-                                        snapshot.codec_mime, snapshot.bytes_received,
-                                        snapshot.packets_received, snapshot.packets_lost,
+                                        snapshot.codec_mime,
+                                        snapshot.bytes_received,
+                                        snapshot.packets_received,
+                                        snapshot.packets_lost,
                                         snapshot.jitter * 1000.0,
-                                        snapshot.concealed_samples, snapshot.total_samples_received
+                                        snapshot.concealed_samples,
+                                        snapshot.total_samples_received
                                     );
                                     let ws = event_logger.get_or_create_webrtc_stats(identity);
                                     *ws.audio.lock().unwrap() = Some(snapshot);
@@ -1024,12 +1295,18 @@ async fn main() {
                                 if let Some(snapshot) = extract_inbound_stats(&stats, "video") {
                                     tracing::info!(
                                         "[WEBRTC VIDEO] {identity}: codec={}, {}x{}, {:.1}fps, bytes={}, pkts={}, lost={}, jitter={:.3}ms, decoded={}, dropped={}, freezes={} ({:.1}s)",
-                                        snapshot.codec_mime, snapshot.frame_width, snapshot.frame_height,
-                                        snapshot.frames_per_second, snapshot.bytes_received,
-                                        snapshot.packets_received, snapshot.packets_lost,
+                                        snapshot.codec_mime,
+                                        snapshot.frame_width,
+                                        snapshot.frame_height,
+                                        snapshot.frames_per_second,
+                                        snapshot.bytes_received,
+                                        snapshot.packets_received,
+                                        snapshot.packets_lost,
                                         snapshot.jitter * 1000.0,
-                                        snapshot.frames_decoded, snapshot.frames_dropped,
-                                        snapshot.freeze_count, snapshot.total_freeze_duration_s
+                                        snapshot.frames_decoded,
+                                        snapshot.frames_dropped,
+                                        snapshot.freeze_count,
+                                        snapshot.total_freeze_duration_s
                                     );
                                     let ws = event_logger.get_or_create_webrtc_stats(identity);
                                     *ws.video.lock().unwrap() = Some(snapshot);
@@ -1096,7 +1373,10 @@ async fn main() {
 
     // Stay in room with turn-based speaking pattern
     if args.duration > 0 {
-        tracing::info!("Staying in room for {}s (turn-based speaking)...", args.duration);
+        tracing::info!(
+            "Staying in room for {}s (turn-based speaking)...",
+            args.duration
+        );
         let start_time = std::time::Instant::now();
         let total_duration = Duration::from_secs(args.duration);
 
@@ -1124,7 +1404,10 @@ async fn main() {
         //   100+:    All speak together
 
         // 0-5s: warmup — bot already has mic+cam+screenshare on from above
-        rm.chat().send_message("Bot: warmup phase — all participants ON").await.ok();
+        rm.chat()
+            .send_message("Bot: warmup phase — all participants ON")
+            .await
+            .ok();
         if sleep_or_expire(start_time, total_duration, Duration::from_secs(5)).await {
             // duration < 5s, skip turn pattern
         } else {
@@ -1140,19 +1423,30 @@ async fn main() {
                 if args.screen_share {
                     controls.stop_screen_share().await.ok();
                 }
-                rm.chat().send_message("Bot: muted — Desktop's turn to speak").await.ok();
+                rm.chat()
+                    .send_message("Bot: muted — Desktop's turn to speak")
+                    .await
+                    .ok();
 
                 if !sleep_or_expire(start_time, total_duration, Duration::from_secs(25)).await {
                     // 50s: Android's turn — bot stays muted
                     tracing::info!("[TURN] Bot still muted (Android's turn 50-75s)");
-                    rm.chat().send_message("Bot: still muted — Android's turn to speak").await.ok();
+                    rm.chat()
+                        .send_message("Bot: still muted — Android's turn to speak")
+                        .await
+                        .ok();
 
                     if !sleep_or_expire(start_time, total_duration, Duration::from_secs(25)).await {
                         // 75s: iOS's turn — bot stays muted
                         tracing::info!("[TURN] Bot still muted (iOS's turn 75-100s)");
-                        rm.chat().send_message("Bot: still muted — iOS's turn to speak").await.ok();
+                        rm.chat()
+                            .send_message("Bot: still muted — iOS's turn to speak")
+                            .await
+                            .ok();
 
-                        if !sleep_or_expire(start_time, total_duration, Duration::from_secs(25)).await {
+                        if !sleep_or_expire(start_time, total_duration, Duration::from_secs(25))
+                            .await
+                        {
                             // 100s: All speak together
                             tracing::info!("[TURN] All speak (100s+)");
                             controls.set_microphone_enabled(true).await.ok();
@@ -1166,10 +1460,15 @@ async fn main() {
                                             spawn_synthetic_video(source);
                                         }
                                     }
-                                    Err(e) => tracing::warn!("[TURN] Failed to resume screen share: {e}"),
+                                    Err(e) => {
+                                        tracing::warn!("[TURN] Failed to resume screen share: {e}")
+                                    }
                                 }
                             }
-                            rm.chat().send_message("Bot: everyone speaking together!").await.ok();
+                            rm.chat()
+                                .send_message("Bot: everyone speaking together!")
+                                .await
+                                .ok();
 
                             // Stay until end
                             sleep_or_expire(start_time, total_duration, total_duration).await;
@@ -1179,7 +1478,10 @@ async fn main() {
             }
         }
 
-        tracing::info!("Turn-based speaking complete after {:.1}s", start_time.elapsed().as_secs_f64());
+        tracing::info!(
+            "Turn-based speaking complete after {:.1}s",
+            start_time.elapsed().as_secs_f64()
+        );
     } else {
         tracing::info!("Staying in room indefinitely (Ctrl+C to exit)...");
         tokio::signal::ctrl_c().await.ok();
@@ -1209,7 +1511,11 @@ async fn main() {
                     if total == 0 {
                         tracing::warn!("[{} QUALITY] {identity}: NO frames received", $label);
                     } else if max_gap > $gap_threshold {
-                        tracing::warn!("[{} QUALITY] {identity}: Large gap {max_gap}ms — {}", $label, $issue_desc);
+                        tracing::warn!(
+                            "[{} QUALITY] {identity}: Large gap {max_gap}ms — {}",
+                            $label,
+                            $issue_desc
+                        );
                     } else {
                         tracing::info!("[{} QUALITY] {identity}: OK", $label);
                     }
@@ -1228,29 +1534,49 @@ async fn main() {
         for (identity, pstats) in webrtc_map.iter() {
             if let Some(audio) = pstats.audio.lock().unwrap().as_ref() {
                 let loss_pct = if audio.packets_received > 0 {
-                    audio.packets_lost as f64 / (audio.packets_received as f64 + audio.packets_lost as f64) * 100.0
-                } else { 0.0 };
+                    audio.packets_lost as f64
+                        / (audio.packets_received as f64 + audio.packets_lost as f64)
+                        * 100.0
+                } else {
+                    0.0
+                };
                 let concealed_pct = if audio.total_samples_received > 0 {
                     audio.concealed_samples as f64 / audio.total_samples_received as f64 * 100.0
-                } else { 0.0 };
+                } else {
+                    0.0
+                };
                 tracing::info!(
                     "[WEBRTC AUDIO FINAL] {identity}: codec={}, bytes={}, pkts={}, lost={} ({loss_pct:.1}%), jitter={:.1}ms, concealed={:.1}%",
-                    audio.codec_mime, audio.bytes_received, audio.packets_received,
-                    audio.packets_lost, audio.jitter * 1000.0, concealed_pct
+                    audio.codec_mime,
+                    audio.bytes_received,
+                    audio.packets_received,
+                    audio.packets_lost,
+                    audio.jitter * 1000.0,
+                    concealed_pct
                 );
             }
             if let Some(video) = pstats.video.lock().unwrap().as_ref() {
                 let loss_pct = if video.packets_received > 0 {
-                    video.packets_lost as f64 / (video.packets_received as f64 + video.packets_lost as f64) * 100.0
-                } else { 0.0 };
+                    video.packets_lost as f64
+                        / (video.packets_received as f64 + video.packets_lost as f64)
+                        * 100.0
+                } else {
+                    0.0
+                };
                 tracing::info!(
                     "[WEBRTC VIDEO FINAL] {identity}: codec={}, {}x{}, {:.1}fps, bytes={}, pkts={}, lost={} ({loss_pct:.1}%), jitter={:.1}ms, decoded={}, dropped={}, freezes={} ({:.1}s)",
-                    video.codec_mime, video.frame_width, video.frame_height,
-                    video.frames_per_second, video.bytes_received,
-                    video.packets_received, video.packets_lost,
+                    video.codec_mime,
+                    video.frame_width,
+                    video.frame_height,
+                    video.frames_per_second,
+                    video.bytes_received,
+                    video.packets_received,
+                    video.packets_lost,
                     video.jitter * 1000.0,
-                    video.frames_decoded, video.frames_dropped,
-                    video.freeze_count, video.total_freeze_duration_s
+                    video.frames_decoded,
+                    video.frames_dropped,
+                    video.freeze_count,
+                    video.total_freeze_duration_s
                 );
             }
         }

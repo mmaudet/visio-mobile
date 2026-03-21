@@ -1,0 +1,13 @@
+{
+  "name": "pin-behavior",
+  "description": "Pin/unpin behavior via long press (mobile)",
+  "bots": [
+    { "identity": "bot-a", "name": "Alice (Remote)" },
+    { "identity": "bot-b", "name": "Bob (Remote)" }
+  ],
+  "requires": {
+    "android": true,
+    "desktop": false,
+    "ios": false
+  }
+}
