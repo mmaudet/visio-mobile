@@ -1243,6 +1243,11 @@ fn load_background_image(id: u8, jpeg_path: String) -> Result<(), String> {
 }
 
 #[tauri::command]
+fn set_camera_device(state: tauri::State<'_, VisioState>, unique_id: Option<String>) {
+    state.settings.set_camera_device(unique_id);
+}
+
+#[tauri::command]
 fn list_audio_input_devices() -> Vec<audio_engine::AudioDeviceInfo> {
     audio_engine::list_input_devices()
 }
@@ -2130,6 +2135,7 @@ pub fn run() {
             list_video_input_devices,
             select_audio_input,
             select_audio_output,
+            set_camera_device,
             select_video_input,
             start_camera_preview,
             stop_camera_preview,

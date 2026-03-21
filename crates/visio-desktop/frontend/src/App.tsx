@@ -3683,9 +3683,21 @@ function PreJoinScreen({
   const handleSelectCamera = async (uniqueId: string) => {
     setSelectedCamera(uniqueId)
     try {
-      await invoke('select_video_input', { uniqueId })
+      await invoke('set_camera_device', { uniqueId: uniqueId || null })
     } catch {
       /* ignore */
+    }
+    if (isCameraOn) {
+      try {
+        await invoke('stop_camera_preview')
+      } catch {
+        /* ignore */
+      }
+      try {
+        await invoke('start_camera_preview')
+      } catch {
+        /* ignore */
+      }
     }
   }
 
@@ -3710,6 +3722,11 @@ function PreJoinScreen({
   const handleSetBackgroundMode = async (mode: string) => {
     setBackgroundMode(mode)
     try {
+      if (mode.startsWith('image:')) {
+        const id = parseInt(mode.slice(6), 10)
+        const path = await resolveResource(`backgrounds/${id}.jpg`)
+        await invoke('load_background_image', { id, jpegPath: path })
+      }
       await invoke('set_background_mode', { mode })
     } catch {
       /* ignore */
@@ -4011,7 +4028,7 @@ function PreJoinScreen({
                 <div
                   className="prejoin-vu-bar"
                   data-testid="prejoin-vu-bar"
-                  style={{ width: `${Math.round(micLevel * 100)}%` }}
+                  style={{ width: `${Math.round(Math.min(micLevel * 5, 1) * 100)}%` }}
                 />
               </div>
 
