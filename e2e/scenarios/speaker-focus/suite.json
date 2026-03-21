@@ -1,0 +1,14 @@
+{
+  "name": "speaker-focus",
+  "description": "Active speaker focus and stabilization (PR #71)",
+  "bots": [
+    { "identity": "bot-a", "name": "Alice (Remote)" },
+    { "identity": "bot-b", "name": "Bob (Remote)" },
+    { "identity": "bot-c", "name": "Charlie (Remote)" }
+  ],
+  "requires": {
+    "android": true,
+    "desktop": true,
+    "ios": false
+  }
+}

@@ -59,10 +59,10 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y libglib2.0-dev libva-dev
-      - uses: dtolnay/rust-toolchain@b3b07ba8b418998c39fb20f53e18c1f174353f07 # stable
+      - uses: dtolnay/rust-toolchain@631a55b12751854ce901bb631d5902ceb48146f7 # stable
         with:
           components: rustfmt, clippy
-      - uses: Swatinem/rust-cache@9d47f7b6ad368c3a68de1e1b7e3fa85affed6e4e # v2
+      - uses: Swatinem/rust-cache@f51f967e158417aafa338a1e46ab22095f07aa01 # v2
         with:
           key: lint
       - name: Check formatting
@@ -112,8 +112,8 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y libglib2.0-dev libva-dev
-      - uses: dtolnay/rust-toolchain@b3b07ba8b418998c39fb20f53e18c1f174353f07 # stable
-      - uses: Swatinem/rust-cache@9d47f7b6ad368c3a68de1e1b7e3fa85affed6e4e # v2
+      - uses: dtolnay/rust-toolchain@631a55b12751854ce901bb631d5902ceb48146f7 # stable
+      - uses: Swatinem/rust-cache@f51f967e158417aafa338a1e46ab22095f07aa01 # v2
         with:
           key: test
       - name: Install LiveKit server

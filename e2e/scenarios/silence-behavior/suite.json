@@ -1,0 +1,12 @@
+{
+  "name": "silence-behavior",
+  "description": "Layout behavior during silence periods",
+  "bots": [
+    { "identity": "bot-a", "name": "Alice (Remote)" }
+  ],
+  "requires": {
+    "android": true,
+    "desktop": true,
+    "ios": false
+  }
+}

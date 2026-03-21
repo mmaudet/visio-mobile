@@ -663,7 +663,8 @@ fun CallScreen(
         modifier =
             Modifier
                 .fillMaxSize()
-                .background(callBackground),
+                .background(callBackground)
+                .testTag("adaptive-mode:${effectiveAdaptiveMode.name}"),
     ) {
         Column(modifier = Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()) {
             // Connection state banner
@@ -691,7 +692,8 @@ fun CallScreen(
                     Modifier
                         .weight(1f)
                         .fillMaxWidth()
-                        .padding(if (isFullscreenFocus) 0.dp else 8.dp),
+                        .padding(if (isFullscreenFocus) 0.dp else 8.dp)
+                        .testTag("layout-mode:${if (layoutDecision.mode == LayoutMode.FOCUS) "FOCUS" else "GRID"}"),
             ) {
                 when (effectiveAdaptiveMode) {
                     AdaptiveMode.CAR -> {
@@ -745,7 +747,8 @@ fun CallScreen(
                             modifier =
                                 Modifier
                                     .fillMaxSize()
-                                    .clip(RoundedCornerShape(8.dp)),
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .testTag("main-tile:${mainParticipant?.sid ?: ""}"),
                         ) {
                             if (mainParticipant != null) {
                                 ParticipantTile(
@@ -773,6 +776,7 @@ fun CallScreen(
                                             .weight(1f)
                                             .fillMaxWidth()
                                             .clip(RoundedCornerShape(8.dp))
+                                            .testTag("main-tile:${focusedDisplayItem.participant.sid}")
                                             .background(VisioColors.PrimaryDark50)
                                             .clickable { controlsVisible = !controlsVisible },
                                 ) {
@@ -880,13 +884,14 @@ fun CallScreen(
                                                     .fillMaxWidth()
                                                     .height(100.dp),
                                         ) {
-                                            for (item in thumbnailItems) {
+                                            thumbnailItems.forEachIndexed { index, item ->
                                                 Box(
                                                     modifier =
                                                         Modifier
                                                             .weight(1f)
                                                             .fillMaxHeight()
-                                                            .clip(RoundedCornerShape(8.dp)),
+                                                            .clip(RoundedCornerShape(8.dp))
+                                                            .testTag("secondary-tile-$index:${item.participant.sid}"),
                                                 ) {
                                                     ParticipantTile(
                                                         participant = item.participant,
@@ -946,7 +951,8 @@ fun CallScreen(
                                                             Modifier
                                                                 .weight(1f)
                                                                 .fillMaxHeight()
-                                                                .clip(RoundedCornerShape(8.dp)),
+                                                                .clip(RoundedCornerShape(8.dp))
+                                                                .testTag("grid-tile-$idx:${item.participant.sid}"),
                                                     ) {
                                                         ParticipantTile(
                                                             participant = item.participant,
@@ -1707,11 +1713,18 @@ fun ParticipantTile(
     val avatarColor = Color.hsl(hue.toFloat(), 0.5f, 0.35f)
 
     val borderColor = if (isActiveSpeaker && !isScreenShare) VisioColors.Primary500 else Color.Transparent
+    val speakerTestTag =
+        if (isActiveSpeaker && !isScreenShare) {
+            Modifier.testTag("speaker-border:${participant.sid}")
+        } else {
+            Modifier
+        }
     val borderMod =
         if (isActiveSpeaker && !isScreenShare) {
             Modifier
                 .border(2.dp, borderColor, RoundedCornerShape(8.dp))
                 .shadow(8.dp, RoundedCornerShape(8.dp), ambientColor = VisioColors.Primary500)
+                .then(speakerTestTag)
         } else {
             Modifier
         }
@@ -1790,7 +1803,8 @@ fun ParticipantTile(
                         .padding(6.dp)
                         .size(24.dp)
                         .background(Color.Black.copy(alpha = 0.6f), CircleShape)
-                        .padding(4.dp),
+                        .padding(4.dp)
+                        .testTag("pin-indicator:${participant.sid}"),
             ) {
                 Text(
                     text = "\uD83D\uDCCC",

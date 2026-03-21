@@ -1,0 +1,12 @@
+{
+  "name": "screen-share",
+  "description": "Screen share override and restore behavior",
+  "bots": [
+    { "identity": "bot-a", "name": "Alice (Remote)" }
+  ],
+  "requires": {
+    "android": true,
+    "desktop": true,
+    "ios": false
+  }
+}
