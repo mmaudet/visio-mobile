@@ -10,6 +10,12 @@ and this project adheres to
 
 ### Added
 
+- Pre-join lobby screen with live camera preview,
+  audio device selection, VU meter, speaker test,
+  background filters, and waiting room
+  (Desktop, iOS, Android)
+- `audio_mode` setting for computer audio / no audio
+- Blur-light mode now correctly mapped in FFI layer
 - iCal calendar integration — upcoming meetings on home screen (#73)
 - E2E test framework with multi-platform orchestration
 - Bot interactive mode with stdin/stdout protocol

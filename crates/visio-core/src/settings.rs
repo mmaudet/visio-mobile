@@ -761,6 +761,27 @@ mod tests {
     }
 
     #[test]
+    fn test_audio_mode_defaults_to_computer() {
+        let dir = temp_dir();
+        let store = SettingsStore::new(dir.path().to_str().unwrap());
+        let settings = store.get();
+        assert_eq!(settings.audio_mode, "computer");
+    }
+
+    #[test]
+    fn test_audio_mode_round_trips() {
+        let dir = temp_dir();
+        let path = dir.path().to_str().unwrap();
+        {
+            let store = SettingsStore::new(path);
+            store.set_audio_mode("none".to_string());
+        }
+        // Re-read from disk
+        let store2 = SettingsStore::new(path);
+        assert_eq!(store2.get().audio_mode, "none");
+    }
+
+    #[test]
     fn test_calendar_url_default_none() {
         let s = Settings::default();
         assert_eq!(s.calendar_url, None);

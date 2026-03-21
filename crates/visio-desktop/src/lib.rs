@@ -1473,6 +1473,19 @@ async fn stop_camera_preview(state: tauri::State<'_, VisioState>) -> Result<(), 
     Ok(())
 }
 
+#[cfg(not(target_os = "macos"))]
+#[tauri::command]
+async fn start_camera_preview() -> Result<(), String> {
+    Err("Camera preview not supported on this platform".to_string())
+}
+
+#[cfg(not(target_os = "macos"))]
+#[tauri::command]
+async fn stop_camera_preview() -> Result<(), String> {
+    Ok(())
+}
+
+
 // ---------------------------------------------------------------------------
 // Mic level / VU meter commands
 // ---------------------------------------------------------------------------

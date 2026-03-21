@@ -2283,7 +2283,8 @@ main {
   border: 2px solid transparent;
   border-radius: 8px;
   background: var(--bg-secondary);
-  font: inherit;
+  font-family: inherit;
+  font-size: inherit;
   color: inherit;
   cursor: pointer;
   transition:
@@ -2525,7 +2526,8 @@ main {
     background 0.15s,
     color 0.15s,
     border-color 0.15s;
-  font: inherit;
+  font-family: inherit;
+  font-size: inherit;
 }
 
 .prejoin-toggle.active {
@@ -2727,7 +2729,8 @@ main {
   display: flex;
   align-items: center;
   justify-content: center;
-  font: inherit;
+  font-family: inherit;
+  font-size: inherit;
   padding: 4px;
   border-radius: 4px;
   transition: background 0.15s;

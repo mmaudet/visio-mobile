@@ -316,9 +316,9 @@ struct HomeView: View {
             }
         }
         .navigationDestination(isPresented: $navigateToCall) {
-            CallView(
+            PreJoinView(
                 roomURL: resolvedRoomURL,
-                displayName: displayName.trimmingCharacters(in: .whitespacesAndNewlines)
+                initialDisplayName: displayName.trimmingCharacters(in: .whitespacesAndNewlines)
             )
         }
         .sheet(isPresented: $showSettings) {
