@@ -2645,8 +2645,19 @@ main {
 
 .prejoin-test-btn {
   font-size: 0.82rem;
-  padding: 6px 12px;
-  align-self: flex-start;
+  padding: 6px 16px;
+  align-self: flex-end;
+  border: 1.5px solid var(--accent);
+  color: var(--accent);
+  background: transparent;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.prejoin-test-btn:hover {
+  background: var(--accent);
+  color: white;
 }
 
 /* ---- Actions ---- */

@@ -4140,8 +4140,11 @@ function PreJoinScreen({
                 className={`prejoin-filter-thumb${backgroundMode === `image:${n}` ? ' active' : ''}`}
                 onClick={() => handleSetBackgroundMode(`image:${n}`)}
               >
-                <div
-                  className={`prejoin-filter-thumb-img prejoin-filter-thumb-img-${n}`}
+                <img
+                  src={`/backgrounds/thumbnails/${n}.jpg`}
+                  alt={`Background ${n}`}
+                  draggable={false}
+                  style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 6 }}
                 />
                 <span>{n}</span>
               </button>
