@@ -1,9 +1,15 @@
-import { useState, useEffect, useRef, useCallback, createContext, useContext } from "react";
-import { computeLayout, initialLayoutState, type LayoutState } from "./layout-engine";
-import { invoke } from "@tauri-apps/api/core";
-import { listen, type UnlistenFn } from "@tauri-apps/api/event";
-import { resolveResource } from "@tauri-apps/api/path";
-import { onOpenUrl } from "@tauri-apps/plugin-deep-link";
+import {
+  useState,
+  useEffect,
+  useRef,
+  useCallback,
+  createContext,
+  useContext,
+} from 'react'
+import { invoke } from '@tauri-apps/api/core'
+import { listen, type UnlistenFn } from '@tauri-apps/api/event'
+import { resolveResource } from '@tauri-apps/api/path'
+import { onOpenUrl } from '@tauri-apps/plugin-deep-link'
 import {
   RiMicLine,
   RiMicOffLine,
@@ -39,157 +45,169 @@ import {
   RiUnpinFill,
   RiVolumeMuteLine,
   RiAddLine,
-} from "@remixicon/react";
+} from '@remixicon/react'
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
-type View = "home" | "call";
+type View = 'home' | 'call'
 
 interface Participant {
-  sid: string;
-  identity: string;
-  name: string | null;
-  is_muted: boolean;
-  has_video: boolean;
-  video_track_sid: string | null;
-  has_screen_share: boolean;
-  screen_share_track_sid: string | null;
-  connection_quality: string;
-  is_admin?: boolean;
+  sid: string
+  identity: string
+  name: string | null
+  is_muted: boolean
+  has_video: boolean
+  video_track_sid: string | null
+  has_screen_share: boolean
+  screen_share_track_sid: string | null
+  connection_quality: string
+  is_admin?: boolean
 }
 
 type FocusItem = {
-  participantSid: string;
-  source: "camera" | "screen_share";
-} | null;
+  participantSid: string
+  source: 'camera' | 'screen_share'
+} | null
 
 interface DisplayItem {
-  key: string;
-  participant: Participant;
-  source: "camera" | "screen_share";
-  trackSid: string | null;
-  label: string;
-  isScreenShare: boolean;
+  key: string
+  participant: Participant
+  source: 'camera' | 'screen_share'
+  trackSid: string | null
+  label: string
+  isScreenShare: boolean
 }
 
-function buildDisplayItems(participants: Participant[], t: TFunction): DisplayItem[] {
-  const items: DisplayItem[] = [];
+function buildDisplayItems(
+  participants: Participant[],
+  t: TFunction
+): DisplayItem[] {
+  const items: DisplayItem[] = []
   for (const p of participants) {
     items.push({
       key: `${p.sid}-camera`,
       participant: p,
-      source: "camera",
+      source: 'camera',
       trackSid: p.video_track_sid,
-      label: p.name || p.identity || t("unknown"),
+      label: p.name || p.identity || t('unknown'),
       isScreenShare: false,
-    });
+    })
     if (p.has_screen_share && p.screen_share_track_sid) {
       items.push({
         key: `${p.sid}-screen`,
         participant: p,
-        source: "screen_share",
+        source: 'screen_share',
         trackSid: p.screen_share_track_sid,
-        label: p.name || p.identity || t("unknown"),
+        label: p.name || p.identity || t('unknown'),
         isScreenShare: true,
-      });
+      })
     }
   }
-  return items;
+  return items
 }
 
 interface ScreenSource {
-  id: string;
-  name: string;
-  source_type: string;
-  width: number;
-  height: number;
-  thumbnail: string;
+  id: string
+  name: string
+  source_type: string
+  width: number
+  height: number
+  thumbnail: string
 }
 
 interface ChatMessage {
-  id: string;
-  sender_sid: string;
-  sender_name: string | null;
-  text: string;
-  timestamp_ms: number;
+  id: string
+  sender_sid: string
+  sender_name: string | null
+  text: string
+  timestamp_ms: number
 }
 
 interface VideoFrame {
-  track_sid: string;
-  data: string; // base64 JPEG
-  width: number;
-  height: number;
+  track_sid: string
+  data: string // base64 JPEG
+  width: number
+  height: number
 }
 
 interface Settings {
-  display_name: string | null;
-  language: string | null;
-  mic_enabled_on_join: boolean;
-  camera_enabled_on_join: boolean;
-  theme: string;
-  adaptive_mode_enabled: boolean;
+  display_name: string | null
+  language: string | null
+  mic_enabled_on_join: boolean
+  camera_enabled_on_join: boolean
+  theme: string
+  adaptive_mode_enabled: boolean
 }
 
 interface ReactionData {
-  id: number;
-  participantSid: string;
-  participantName: string;
-  emoji: string;
-  timestamp: number;
+  id: number
+  participantSid: string
+  participantName: string
+  emoji: string
+  timestamp: number
 }
 
 const REACTION_EMOJIS: [string, string][] = [
-  ["thumbsUp", "\u{1F44D}"],
-  ["clap", "\u{1F44F}"],
-  ["joy", "\u{1F602}"],
-  ["openMouth", "\u{1F62E}"],
-  ["tada", "\u{1F389}"],
-  ["heart", "\u2764\uFE0F"],
-];
+  ['thumbsUp', '\u{1F44D}'],
+  ['clap', '\u{1F44F}'],
+  ['joy', '\u{1F602}'],
+  ['openMouth', '\u{1F62E}'],
+  ['tada', '\u{1F389}'],
+  ['heart', '\u2764\uFE0F'],
+]
 
 // ---------------------------------------------------------------------------
 // i18n
 // ---------------------------------------------------------------------------
 
-type TFunction = (key: string) => string;
-const I18nContext = createContext<TFunction>((key) => key);
+type TFunction = (key: string) => string
+const I18nContext = createContext<TFunction>((key) => key)
 function useT() {
-  return useContext(I18nContext);
+  return useContext(I18nContext)
 }
 
-import en from "../../../../i18n/en.json";
-import fr from "../../../../i18n/fr.json";
-import de from "../../../../i18n/de.json";
-import es from "../../../../i18n/es.json";
-import it from "../../../../i18n/it.json";
-import nl from "../../../../i18n/nl.json";
+import en from '../../../../i18n/en.json'
+import fr from '../../../../i18n/fr.json'
+import de from '../../../../i18n/de.json'
+import es from '../../../../i18n/es.json'
+import it from '../../../../i18n/it.json'
+import nl from '../../../../i18n/nl.json'
 
-const translations: Record<string, Record<string, string>> = { en, fr, de, es, it, nl };
-const SUPPORTED_LANGS = Object.keys(translations);
+const translations: Record<string, Record<string, string>> = {
+  en,
+  fr,
+  de,
+  es,
+  it,
+  nl,
+}
+const SUPPORTED_LANGS = Object.keys(translations)
 
 interface NativeAudioDevice {
-  name: string;
-  is_default: boolean;
+  name: string
+  is_default: boolean
 }
 interface NativeVideoDevice {
-  name: string;
-  unique_id: string;
-  is_default: boolean;
+  name: string
+  unique_id: string
+  is_default: boolean
 }
 
-const SLUG_REGEX = /^[a-z]{3}-[a-z]{4}-[a-z]{3}$/;
+const SLUG_REGEX = /^[a-z]{3}-[a-z]{4}-[a-z]{3}$/
 
 function extractSlug(input: string): string | null {
-  const trimmed = input.trim().replace(/\/$/, "");
-  const candidate = trimmed.includes("/") ? trimmed.split("/").pop() || "" : trimmed;
-  return SLUG_REGEX.test(candidate) ? candidate : null;
+  const trimmed = input.trim().replace(/\/$/, '')
+  const candidate = trimmed.includes('/')
+    ? trimmed.split('/').pop() || ''
+    : trimmed
+  return SLUG_REGEX.test(candidate) ? candidate : null
 }
 
 function detectSystemLang(): string {
-  const navLang = navigator.language?.split("-")[0];
-  return SUPPORTED_LANGS.includes(navLang) ? navLang : "en";
+  const navLang = navigator.language?.split('-')[0]
+  return SUPPORTED_LANGS.includes(navLang) ? navLang : 'en'
 }
 
 // ---------------------------------------------------------------------------
@@ -200,8 +218,8 @@ function VisioLogo({ size = 64 }: { size?: number }) {
   // Camera body: 64×54 (ratio ~1.19), centered at x=52
   // Wifi arcs: 3 concentric arcs (r=10,17,24) centered at (52,62), pointing up
   // Stripe: same width as camera body (64), centered on same axis
-  const stripeX = 20;
-  const thirdW = 64 / 3;
+  const stripeX = 20
+  const thirdW = 64 / 3
   return (
     <svg
       width={size}
@@ -218,17 +236,57 @@ function VisioLogo({ size = 64 }: { size?: number }) {
       {/* Wifi dot */}
       <circle cx="52" cy="62" r="3" fill="#fff" />
       {/* Wifi arc — small (r=10) */}
-      <path d="M45 55 A10 10 0 0 1 59 55" stroke="#fff" strokeWidth="3" strokeLinecap="round" fill="none" />
+      <path
+        d="M45 55 A10 10 0 0 1 59 55"
+        stroke="#fff"
+        strokeWidth="3"
+        strokeLinecap="round"
+        fill="none"
+      />
       {/* Wifi arc — medium (r=17) */}
-      <path d="M40 50 A17 17 0 0 1 64 50" stroke="#fff" strokeWidth="3" strokeLinecap="round" fill="none" />
+      <path
+        d="M40 50 A17 17 0 0 1 64 50"
+        stroke="#fff"
+        strokeWidth="3"
+        strokeLinecap="round"
+        fill="none"
+      />
       {/* Wifi arc — large (r=24) */}
-      <path d="M35 45 A24 24 0 0 1 69 45" stroke="#fff" strokeWidth="3" strokeLinecap="round" fill="none" />
+      <path
+        d="M35 45 A24 24 0 0 1 69 45"
+        stroke="#fff"
+        strokeWidth="3"
+        strokeLinecap="round"
+        fill="none"
+      />
       {/* Tricolore stripe — centered under camera body */}
-      <rect x={stripeX} y="92" width={thirdW} height="9" rx="3" fill="#000091" />
-      <rect x={stripeX + thirdW} y="92" width={thirdW} height="9" fill="#FFFFFF" stroke="#D1D1D6" strokeWidth="0.5" />
-      <rect x={stripeX + thirdW * 2} y="92" width={thirdW} height="9" rx="3" fill="#E1000F" />
+      <rect
+        x={stripeX}
+        y="92"
+        width={thirdW}
+        height="9"
+        rx="3"
+        fill="#000091"
+      />
+      <rect
+        x={stripeX + thirdW}
+        y="92"
+        width={thirdW}
+        height="9"
+        fill="#FFFFFF"
+        stroke="#D1D1D6"
+        strokeWidth="0.5"
+      />
+      <rect
+        x={stripeX + thirdW * 2}
+        y="92"
+        width={thirdW}
+        height="9"
+        rx="3"
+        fill="#E1000F"
+      />
     </svg>
-  );
+  )
 }
 
 // ---------------------------------------------------------------------------
@@ -238,9 +296,9 @@ function VisioLogo({ size = 64 }: { size?: number }) {
 function ScreenShareIcon({ size = 16 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor">
-      <path d="M21 3H3c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h7v2H8v2h8v-2h-2v-2h7c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 14H3V5h18v12z"/>
+      <path d="M21 3H3c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h7v2H8v2h8v-2h-2v-2h7c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 14H3V5h18v12z" />
     </svg>
-  );
+  )
 }
 
 // ---------------------------------------------------------------------------
@@ -248,30 +306,36 @@ function ScreenShareIcon({ size = 16 }: { size?: number }) {
 // ---------------------------------------------------------------------------
 
 function getInitials(name: string | null | undefined): string {
-  if (!name) return "?";
-  const parts = name.trim().split(/\s+/);
-  if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
-  return name.substring(0, 2).toUpperCase();
+  if (!name) return '?'
+  const parts = name.trim().split(/\s+/)
+  if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase()
+  return name.substring(0, 2).toUpperCase()
 }
 
 function getHue(name: string | null | undefined): number {
-  return [...(name || "")].reduce((h, c) => h + c.charCodeAt(0), 0) % 360;
+  return [...(name || '')].reduce((h, c) => h + c.charCodeAt(0), 0) % 360
 }
 
 function formatTime(timestampMs: number): string {
-  if (!timestampMs) return "";
-  const d = new Date(timestampMs);
-  return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  if (!timestampMs) return ''
+  const d = new Date(timestampMs)
+  return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 }
 
 /** Render text with URLs auto-linked. */
 function AutoLinkText({ text }: { text: string }) {
-  const parts = text.split(/(https?:\/\/[^\s<]+)/g);
+  const parts = text.split(/(https?:\/\/[^\s<]+)/g)
   return (
     <>
       {parts.map((part, i) =>
         /^https?:\/\//.test(part) ? (
-          <a key={i} href={part} target="_blank" rel="noopener noreferrer" className="chat-link">
+          <a
+            key={i}
+            href={part}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="chat-link"
+          >
             {part}
           </a>
         ) : (
@@ -279,7 +343,7 @@ function AutoLinkText({ text }: { text: string }) {
         )
       )}
     </>
-  );
+  )
 }
 
 // ---------------------------------------------------------------------------
@@ -287,38 +351,44 @@ function AutoLinkText({ text }: { text: string }) {
 // ---------------------------------------------------------------------------
 
 function StatusBadge({ state }: { state: string }) {
-  const t = useT();
-  const key = `status.${state}`;
-  return <span className={`status-badge ${state}`}>{t(key)}</span>;
+  const t = useT()
+  const key = `status.${state}`
+  return <span className={`status-badge ${state}`}>{t(key)}</span>
 }
 
 // -- Connection Quality Bars ------------------------------------------------
 
 function ConnectionQualityBars({ quality }: { quality: string }) {
   const bars =
-    quality === "Excellent" ? 3 : quality === "Good" ? 2 : quality === "Poor" ? 1 : 0;
+    quality === 'Excellent'
+      ? 3
+      : quality === 'Good'
+        ? 2
+        : quality === 'Poor'
+          ? 1
+          : 0
   return (
     <div className="connection-bars">
       {[1, 2, 3].map((i) => (
         <div
           key={i}
-          className={`bar ${i <= bars ? "bar-active" : ""}`}
+          className={`bar ${i <= bars ? 'bar-active' : ''}`}
           style={{ height: `${i * 4 + 2}px` }}
         />
       ))}
     </div>
-  );
+  )
 }
 
 // -- Participant Tile -------------------------------------------------------
 
 interface ParticipantTileProps {
-  participant: Participant;
-  videoFrames: Map<string, string>;
-  isActiveSpeaker?: boolean;
-  handRaisePosition?: number;
-  displayItem?: DisplayItem;
-  onExpand?: () => void;
+  participant: Participant
+  videoFrames: Map<string, string>
+  isActiveSpeaker?: boolean
+  handRaisePosition?: number
+  displayItem?: DisplayItem
+  onExpand?: () => void
 }
 
 function ParticipantTile({
@@ -329,31 +399,35 @@ function ParticipantTile({
   displayItem,
   onExpand,
 }: ParticipantTileProps) {
-  const t = useT();
-  const isScreenShare = displayItem?.isScreenShare ?? false;
-  const trackSid = displayItem ? displayItem.trackSid : participant.video_track_sid;
+  const t = useT()
+  const isScreenShare = displayItem?.isScreenShare ?? false
+  const trackSid = displayItem
+    ? displayItem.trackSid
+    : participant.video_track_sid
   const displayName = displayItem
-    ? (isScreenShare ? `${displayItem.label} (${t("call.screenShare")})` : displayItem.label)
-    : (participant.name || participant.identity || t("unknown"));
-  const initials = getInitials(displayName);
-  const hue = getHue(displayName);
+    ? isScreenShare
+      ? `${displayItem.label} (${t('call.screenShare')})`
+      : displayItem.label
+    : participant.name || participant.identity || t('unknown')
+  const initials = getInitials(displayName)
+  const hue = getHue(displayName)
 
-  const videoSrc = trackSid
-    ? videoFrames.get(trackSid)
-    : undefined;
+  const videoSrc = trackSid ? videoFrames.get(trackSid) : undefined
 
   return (
-    <div className={`tile ${isActiveSpeaker && !isScreenShare ? "tile-active-speaker" : ""}`}>
+    <div
+      className={`tile ${isActiveSpeaker && !isScreenShare ? 'tile-active-speaker' : ''}`}
+    >
       {videoSrc ? (
         <img
-          className={`tile-video${isScreenShare ? " tile-video-screen" : ""}`}
+          className={`tile-video${isScreenShare ? ' tile-video-screen' : ''}`}
           src={`data:image/jpeg;base64,${videoSrc}`}
           alt=""
         />
       ) : isScreenShare ? (
         <div className="tile-screen-placeholder">
           <ScreenShareIcon size={48} />
-          <span>{t("call.screenShare")}</span>
+          <span>{t('call.screenShare')}</span>
         </div>
       ) : (
         <div className="tile-avatar-no-cam">
@@ -362,7 +436,14 @@ function ParticipantTile({
         </div>
       )}
       {isScreenShare && onExpand && (
-        <button className="tile-expand-btn" onClick={(e) => { e.stopPropagation(); onExpand(); }} title="Plein écran">
+        <button
+          className="tile-expand-btn"
+          onClick={(e) => {
+            e.stopPropagation()
+            onExpand()
+          }}
+          title="Plein écran"
+        >
           <RiFullscreenLine size={20} />
         </button>
       )}
@@ -380,16 +461,18 @@ function ParticipantTile({
             <RiMicLine size={14} />
           </span>
         ) : null}
-        {!isScreenShare && handRaisePosition != null && handRaisePosition > 0 && (
-          <span className="tile-hand-badge">
-            <RiHand size={12} /> {handRaisePosition}
-          </span>
-        )}
+        {!isScreenShare &&
+          handRaisePosition != null &&
+          handRaisePosition > 0 && (
+            <span className="tile-hand-badge">
+              <RiHand size={12} /> {handRaisePosition}
+            </span>
+          )}
         <span className="tile-name">{displayName}</span>
         <ConnectionQualityBars quality={participant.connection_quality} />
       </div>
     </div>
-  );
+  )
 }
 
 // -- Home View --------------------------------------------------------------
@@ -409,185 +492,236 @@ function HomeView({
   onLogout,
   meetInstances,
 }: {
-  onJoin: (meetUrl: string, username: string | null, roomId?: string, accessLevel?: string) => void;
-  onOpenSettings: () => void;
-  displayName: string;
-  onDisplayNameChange: (name: string) => void;
-  deepLinkUrl: string | null;
-  onDeepLinkConsumed: () => void;
-  isAuthenticated: boolean;
-  authenticatedMeetInstance: string;
-  displayNameFromOidc: string;
-  emailFromOidc: string;
-  onLaunchOidc: (meetInstance: string) => void;
-  onLogout: () => void;
-  meetInstances: string[];
+  onJoin: (
+    meetUrl: string,
+    username: string | null,
+    roomId?: string,
+    accessLevel?: string
+  ) => void
+  onOpenSettings: () => void
+  displayName: string
+  onDisplayNameChange: (name: string) => void
+  deepLinkUrl: string | null
+  onDeepLinkConsumed: () => void
+  isAuthenticated: boolean
+  authenticatedMeetInstance: string
+  displayNameFromOidc: string
+  emailFromOidc: string
+  onLaunchOidc: (meetInstance: string) => void
+  onLogout: () => void
+  meetInstances: string[]
 }) {
-  const t = useT();
-  const [meetUrl, setMeetUrl] = useState("");
-  const [resolvedUrl, setResolvedUrl] = useState("");
-  const [roomHistory, setRoomHistory] = useState<string[]>([]);
+  const t = useT()
+  const [meetUrl, setMeetUrl] = useState('')
+  const [resolvedUrl, setResolvedUrl] = useState('')
+  const [roomHistory, setRoomHistory] = useState<string[]>([])
 
   useEffect(() => {
-    invoke<string[]>("get_room_history").then(setRoomHistory).catch(() => {});
-  }, []);
-  const [error, setError] = useState("");
-  const [joining, setJoining] = useState(false);
-  const [roomStatus, setRoomStatus] = useState<"idle" | "checking" | "valid" | "not_found" | "auth_required" | "authenticating" | "error">("idle");
-  const [showServerPicker, setShowServerPicker] = useState(false);
-  const [customServer, setCustomServer] = useState("");
-  const [showCreateRoom, setShowCreateRoom] = useState(false);
+    invoke<string[]>('get_room_history')
+      .then(setRoomHistory)
+      .catch(() => {})
+  }, [])
+  const [error, setError] = useState('')
+  const [joining, setJoining] = useState(false)
+  const [roomStatus, setRoomStatus] = useState<
+    | 'idle'
+    | 'checking'
+    | 'valid'
+    | 'not_found'
+    | 'auth_required'
+    | 'authenticating'
+    | 'error'
+  >('idle')
+  const [showServerPicker, setShowServerPicker] = useState(false)
+  const [customServer, setCustomServer] = useState('')
+  const [showCreateRoom, setShowCreateRoom] = useState(false)
 
   useEffect(() => {
     if (deepLinkUrl) {
-      setMeetUrl(deepLinkUrl);
-      onDeepLinkConsumed();
+      setMeetUrl(deepLinkUrl)
+      onDeepLinkConsumed()
     }
-  }, [deepLinkUrl]);
+  }, [deepLinkUrl])
 
   useEffect(() => {
-    const trimmed = meetUrl.trim();
-    const isSlug = SLUG_REGEX.test(trimmed);
+    const trimmed = meetUrl.trim()
+    const isSlug = SLUG_REGEX.test(trimmed)
 
     // Build list of URLs to try
-    const urlsToTry: string[] = isSlug && meetInstances.length > 0
-      ? meetInstances.map(server => `https://${server}/${trimmed}`)
-      : [trimmed];
+    const urlsToTry: string[] =
+      isSlug && meetInstances.length > 0
+        ? meetInstances.map((server) => `https://${server}/${trimmed}`)
+        : [trimmed]
 
-    const slug = extractSlug(urlsToTry[0]);
+    const slug = extractSlug(urlsToTry[0])
     if (!slug) {
-      setRoomStatus("idle");
-      setResolvedUrl(trimmed);
-      return;
+      setRoomStatus('idle')
+      setResolvedUrl(trimmed)
+      return
     }
-    setRoomStatus("checking");
-    const controller = new AbortController();
+    setRoomStatus('checking')
+    const controller = new AbortController()
     const timer = setTimeout(async () => {
       try {
-        let foundValid = false;
+        let foundValid = false
         for (const url of urlsToTry) {
-          if (controller.signal.aborted) return;
-          const result = await invoke<{ status: string; livekit_url?: string; token?: string }>(
-            "validate_room", { url, username: displayName.trim() || null }
-          );
-          if (controller.signal.aborted) return;
-          if (result.status === "valid") {
-            setRoomStatus("valid");
-            setResolvedUrl(url);
-            foundValid = true;
-            break;
+          if (controller.signal.aborted) return
+          const result = await invoke<{
+            status: string
+            livekit_url?: string
+            token?: string
+          }>('validate_room', { url, username: displayName.trim() || null })
+          if (controller.signal.aborted) return
+          if (result.status === 'valid') {
+            setRoomStatus('valid')
+            setResolvedUrl(url)
+            foundValid = true
+            break
           }
-          if (result.status === "auth_required") {
-            setRoomStatus("auth_required");
-            setResolvedUrl(url);
-            foundValid = true; // don't show not_found
-            break;
+          if (result.status === 'auth_required') {
+            setRoomStatus('auth_required')
+            setResolvedUrl(url)
+            foundValid = true // don't show not_found
+            break
           }
         }
         if (!foundValid) {
-          setRoomStatus("not_found");
-          setResolvedUrl(urlsToTry[0]);
+          setRoomStatus('not_found')
+          setResolvedUrl(urlsToTry[0])
         }
       } catch {
-        if (!controller.signal.aborted) setRoomStatus("error");
+        if (!controller.signal.aborted) setRoomStatus('error')
       }
-    }, 500);
-    return () => { clearTimeout(timer); controller.abort(); };
-  }, [meetUrl]);
+    }, 500)
+    return () => {
+      clearTimeout(timer)
+      controller.abort()
+    }
+  }, [meetUrl])
 
   const handleJoin = async () => {
-    const url = resolvedUrl;
+    const url = resolvedUrl
     if (!url) {
-      setError(t("home.error.noUrl"));
-      return;
+      setError(t('home.error.noUrl'))
+      return
     }
-    setError("");
-    setJoining(true);
+    setError('')
+    setJoining(true)
     try {
-      const uname = displayName.trim() || null;
-      await invoke("set_display_name", { name: uname });
-      await invoke("connect", { meetUrl: url, username: uname });
-      onJoin(url, uname);
+      const uname = displayName.trim() || null
+      await invoke('set_display_name', { name: uname })
+      await invoke('connect', { meetUrl: url, username: uname })
+      onJoin(url, uname)
     } catch (e) {
-      setError(String(e));
-      setJoining(false);
+      setError(String(e))
+      setJoining(false)
     }
-  };
+  }
 
   const handleAuth = async () => {
     try {
       // Extract the instance hostname from the resolved URL
-      const url = new URL(resolvedUrl.startsWith("http") ? resolvedUrl : `https://${resolvedUrl}`);
-      setRoomStatus("authenticating");
-      await invoke("start_oidc_auth", { meetInstance: url.hostname });
+      const url = new URL(
+        resolvedUrl.startsWith('http') ? resolvedUrl : `https://${resolvedUrl}`
+      )
+      setRoomStatus('authenticating')
+      await invoke('start_oidc_auth', { meetInstance: url.hostname })
       // After auth, re-trigger validation by bumping state
-      setRoomStatus("checking");
-      const result = await invoke<{ status: string }>(
-        "validate_room", { url: resolvedUrl, username: displayName.trim() || null }
-      );
-      if (result.status === "valid") setRoomStatus("valid");
-      else if (result.status === "auth_required") setRoomStatus("auth_required");
-      else setRoomStatus("error");
+      setRoomStatus('checking')
+      const result = await invoke<{ status: string }>('validate_room', {
+        url: resolvedUrl,
+        username: displayName.trim() || null,
+      })
+      if (result.status === 'valid') setRoomStatus('valid')
+      else if (result.status === 'auth_required') setRoomStatus('auth_required')
+      else setRoomStatus('error')
     } catch (e) {
-      setError(String(e));
-      setRoomStatus("auth_required");
+      setError(String(e))
+      setRoomStatus('auth_required')
     }
-  };
+  }
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter") handleJoin();
-  };
+    if (e.key === 'Enter') handleJoin()
+  }
 
   return (
     <div id="home" className="section active">
-      <button className="settings-gear" onClick={onOpenSettings} data-testid="home-settings-button">
+      <button
+        className="settings-gear"
+        onClick={onOpenSettings}
+        data-testid="home-settings-button"
+      >
         <RiSettings3Line size={24} />
       </button>
       <div className="join-form">
         <img src="/logo.png?v=2" alt="Visio Mobile" className="home-logo" />
-        <h2>{t("app.title")}</h2>
-        <p>{t("home.subtitle")}</p>
+        <h2>{t('app.title')}</h2>
+        <p>{t('home.subtitle')}</p>
         {isAuthenticated ? (
           <div className="auth-card">
             <div className="auth-avatar">
               {(() => {
-                const parts = displayNameFromOidc.split(" ").filter(Boolean).slice(0, 2);
-                const initials = parts.map(p => p[0]?.toUpperCase()).join("");
-                return initials || emailFromOidc?.[0]?.toUpperCase() || "?";
+                const parts = displayNameFromOidc
+                  .split(' ')
+                  .filter(Boolean)
+                  .slice(0, 2)
+                const initials = parts.map((p) => p[0]?.toUpperCase()).join('')
+                return initials || emailFromOidc?.[0]?.toUpperCase() || '?'
               })()}
             </div>
             <div className="auth-info">
-              <span className="auth-name">{displayNameFromOidc || emailFromOidc}</span>
+              <span className="auth-name">
+                {displayNameFromOidc || emailFromOidc}
+              </span>
               {emailFromOidc && displayNameFromOidc && (
                 <span className="auth-email">{emailFromOidc}</span>
               )}
             </div>
-            <button className="auth-logout" onClick={onLogout} title={t("home.logout")}>
+            <button
+              className="auth-logout"
+              onClick={onLogout}
+              title={t('home.logout')}
+            >
               <RiLogoutBoxRLine size={20} />
             </button>
           </div>
         ) : (
           <div className="auth-status">
-            <button className="btn btn-primary" data-testid="home-connect-button" onClick={() => {
-              if (meetInstances.length <= 1) {
-                if (meetInstances.length > 0) onLaunchOidc(meetInstances[0]);
-              } else {
-                setCustomServer("");
-                setShowServerPicker(true);
-              }
-            }}>
-              <RiAccountCircleLine size={18} /> {t("home.connect")}
+            <button
+              className="btn btn-primary"
+              data-testid="home-connect-button"
+              onClick={() => {
+                if (meetInstances.length <= 1) {
+                  if (meetInstances.length > 0) onLaunchOidc(meetInstances[0])
+                } else {
+                  setCustomServer('')
+                  setShowServerPicker(true)
+                }
+              }}
+            >
+              <RiAccountCircleLine size={18} /> {t('home.connect')}
             </button>
             {showServerPicker && (
-              <div className="server-picker-overlay" onClick={() => setShowServerPicker(false)}>
-                <div className="server-picker" onClick={(e) => e.stopPropagation()}>
-                  <h3>{t("home.serverPicker.title")}</h3>
+              <div
+                className="server-picker-overlay"
+                onClick={() => setShowServerPicker(false)}
+              >
+                <div
+                  className="server-picker"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <h3>{t('home.serverPicker.title')}</h3>
                   <div className="server-list">
                     {meetInstances.map((instance) => (
-                      <button key={instance} className="server-item" onClick={() => {
-                        setShowServerPicker(false);
-                        onLaunchOidc(instance);
-                      }}>
+                      <button
+                        key={instance}
+                        className="server-item"
+                        onClick={() => {
+                          setShowServerPicker(false)
+                          onLaunchOidc(instance)
+                        }}
+                      >
                         {instance}
                       </button>
                     ))}
@@ -599,9 +733,9 @@ function HomeView({
                       value={customServer}
                       onChange={(e) => setCustomServer(e.target.value)}
                       onKeyDown={(e) => {
-                        if (e.key === "Enter" && customServer.trim()) {
-                          setShowServerPicker(false);
-                          onLaunchOidc(customServer.trim());
+                        if (e.key === 'Enter' && customServer.trim()) {
+                          setShowServerPicker(false)
+                          onLaunchOidc(customServer.trim())
                         }
                       }}
                     />
@@ -610,16 +744,19 @@ function HomeView({
                       disabled={!customServer.trim()}
                       onClick={() => {
                         if (customServer.trim()) {
-                          setShowServerPicker(false);
-                          onLaunchOidc(customServer.trim());
+                          setShowServerPicker(false)
+                          onLaunchOidc(customServer.trim())
                         }
                       }}
                     >
-                      {t("home.connect")}
+                      {t('home.connect')}
                     </button>
                   </div>
-                  <button className="btn btn-cancel" onClick={() => setShowServerPicker(false)}>
-                    {t("home.serverPicker.cancel")}
+                  <button
+                    className="btn btn-cancel"
+                    onClick={() => setShowServerPicker(false)}
+                  >
+                    {t('home.serverPicker.cancel')}
                   </button>
                 </div>
               </div>
@@ -627,7 +764,7 @@ function HomeView({
           </div>
         )}
         <div className="form-group">
-          <label htmlFor="meetUrl">{t("home.meetUrl")}</label>
+          <label htmlFor="meetUrl">{t('home.meetUrl')}</label>
           <input
             id="meetUrl"
             type="text"
@@ -638,19 +775,55 @@ function HomeView({
             onChange={(e) => setMeetUrl(e.target.value)}
             onKeyDown={handleKeyDown}
           />
-          {roomStatus === "checking" && <div className="room-status checking" data-testid="home-room-status">{t("home.room.checking")}</div>}
-          {roomStatus === "valid" && <div className="room-status valid" data-testid="home-room-status">{t("home.room.valid")}</div>}
-          {roomStatus === "not_found" && <div className="room-status not-found" data-testid="home-room-status">{t("home.room.notFound")}</div>}
-          {roomStatus === "auth_required" && <div className="room-status auth-required" data-testid="home-room-status">{t("home.room.authRequired")}</div>}
-          {roomStatus === "authenticating" && <div className="room-status checking" data-testid="home-room-status">{t("home.room.authenticating")}</div>}
-          {roomStatus === "error" && <div className="room-status error" data-testid="home-room-status">{t("home.room.error")}</div>}
+          {roomStatus === 'checking' && (
+            <div
+              className="room-status checking"
+              data-testid="home-room-status"
+            >
+              {t('home.room.checking')}
+            </div>
+          )}
+          {roomStatus === 'valid' && (
+            <div className="room-status valid" data-testid="home-room-status">
+              {t('home.room.valid')}
+            </div>
+          )}
+          {roomStatus === 'not_found' && (
+            <div
+              className="room-status not-found"
+              data-testid="home-room-status"
+            >
+              {t('home.room.notFound')}
+            </div>
+          )}
+          {roomStatus === 'auth_required' && (
+            <div
+              className="room-status auth-required"
+              data-testid="home-room-status"
+            >
+              {t('home.room.authRequired')}
+            </div>
+          )}
+          {roomStatus === 'authenticating' && (
+            <div
+              className="room-status checking"
+              data-testid="home-room-status"
+            >
+              {t('home.room.authenticating')}
+            </div>
+          )}
+          {roomStatus === 'error' && (
+            <div className="room-status error" data-testid="home-room-status">
+              {t('home.room.error')}
+            </div>
+          )}
         </div>
         <div className="form-group">
-          <label htmlFor="username">{t("home.displayName")}</label>
+          <label htmlFor="username">{t('home.displayName')}</label>
           <input
             id="username"
             type="text"
-            placeholder={t("home.displayName.placeholder")}
+            placeholder={t('home.displayName.placeholder')}
             autoComplete="off"
             data-testid="home-display-name-input"
             value={displayName}
@@ -658,56 +831,77 @@ function HomeView({
             onKeyDown={handleKeyDown}
           />
         </div>
-        {roomStatus === "auth_required" ? (
+        {roomStatus === 'auth_required' ? (
           <button className="btn btn-primary" onClick={handleAuth}>
-            {t("home.signIn")}
+            {t('home.signIn')}
           </button>
         ) : (
-          <button className="btn btn-primary" disabled={joining || roomStatus !== "valid"} onClick={handleJoin} data-testid="home-join-button">
-            {joining ? t("home.connecting") : t("home.join")}
+          <button
+            className="btn btn-primary"
+            disabled={joining || roomStatus !== 'valid'}
+            onClick={handleJoin}
+            data-testid="home-join-button"
+          >
+            {joining ? t('home.connecting') : t('home.join')}
           </button>
         )}
         {isAuthenticated && authenticatedMeetInstance && (
           <button
             className="btn btn-primary"
-            style={{ marginTop: "8px", background: "var(--bg-tertiary)", color: "var(--text)" }}
+            style={{
+              marginTop: '8px',
+              background: 'var(--bg-tertiary)',
+              color: 'var(--text)',
+            }}
             onClick={() => setShowCreateRoom(true)}
             data-testid="home-create-room-button"
           >
-            {t("home.createRoom")}
+            {t('home.createRoom')}
           </button>
         )}
         <div className="error-msg">{error}</div>
         {roomHistory.length > 0 && (
           <div className="room-history">
-            <h4>{t("home.recentRooms")}</h4>
+            <h4>{t('home.recentRooms')}</h4>
             {roomHistory.map((url, i) => {
-              const slug = url.includes("/") ? url.split("/").pop() : url;
-              let host = "";
-              try { host = new URL(url).host; } catch {}
+              const slug = url.includes('/') ? url.split('/').pop() : url
+              let host = ''
+              try {
+                host = new URL(url).host
+              } catch {}
               return (
-                <button key={i} className="room-history-item" disabled={joining} onClick={async () => {
-                  setMeetUrl(url);
-                  setError("");
-                  setJoining(true);
-                  try {
-                    const uname = displayName.trim() || null;
-                    const result = await invoke<{ status: string }>(
-                      "validate_room", { url, username: uname }
-                    );
-                    if (result.status === "valid") {
-                      await invoke("set_display_name", { name: uname });
-                      await invoke("connect", { meetUrl: url, username: uname });
-                      onJoin(url, uname);
-                    } else {
-                      // Validation failed — fall back to filling the URL field so the user can see the status
-                      setJoining(false);
+                <button
+                  key={i}
+                  className="room-history-item"
+                  disabled={joining}
+                  onClick={async () => {
+                    setMeetUrl(url)
+                    setError('')
+                    setJoining(true)
+                    try {
+                      const uname = displayName.trim() || null
+                      const result = await invoke<{ status: string }>(
+                        'validate_room',
+                        { url, username: uname }
+                      )
+                      if (result.status === 'valid') {
+                        await invoke('set_display_name', { name: uname })
+                        await invoke('connect', {
+                          meetUrl: url,
+                          username: uname,
+                        })
+                        onJoin(url, uname)
+                      } else {
+                        // Validation failed — fall back to filling the URL field so the user can see the status
+                        setJoining(false)
+                      }
+                    } catch (e) {
+                      setError(String(e))
+                      setJoining(false)
                     }
-                  } catch (e) {
-                    setError(String(e));
-                    setJoining(false);
-                  }
-                }} data-testid={`home_room_history_item_${i}`}>
+                  }}
+                  data-testid={`home_room_history_item_${i}`}
+                >
                   {joining && meetUrl === url ? (
                     <span className="room-history-spinner" />
                   ) : (
@@ -718,7 +912,7 @@ function HomeView({
                     {host && <span className="room-history-host">{host}</span>}
                   </div>
                 </button>
-              );
+              )
             })}
           </div>
         )}
@@ -727,21 +921,21 @@ function HomeView({
         <CreateRoomDialog
           meetInstance={authenticatedMeetInstance}
           onCreated={async (createdUrl, roomId, accessLevel) => {
-            setShowCreateRoom(false);
-            const uname = displayName.trim() || null;
+            setShowCreateRoom(false)
+            const uname = displayName.trim() || null
             try {
-              await invoke("set_display_name", { name: uname });
-              await invoke("connect", { meetUrl: createdUrl, username: uname });
-              onJoin(createdUrl, uname, roomId, accessLevel);
+              await invoke('set_display_name', { name: uname })
+              await invoke('connect', { meetUrl: createdUrl, username: uname })
+              onJoin(createdUrl, uname, roomId, accessLevel)
             } catch (e) {
-              setError(String(e));
+              setError(String(e))
             }
           }}
           onCancel={() => setShowCreateRoom(false)}
         />
       )}
     </div>
-  );
+  )
 }
 
 // -- Create Room Dialog -----------------------------------------------------
@@ -751,86 +945,99 @@ function CreateRoomDialog({
   onCreated,
   onCancel,
 }: {
-  meetInstance: string;
-  onCreated: (meetUrl: string, roomId?: string, accessLevel?: string) => void;
-  onCancel: () => void;
+  meetInstance: string
+  onCreated: (meetUrl: string, roomId?: string, accessLevel?: string) => void
+  onCancel: () => void
 }) {
-  const t = useT();
-  const [accessLevel, setAccessLevel] = useState<"public" | "trusted" | "restricted">("public");
-  const [creating, setCreating] = useState(false);
-  const [error, setError] = useState("");
-  const [createdUrl, setCreatedUrl] = useState("");
-  const [copiedHttp, setCopiedHttp] = useState(false);
-  const [copiedDeep, setCopiedDeep] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [searchResults, setSearchResults] = useState<any[]>([]);
-  const [invitedUsers, setInvitedUsers] = useState<any[]>([]);
-  const [searching, setSearching] = useState(false);
-  const [createdRoomId, setCreatedRoomId] = useState("");
+  const t = useT()
+  const [accessLevel, setAccessLevel] = useState<
+    'public' | 'trusted' | 'restricted'
+  >('public')
+  const [creating, setCreating] = useState(false)
+  const [error, setError] = useState('')
+  const [createdUrl, setCreatedUrl] = useState('')
+  const [copiedHttp, setCopiedHttp] = useState(false)
+  const [copiedDeep, setCopiedDeep] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [searchResults, setSearchResults] = useState<any[]>([])
+  const [invitedUsers, setInvitedUsers] = useState<any[]>([])
+  const [searching, setSearching] = useState(false)
+  const [createdRoomId, setCreatedRoomId] = useState('')
 
-  const deepLink = createdUrl ? `visio://${createdUrl.replace(/^https?:\/\//, "")}` : "";
+  const deepLink = createdUrl
+    ? `visio://${createdUrl.replace(/^https?:\/\//, '')}`
+    : ''
 
   useEffect(() => {
     if (searchQuery.length < 3) {
-      setSearchResults([]);
-      return;
+      setSearchResults([])
+      return
     }
     const timer = setTimeout(async () => {
-      setSearching(true);
+      setSearching(true)
       try {
-        const results = await invoke<any[]>("search_users", { query: searchQuery });
+        const results = await invoke<any[]>('search_users', {
+          query: searchQuery,
+        })
         setSearchResults(
-          results.filter((u: any) => !invitedUsers.some((inv: any) => inv.id === u.id))
-        );
+          results.filter(
+            (u: any) => !invitedUsers.some((inv: any) => inv.id === u.id)
+          )
+        )
       } catch {
-        setSearchResults([]);
+        setSearchResults([])
       }
-      setSearching(false);
-    }, 300);
-    return () => clearTimeout(timer);
-  }, [searchQuery, invitedUsers]);
+      setSearching(false)
+    }, 300)
+    return () => clearTimeout(timer)
+  }, [searchQuery, invitedUsers])
 
   const handleCreate = async () => {
-    setCreating(true);
-    setError("");
-    const meetUrl = `https://${meetInstance}`;
+    setCreating(true)
+    setError('')
+    const meetUrl = `https://${meetInstance}`
     try {
-      const result = await invoke<{ slug: string; id: string }>("create_room", {
+      const result = await invoke<{ slug: string; id: string }>('create_room', {
         meetUrl,
-        name: "",
+        name: '',
         accessLevel,
-      });
-      setCreatedUrl(`${meetUrl}/${result.slug}`);
-      setCreatedRoomId(result.id);
-      if (accessLevel === "restricted") {
+      })
+      setCreatedUrl(`${meetUrl}/${result.slug}`)
+      setCreatedRoomId(result.id)
+      if (accessLevel === 'restricted') {
         for (const user of invitedUsers) {
           try {
-            await invoke("add_access", { userId: user.id, roomId: result.id });
+            await invoke('add_access', { userId: user.id, roomId: result.id })
           } catch (e) {
-            console.warn("Failed to add access for", user.email, e);
+            console.warn('Failed to add access for', user.email, e)
           }
         }
       }
     } catch (e) {
-      setError(t("home.createRoom.error") + ": " + String(e));
+      setError(t('home.createRoom.error') + ': ' + String(e))
     } finally {
-      setCreating(false);
+      setCreating(false)
     }
-  };
+  }
 
   const handleCopy = async (text: string, setFn: (v: boolean) => void) => {
     try {
-      await navigator.clipboard.writeText(text);
-      setFn(true);
-      setTimeout(() => setFn(false), 2000);
-    } catch { /* ignore */ }
-  };
+      await navigator.clipboard.writeText(text)
+      setFn(true)
+      setTimeout(() => setFn(false), 2000)
+    } catch {
+      /* ignore */
+    }
+  }
 
   return (
     <div className="modal-overlay" onClick={onCancel}>
-      <div className="settings-modal create-room-dialog" onClick={(e) => e.stopPropagation()}>
+      <div
+        className="settings-modal create-room-dialog"
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="settings-header">
-          <span>{t("home.createRoom")}</span>
+          <span>{t('home.createRoom')}</span>
           <button onClick={onCancel}>
             <RiCloseLine size={20} />
           </button>
@@ -839,65 +1046,92 @@ function CreateRoomDialog({
           {!createdUrl ? (
             <>
               <div className="form-field">
-                <label>{t("home.createRoom.access")}</label>
+                <label>{t('home.createRoom.access')}</label>
                 <div className="access-level-options">
                   <label
-                    className={`access-option ${accessLevel === "public" ? "selected" : ""}`}
-                    onClick={() => setAccessLevel("public")}
+                    className={`access-option ${accessLevel === 'public' ? 'selected' : ''}`}
+                    onClick={() => setAccessLevel('public')}
                   >
                     <input
                       type="radio"
                       name="accessLevel"
                       value="public"
-                      checked={accessLevel === "public"}
-                      onChange={() => setAccessLevel("public")}
+                      checked={accessLevel === 'public'}
+                      onChange={() => setAccessLevel('public')}
                     />
                     <div>
-                      <div style={{ fontWeight: 500, fontSize: "0.9rem" }}>{t("home.createRoom.public")}</div>
-                      <div style={{ fontSize: "0.78rem", color: "var(--text-secondary)" }}>{t("home.createRoom.publicDesc")}</div>
+                      <div style={{ fontWeight: 500, fontSize: '0.9rem' }}>
+                        {t('home.createRoom.public')}
+                      </div>
+                      <div
+                        style={{
+                          fontSize: '0.78rem',
+                          color: 'var(--text-secondary)',
+                        }}
+                      >
+                        {t('home.createRoom.publicDesc')}
+                      </div>
                     </div>
                   </label>
                   <label
-                    className={`access-option ${accessLevel === "trusted" ? "selected" : ""}`}
-                    onClick={() => setAccessLevel("trusted")}
+                    className={`access-option ${accessLevel === 'trusted' ? 'selected' : ''}`}
+                    onClick={() => setAccessLevel('trusted')}
                   >
                     <input
                       type="radio"
                       name="accessLevel"
                       value="trusted"
-                      checked={accessLevel === "trusted"}
-                      onChange={() => setAccessLevel("trusted")}
+                      checked={accessLevel === 'trusted'}
+                      onChange={() => setAccessLevel('trusted')}
                     />
                     <div>
-                      <div style={{ fontWeight: 500, fontSize: "0.9rem" }}>{t("home.createRoom.trusted")}</div>
-                      <div style={{ fontSize: "0.78rem", color: "var(--text-secondary)" }}>{t("home.createRoom.trustedDesc")}</div>
+                      <div style={{ fontWeight: 500, fontSize: '0.9rem' }}>
+                        {t('home.createRoom.trusted')}
+                      </div>
+                      <div
+                        style={{
+                          fontSize: '0.78rem',
+                          color: 'var(--text-secondary)',
+                        }}
+                      >
+                        {t('home.createRoom.trustedDesc')}
+                      </div>
                     </div>
                   </label>
                   <label
-                    className={`access-option ${accessLevel === "restricted" ? "selected" : ""}`}
-                    onClick={() => setAccessLevel("restricted")}
+                    className={`access-option ${accessLevel === 'restricted' ? 'selected' : ''}`}
+                    onClick={() => setAccessLevel('restricted')}
                   >
                     <input
                       type="radio"
                       name="accessLevel"
                       value="restricted"
-                      checked={accessLevel === "restricted"}
-                      onChange={() => setAccessLevel("restricted")}
+                      checked={accessLevel === 'restricted'}
+                      onChange={() => setAccessLevel('restricted')}
                     />
                     <div>
-                      <div style={{ fontWeight: 500, fontSize: "0.9rem" }}>{t("home.createRoom.restricted")}</div>
-                      <div style={{ fontSize: "0.78rem", color: "var(--text-secondary)" }}>{t("home.createRoom.restrictedDesc")}</div>
+                      <div style={{ fontWeight: 500, fontSize: '0.9rem' }}>
+                        {t('home.createRoom.restricted')}
+                      </div>
+                      <div
+                        style={{
+                          fontSize: '0.78rem',
+                          color: 'var(--text-secondary)',
+                        }}
+                      >
+                        {t('home.createRoom.restrictedDesc')}
+                      </div>
                     </div>
                   </label>
                 </div>
               </div>
-              {accessLevel === "restricted" && (
-                <div className="form-field" style={{ marginTop: "8px" }}>
-                  <label>{t("restricted.invite")}</label>
+              {accessLevel === 'restricted' && (
+                <div className="form-field" style={{ marginTop: '8px' }}>
+                  <label>{t('restricted.invite')}</label>
                   <input
                     type="text"
                     className="info-link-input"
-                    placeholder={t("restricted.searchUsers")}
+                    placeholder={t('restricted.searchUsers')}
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                   />
@@ -908,12 +1142,14 @@ function CreateRoomDialog({
                           key={user.id}
                           className="search-result"
                           onClick={() => {
-                            setInvitedUsers([...invitedUsers, user]);
-                            setSearchQuery("");
-                            setSearchResults([]);
+                            setInvitedUsers([...invitedUsers, user])
+                            setSearchQuery('')
+                            setSearchResults([])
                           }}
                         >
-                          <span className="search-name">{user.full_name || user.email}</span>
+                          <span className="search-name">
+                            {user.full_name || user.email}
+                          </span>
                           <span className="search-email">{user.email}</span>
                         </div>
                       ))}
@@ -926,7 +1162,13 @@ function CreateRoomDialog({
                           {user.full_name || user.email}
                           <button
                             className="chip-remove"
-                            onClick={() => setInvitedUsers(invitedUsers.filter((u: any) => u.id !== user.id))}
+                            onClick={() =>
+                              setInvitedUsers(
+                                invitedUsers.filter(
+                                  (u: any) => u.id !== user.id
+                                )
+                              )
+                            }
                           >
                             ×
                           </button>
@@ -939,139 +1181,236 @@ function CreateRoomDialog({
               {error && <div className="create-room-error">{error}</div>}
             </>
           ) : (
-            <div className="form-field" style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-              <label>{t("settings.incall.roomInfo")}</label>
+            <div
+              className="form-field"
+              style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}
+            >
+              <label>{t('settings.incall.roomInfo')}</label>
               <div className="info-link-header">
                 <RiGlobalLine size={16} />
-                <span>{t("settings.incall.roomLink")}</span>
-                <button className="info-copy-icon" onClick={() => handleCopy(createdUrl, setCopiedHttp)} title={t("settings.incall.copied")}>
-                  {copiedHttp ? <RiCheckLine size={16} /> : <RiFileCopyLine size={16} />}
+                <span>{t('settings.incall.roomLink')}</span>
+                <button
+                  className="info-copy-icon"
+                  onClick={() => handleCopy(createdUrl, setCopiedHttp)}
+                  title={t('settings.incall.copied')}
+                >
+                  {copiedHttp ? (
+                    <RiCheckLine size={16} />
+                  ) : (
+                    <RiFileCopyLine size={16} />
+                  )}
                 </button>
               </div>
-              <input className="info-link-input" readOnly value={createdUrl} onClick={e => (e.target as HTMLInputElement).select()} />
+              <input
+                className="info-link-input"
+                readOnly
+                value={createdUrl}
+                onClick={(e) => (e.target as HTMLInputElement).select()}
+              />
               <div className="info-link-header">
                 <RiSmartphoneLine size={16} />
-                <span>{t("settings.incall.deepLink")}</span>
-                <button className="info-copy-icon" onClick={() => handleCopy(deepLink, setCopiedDeep)} title={t("settings.incall.copied")}>
-                  {copiedDeep ? <RiCheckLine size={16} /> : <RiFileCopyLine size={16} />}
+                <span>{t('settings.incall.deepLink')}</span>
+                <button
+                  className="info-copy-icon"
+                  onClick={() => handleCopy(deepLink, setCopiedDeep)}
+                  title={t('settings.incall.copied')}
+                >
+                  {copiedDeep ? (
+                    <RiCheckLine size={16} />
+                  ) : (
+                    <RiFileCopyLine size={16} />
+                  )}
                 </button>
               </div>
-              <input className="info-link-input" readOnly value={deepLink} onClick={e => (e.target as HTMLInputElement).select()} />
+              <input
+                className="info-link-input"
+                readOnly
+                value={deepLink}
+                onClick={(e) => (e.target as HTMLInputElement).select()}
+              />
             </div>
           )}
         </div>
-        <div style={{ display: "flex", gap: "8px", padding: "0 20px 20px", justifyContent: "flex-end" }}>
-          <button className="btn btn-cancel" onClick={onCancel}>{t("home.serverPicker.cancel")}</button>
+        <div
+          style={{
+            display: 'flex',
+            gap: '8px',
+            padding: '0 20px 20px',
+            justifyContent: 'flex-end',
+          }}
+        >
+          <button className="btn btn-cancel" onClick={onCancel}>
+            {t('home.serverPicker.cancel')}
+          </button>
           {!createdUrl ? (
-            <button className="btn btn-primary" style={{ width: "auto" }} disabled={creating} onClick={handleCreate}>
-              {creating ? t("home.createRoom.creating") : t("home.createRoom.create")}
+            <button
+              className="btn btn-primary"
+              style={{ width: 'auto' }}
+              disabled={creating}
+              onClick={handleCreate}
+            >
+              {creating
+                ? t('home.createRoom.creating')
+                : t('home.createRoom.create')}
             </button>
           ) : (
-            <button className="btn btn-primary" style={{ width: "auto" }} onClick={() => onCreated(createdUrl, createdRoomId, accessLevel)}>
-              {t("home.join")}
+            <button
+              className="btn btn-primary"
+              style={{ width: 'auto' }}
+              onClick={() => onCreated(createdUrl, createdRoomId, accessLevel)}
+            >
+              {t('home.join')}
             </button>
           )}
         </div>
       </div>
     </div>
-  );
+  )
 }
 
 // -- Info Sidebar -----------------------------------------------------------
 
-function InfoSidebar({ meetUrl, onClose, roomId, accessLevel }: { meetUrl: string; onClose: () => void; roomId?: string; accessLevel?: string }) {
-  const t = useT();
-  const [copiedHttp, setCopiedHttp] = useState(false);
-  const [copiedDeep, setCopiedDeep] = useState(false);
-  const [roomAccesses, setRoomAccesses] = useState<any[]>([]);
-  const [memberSearch, setMemberSearch] = useState("");
-  const [memberResults, setMemberResults] = useState<any[]>([]);
+function InfoSidebar({
+  meetUrl,
+  onClose,
+  roomId,
+  accessLevel,
+}: {
+  meetUrl: string
+  onClose: () => void
+  roomId?: string
+  accessLevel?: string
+}) {
+  const t = useT()
+  const [copiedHttp, setCopiedHttp] = useState(false)
+  const [copiedDeep, setCopiedDeep] = useState(false)
+  const [roomAccesses, setRoomAccesses] = useState<any[]>([])
+  const [memberSearch, setMemberSearch] = useState('')
+  const [memberResults, setMemberResults] = useState<any[]>([])
 
   // Normalize URL for display (strip scheme)
-  const displayUrl = meetUrl.replace(/^https?:\/\//, "");
-  const deepLink = `visio://${displayUrl}`;
+  const displayUrl = meetUrl.replace(/^https?:\/\//, '')
+  const deepLink = `visio://${displayUrl}`
 
   // Fetch accesses on mount if roomId is provided
   useEffect(() => {
-    if (!roomId) return;
+    if (!roomId) return
     const fetchAccesses = async () => {
       try {
-        const results = await invoke<any[]>("list_accesses", { roomId });
-        setRoomAccesses(results);
-      } catch { /* ignore - not owner/admin */ }
-    };
-    fetchAccesses();
-  }, [roomId]);
+        const results = await invoke<any[]>('list_accesses', { roomId })
+        setRoomAccesses(results)
+      } catch {
+        /* ignore - not owner/admin */
+      }
+    }
+    fetchAccesses()
+  }, [roomId])
 
   // Member search effect
   useEffect(() => {
     if (memberSearch.length < 3) {
-      setMemberResults([]);
-      return;
+      setMemberResults([])
+      return
     }
     const timer = setTimeout(async () => {
       try {
-        const results = await invoke<any[]>("search_users", { query: memberSearch });
+        const results = await invoke<any[]>('search_users', {
+          query: memberSearch,
+        })
         setMemberResults(
-          results.filter((u: any) => !roomAccesses.some((a: any) => a.user.id === u.id))
-        );
+          results.filter(
+            (u: any) => !roomAccesses.some((a: any) => a.user.id === u.id)
+          )
+        )
       } catch {
-        setMemberResults([]);
+        setMemberResults([])
       }
-    }, 300);
-    return () => clearTimeout(timer);
-  }, [memberSearch, roomAccesses]);
+    }, 300)
+    return () => clearTimeout(timer)
+  }, [memberSearch, roomAccesses])
 
   const handleCopyHttp = async () => {
     try {
-      await navigator.clipboard.writeText(meetUrl);
-      setCopiedHttp(true);
-      setTimeout(() => setCopiedHttp(false), 2000);
-    } catch { /* fallback: ignore */ }
-  };
+      await navigator.clipboard.writeText(meetUrl)
+      setCopiedHttp(true)
+      setTimeout(() => setCopiedHttp(false), 2000)
+    } catch {
+      /* fallback: ignore */
+    }
+  }
 
   const handleCopyDeep = async () => {
     try {
-      await navigator.clipboard.writeText(deepLink);
-      setCopiedDeep(true);
-      setTimeout(() => setCopiedDeep(false), 2000);
-    } catch { /* fallback: ignore */ }
-  };
+      await navigator.clipboard.writeText(deepLink)
+      setCopiedDeep(true)
+      setTimeout(() => setCopiedDeep(false), 2000)
+    } catch {
+      /* fallback: ignore */
+    }
+  }
 
   return (
     <div className="info-sidebar">
       <div className="participants-header">
-        <span>{t("info.title")}</span>
-        <button className="chat-close" onClick={onClose}><RiCloseLine size={20} /></button>
+        <span>{t('info.title')}</span>
+        <button className="chat-close" onClick={onClose}>
+          <RiCloseLine size={20} />
+        </button>
       </div>
       <div className="info-body">
         <div className="info-section">
           <div className="info-link-header">
             <RiGlobalLine size={16} />
-            <span>{t("settings.incall.roomLink")}</span>
-            <button className="info-copy-icon" onClick={handleCopyHttp} title={t("settings.incall.copied")}>
-              {copiedHttp ? <RiCheckLine size={16} /> : <RiFileCopyLine size={16} />}
+            <span>{t('settings.incall.roomLink')}</span>
+            <button
+              className="info-copy-icon"
+              onClick={handleCopyHttp}
+              title={t('settings.incall.copied')}
+            >
+              {copiedHttp ? (
+                <RiCheckLine size={16} />
+              ) : (
+                <RiFileCopyLine size={16} />
+              )}
             </button>
           </div>
-          <input className="info-link-input" readOnly value={meetUrl} onClick={e => (e.target as HTMLInputElement).select()} />
+          <input
+            className="info-link-input"
+            readOnly
+            value={meetUrl}
+            onClick={(e) => (e.target as HTMLInputElement).select()}
+          />
         </div>
         <div className="info-section">
           <div className="info-link-header">
             <RiSmartphoneLine size={16} />
-            <span>{t("settings.incall.deepLink")}</span>
-            <button className="info-copy-icon" onClick={handleCopyDeep} title={t("settings.incall.copied")}>
-              {copiedDeep ? <RiCheckLine size={16} /> : <RiFileCopyLine size={16} />}
+            <span>{t('settings.incall.deepLink')}</span>
+            <button
+              className="info-copy-icon"
+              onClick={handleCopyDeep}
+              title={t('settings.incall.copied')}
+            >
+              {copiedDeep ? (
+                <RiCheckLine size={16} />
+              ) : (
+                <RiFileCopyLine size={16} />
+              )}
             </button>
           </div>
-          <input className="info-link-input" readOnly value={deepLink} onClick={e => (e.target as HTMLInputElement).select()} />
+          <input
+            className="info-link-input"
+            readOnly
+            value={deepLink}
+            onClick={(e) => (e.target as HTMLInputElement).select()}
+          />
         </div>
-        {roomId && accessLevel === "restricted" && (
+        {roomId && accessLevel === 'restricted' && (
           <div className="members-section">
-            <h4 style={{ margin: "16px 0 8px" }}>{t("restricted.members")}</h4>
+            <h4 style={{ margin: '16px 0 8px' }}>{t('restricted.members')}</h4>
             <input
               type="text"
               className="info-link-input"
-              placeholder={t("restricted.searchUsers")}
+              placeholder={t('restricted.searchUsers')}
               value={memberSearch}
               onChange={(e) => setMemberSearch(e.target.value)}
             />
@@ -1083,15 +1422,21 @@ function InfoSidebar({ meetUrl, onClose, roomId, accessLevel }: { meetUrl: strin
                     className="search-result"
                     onClick={async () => {
                       try {
-                        await invoke("add_access", { userId: user.id, roomId });
-                        const updated = await invoke<any[]>("list_accesses", { roomId });
-                        setRoomAccesses(updated);
-                      } catch { /* ignore */ }
-                      setMemberSearch("");
-                      setMemberResults([]);
+                        await invoke('add_access', { userId: user.id, roomId })
+                        const updated = await invoke<any[]>('list_accesses', {
+                          roomId,
+                        })
+                        setRoomAccesses(updated)
+                      } catch {
+                        /* ignore */
+                      }
+                      setMemberSearch('')
+                      setMemberResults([])
                     }}
                   >
-                    <span className="search-name">{user.full_name || user.email}</span>
+                    <span className="search-name">
+                      {user.full_name || user.email}
+                    </span>
                     <span className="search-email">{user.email}</span>
                   </div>
                 ))}
@@ -1101,19 +1446,25 @@ function InfoSidebar({ meetUrl, onClose, roomId, accessLevel }: { meetUrl: strin
               <div key={access.id} className="member-row">
                 <div className="member-info">
                   <span>{access.user.full_name || access.user.email}</span>
-                  <span className="member-role">{t(`restricted.${access.role}`)}</span>
+                  <span className="member-role">
+                    {t(`restricted.${access.role}`)}
+                  </span>
                 </div>
-                {access.role === "member" && (
+                {access.role === 'member' && (
                   <button
                     className="btn btn-sm btn-danger"
                     onClick={async () => {
                       try {
-                        await invoke("remove_access", { accessId: access.id });
-                        setRoomAccesses(prev => prev.filter((a: any) => a.id !== access.id));
-                      } catch { /* ignore */ }
+                        await invoke('remove_access', { accessId: access.id })
+                        setRoomAccesses((prev) =>
+                          prev.filter((a: any) => a.id !== access.id)
+                        )
+                      } catch {
+                        /* ignore */
+                      }
                     }}
                   >
-                    {t("restricted.remove")}
+                    {t('restricted.remove')}
                   </button>
                 )}
               </div>
@@ -1122,88 +1473,113 @@ function InfoSidebar({ meetUrl, onClose, roomId, accessLevel }: { meetUrl: strin
         )}
       </div>
     </div>
-  );
+  )
 }
 
 // -- Tools Sidebar ----------------------------------------------------------
 
 function ToolsSidebar({ onClose }: { onClose: () => void }) {
-  const t = useT();
-  const [subView, setSubView] = useState<"menu" | "transcribe">("menu");
+  const t = useT()
+  const [subView, setSubView] = useState<'menu' | 'transcribe'>('menu')
 
-  if (subView === "transcribe") {
+  if (subView === 'transcribe') {
     return (
       <div className="info-sidebar">
         <div className="participants-header">
-          <button className="chat-close" onClick={() => setSubView("menu")}><RiArrowLeftSLine size={20} /></button>
-          <span style={{ flex: 1 }}>{t("transcribe.title")}</span>
-          <button className="chat-close" onClick={onClose}><RiCloseLine size={20} /></button>
+          <button className="chat-close" onClick={() => setSubView('menu')}>
+            <RiArrowLeftSLine size={20} />
+          </button>
+          <span style={{ flex: 1 }}>{t('transcribe.title')}</span>
+          <button className="chat-close" onClick={onClose}>
+            <RiCloseLine size={20} />
+          </button>
         </div>
         <div className="info-body transcribe-body">
-          <h3 className="transcribe-heading">{t("transcribe.heading")}</h3>
-          <p className="transcribe-sub">{t("transcribe.subheading")}</p>
+          <h3 className="transcribe-heading">{t('transcribe.heading')}</h3>
+          <p className="transcribe-sub">{t('transcribe.subheading')}</p>
           <div className="transcribe-features">
-            <div className="transcribe-feature"><RiFileTextLine size={16} /><span>{t("transcribe.newDoc")}</span></div>
-            <div className="transcribe-feature"><RiMailLine size={16} /><span>{t("transcribe.emailSent")}</span></div>
-            <div className="transcribe-feature"><RiGlobalLine size={16} /><span>{t("transcribe.language")} : Français (fr)</span></div>
+            <div className="transcribe-feature">
+              <RiFileTextLine size={16} />
+              <span>{t('transcribe.newDoc')}</span>
+            </div>
+            <div className="transcribe-feature">
+              <RiMailLine size={16} />
+              <span>{t('transcribe.emailSent')}</span>
+            </div>
+            <div className="transcribe-feature">
+              <RiGlobalLine size={16} />
+              <span>{t('transcribe.language')} : Français (fr)</span>
+            </div>
           </div>
           <label className="transcribe-record-check">
             <input type="checkbox" />
-            {t("transcribe.alsoRecord")}
+            {t('transcribe.alsoRecord')}
           </label>
           <button className="btn btn-primary transcribe-start" disabled>
-            {t("transcribe.start")}
+            {t('transcribe.start')}
           </button>
-          <p className="transcribe-notice">{t("transcribe.comingSoon")}</p>
+          <p className="transcribe-notice">{t('transcribe.comingSoon')}</p>
         </div>
       </div>
-    );
+    )
   }
 
   return (
     <div className="info-sidebar">
       <div className="participants-header">
-        <span>{t("tools.title")}</span>
-        <button className="chat-close" onClick={onClose}><RiCloseLine size={20} /></button>
+        <span>{t('tools.title')}</span>
+        <button className="chat-close" onClick={onClose}>
+          <RiCloseLine size={20} />
+        </button>
       </div>
       <div className="info-body">
-        <p className="tools-subtitle">{t("tools.subtitle")}</p>
-        <button className="tools-row" onClick={() => setSubView("transcribe")}>
-          <span className="tools-row-icon"><RiFileTextLine size={20} /></span>
+        <p className="tools-subtitle">{t('tools.subtitle')}</p>
+        <button className="tools-row" onClick={() => setSubView('transcribe')}>
+          <span className="tools-row-icon">
+            <RiFileTextLine size={20} />
+          </span>
           <span className="tools-row-text">
-            <span className="tools-row-label">{t("control.transcribe")}</span>
-            <span className="tools-row-desc">{t("tools.transcribe.desc")}</span>
+            <span className="tools-row-label">{t('control.transcribe')}</span>
+            <span className="tools-row-desc">{t('tools.transcribe.desc')}</span>
           </span>
           <RiArrowRightSLine size={18} />
         </button>
         <button className="tools-row" disabled>
-          <span className="tools-row-icon"><RiRecordCircleLine size={20} /></span>
+          <span className="tools-row-icon">
+            <RiRecordCircleLine size={20} />
+          </span>
           <span className="tools-row-text">
-            <span className="tools-row-label">{t("control.record")}</span>
-            <span className="tools-row-desc">{t("tools.record.desc")}</span>
+            <span className="tools-row-label">{t('control.record')}</span>
+            <span className="tools-row-desc">{t('tools.record.desc')}</span>
           </span>
           <RiArrowRightSLine size={18} />
         </button>
       </div>
     </div>
-  );
+  )
 }
 
 // -- Waiting Screen ---------------------------------------------------------
 
-function WaitingScreen({ onCancel, t }: { onCancel: () => void; t: (k: string) => string }) {
+function WaitingScreen({
+  onCancel,
+  t,
+}: {
+  onCancel: () => void
+  t: (k: string) => string
+}) {
   return (
     <div className="waiting-screen">
       <div className="waiting-content">
         <div className="waiting-spinner" />
-        <h2>{t("lobby.waiting")}</h2>
-        <p>{t("lobby.waitingDesc")}</p>
+        <h2>{t('lobby.waiting')}</h2>
+        <p>{t('lobby.waitingDesc')}</p>
         <button className="btn btn-secondary" onClick={onCancel}>
-          {t("lobby.cancel")}
+          {t('lobby.cancel')}
         </button>
       </div>
     </div>
-  );
+  )
 }
 
 // -- Source Picker Modal ----------------------------------------------------
@@ -1213,25 +1589,31 @@ function SourcePickerModal({
   onSelect,
   onClose,
 }: {
-  sources: ScreenSource[];
-  onSelect: (sourceId: string) => void;
-  onClose: () => void;
+  sources: ScreenSource[]
+  onSelect: (sourceId: string) => void
+  onClose: () => void
 }) {
-  const t = useT();
-  const monitors = sources.filter(s => s.source_type === "monitor");
-  const windows = sources.filter(s => s.source_type === "window");
+  const t = useT()
+  const monitors = sources.filter((s) => s.source_type === 'monitor')
+  const windows = sources.filter((s) => s.source_type === 'window')
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="settings-modal source-picker" data-testid="screen-share-source-picker" onClick={e => e.stopPropagation()}>
+      <div
+        className="settings-modal source-picker"
+        data-testid="screen-share-source-picker"
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="settings-header">
-          <span>{t("call.selectSource")}</span>
-          <button onClick={onClose}><RiCloseLine size={20} /></button>
+          <span>{t('call.selectSource')}</span>
+          <button onClick={onClose}>
+            <RiCloseLine size={20} />
+          </button>
         </div>
         <div className="source-grid">
           {monitors.length > 0 && (
             <>
-              <h4 className="source-section-title">{t("call.monitors")}</h4>
+              <h4 className="source-section-title">{t('call.monitors')}</h4>
               <div className="source-grid-items">
                 {monitors.map((s, i) => (
                   <button
@@ -1241,7 +1623,11 @@ function SourcePickerModal({
                     onClick={() => onSelect(s.id)}
                   >
                     {s.thumbnail ? (
-                      <img src={s.thumbnail} alt={s.name} className="source-thumb" />
+                      <img
+                        src={s.thumbnail}
+                        alt={s.name}
+                        className="source-thumb"
+                      />
                     ) : (
                       <div className="source-thumb source-thumb-placeholder">
                         <ScreenShareIcon size={32} />
@@ -1253,7 +1639,7 @@ function SourcePickerModal({
               </div>
             </>
           )}
-          <h4 className="source-section-title">{t("call.windows")}</h4>
+          <h4 className="source-section-title">{t('call.windows')}</h4>
           {windows.length > 0 ? (
             <div className="source-grid-items">
               {windows.map((s, i) => (
@@ -1264,7 +1650,11 @@ function SourcePickerModal({
                   onClick={() => onSelect(s.id)}
                 >
                   {s.thumbnail ? (
-                    <img src={s.thumbnail} alt={s.name} className="source-thumb" />
+                    <img
+                      src={s.thumbnail}
+                      alt={s.name}
+                      className="source-thumb"
+                    />
                   ) : (
                     <div className="source-thumb source-thumb-placeholder">
                       <RiApps2Line size={32} />
@@ -1275,12 +1665,14 @@ function SourcePickerModal({
               ))}
             </div>
           ) : (
-            <p className="source-permission-hint">{t("call.screenPermissionHint")}</p>
+            <p className="source-permission-hint">
+              {t('call.screenPermissionHint')}
+            </p>
           )}
         </div>
       </div>
     </div>
-  );
+  )
 }
 
 // -- Call View --------------------------------------------------------------
@@ -1328,302 +1720,340 @@ function CallView({
   roomId,
   accessLevel,
 }: {
-  participants: Participant[];
-  localParticipant: Participant | null;
-  micEnabled: boolean;
-  camEnabled: boolean;
-  videoFrames: Map<string, string>;
-  messages: ChatMessage[];
-  handRaisedMap: Record<string, number>;
-  activeSpeakers: string[];
-  isHandRaised: boolean;
-  unreadCount: number;
-  showChat: boolean;
-  onToggleMic: () => void;
-  onToggleCam: () => void;
-  onHangUp: () => void;
-  onToggleHandRaise: () => void;
-  onToggleChat: () => void;
-  onSendChat: (text: string) => void;
-  onToggleParticipants: () => void;
-  showParticipants: boolean;
-  onToggleInfo: () => void;
-  showInfo: boolean;
-  meetUrl: string;
-  onToggleTranscription: () => void;
-  showTranscription: boolean;
-  onShowMicPicker: () => void;
-  onShowCamPicker: () => void;
-  showMicPicker: boolean;
-  showCamPicker: boolean;
-  audioInputs: NativeAudioDevice[];
-  audioOutputs: NativeAudioDevice[];
-  videoInputs: NativeVideoDevice[];
-  selectedAudioInput: string;
-  selectedAudioOutput: string;
-  selectedVideoInput: string;
-  onSelectAudioInput: (name: string) => void;
-  onSelectAudioOutput: (name: string) => void;
-  onSelectVideoInput: (uniqueId: string) => void;
-  waitingParticipants: Array<{id: string, username: string}>;
-  setWaitingParticipants: React.Dispatch<React.SetStateAction<Array<{id: string, username: string}>>>;
-  roomId?: string;
-  accessLevel?: string;
+  participants: Participant[]
+  localParticipant: Participant | null
+  micEnabled: boolean
+  camEnabled: boolean
+  videoFrames: Map<string, string>
+  messages: ChatMessage[]
+  handRaisedMap: Record<string, number>
+  activeSpeakers: string[]
+  isHandRaised: boolean
+  unreadCount: number
+  showChat: boolean
+  onToggleMic: () => void
+  onToggleCam: () => void
+  onHangUp: () => void
+  onToggleHandRaise: () => void
+  onToggleChat: () => void
+  onSendChat: (text: string) => void
+  onToggleParticipants: () => void
+  showParticipants: boolean
+  onToggleInfo: () => void
+  showInfo: boolean
+  meetUrl: string
+  onToggleTranscription: () => void
+  showTranscription: boolean
+  onShowMicPicker: () => void
+  onShowCamPicker: () => void
+  showMicPicker: boolean
+  showCamPicker: boolean
+  audioInputs: NativeAudioDevice[]
+  audioOutputs: NativeAudioDevice[]
+  videoInputs: NativeVideoDevice[]
+  selectedAudioInput: string
+  selectedAudioOutput: string
+  selectedVideoInput: string
+  onSelectAudioInput: (name: string) => void
+  onSelectAudioOutput: (name: string) => void
+  onSelectVideoInput: (uniqueId: string) => void
+  waitingParticipants: Array<{ id: string; username: string }>
+  setWaitingParticipants: React.Dispatch<
+    React.SetStateAction<Array<{ id: string; username: string }>>
+  >
+  roomId?: string
+  accessLevel?: string
 }) {
-  const t = useT();
-  const [focusedItem, setFocusedItem] = useState<FocusItem>(null);
-  const userPinnedRef = useRef(false); // tracks whether user manually pinned a participant
-  const layoutStateRef = useRef<LayoutState>(initialLayoutState());
-  const [showFocusThumbnails, setShowFocusThumbnails] = useState(true);
-  const [isScreenSharing, setIsScreenSharing] = useState(false);
-  const [showSourcePicker, setShowSourcePicker] = useState(false);
-  const [screenSources, setScreenSources] = useState<ScreenSource[]>([]);
-  const [chatInput, setChatInput] = useState("");
-  const chatScrollRef = useRef<HTMLDivElement>(null);
-  const [bgMode, setBgMode] = useState("off");
-  const [showOverflow, setShowOverflow] = useState(false);
-  const [showReactionPicker, setShowReactionPicker] = useState(false);
-  const [reactions, setReactions] = useState<ReactionData[]>([]);
-  const reactionIdCounter = useRef(0);
-  const [participantMenu, setParticipantMenu] = useState<string | null>(null);
+  const t = useT()
+  const [focusedItem, setFocusedItem] = useState<FocusItem>(null)
+  const userPinnedRef = useRef(false) // tracks whether user manually pinned a participant
+  const [showFocusThumbnails, setShowFocusThumbnails] = useState(true)
+  const [isScreenSharing, setIsScreenSharing] = useState(false)
+  const [showSourcePicker, setShowSourcePicker] = useState(false)
+  const [screenSources, setScreenSources] = useState<ScreenSource[]>([])
+  const [chatInput, setChatInput] = useState('')
+  const chatScrollRef = useRef<HTMLDivElement>(null)
+  const [bgMode, setBgMode] = useState('off')
+  const [showOverflow, setShowOverflow] = useState(false)
+  const [showReactionPicker, setShowReactionPicker] = useState(false)
+  const [reactions, setReactions] = useState<ReactionData[]>([])
+  const reactionIdCounter = useRef(0)
+  const [participantMenu, setParticipantMenu] = useState<string | null>(null)
 
   // Listen for reaction events
   useEffect(() => {
-    let unlisten: UnlistenFn | null = null;
+    let unlisten: UnlistenFn | null = null
     listen<{ participantSid: string; participantName: string; emoji: string }>(
-      "reaction-received",
+      'reaction-received',
       (event) => {
-        const { participantSid, participantName, emoji } = event.payload;
-        const id = ++reactionIdCounter.current;
+        const { participantSid, participantName, emoji } = event.payload
+        const id = ++reactionIdCounter.current
         const reaction: ReactionData = {
           id,
           participantSid,
           participantName,
           emoji,
           timestamp: Date.now(),
-        };
-        setReactions((prev) => [...prev, reaction]);
+        }
+        setReactions((prev) => [...prev, reaction])
         // Auto-remove after 3 seconds
         setTimeout(() => {
-          setReactions((prev) => prev.filter((r) => r.id !== id));
-        }, 3000);
+          setReactions((prev) => prev.filter((r) => r.id !== id))
+        }, 3000)
       }
     ).then((fn) => {
-      unlisten = fn;
-    });
+      unlisten = fn
+    })
     return () => {
-      if (unlisten) unlisten();
-    };
-  }, []);
+      if (unlisten) unlisten()
+    }
+  }, [])
 
   // Auto-focus when a screen share track is subscribed
   useEffect(() => {
-    const unsub = listen<{ trackSid: string; participantSid: string; source: string }>(
-      "track-subscribed", (event) => {
-        if (event.payload.source === "screen_share") {
-          setFocusedItem({
-            participantSid: event.payload.participantSid,
-            source: "screen_share",
-          });
-        }
+    const unsub = listen<{
+      trackSid: string
+      participantSid: string
+      source: string
+    }>('track-subscribed', (event) => {
+      if (event.payload.source === 'screen_share') {
+        setFocusedItem({
+          participantSid: event.payload.participantSid,
+          source: 'screen_share',
+        })
       }
-    );
-    return () => { unsub.then(f => f()); };
-  }, []);
+    })
+    return () => {
+      unsub.then((f) => f())
+    }
+  }, [])
 
   // Auto-unfocus when focused screen share ends
   useEffect(() => {
-    if (focusedItem?.source === "screen_share") {
+    if (focusedItem?.source === 'screen_share') {
       // Check both remote participants and local participant
-      const isLocal = localParticipant && focusedItem.participantSid === localParticipant.sid;
+      const isLocal =
+        localParticipant && focusedItem.participantSid === localParticipant.sid
       if (isLocal) {
         if (!isScreenSharing) {
-          userPinnedRef.current = false;
-          setFocusedItem(null);
+          userPinnedRef.current = false
+          setFocusedItem(null)
         }
       } else {
-        const p = participants.find(p => p.sid === focusedItem.participantSid);
+        const p = participants.find((p) => p.sid === focusedItem.participantSid)
         if (!p?.has_screen_share) {
-          userPinnedRef.current = false;
-          setFocusedItem(null);
+          userPinnedRef.current = false
+          setFocusedItem(null)
         }
       }
     }
-  }, [participants, focusedItem, localParticipant, isScreenSharing]);
+  }, [participants, focusedItem, localParticipant, isScreenSharing])
 
-  // Unified layout engine: auto-focus with stabilization
+  // Auto-focus on active speaker when there are 3+ participants and user hasn't manually pinned
   useEffect(() => {
-    const allP: Participant[] = [];
-    if (localParticipant) allP.push(localParticipant);
-    allP.push(...participants.filter((p) => !localParticipant || p.sid !== localParticipant.sid));
-    if (allP.length < 2) return;
-    if (userPinnedRef.current) return;
+    // Only auto-focus when there are enough participants to benefit from speaker view
+    const allP: Participant[] = []
+    if (localParticipant) allP.push(localParticipant)
+    allP.push(
+      ...participants.filter(
+        (p) => !localParticipant || p.sid !== localParticipant.sid
+      )
+    )
+    if (allP.length < 3) return
+    if (userPinnedRef.current) return
+    if (activeSpeakers.length === 0) return
 
-    const items = buildDisplayItems(allP, t);
-    const screenShareFocus = focusedItem?.source === "screen_share" ? focusedItem : null;
+    // Find the first active speaker that is NOT the local participant
+    const remoteSpeaker = activeSpeakers.find(
+      (sid) => !localParticipant || sid !== localParticipant.sid
+    )
+    const speakerSid = remoteSpeaker || activeSpeakers[0]
+    if (!speakerSid) return
 
-    const [decision, newState] = computeLayout(
-      items,
-      activeSpeakers,
-      null, // pinnedItem — handled separately via userPinnedRef
-      screenShareFocus,
-      localParticipant?.sid ?? "",
-      layoutStateRef.current,
-      Date.now(),
-    );
-    layoutStateRef.current = newState;
+    // Only switch if the speaker is different from the currently focused participant
+    if (
+      focusedItem?.participantSid === speakerSid &&
+      focusedItem?.source === 'camera'
+    )
+      return
 
-    if (decision.mode === "grid") {
-      if (focusedItem?.source !== "screen_share") {
-        setFocusedItem(null);
-      }
-    } else if (decision.mainTile) {
-      const newFocus = { participantSid: decision.mainTile.participant.sid, source: decision.mainTile.source as "camera" | "screen_share" };
-      if (focusedItem?.participantSid !== newFocus.participantSid || focusedItem?.source !== newFocus.source) {
-        setFocusedItem(newFocus);
-      }
-    }
-  }, [activeSpeakers, participants, localParticipant]);
+    setFocusedItem({ participantSid: speakerSid, source: 'camera' })
+  }, [activeSpeakers, participants, localParticipant])
 
   const handleSendReaction = async (emojiId: string) => {
     try {
-      await invoke("send_reaction", { emoji: emojiId });
+      await invoke('send_reaction', { emoji: emojiId })
       // Show reaction locally (the echo from the server is filtered out)
-      const id = ++reactionIdCounter.current;
-      setReactions((prev) => [...prev, {
-        id,
-        participantSid: localParticipant?.sid ?? "",
-        participantName: localParticipant?.name ?? "",
-        emoji: emojiId,
-        timestamp: Date.now(),
-      }]);
+      const id = ++reactionIdCounter.current
+      setReactions((prev) => [
+        ...prev,
+        {
+          id,
+          participantSid: localParticipant?.sid ?? '',
+          participantName: localParticipant?.name ?? '',
+          emoji: emojiId,
+          timestamp: Date.now(),
+        },
+      ])
     } catch (e) {
-      console.error("send_reaction error:", e);
+      console.error('send_reaction error:', e)
     }
-    setShowReactionPicker(false);
-    setShowOverflow(false);
-  };
+    setShowReactionPicker(false)
+    setShowOverflow(false)
+  }
 
   // Load current background mode on mount
   useEffect(() => {
-    invoke<string>("get_background_mode").then(setBgMode).catch(() => {});
-  }, []);
+    invoke<string>('get_background_mode')
+      .then(setBgMode)
+      .catch(() => {})
+  }, [])
 
   const handleBgMode = async (mode: string) => {
     try {
-      if (mode.startsWith("image:")) {
-        const id = parseInt(mode.slice(6), 10);
-        const path = await resolveResource(`backgrounds/${id}.jpg`);
-        await invoke("load_background_image", { id, jpegPath: path });
+      if (mode.startsWith('image:')) {
+        const id = parseInt(mode.slice(6), 10)
+        const path = await resolveResource(`backgrounds/${id}.jpg`)
+        await invoke('load_background_image', { id, jpegPath: path })
       }
-      await invoke("set_background_mode", { mode });
-      setBgMode(mode);
+      await invoke('set_background_mode', { mode })
+      setBgMode(mode)
     } catch (e) {
-      console.error("set_background_mode error:", e);
+      console.error('set_background_mode error:', e)
     }
-  };
+  }
 
   // Close overflow/reaction picker when clicking outside
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
-      const target = e.target as Element;
-      if (!target.closest(".overflow-menu, .reaction-picker, .control-btn")) {
-        setShowOverflow(false);
-        setShowReactionPicker(false);
+      const target = e.target as Element
+      if (!target.closest('.overflow-menu, .reaction-picker, .control-btn')) {
+        setShowOverflow(false)
+        setShowReactionPicker(false)
       }
-      if (!target.closest(".participant-menu-wrapper")) {
-        setParticipantMenu(null);
+      if (!target.closest('.participant-menu-wrapper')) {
+        setParticipantMenu(null)
       }
-    };
-    document.addEventListener("click", handleClickOutside);
-    return () => document.removeEventListener("click", handleClickOutside);
-  }, []);
+    }
+    document.addEventListener('click', handleClickOutside)
+    return () => document.removeEventListener('click', handleClickOutside)
+  }, [])
 
   useEffect(() => {
     if (chatScrollRef.current) {
-      chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight;
+      chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight
     }
-  }, [messages.length]);
+  }, [messages.length])
 
   const sendMessage = () => {
-    const text = chatInput.trim();
-    if (!text) return;
-    setChatInput("");
-    onSendChat(text);
-  };
+    const text = chatInput.trim()
+    if (!text) return
+    setChatInput('')
+    onSendChat(text)
+  }
 
   // Build allParticipants with local participant first
-  const allParticipants: Participant[] = [];
+  const allParticipants: Participant[] = []
   if (localParticipant) {
     // Override local participant's name to show "You" label, and sync mute/video state
     allParticipants.push({
       ...localParticipant,
-      name: localParticipant.name ? `${localParticipant.name} (${t("call.you")})` : t("call.you"),
+      name: localParticipant.name
+        ? `${localParticipant.name} (${t('call.you')})`
+        : t('call.you'),
       is_muted: !micEnabled,
       has_video: camEnabled,
-      video_track_sid: camEnabled ? "local-camera" : null,
+      video_track_sid: camEnabled ? 'local-camera' : null,
       has_screen_share: isScreenSharing,
-      screen_share_track_sid: isScreenSharing ? "local-screen" : null,
-    });
+      screen_share_track_sid: isScreenSharing ? 'local-screen' : null,
+    })
   }
-  allParticipants.push(...participants.filter((p) => !localParticipant || p.sid !== localParticipant.sid));
-  const displayItems = buildDisplayItems(allParticipants, t);
+  allParticipants.push(
+    ...participants.filter(
+      (p) => !localParticipant || p.sid !== localParticipant.sid
+    )
+  )
+  const displayItems = buildDisplayItems(allParticipants, t)
   const focusedDisplayItem = focusedItem
-    ? displayItems.find(d => d.participant.sid === focusedItem.participantSid && d.source === focusedItem.source)
-    : null;
+    ? displayItems.find(
+        (d) =>
+          d.participant.sid === focusedItem.participantSid &&
+          d.source === focusedItem.source
+      )
+    : null
   const thumbnailItems = focusedDisplayItem
-    ? displayItems.filter(d => d.key !== focusedDisplayItem.key)
-    : [];
+    ? displayItems.filter((d) => d.key !== focusedDisplayItem.key)
+    : []
   // Compute grid layout: choose columns so all tiles are uniform
-  const gridCount = displayItems.length;
-  const gridCols = gridCount <= 1 ? 1
-    : gridCount <= 4 ? 2
-    : gridCount <= 9 ? 3
-    : gridCount <= 16 ? 4
-    : 5;
-  const gridRows = Math.ceil(gridCount / gridCols);
-  const gridStyle: React.CSSProperties = gridCount > 0
-    ? { gridTemplateColumns: `repeat(${gridCols}, 1fr)`, gridTemplateRows: `repeat(${gridRows}, 1fr)` }
-    : {};
+  const gridCount = displayItems.length
+  const gridCols =
+    gridCount <= 1
+      ? 1
+      : gridCount <= 4
+        ? 2
+        : gridCount <= 9
+          ? 3
+          : gridCount <= 16
+            ? 4
+            : 5
+  const gridRows = Math.ceil(gridCount / gridCols)
+  const gridStyle: React.CSSProperties =
+    gridCount > 0
+      ? {
+          gridTemplateColumns: `repeat(${gridCols}, 1fr)`,
+          gridTemplateRows: `repeat(${gridRows}, 1fr)`,
+        }
+      : {}
 
   return (
     <div id="call" className="section active">
       {/* Lobby waiting banner — persistent while participants are waiting */}
-      {waitingParticipants.length > 0 && (() => {
-        const first = waitingParticipants[0];
-        const parts = t("lobby.joinRequest").split("{{name}}");
-        const suffix = waitingParticipants.length > 1 ? ` (+${waitingParticipants.length - 1})` : "";
-        return (
-          <div className="lobby-notification">
-            <span className="lobby-notification-text">
-              {parts[0]}<strong>{first.username}</strong>{parts[1]}{suffix}
-            </span>
-            <div className="lobby-notification-actions">
-              <button
-                className="btn-admit"
-                onClick={async () => {
-                  try {
-                    await invoke("admit_participant", { participantId: first.id });
-                    setWaitingParticipants((prev) => prev.filter((x) => x.id !== first.id));
-                  } catch (e) {
-                    console.error("admit error:", e);
-                  }
-                }}
-              >
-                {t("lobby.admit")}
-              </button>
-              <button
-                className="btn-view"
-                onClick={() => {
-                  if (!showParticipants) onToggleParticipants();
-                }}
-              >
-                {t("lobby.view")}
-              </button>
+      {waitingParticipants.length > 0 &&
+        (() => {
+          const first = waitingParticipants[0]
+          const parts = t('lobby.joinRequest').split('{{name}}')
+          const suffix =
+            waitingParticipants.length > 1
+              ? ` (+${waitingParticipants.length - 1})`
+              : ''
+          return (
+            <div className="lobby-notification">
+              <span className="lobby-notification-text">
+                {parts[0]}
+                <strong>{first.username}</strong>
+                {parts[1]}
+                {suffix}
+              </span>
+              <div className="lobby-notification-actions">
+                <button
+                  className="btn-admit"
+                  onClick={async () => {
+                    try {
+                      await invoke('admit_participant', {
+                        participantId: first.id,
+                      })
+                      setWaitingParticipants((prev) =>
+                        prev.filter((x) => x.id !== first.id)
+                      )
+                    } catch (e) {
+                      console.error('admit error:', e)
+                    }
+                  }}
+                >
+                  {t('lobby.admit')}
+                </button>
+                <button
+                  className="btn-view"
+                  onClick={() => {
+                    if (!showParticipants) onToggleParticipants()
+                  }}
+                >
+                  {t('lobby.view')}
+                </button>
+              </div>
             </div>
-          </div>
-        );
-      })()}
+          )
+        })()}
       <div className="call-body">
         {/* Main video area */}
         <div className="call-content">
@@ -1633,15 +2063,39 @@ function CallView({
                 <ParticipantTile
                   participant={focusedDisplayItem.participant}
                   videoFrames={videoFrames}
-                  isActiveSpeaker={activeSpeakers.includes(focusedDisplayItem.participant.sid)}
-                  handRaisePosition={handRaisedMap[focusedDisplayItem.participant.sid]}
+                  isActiveSpeaker={activeSpeakers.includes(
+                    focusedDisplayItem.participant.sid
+                  )}
+                  handRaisePosition={
+                    handRaisedMap[focusedDisplayItem.participant.sid]
+                  }
                   displayItem={focusedDisplayItem}
                 />
                 <div className="focus-toolbar">
-                  <button className="focus-toolbar-btn" onClick={() => setShowFocusThumbnails(v => !v)} title={showFocusThumbnails ? "Masquer les vignettes" : "Afficher les vignettes"}>
-                    {showFocusThumbnails ? <RiFullscreenLine size={18} /> : <RiFullscreenExitLine size={18} />}
+                  <button
+                    className="focus-toolbar-btn"
+                    onClick={() => setShowFocusThumbnails((v) => !v)}
+                    title={
+                      showFocusThumbnails
+                        ? 'Masquer les vignettes'
+                        : 'Afficher les vignettes'
+                    }
+                  >
+                    {showFocusThumbnails ? (
+                      <RiFullscreenLine size={18} />
+                    ) : (
+                      <RiFullscreenExitLine size={18} />
+                    )}
                   </button>
-                  <button className="focus-toolbar-btn" onClick={() => { setFocusedItem(null); userPinnedRef.current = false; setShowFocusThumbnails(true); }} title="Retour à la grille">
+                  <button
+                    className="focus-toolbar-btn"
+                    onClick={() => {
+                      setFocusedItem(null)
+                      userPinnedRef.current = false
+                      setShowFocusThumbnails(true)
+                    }}
+                    title="Retour à la grille"
+                  >
                     <RiCloseLine size={18} />
                   </button>
                 </div>
@@ -1649,11 +2103,23 @@ function CallView({
               {showFocusThumbnails && thumbnailItems.length > 0 && (
                 <div className="focus-thumbnails">
                   {thumbnailItems.map((d) => (
-                    <div key={d.key} className="tile" onClick={() => { userPinnedRef.current = true; setFocusedItem({ participantSid: d.participant.sid, source: d.source }); }}>
+                    <div
+                      key={d.key}
+                      className="tile"
+                      onClick={() => {
+                        userPinnedRef.current = true
+                        setFocusedItem({
+                          participantSid: d.participant.sid,
+                          source: d.source,
+                        })
+                      }}
+                    >
                       <ParticipantTile
                         participant={d.participant}
                         videoFrames={videoFrames}
-                        isActiveSpeaker={activeSpeakers.includes(d.participant.sid)}
+                        isActiveSpeaker={activeSpeakers.includes(
+                          d.participant.sid
+                        )}
                         handRaisePosition={handRaisedMap[d.participant.sid]}
                         displayItem={d}
                       />
@@ -1663,19 +2129,44 @@ function CallView({
               )}
             </div>
           ) : (
-            <div className={`video-grid${gridCount === 0 ? " video-grid-0" : ""}`} style={gridStyle} data-testid="call-participant-grid">
+            <div
+              className={`video-grid${gridCount === 0 ? ' video-grid-0' : ''}`}
+              style={gridStyle}
+              data-testid="call-participant-grid"
+            >
               {displayItems.length === 0 ? (
-                <div className="empty-state">{t("call.noParticipants")}</div>
+                <div className="empty-state">{t('call.noParticipants')}</div>
               ) : (
                 displayItems.map((d) => (
-                  <div key={d.key} onClick={() => { userPinnedRef.current = true; setFocusedItem({ participantSid: d.participant.sid, source: d.source }); }}>
+                  <div
+                    key={d.key}
+                    onClick={() => {
+                      userPinnedRef.current = true
+                      setFocusedItem({
+                        participantSid: d.participant.sid,
+                        source: d.source,
+                      })
+                    }}
+                  >
                     <ParticipantTile
                       participant={d.participant}
                       videoFrames={videoFrames}
-                      isActiveSpeaker={activeSpeakers.includes(d.participant.sid)}
+                      isActiveSpeaker={activeSpeakers.includes(
+                        d.participant.sid
+                      )}
                       handRaisePosition={handRaisedMap[d.participant.sid]}
                       displayItem={d}
-                      onExpand={d.isScreenShare ? () => { userPinnedRef.current = true; setFocusedItem({ participantSid: d.participant.sid, source: d.source }); } : undefined}
+                      onExpand={
+                        d.isScreenShare
+                          ? () => {
+                              userPinnedRef.current = true
+                              setFocusedItem({
+                                participantSid: d.participant.sid,
+                                source: d.source,
+                              })
+                            }
+                          : undefined
+                      }
                     />
                   </div>
                 ))
@@ -1688,30 +2179,50 @@ function CallView({
         {showChat && (
           <div className="chat-sidebar" data-testid="call-chat-sidebar">
             <div className="chat-header">
-              <span>{t("chat")}</span>
-              <button className="chat-close" data-testid="chat-close-button" onClick={onToggleChat}>
+              <span>{t('chat')}</span>
+              <button
+                className="chat-close"
+                data-testid="chat-close-button"
+                onClick={onToggleChat}
+              >
                 <RiCloseLine size={20} />
               </button>
             </div>
-            <div className="chat-messages" ref={chatScrollRef} data-testid="chat-message-list">
+            <div
+              className="chat-messages"
+              ref={chatScrollRef}
+              data-testid="chat-message-list"
+            >
               {messages.length === 0 ? (
-                <div className="chat-empty" data-testid="chat-empty">{t("chat.noMessages")}</div>
+                <div className="chat-empty" data-testid="chat-empty">
+                  {t('chat.noMessages')}
+                </div>
               ) : (
                 messages.map((m, i) => {
-                  const isOwn = localParticipant && m.sender_sid === localParticipant.sid;
+                  const isOwn =
+                    localParticipant && m.sender_sid === localParticipant.sid
                   const showName =
-                    !isOwn && (i === 0 || messages[i - 1].sender_sid !== m.sender_sid);
+                    !isOwn &&
+                    (i === 0 || messages[i - 1].sender_sid !== m.sender_sid)
                   return (
-                    <div key={m.id} className={`chat-bubble ${isOwn ? "chat-bubble-own" : ""}`} data-testid={`chat-bubble-${i}`}>
+                    <div
+                      key={m.id}
+                      className={`chat-bubble ${isOwn ? 'chat-bubble-own' : ''}`}
+                      data-testid={`chat-bubble-${i}`}
+                    >
                       {showName && (
                         <div className="chat-sender">
-                          {m.sender_name || t("unknown")}
+                          {m.sender_name || t('unknown')}
                         </div>
                       )}
-                      <div className="chat-text"><AutoLinkText text={m.text} /></div>
-                      <div className="chat-time">{formatTime(m.timestamp_ms)}</div>
+                      <div className="chat-text">
+                        <AutoLinkText text={m.text} />
+                      </div>
+                      <div className="chat-time">
+                        {formatTime(m.timestamp_ms)}
+                      </div>
                     </div>
-                  );
+                  )
                 })
               )}
             </div>
@@ -1721,9 +2232,9 @@ function CallView({
                 data-testid="chat-message-input"
                 value={chatInput}
                 onChange={(e) => setChatInput(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && sendMessage()}
+                onKeyDown={(e) => e.key === 'Enter' && sendMessage()}
                 maxLength={2000}
-                placeholder={t("chat.placeholder")}
+                placeholder={t('chat.placeholder')}
               />
               <button
                 className="chat-send"
@@ -1741,7 +2252,12 @@ function CallView({
         {showParticipants && (
           <div className="participants-sidebar">
             <div className="participants-header">
-              <span>{t("control.participants")} <span className="participants-count">({allParticipants.length})</span></span>
+              <span>
+                {t('control.participants')}{' '}
+                <span className="participants-count">
+                  ({allParticipants.length})
+                </span>
+              </span>
               <button className="chat-close" onClick={onToggleParticipants}>
                 <RiCloseLine size={20} />
               </button>
@@ -1750,31 +2266,53 @@ function CallView({
               {waitingParticipants.length > 0 && (
                 <div className="lobby-section">
                   <div className="lobby-header">
-                    <h4>{t("lobby.waitingParticipants")} ({waitingParticipants.length})</h4>
-                    <button className="btn btn-sm" onClick={async () => {
-                      for (const p of waitingParticipants) {
-                        await invoke("admit_participant", { participantId: p.id });
-                      }
-                      setWaitingParticipants([]);
-                    }}>
-                      {t("lobby.admitAll")}
+                    <h4>
+                      {t('lobby.waitingParticipants')} (
+                      {waitingParticipants.length})
+                    </h4>
+                    <button
+                      className="btn btn-sm"
+                      onClick={async () => {
+                        for (const p of waitingParticipants) {
+                          await invoke('admit_participant', {
+                            participantId: p.id,
+                          })
+                        }
+                        setWaitingParticipants([])
+                      }}
+                    >
+                      {t('lobby.admitAll')}
                     </button>
                   </div>
-                  {waitingParticipants.map(p => (
+                  {waitingParticipants.map((p) => (
                     <div key={p.id} className="lobby-participant">
                       <span>{p.username}</span>
                       <div className="lobby-actions">
-                        <button className="btn btn-sm btn-primary" onClick={async () => {
-                          await invoke("admit_participant", { participantId: p.id });
-                          setWaitingParticipants(prev => prev.filter(x => x.id !== p.id));
-                        }}>
-                          {t("lobby.admit")}
+                        <button
+                          className="btn btn-sm btn-primary"
+                          onClick={async () => {
+                            await invoke('admit_participant', {
+                              participantId: p.id,
+                            })
+                            setWaitingParticipants((prev) =>
+                              prev.filter((x) => x.id !== p.id)
+                            )
+                          }}
+                        >
+                          {t('lobby.admit')}
                         </button>
-                        <button className="btn btn-sm btn-danger" onClick={async () => {
-                          await invoke("deny_participant", { participantId: p.id });
-                          setWaitingParticipants(prev => prev.filter(x => x.id !== p.id));
-                        }}>
-                          {t("lobby.deny")}
+                        <button
+                          className="btn btn-sm btn-danger"
+                          onClick={async () => {
+                            await invoke('deny_participant', {
+                              participantId: p.id,
+                            })
+                            setWaitingParticipants((prev) =>
+                              prev.filter((x) => x.id !== p.id)
+                            )
+                          }}
+                        >
+                          {t('lobby.deny')}
                         </button>
                       </div>
                     </div>
@@ -1782,11 +2320,12 @@ function CallView({
                 </div>
               )}
               {allParticipants.map((p) => {
-                const name = p.name || p.identity || t("unknown");
-                const isLocal = localParticipant && p.sid === localParticipant.sid;
-                const isLocalAdmin = localParticipant?.is_admin;
-                const isPinned = focusedItem?.participantSid === p.sid;
-                const menuOpen = participantMenu === p.sid;
+                const name = p.name || p.identity || t('unknown')
+                const isLocal =
+                  localParticipant && p.sid === localParticipant.sid
+                const isLocalAdmin = localParticipant?.is_admin
+                const isPinned = focusedItem?.participantSid === p.sid
+                const menuOpen = participantMenu === p.sid
                 return (
                   <div key={p.sid} className="participant-row">
                     <div
@@ -1797,7 +2336,11 @@ function CallView({
                     </div>
                     <div className="participant-info">
                       <div className="participant-display-name">{name}</div>
-                      {isLocal && <div className="participant-you-label">{t("call.you")}</div>}
+                      {isLocal && (
+                        <div className="participant-you-label">
+                          {t('call.you')}
+                        </div>
+                      )}
                     </div>
                     <div className="participant-icons">
                       {p.is_muted ? (
@@ -1805,36 +2348,66 @@ function CallView({
                       ) : activeSpeakers.includes(p.sid) ? (
                         <RiMicLine size={14} className="speaking-icon" />
                       ) : null}
-                      {handRaisedMap[p.sid] > 0 && <RiHand size={14} style={{ color: "var(--hand-raise)" }} />}
+                      {handRaisedMap[p.sid] > 0 && (
+                        <RiHand
+                          size={14}
+                          style={{ color: 'var(--hand-raise)' }}
+                        />
+                      )}
                       <ConnectionQualityBars quality={p.connection_quality} />
                       {!isLocal && (
                         <div className="participant-menu-wrapper">
                           <button
                             className="participant-menu-btn"
-                            onClick={(e) => { e.stopPropagation(); setParticipantMenu(menuOpen ? null : p.sid); }}
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              setParticipantMenu(menuOpen ? null : p.sid)
+                            }}
                           >
                             <RiMore2Fill size={16} />
                           </button>
                           {menuOpen && (
-                            <div className="participant-context-menu" onClick={() => setParticipantMenu(null)}>
-                              <button className="context-menu-item" onClick={() => {
-                                if (isPinned) {
-                                  userPinnedRef.current = false;
-                                  setFocusedItem(null);
-                                } else {
-                                  userPinnedRef.current = true;
-                                  setFocusedItem({ participantSid: p.sid, source: "camera" });
-                                }
-                              }}>
-                                {isPinned ? <RiUnpinFill size={16} /> : <RiPushpinLine size={16} />}
-                                <span>{isPinned ? t("participant.unpin") : t("participant.pin")}</span>
+                            <div
+                              className="participant-context-menu"
+                              onClick={() => setParticipantMenu(null)}
+                            >
+                              <button
+                                className="context-menu-item"
+                                onClick={() => {
+                                  if (isPinned) {
+                                    userPinnedRef.current = false
+                                    setFocusedItem(null)
+                                  } else {
+                                    userPinnedRef.current = true
+                                    setFocusedItem({
+                                      participantSid: p.sid,
+                                      source: 'camera',
+                                    })
+                                  }
+                                }}
+                              >
+                                {isPinned ? (
+                                  <RiUnpinFill size={16} />
+                                ) : (
+                                  <RiPushpinLine size={16} />
+                                )}
+                                <span>
+                                  {isPinned
+                                    ? t('participant.unpin')
+                                    : t('participant.pin')}
+                                </span>
                               </button>
                               {isLocalAdmin && !p.is_muted && (
-                                <button className="context-menu-item" onClick={async () => {
-                                  await invoke("mute_participant", { identity: p.identity });
-                                }}>
+                                <button
+                                  className="context-menu-item"
+                                  onClick={async () => {
+                                    await invoke('mute_participant', {
+                                      identity: p.identity,
+                                    })
+                                  }}
+                                >
                                   <RiVolumeMuteLine size={16} />
-                                  <span>{t("participant.mute")}</span>
+                                  <span>{t('participant.mute')}</span>
                                 </button>
                               )}
                             </div>
@@ -1843,7 +2416,7 @@ function CallView({
                       )}
                     </div>
                   </div>
-                );
+                )
               })}
             </div>
           </div>
@@ -1851,26 +2424,32 @@ function CallView({
 
         {/* Info sidebar */}
         {showInfo && !showTranscription && (
-          <InfoSidebar meetUrl={meetUrl} onClose={onToggleInfo} roomId={roomId} accessLevel={accessLevel} />
+          <InfoSidebar
+            meetUrl={meetUrl}
+            onClose={onToggleInfo}
+            roomId={roomId}
+            accessLevel={accessLevel}
+          />
         )}
 
         {/* Tools sidebar */}
-        {showTranscription && (
-          <ToolsSidebar onClose={onToggleTranscription} />
-        )}
+        {showTranscription && <ToolsSidebar onClose={onToggleTranscription} />}
       </div>
 
       {/* Reaction overlay */}
       {reactions.length > 0 && (
         <div className="reaction-overlay">
           {reactions.map((r) => {
-            const emojiChar = REACTION_EMOJIS.find(([id]) => id === r.emoji)?.[1] ?? r.emoji;
+            const emojiChar =
+              REACTION_EMOJIS.find(([id]) => id === r.emoji)?.[1] ?? r.emoji
             return (
               <div key={r.id} className="floating-reaction">
                 <span className="floating-reaction-emoji">{emojiChar}</span>
-                <span className="floating-reaction-name">{r.participantName}</span>
+                <span className="floating-reaction-name">
+                  {r.participantName}
+                </span>
               </div>
-            );
+            )
           })}
         </div>
       )}
@@ -1879,41 +2458,57 @@ function CallView({
       {showOverflow && (
         <div className="overflow-menu">
           <button
-            className={`overflow-item ${isHandRaised ? "overflow-item-active" : ""}`}
-            onClick={() => { onToggleHandRaise(); setShowOverflow(false); }}
+            className={`overflow-item ${isHandRaised ? 'overflow-item-active' : ''}`}
+            onClick={() => {
+              onToggleHandRaise()
+              setShowOverflow(false)
+            }}
             data-testid="call-hand-raise-button"
           >
             <RiHand size={20} />
-            <span>{isHandRaised ? t("control.lowerHand") : t("control.raiseHand")}</span>
+            <span>
+              {isHandRaised ? t('control.lowerHand') : t('control.raiseHand')}
+            </span>
           </button>
           <button
             className="overflow-item"
-            onClick={() => { setShowReactionPicker(!showReactionPicker); setShowOverflow(false); }}
+            onClick={() => {
+              setShowReactionPicker(!showReactionPicker)
+              setShowOverflow(false)
+            }}
           >
             <RiEmotionLine size={20} />
-            <span>{t("control.reaction") || "Reaction"}</span>
+            <span>{t('control.reaction') || 'Reaction'}</span>
           </button>
           <button
-            className={`overflow-item ${showTranscription ? "overflow-item-active" : ""}`}
-            onClick={() => { onToggleTranscription(); setShowOverflow(false); }}
+            className={`overflow-item ${showTranscription ? 'overflow-item-active' : ''}`}
+            onClick={() => {
+              onToggleTranscription()
+              setShowOverflow(false)
+            }}
           >
             <RiApps2Line size={20} />
-            <span>{t("control.tools")}</span>
+            <span>{t('control.tools')}</span>
           </button>
           <button
-            className={`overflow-item ${showInfo ? "overflow-item-active" : ""}`}
-            onClick={() => { onToggleInfo(); setShowOverflow(false); }}
+            className={`overflow-item ${showInfo ? 'overflow-item-active' : ''}`}
+            onClick={() => {
+              onToggleInfo()
+              setShowOverflow(false)
+            }}
           >
             <RiInformationLine size={20} />
-            <span>{t("control.info")}</span>
+            <span>{t('control.info')}</span>
           </button>
           <button
             className="overflow-item"
-            onClick={() => { setShowOverflow(false); }}
-            title={t("control.settings") || "Settings"}
+            onClick={() => {
+              setShowOverflow(false)
+            }}
+            title={t('control.settings') || 'Settings'}
           >
             <RiSettings3Line size={20} />
-            <span>{t("control.settings") || "Settings"}</span>
+            <span>{t('control.settings') || 'Settings'}</span>
           </button>
         </div>
       )}
@@ -1939,19 +2534,19 @@ function CallView({
         {/* Mic group */}
         <div className="control-group">
           <button
-            className={`control-btn ${micEnabled ? "" : "control-btn-off"}`}
+            className={`control-btn ${micEnabled ? '' : 'control-btn-off'}`}
             onClick={onToggleMic}
-            title={micEnabled ? t("control.mute") : t("control.unmute")}
-            style={{ borderRadius: "8px 0 0 8px" }}
+            title={micEnabled ? t('control.mute') : t('control.unmute')}
+            style={{ borderRadius: '8px 0 0 8px' }}
             data-testid="call-mic-button"
           >
             {micEnabled ? <RiMicLine size={20} /> : <RiMicOffLine size={20} />}
           </button>
           <button
-            className={`control-btn control-chevron ${micEnabled ? "" : "control-btn-off"}`}
+            className={`control-btn control-chevron ${micEnabled ? '' : 'control-btn-off'}`}
             onClick={onShowMicPicker}
-            title={t("control.audioDevices")}
-            style={{ borderRadius: "0 8px 8px 0" }}
+            title={t('control.audioDevices')}
+            style={{ borderRadius: '0 8px 8px 0' }}
             data-testid="call-mic-chevron"
           >
             <RiArrowUpSLine size={16} />
@@ -1961,10 +2556,10 @@ function CallView({
         {/* Camera group */}
         <div className="control-group">
           <button
-            className={`control-btn ${camEnabled ? "" : "control-btn-off"}`}
+            className={`control-btn ${camEnabled ? '' : 'control-btn-off'}`}
             onClick={onToggleCam}
-            title={camEnabled ? t("control.camOff") : t("control.camOn")}
-            style={{ borderRadius: "8px 0 0 8px" }}
+            title={camEnabled ? t('control.camOff') : t('control.camOn')}
+            style={{ borderRadius: '8px 0 0 8px' }}
             data-testid="call-camera-button"
           >
             {camEnabled ? (
@@ -1974,10 +2569,10 @@ function CallView({
             )}
           </button>
           <button
-            className={`control-btn control-chevron ${camEnabled ? "" : "control-btn-off"}`}
+            className={`control-btn control-chevron ${camEnabled ? '' : 'control-btn-off'}`}
             onClick={onShowCamPicker}
-            title={t("control.camDevices")}
-            style={{ borderRadius: "0 8px 8px 0" }}
+            title={t('control.camDevices')}
+            style={{ borderRadius: '0 8px 8px 0' }}
             data-testid="call-camera-chevron"
           >
             <RiArrowUpSLine size={16} />
@@ -1986,26 +2581,28 @@ function CallView({
 
         {/* Screen share */}
         <button
-          className={`control-btn ${isScreenSharing ? "control-btn-active-danger" : ""}`}
+          className={`control-btn ${isScreenSharing ? 'control-btn-active-danger' : ''}`}
           onClick={async () => {
             if (isScreenSharing) {
               try {
-                await invoke("stop_screen_share");
-                setIsScreenSharing(false);
+                await invoke('stop_screen_share')
+                setIsScreenSharing(false)
               } catch (e) {
-                console.error("Failed to stop screen share:", e);
+                console.error('Failed to stop screen share:', e)
               }
             } else {
               try {
-                const sources = await invoke<ScreenSource[]>("list_screen_sources");
-                setScreenSources(sources);
-                setShowSourcePicker(true);
+                const sources = await invoke<ScreenSource[]>(
+                  'list_screen_sources'
+                )
+                setScreenSources(sources)
+                setShowSourcePicker(true)
               } catch (e) {
-                console.error("Failed to list screen sources:", e);
+                console.error('Failed to list screen sources:', e)
               }
             }
           }}
-          title={isScreenSharing ? t("call.stopShare") : t("call.startShare")}
+          title={isScreenSharing ? t('call.stopShare') : t('call.startShare')}
           data-testid="call-screen-share-button"
         >
           <ScreenShareIcon size={20} />
@@ -2013,37 +2610,43 @@ function CallView({
 
         {/* Participants */}
         <button
-          className={`control-btn ${showParticipants ? "control-btn-hand" : ""}`}
+          className={`control-btn ${showParticipants ? 'control-btn-hand' : ''}`}
           onClick={onToggleParticipants}
-          title={t("control.participants")}
+          title={t('control.participants')}
           data-testid="call-participants-button"
         >
           <RiGroupLine size={20} />
-          <span className="unread-badge" style={{ background: "var(--accent)" }}>
+          <span
+            className="unread-badge"
+            style={{ background: 'var(--accent)' }}
+          >
             {allParticipants.length}
           </span>
         </button>
 
         {/* Chat */}
         <button
-          className={`control-btn ${showChat ? "control-btn-hand" : ""}`}
+          className={`control-btn ${showChat ? 'control-btn-hand' : ''}`}
           onClick={onToggleChat}
-          title={t("chat")}
+          title={t('chat')}
           data-testid="call-chat-button"
         >
           <RiChat1Line size={20} />
           {unreadCount > 0 && (
             <span className="unread-badge" data-testid="chat-unread-badge">
-              {unreadCount > 9 ? "9+" : unreadCount}
+              {unreadCount > 9 ? '9+' : unreadCount}
             </span>
           )}
         </button>
 
         {/* More (overflow) */}
         <button
-          className={`control-btn ${showOverflow ? "control-btn-hand" : ""}`}
-          onClick={() => { setShowOverflow(!showOverflow); setShowReactionPicker(false); }}
-          title={t("control.more") || "More"}
+          className={`control-btn ${showOverflow ? 'control-btn-hand' : ''}`}
+          onClick={() => {
+            setShowOverflow(!showOverflow)
+            setShowReactionPicker(false)
+          }}
+          title={t('control.more') || 'More'}
         >
           <RiMore2Fill size={20} />
         </button>
@@ -2052,7 +2655,7 @@ function CallView({
         <button
           className="control-btn control-btn-hangup"
           onClick={onHangUp}
-          title={t("control.leave")}
+          title={t('control.leave')}
           data-testid="call-hangup-button"
         >
           <RiPhoneFill size={20} />
@@ -2063,9 +2666,13 @@ function CallView({
       {showMicPicker && (
         <div className="device-picker" data-testid="device-picker-audio">
           <div className="device-section">
-            <div className="device-section-title">{t("device.microphone")}</div>
+            <div className="device-section-title">{t('device.microphone')}</div>
             {audioInputs.map((d, i) => (
-              <label key={d.name} className="device-option" data-testid={`device-option-input-${i}`}>
+              <label
+                key={d.name}
+                className="device-option"
+                data-testid={`device-option-input-${i}`}
+              >
                 <input
                   type="radio"
                   name="audioInput"
@@ -2073,19 +2680,29 @@ function CallView({
                   onChange={() => onSelectAudioInput(d.name)}
                 />
                 {d.name}
-                {d.is_default && " \u2605"}
+                {d.is_default && ' \u2605'}
               </label>
             ))}
             {audioInputs.length === 0 && (
-              <div style={{ fontSize: "0.8rem", color: "#929292", padding: "4px 8px" }}>
-                {t("device.noMic")}
+              <div
+                style={{
+                  fontSize: '0.8rem',
+                  color: '#929292',
+                  padding: '4px 8px',
+                }}
+              >
+                {t('device.noMic')}
               </div>
             )}
           </div>
           <div className="device-section">
-            <div className="device-section-title">{t("device.speaker")}</div>
+            <div className="device-section-title">{t('device.speaker')}</div>
             {audioOutputs.map((d, i) => (
-              <label key={d.name} className="device-option" data-testid={`device-option-output-${i}`}>
+              <label
+                key={d.name}
+                className="device-option"
+                data-testid={`device-option-output-${i}`}
+              >
                 <input
                   type="radio"
                   name="audioOutput"
@@ -2093,12 +2710,18 @@ function CallView({
                   onChange={() => onSelectAudioOutput(d.name)}
                 />
                 {d.name}
-                {d.is_default && " \u2605"}
+                {d.is_default && ' \u2605'}
               </label>
             ))}
             {audioOutputs.length === 0 && (
-              <div style={{ fontSize: "0.8rem", color: "#929292", padding: "4px 8px" }}>
-                {t("device.noSpeaker")}
+              <div
+                style={{
+                  fontSize: '0.8rem',
+                  color: '#929292',
+                  padding: '4px 8px',
+                }}
+              >
+                {t('device.noSpeaker')}
               </div>
             )}
           </div>
@@ -2107,11 +2730,19 @@ function CallView({
 
       {/* Camera device picker */}
       {showCamPicker && (
-        <div className="device-picker" data-testid="device-picker-video" style={{ minWidth: 300 }}>
+        <div
+          className="device-picker"
+          data-testid="device-picker-video"
+          style={{ minWidth: 300 }}
+        >
           <div className="device-section">
-            <div className="device-section-title">{t("device.camera")}</div>
+            <div className="device-section-title">{t('device.camera')}</div>
             {videoInputs.map((d, i) => (
-              <label key={d.unique_id} className="device-option" data-testid={`device-option-camera-${i}`}>
+              <label
+                key={d.unique_id}
+                className="device-option"
+                data-testid={`device-option-camera-${i}`}
+              >
                 <input
                   type="radio"
                   name="videoInput"
@@ -2119,36 +2750,44 @@ function CallView({
                   onChange={() => onSelectVideoInput(d.unique_id)}
                 />
                 {d.name}
-                {d.is_default && " \u2605"}
+                {d.is_default && ' \u2605'}
               </label>
             ))}
             {videoInputs.length === 0 && (
-              <div style={{ fontSize: "0.8rem", color: "#929292", padding: "4px 8px" }}>
-                {t("device.noCamera")}
+              <div
+                style={{
+                  fontSize: '0.8rem',
+                  color: '#929292',
+                  padding: '4px 8px',
+                }}
+              >
+                {t('device.noCamera')}
               </div>
             )}
           </div>
           <div className="device-section">
-            <div className="device-section-title">{t("settings.incall.background")}</div>
+            <div className="device-section-title">
+              {t('settings.incall.background')}
+            </div>
             <div className="bg-mode-buttons">
               <button
-                className={`bg-mode-btn ${bgMode === "off" ? "bg-mode-btn-active" : ""}`}
-                onClick={() => handleBgMode("off")}
+                className={`bg-mode-btn ${bgMode === 'off' ? 'bg-mode-btn-active' : ''}`}
+                onClick={() => handleBgMode('off')}
               >
-                {t("settings.incall.bgOff")}
+                {t('settings.incall.bgOff')}
               </button>
               <button
-                className={`bg-mode-btn ${bgMode === "blur" ? "bg-mode-btn-active" : ""}`}
-                onClick={() => handleBgMode("blur")}
+                className={`bg-mode-btn ${bgMode === 'blur' ? 'bg-mode-btn-active' : ''}`}
+                onClick={() => handleBgMode('blur')}
               >
-                {t("settings.incall.bgBlur")}
+                {t('settings.incall.bgBlur')}
               </button>
             </div>
             <div className="bg-image-grid">
               {[1, 2, 3, 4, 5, 6, 7, 8].map((id) => (
                 <button
                   key={id}
-                  className={`bg-image-thumb ${bgMode === `image:${id}` ? "bg-image-thumb-active" : ""}`}
+                  className={`bg-image-thumb ${bgMode === `image:${id}` ? 'bg-image-thumb-active' : ''}`}
                   onClick={() => handleBgMode(`image:${id}`)}
                 >
                   <img
@@ -2166,19 +2805,19 @@ function CallView({
         <SourcePickerModal
           sources={screenSources}
           onSelect={async (sourceId) => {
-            setShowSourcePicker(false);
+            setShowSourcePicker(false)
             try {
-              await invoke("start_screen_share", { sourceId });
-              setIsScreenSharing(true);
+              await invoke('start_screen_share', { sourceId })
+              setIsScreenSharing(true)
             } catch (e) {
-              console.error("Failed to start screen share:", e);
+              console.error('Failed to start screen share:', e)
             }
           }}
           onClose={() => setShowSourcePicker(false)}
         />
       )}
     </div>
-  );
+  )
 }
 
 // -- Settings Modal ---------------------------------------------------------
@@ -2190,71 +2829,79 @@ function SettingsModal({
   onDisplayNameChange,
   initialDisplayName,
 }: {
-  onClose: () => void;
-  onLanguageChange: (lang: string) => void;
-  onThemeChange: (theme: string) => void;
-  onDisplayNameChange: (name: string) => void;
-  initialDisplayName: string;
+  onClose: () => void
+  onLanguageChange: (lang: string) => void
+  onThemeChange: (theme: string) => void
+  onDisplayNameChange: (name: string) => void
+  initialDisplayName: string
 }) {
-  const t = useT();
+  const t = useT()
   const [form, setForm] = useState({
     displayName: initialDisplayName,
-    language: "fr",
+    language: 'fr',
     micOnJoin: true,
     cameraOnJoin: false,
-    theme: "light",
+    theme: 'light',
     adaptiveModeEnabled: true,
-  });
-  const [meetInstances, setMeetInstances] = useState<string[]>(["meet.numerique.gouv.fr"]);
-  const [newInstance, setNewInstance] = useState("");
+  })
+  const [meetInstances, setMeetInstances] = useState<string[]>([
+    'meet.numerique.gouv.fr',
+  ])
+  const [newInstance, setNewInstance] = useState('')
 
   const addInstance = () => {
-    const val = newInstance.trim().toLowerCase();
+    const val = newInstance.trim().toLowerCase()
     if (val && !meetInstances.includes(val)) {
-      const next = [...meetInstances, val];
-      setMeetInstances(next);
-      invoke("set_meet_instances", { instances: next });
-      setNewInstance("");
+      const next = [...meetInstances, val]
+      setMeetInstances(next)
+      invoke('set_meet_instances', { instances: next })
+      setNewInstance('')
     }
-  };
+  }
 
   useEffect(() => {
-    invoke<Settings>("get_settings")
+    invoke<Settings>('get_settings')
       .then((s) => {
         setForm((prev) => ({
           ...prev,
-          language: s.language || "fr",
+          language: s.language || 'fr',
           micOnJoin: s.mic_enabled_on_join ?? true,
           cameraOnJoin: s.camera_enabled_on_join ?? false,
-          theme: s.theme || "light",
+          theme: s.theme || 'light',
           adaptiveModeEnabled: s.adaptive_mode_enabled ?? true,
-        }));
+        }))
       })
-      .catch(() => {});
-    invoke<string[]>("get_meet_instances").then(setMeetInstances).catch(() => {});
-  }, []);
+      .catch(() => {})
+    invoke<string[]>('get_meet_instances')
+      .then(setMeetInstances)
+      .catch(() => {})
+  }, [])
 
   const save = async () => {
-    await invoke("set_display_name", { name: form.displayName || null });
-    await invoke("set_mic_enabled_on_join", { enabled: form.micOnJoin });
-    await invoke("set_camera_enabled_on_join", { enabled: form.cameraOnJoin });
-    await invoke("set_adaptive_mode_enabled", { enabled: form.adaptiveModeEnabled });
-    onDisplayNameChange(form.displayName);
-    onClose();
-  };
+    await invoke('set_display_name', { name: form.displayName || null })
+    await invoke('set_mic_enabled_on_join', { enabled: form.micOnJoin })
+    await invoke('set_camera_enabled_on_join', { enabled: form.cameraOnJoin })
+    await invoke('set_adaptive_mode_enabled', {
+      enabled: form.adaptiveModeEnabled,
+    })
+    onDisplayNameChange(form.displayName)
+    onClose()
+  }
 
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="settings-modal" onClick={(e) => e.stopPropagation()}>
         <div className="settings-header">
-          <span>{t("settings")}</span>
+          <span>{t('settings')}</span>
           <button onClick={onClose} data-testid="settings-close-button">
             <RiCloseLine size={20} />
           </button>
         </div>
         <div className="settings-body">
           <div className="settings-section">
-            <label className="settings-label">{t("settings.displayName")}</label>
+            <label className="settings-label">
+              {t('settings.displayName')}
+            </label>
             <input
               className="settings-input"
               data-testid="settings-display-name-input"
@@ -2265,41 +2912,45 @@ function SettingsModal({
             />
           </div>
           <div className="settings-section">
-            <label className="settings-label">{t("settings.language")}</label>
+            <label className="settings-label">{t('settings.language')}</label>
             <select
               value={form.language}
               data-testid="settings-language-select"
               onChange={(e) => {
-                const lang = e.target.value;
-                setForm({ ...form, language: lang });
-                invoke("set_language", { lang: lang || null });
-                onLanguageChange(lang);
+                const lang = e.target.value
+                setForm({ ...form, language: lang })
+                invoke('set_language', { lang: lang || null })
+                onLanguageChange(lang)
               }}
             >
               {SUPPORTED_LANGS.map((code) => (
-                <option key={code} value={code} data-testid={`settings-language-${code}`}>
-                  {translations[code]["lang." + code]}
+                <option
+                  key={code}
+                  value={code}
+                  data-testid={`settings-language-${code}`}
+                >
+                  {translations[code]['lang.' + code]}
                 </option>
               ))}
             </select>
           </div>
           <div className="settings-section">
-            <label className="settings-label">{t("settings.theme")}</label>
+            <label className="settings-label">{t('settings.theme')}</label>
             <select
               value={form.theme}
               onChange={(e) => {
-                const theme = e.target.value;
-                setForm({ ...form, theme });
-                invoke("set_theme", { theme });
-                onThemeChange(theme);
+                const theme = e.target.value
+                setForm({ ...form, theme })
+                invoke('set_theme', { theme })
+                onThemeChange(theme)
               }}
             >
-              <option value="light">{t("settings.theme.light")}</option>
-              <option value="dark">{t("settings.theme.dark")}</option>
+              <option value="light">{t('settings.theme.light')}</option>
+              <option value="dark">{t('settings.theme.dark')}</option>
             </select>
           </div>
           <div className="settings-section">
-            <label className="settings-label">{t("settings.micOnJoin")}</label>
+            <label className="settings-label">{t('settings.micOnJoin')}</label>
             <input
               type="checkbox"
               checked={form.micOnJoin}
@@ -2309,7 +2960,7 @@ function SettingsModal({
             />
           </div>
           <div className="settings-section">
-            <label className="settings-label">{t("settings.camOnJoin")}</label>
+            <label className="settings-label">{t('settings.camOnJoin')}</label>
             <input
               type="checkbox"
               checked={form.cameraOnJoin}
@@ -2319,7 +2970,9 @@ function SettingsModal({
             />
           </div>
           <div className="settings-section">
-            <label className="settings-label">{t("settings.adaptiveMode")}</label>
+            <label className="settings-label">
+              {t('settings.adaptiveMode')}
+            </label>
             <input
               type="checkbox"
               checked={form.adaptiveModeEnabled}
@@ -2329,40 +2982,51 @@ function SettingsModal({
             />
           </div>
           <div className="settings-section settings-section-col">
-            <label className="settings-label">{t("settings.meetInstances")}</label>
+            <label className="settings-label">
+              {t('settings.meetInstances')}
+            </label>
             {meetInstances.map((inst, i) => (
               <div key={i} className="instance-row">
                 <span>{inst}</span>
-                <button className="btn-icon" onClick={() => {
-                  const next = meetInstances.filter((_, j) => j !== i);
-                  setMeetInstances(next);
-                  invoke("set_meet_instances", { instances: next });
-                }}><RiCloseLine size={16} /></button>
+                <button
+                  className="btn-icon"
+                  onClick={() => {
+                    const next = meetInstances.filter((_, j) => j !== i)
+                    setMeetInstances(next)
+                    invoke('set_meet_instances', { instances: next })
+                  }}
+                >
+                  <RiCloseLine size={16} />
+                </button>
               </div>
             ))}
             <div className="instance-add-row">
               <input
                 id="newInstance"
                 type="text"
-                placeholder={t("settings.instancePlaceholder")}
+                placeholder={t('settings.instancePlaceholder')}
                 value={newInstance}
                 onChange={(e) => setNewInstance(e.target.value)}
                 onKeyDown={(e) => {
-                  if (e.key === "Enter") addInstance();
+                  if (e.key === 'Enter') addInstance()
                 }}
               />
-              <button className="btn-icon" onClick={addInstance} disabled={!newInstance.trim()}>
+              <button
+                className="btn-icon"
+                onClick={addInstance}
+                disabled={!newInstance.trim()}
+              >
                 <RiAddLine size={16} />
               </button>
             </div>
           </div>
         </div>
         <button className="settings-save" onClick={save}>
-          {t("settings.save")}
+          {t('settings.save')}
         </button>
       </div>
     </div>
-  );
+  )
 }
 
 // ---------------------------------------------------------------------------
@@ -2370,697 +3034,777 @@ function SettingsModal({
 // ---------------------------------------------------------------------------
 
 export default function App() {
-  const [view, setView] = useState<View>("home");
-  const [connectionState, setConnectionState] = useState("disconnected");
-  const [participants, setParticipants] = useState<Participant[]>([]);
-  const [localParticipant, setLocalParticipant] = useState<Participant | null>(null);
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [micEnabled, setMicEnabled] = useState(false);
-  const [camEnabled, setCamEnabled] = useState(false);
+  const [view, setView] = useState<View>('home')
+  const [connectionState, setConnectionState] = useState('disconnected')
+  const [participants, setParticipants] = useState<Participant[]>([])
+  const [localParticipant, setLocalParticipant] = useState<Participant | null>(
+    null
+  )
+  const [messages, setMessages] = useState<ChatMessage[]>([])
+  const [micEnabled, setMicEnabled] = useState(false)
+  const [camEnabled, setCamEnabled] = useState(false)
   const [videoFrames, setVideoFrames] = useState<Map<string, string>>(
     () => new Map()
-  );
+  )
 
   // New state for UX overhaul
-  const [isHandRaised, setIsHandRaised] = useState(false);
-  const [unreadCount, setUnreadCount] = useState(0);
-  const [handRaisedMap, setHandRaisedMap] = useState<Record<string, number>>({});
-  const [activeSpeakers, setActiveSpeakers] = useState<string[]>([]);
-  const [showChat, setShowChat] = useState(false);
-  const [showParticipants, setShowParticipants] = useState(false);
-  const [showInfo, setShowInfo] = useState(false);
-  const [showTranscription, setShowTranscription] = useState(false);
-  const [showMicPicker, setShowMicPicker] = useState(false);
-  const [showCamPicker, setShowCamPicker] = useState(false);
-  const [showSettings, setShowSettings] = useState(false);
+  const [isHandRaised, setIsHandRaised] = useState(false)
+  const [unreadCount, setUnreadCount] = useState(0)
+  const [handRaisedMap, setHandRaisedMap] = useState<Record<string, number>>({})
+  const [activeSpeakers, setActiveSpeakers] = useState<string[]>([])
+  const [showChat, setShowChat] = useState(false)
+  const [showParticipants, setShowParticipants] = useState(false)
+  const [showInfo, setShowInfo] = useState(false)
+  const [showTranscription, setShowTranscription] = useState(false)
+  const [showMicPicker, setShowMicPicker] = useState(false)
+  const [showCamPicker, setShowCamPicker] = useState(false)
+  const [showSettings, setShowSettings] = useState(false)
 
   // Lobby / waiting room
-  const [waitingParticipants, setWaitingParticipants] = useState<Array<{id: string, username: string}>>([]);
+  const [waitingParticipants, setWaitingParticipants] = useState<
+    Array<{ id: string; username: string }>
+  >([])
   // lobbyNotification removed — banner now driven by waitingParticipants directly
 
   // Deep link
-  const [deepLinkUrl, setDeepLinkUrl] = useState<string | null>(null);
-  const [deepLinkError, setDeepLinkError] = useState<string | null>(null);
+  const [deepLinkUrl, setDeepLinkUrl] = useState<string | null>(null)
+  const [deepLinkError, setDeepLinkError] = useState<string | null>(null)
   // Meeting URL (set on join, used in info panel)
-  const [currentMeetUrl, setCurrentMeetUrl] = useState("");
-  const [currentRoomId, setCurrentRoomId] = useState<string | null>(null);
-  const [currentAccessLevel, setCurrentAccessLevel] = useState<string>("");
+  const [currentMeetUrl, setCurrentMeetUrl] = useState('')
+  const [currentRoomId, setCurrentRoomId] = useState<string | null>(null)
+  const [currentAccessLevel, setCurrentAccessLevel] = useState<string>('')
   // Display name (shared between Home and Settings)
-  const [displayName, setDisplayName] = useState("");
+  const [displayName, setDisplayName] = useState('')
   // i18n
-  const [lang, setLang] = useState(detectSystemLang);
+  const [lang, setLang] = useState(detectSystemLang)
   // Theme
-  const [theme, setTheme] = useState("light");
+  const [theme, setTheme] = useState('light')
   // OIDC auth
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [displayNameFromOidc, setDisplayNameFromOidc] = useState("");
-  const [emailFromOidc, setEmailFromOidc] = useState("");
-  const [authenticatedMeetInstance, setAuthenticatedMeetInstance] = useState("");
-  const [meetInstances, setMeetInstances] = useState<string[]>([]);
-  const [pendingOidcInstance, setPendingOidcInstance] = useState<string | null>(null);
-  const pendingOidcRef = useRef<string | null>(null);
-  const [bandwidthMode, setBandwidthMode] = useState<string>("full");
-  const settingsRef = useRef<Settings | null>(null);
+  const [isAuthenticated, setIsAuthenticated] = useState(false)
+  const [displayNameFromOidc, setDisplayNameFromOidc] = useState('')
+  const [emailFromOidc, setEmailFromOidc] = useState('')
+  const [authenticatedMeetInstance, setAuthenticatedMeetInstance] = useState('')
+  const [meetInstances, setMeetInstances] = useState<string[]>([])
+  const [pendingOidcInstance, setPendingOidcInstance] = useState<string | null>(
+    null
+  )
+  const pendingOidcRef = useRef<string | null>(null)
+  const [bandwidthMode, setBandwidthMode] = useState<string>('full')
+  const settingsRef = useRef<Settings | null>(null)
 
   const t = useCallback(
     (key: string) => translations[lang]?.[key] ?? translations.en[key] ?? key,
     [lang]
-  );
+  )
 
   // Load settings on mount
   useEffect(() => {
-    invoke<Settings>("get_settings")
+    invoke<Settings>('get_settings')
       .then((s) => {
-        settingsRef.current = s;
-        if (s.display_name) setDisplayName(s.display_name);
-        if (s.language) setLang(s.language);
-        if (s.theme) setTheme(s.theme);
+        settingsRef.current = s
+        if (s.display_name) setDisplayName(s.display_name)
+        if (s.language) setLang(s.language)
+        if (s.theme) setTheme(s.theme)
       })
-      .catch(() => {});
+      .catch(() => {})
     // Load session state
-    invoke<{ state: string; display_name?: string; email?: string; meet_instance?: string }>("get_session_state")
+    invoke<{
+      state: string
+      display_name?: string
+      email?: string
+      meet_instance?: string
+    }>('get_session_state')
       .then((result) => {
-        if (result.state === "authenticated") {
-          setIsAuthenticated(true);
-          setDisplayNameFromOidc(result.display_name || "");
-          setEmailFromOidc(result.email || "");
-          if (result.meet_instance) setAuthenticatedMeetInstance(result.meet_instance);
+        if (result.state === 'authenticated') {
+          setIsAuthenticated(true)
+          setDisplayNameFromOidc(result.display_name || '')
+          setEmailFromOidc(result.email || '')
+          if (result.meet_instance)
+            setAuthenticatedMeetInstance(result.meet_instance)
         }
       })
-      .catch(() => {});
+      .catch(() => {})
     // Load meet instances for OIDC
-    invoke<string[]>("get_meet_instances")
+    invoke<string[]>('get_meet_instances')
       .then(setMeetInstances)
-      .catch(() => {});
+      .catch(() => {})
 
     // Load ONNX segmentation model for background blur
-    resolveResource("models/selfie_segmentation.onnx")
-      .then((path) => invoke("load_blur_model", { modelPath: path }))
-      .catch(() => {});
-  }, []);
+    resolveResource('models/selfie_segmentation.onnx')
+      .then((path) => invoke('load_blur_model', { modelPath: path }))
+      .catch(() => {})
+  }, [])
 
   // Deep link listener
   useEffect(() => {
     const unlisten = onOpenUrl((urls: string[]) => {
-      if (urls.length === 0) return;
-      const url = urls[0];
+      if (urls.length === 0) return
+      const url = urls[0]
       try {
-        const parsed = new URL(url);
-        if (parsed.protocol !== "visio:") return;
-        const host = parsed.hostname;
+        const parsed = new URL(url)
+        if (parsed.protocol !== 'visio:') return
+        const host = parsed.hostname
 
         // Handle OIDC auth callback: visio://auth-callback?code={uuid}
-        if (host === "auth-callback") {
-          const code = parsed.searchParams.get("code");
-          const meetInstance = pendingOidcRef.current;
+        if (host === 'auth-callback') {
+          const code = parsed.searchParams.get('code')
+          const meetInstance = pendingOidcRef.current
           if (code && meetInstance) {
-            pendingOidcRef.current = null;
-            setPendingOidcInstance(null);
-            invoke<{ display_name?: string; email?: string; meet_instance?: string }>(
-              "exchange_oidc_code", { meetInstance, code }
-            ).then((result) => {
-              setIsAuthenticated(true);
-              setAuthenticatedMeetInstance(meetInstance);
-              setDisplayNameFromOidc(result.display_name || "");
-              setEmailFromOidc(result.email || "");
-              if (result.display_name && !displayName.trim()) {
-                setDisplayName(result.display_name);
-              }
-              if (!meetInstances.includes(meetInstance)) {
-                const next = [...meetInstances, meetInstance];
-                setMeetInstances(next);
-                invoke("set_meet_instances", { instances: next });
-              }
-            }).catch((e) => {
-              console.error("OIDC code exchange failed:", e);
-            });
+            pendingOidcRef.current = null
+            setPendingOidcInstance(null)
+            invoke<{
+              display_name?: string
+              email?: string
+              meet_instance?: string
+            }>('exchange_oidc_code', { meetInstance, code })
+              .then((result) => {
+                setIsAuthenticated(true)
+                setAuthenticatedMeetInstance(meetInstance)
+                setDisplayNameFromOidc(result.display_name || '')
+                setEmailFromOidc(result.email || '')
+                if (result.display_name && !displayName.trim()) {
+                  setDisplayName(result.display_name)
+                }
+                if (!meetInstances.includes(meetInstance)) {
+                  const next = [...meetInstances, meetInstance]
+                  setMeetInstances(next)
+                  invoke('set_meet_instances', { instances: next })
+                }
+              })
+              .catch((e) => {
+                console.error('OIDC code exchange failed:', e)
+              })
           }
-          return;
+          return
         }
 
         // Handle room deep links: visio://{host}/{slug}
-        const slug = parsed.pathname.replace(/^\//, "");
-        if (!host || !slug) return;
+        const slug = parsed.pathname.replace(/^\//, '')
+        if (!host || !slug) return
 
-        invoke<string[]>("get_meet_instances").then((instances) => {
+        invoke<string[]>('get_meet_instances').then((instances) => {
           if (instances.includes(host)) {
-            setView("home");
-            setDeepLinkUrl(`https://${host}/${slug}`);
-            setDeepLinkError(null);
+            setView('home')
+            setDeepLinkUrl(`https://${host}/${slug}`)
+            setDeepLinkError(null)
           } else {
-            setDeepLinkError(t("deepLink.unknownInstance").replace("{host}", host));
+            setDeepLinkError(
+              t('deepLink.unknownInstance').replace('{host}', host)
+            )
           }
-        });
-      } catch { /* ignore malformed URLs */ }
-    });
-    return () => { unlisten.then((fn) => fn()); };
-  }, []);
+        })
+      } catch {
+        /* ignore malformed URLs */
+      }
+    })
+    return () => {
+      unlisten.then((fn) => fn())
+    }
+  }, [])
 
   // Auto-connect listener (CLI args: --livekit-url <url> --token <token>)
   useEffect(() => {
-    const unlisten = listen<{ livekit_url: string; token: string }>("auto-connect", async (event) => {
-      const { livekit_url, token } = event.payload;
-      try {
-        await invoke("connect_with_token", { livekitUrl: livekit_url, token });
-        setCurrentMeetUrl(livekit_url);
-        setView("call");
+    const unlisten = listen<{ livekit_url: string; token: string }>(
+      'auto-connect',
+      async (event) => {
+        const { livekit_url, token } = event.payload
+        try {
+          await invoke('connect_with_token', { livekitUrl: livekit_url, token })
+          setCurrentMeetUrl(livekit_url)
+          setView('call')
 
-        // Auto-chat messages for E2E test (turn-based)
-        const messages = [
-          { delay: 3000, text: "Desktop joined the room!" },
-          { delay: 25000, text: "Desktop: my turn to speak!" },
-          { delay: 35000, text: "Desktop: screen sharing active" },
-          { delay: 50000, text: "Desktop: muted — Android's turn" },
-          { delay: 100000, text: "Desktop: everyone speaking together!" },
-        ];
-        for (const msg of messages) {
+          // Auto-chat messages for E2E test (turn-based)
+          const messages = [
+            { delay: 3000, text: 'Desktop joined the room!' },
+            { delay: 25000, text: 'Desktop: my turn to speak!' },
+            { delay: 35000, text: 'Desktop: screen sharing active' },
+            { delay: 50000, text: "Desktop: muted — Android's turn" },
+            { delay: 100000, text: 'Desktop: everyone speaking together!' },
+          ]
+          for (const msg of messages) {
+            setTimeout(async () => {
+              try {
+                await invoke('send_chat', { text: msg.text })
+              } catch {}
+            }, msg.delay)
+          }
+
+          // Turn-based speaking: Desktop speaks at 25-50s, muted otherwise (except warmup 0-5s and final 100-120s)
+          // 5s: mute mic+cam (bot's turn)
           setTimeout(async () => {
-            try { await invoke("send_chat", { text: msg.text }); } catch {}
-          }, msg.delay);
-        }
+            try {
+              await invoke('toggle_mic', { enabled: false })
+              await invoke('toggle_camera', { enabled: false })
+              console.log("[TURN] Desktop muted (bot's turn)")
+            } catch {}
+          }, 5000)
+          // 25s: unmute — Desktop's turn to speak
+          setTimeout(async () => {
+            try {
+              await invoke('toggle_mic', { enabled: true })
+              await invoke('toggle_camera', { enabled: true })
+              console.log('[TURN] Desktop speaking')
+            } catch {}
+          }, 25000)
+          // 50s: mute — Android's turn
+          setTimeout(async () => {
+            try {
+              await invoke('toggle_mic', { enabled: false })
+              await invoke('toggle_camera', { enabled: false })
+              console.log("[TURN] Desktop muted (Android's turn)")
+            } catch {}
+          }, 50000)
+          // 100s: unmute — everyone speaks
+          setTimeout(async () => {
+            try {
+              await invoke('toggle_mic', { enabled: true })
+              await invoke('toggle_camera', { enabled: true })
+              console.log('[TURN] Desktop unmuted (all speak)')
+            } catch {}
+          }, 100000)
 
-        // Turn-based speaking: Desktop speaks at 25-50s, muted otherwise (except warmup 0-5s and final 100-120s)
-        // 5s: mute mic+cam (bot's turn)
-        setTimeout(async () => { try { await invoke("toggle_mic", { enabled: false }); await invoke("toggle_camera", { enabled: false }); console.log("[TURN] Desktop muted (bot's turn)"); } catch {} }, 5000);
-        // 25s: unmute — Desktop's turn to speak
-        setTimeout(async () => { try { await invoke("toggle_mic", { enabled: true }); await invoke("toggle_camera", { enabled: true }); console.log("[TURN] Desktop speaking"); } catch {} }, 25000);
-        // 50s: mute — Android's turn
-        setTimeout(async () => { try { await invoke("toggle_mic", { enabled: false }); await invoke("toggle_camera", { enabled: false }); console.log("[TURN] Desktop muted (Android's turn)"); } catch {} }, 50000);
-        // 100s: unmute — everyone speaks
-        setTimeout(async () => { try { await invoke("toggle_mic", { enabled: true }); await invoke("toggle_camera", { enabled: true }); console.log("[TURN] Desktop unmuted (all speak)"); } catch {} }, 100000);
-
-        // Auto screen share during Desktop's turn (30-48s)
-        setTimeout(async () => {
-          try {
-            const sources = await invoke<Array<{id: string, name: string, source_type: string}>>("list_screen_sources");
-            const monitor = sources.find(s => s.source_type === "Monitor") || sources[0];
-            if (monitor) {
-              console.log("[TURN] Desktop screen share started");
-              await invoke("start_screen_share", { sourceId: monitor.id });
-              setTimeout(async () => {
-                try {
-                  await invoke("stop_screen_share");
-                  console.log("[TURN] Desktop screen share stopped");
-                } catch (err) { console.error("Screen share stop failed:", err); }
-              }, 18000);
+          // Auto screen share during Desktop's turn (30-48s)
+          setTimeout(async () => {
+            try {
+              const sources = await invoke<
+                Array<{ id: string; name: string; source_type: string }>
+              >('list_screen_sources')
+              const monitor =
+                sources.find((s) => s.source_type === 'Monitor') || sources[0]
+              if (monitor) {
+                console.log('[TURN] Desktop screen share started')
+                await invoke('start_screen_share', { sourceId: monitor.id })
+                setTimeout(async () => {
+                  try {
+                    await invoke('stop_screen_share')
+                    console.log('[TURN] Desktop screen share stopped')
+                  } catch (err) {
+                    console.error('Screen share stop failed:', err)
+                  }
+                }, 18000)
+              }
+            } catch (err) {
+              console.error('Screen share failed:', err)
             }
-          } catch (err) { console.error("Screen share failed:", err); }
-        }, 30000);
-      } catch (err) {
-        console.error("Auto-connect failed:", err);
+          }, 30000)
+        } catch (err) {
+          console.error('Auto-connect failed:', err)
+        }
       }
-    });
-    return () => { unlisten.then((fn) => fn()); };
-  }, []);
+    )
+    return () => {
+      unlisten.then((fn) => fn())
+    }
+  }, [])
 
   // Apply theme to document
   useEffect(() => {
-    document.documentElement.dataset.theme = theme;
-  }, [theme]);
+    document.documentElement.dataset.theme = theme
+  }, [theme])
 
   // Device enumeration
-  const [audioInputs, setAudioInputs] = useState<NativeAudioDevice[]>([]);
-  const [audioOutputs, setAudioOutputs] = useState<NativeAudioDevice[]>([]);
-  const [videoInputs, setVideoInputs] = useState<NativeVideoDevice[]>([]);
-  const [selectedAudioInput, setSelectedAudioInput] = useState("");
-  const [selectedAudioOutput, setSelectedAudioOutput] = useState("");
-  const [selectedVideoInput, setSelectedVideoInput] = useState("");
+  const [audioInputs, setAudioInputs] = useState<NativeAudioDevice[]>([])
+  const [audioOutputs, setAudioOutputs] = useState<NativeAudioDevice[]>([])
+  const [videoInputs, setVideoInputs] = useState<NativeVideoDevice[]>([])
+  const [selectedAudioInput, setSelectedAudioInput] = useState('')
+  const [selectedAudioOutput, setSelectedAudioOutput] = useState('')
+  const [selectedVideoInput, setSelectedVideoInput] = useState('')
 
-  const viewRef = useRef(view);
-  viewRef.current = view;
+  const viewRef = useRef(view)
+  viewRef.current = view
 
   // ---- Device enumeration -------------------------------------------------
   // WORKAROUND: Defer device enumeration to avoid USB blocking at startup.
   // Enumerate when settings, mic picker, or camera picker is opened.
-  const [devicesEnumerated, setDevicesEnumerated] = useState(false);
+  const [devicesEnumerated, setDevicesEnumerated] = useState(false)
 
   useEffect(() => {
-    if ((!showSettings && !showMicPicker && !showCamPicker) || devicesEnumerated) return;
+    if (
+      (!showSettings && !showMicPicker && !showCamPicker) ||
+      devicesEnumerated
+    )
+      return
 
     const enumerate = async () => {
       try {
-        console.log("Enumerating audio/video devices...");
-        const inputs: NativeAudioDevice[] = await invoke("list_audio_input_devices");
-        const outputs: NativeAudioDevice[] = await invoke("list_audio_output_devices");
-        const cameras: NativeVideoDevice[] = await invoke("list_video_input_devices");
-        setAudioInputs(inputs);
-        setAudioOutputs(outputs);
-        setVideoInputs(cameras);
-        setDevicesEnumerated(true);
+        console.log('Enumerating audio/video devices...')
+        const inputs: NativeAudioDevice[] = await invoke(
+          'list_audio_input_devices'
+        )
+        const outputs: NativeAudioDevice[] = await invoke(
+          'list_audio_output_devices'
+        )
+        const cameras: NativeVideoDevice[] = await invoke(
+          'list_video_input_devices'
+        )
+        setAudioInputs(inputs)
+        setAudioOutputs(outputs)
+        setVideoInputs(cameras)
+        setDevicesEnumerated(true)
 
         // Auto-select defaults on first load
         setSelectedAudioInput((prev) => {
-          if (prev) return prev;
-          const def = inputs.find((d) => d.is_default);
-          return def ? def.name : "";
-        });
+          if (prev) return prev
+          const def = inputs.find((d) => d.is_default)
+          return def ? def.name : ''
+        })
         setSelectedAudioOutput((prev) => {
-          if (prev) return prev;
-          const def = outputs.find((d) => d.is_default);
-          return def ? def.name : "";
-        });
+          if (prev) return prev
+          const def = outputs.find((d) => d.is_default)
+          return def ? def.name : ''
+        })
         setSelectedVideoInput((prev) => {
-          if (prev) return prev;
-          const def = cameras.find((d) => d.is_default);
-          return def ? def.unique_id : "";
-        });
+          if (prev) return prev
+          const def = cameras.find((d) => d.is_default)
+          return def ? def.unique_id : ''
+        })
       } catch (e) {
-        console.warn("Device enumeration failed:", e);
+        console.warn('Device enumeration failed:', e)
       }
-    };
-    enumerate();
+    }
+    enumerate()
 
     // Listen for audio device errors (e.g. USB unplug) to re-enumerate
-    let unlistenFn: (() => void) | null = null;
-    listen("audio-device-error", (event) => {
-      console.warn("Audio device error:", event.payload);
-      enumerate();
+    let unlistenFn: (() => void) | null = null
+    listen('audio-device-error', (event) => {
+      console.warn('Audio device error:', event.payload)
+      enumerate()
     }).then((fn_) => {
-      unlistenFn = fn_;
-    });
+      unlistenFn = fn_
+    })
 
     return () => {
-      unlistenFn?.();
-    };
-  }, [showSettings, showMicPicker, showCamPicker, devicesEnumerated]);
+      unlistenFn?.()
+    }
+  }, [showSettings, showMicPicker, showCamPicker, devicesEnumerated])
 
   // ---- Click outside to close device pickers ------------------------------
   useEffect(() => {
     const handleClick = (e: MouseEvent) => {
-      if (
-        !(e.target as Element).closest(".device-picker, .control-chevron")
-      ) {
-        setShowMicPicker(false);
-        setShowCamPicker(false);
+      if (!(e.target as Element).closest('.device-picker, .control-chevron')) {
+        setShowMicPicker(false)
+        setShowCamPicker(false)
       }
-    };
-    document.addEventListener("click", handleClick);
-    return () => document.removeEventListener("click", handleClick);
-  }, []);
+    }
+    document.addEventListener('click', handleClick)
+    return () => document.removeEventListener('click', handleClick)
+  }, [])
 
   // ---- Polling ------------------------------------------------------------
   const poll = useCallback(async () => {
     try {
-      const state: string = await invoke("get_connection_state");
-      setConnectionState(state);
+      const state: string = await invoke('get_connection_state')
+      setConnectionState(state)
 
-      if (state === "disconnected" && viewRef.current !== "home") {
-        setView("home");
-        setMicEnabled(false);
-        setCamEnabled(false);
-        setMessages([]);
-        setVideoFrames(new Map());
-        setShowChat(false);
-        setShowParticipants(false);
-        setShowInfo(false);
-        setShowTranscription(false);
-        setIsHandRaised(false);
-        setUnreadCount(0);
-        setHandRaisedMap({});
-        setActiveSpeakers([]);
-        setLocalParticipant(null);
-        return;
+      if (state === 'disconnected' && viewRef.current !== 'home') {
+        setView('home')
+        setMicEnabled(false)
+        setCamEnabled(false)
+        setMessages([])
+        setVideoFrames(new Map())
+        setShowChat(false)
+        setShowParticipants(false)
+        setShowInfo(false)
+        setShowTranscription(false)
+        setIsHandRaised(false)
+        setUnreadCount(0)
+        setHandRaisedMap({})
+        setActiveSpeakers([])
+        setLocalParticipant(null)
+        return
       }
 
-      if (state === "connected" || state === "reconnecting") {
-        const ps: Participant[] = await invoke("get_participants");
-        setParticipants(ps);
+      if (state === 'connected' || state === 'reconnecting') {
+        const ps: Participant[] = await invoke('get_participants')
+        setParticipants(ps)
 
-        const lp: Participant | null = await invoke("get_local_participant");
-        setLocalParticipant(lp);
+        const lp: Participant | null = await invoke('get_local_participant')
+        setLocalParticipant(lp)
 
-        const ms: ChatMessage[] = await invoke("get_messages");
-        setMessages(ms);
+        const ms: ChatMessage[] = await invoke('get_messages')
+        setMessages(ms)
       }
     } catch (e) {
-      console.error("poll error:", e);
+      console.error('poll error:', e)
     }
-  }, []);
+  }, [])
 
   useEffect(() => {
-    if (view === "home") return;
+    if (view === 'home') return
 
-    poll();
-    const id = setInterval(poll, 1000);
-    return () => clearInterval(id);
-  }, [view, poll]);
+    poll()
+    const id = setInterval(poll, 1000)
+    return () => clearInterval(id)
+  }, [view, poll])
 
   // ---- Video frame events -------------------------------------------------
   useEffect(() => {
-    if (view === "home") return;
+    if (view === 'home') return
 
-    let unlistenFrame: UnlistenFn | null = null;
-    let unlistenTrackUnsub: UnlistenFn | null = null;
+    let unlistenFrame: UnlistenFn | null = null
+    let unlistenTrackUnsub: UnlistenFn | null = null
 
     // Backpressure: batch frame updates and throttle to ~20 fps (50ms)
     // to avoid overwhelming React with state updates when many participants
     // are streaming video simultaneously.  The previous approach used
     // requestAnimationFrame which still fires at 60fps — too fast when
     // 12+ participants each push frames.
-    let pendingFrames: Map<string, string> = new Map();
-    let pendingRemovals: Set<string> = new Set();
-    let flushTimer: ReturnType<typeof setTimeout> | null = null;
-    const FLUSH_INTERVAL_MS = 50; // cap at ~20 fps
+    let pendingFrames: Map<string, string> = new Map()
+    let pendingRemovals: Set<string> = new Set()
+    let flushTimer: ReturnType<typeof setTimeout> | null = null
+    const FLUSH_INTERVAL_MS = 50 // cap at ~20 fps
 
     const flushFrames = () => {
-      flushTimer = null;
-      if (pendingFrames.size === 0 && pendingRemovals.size === 0) return;
-      const batch = pendingFrames;
-      const removals = pendingRemovals;
-      pendingFrames = new Map();
-      pendingRemovals = new Set();
+      flushTimer = null
+      if (pendingFrames.size === 0 && pendingRemovals.size === 0) return
+      const batch = pendingFrames
+      const removals = pendingRemovals
+      pendingFrames = new Map()
+      pendingRemovals = new Set()
       setVideoFrames((prev) => {
-        const next = new Map(prev);
+        const next = new Map(prev)
         // Remove unsubscribed tracks first
         for (const sid of removals) {
-          next.delete(sid);
+          next.delete(sid)
         }
         // Apply new frames
         for (const [sid, d] of batch) {
-          next.set(sid, d);
+          next.set(sid, d)
         }
-        return next;
-      });
-    };
+        return next
+      })
+    }
 
     const scheduleFlush = () => {
       if (flushTimer === null) {
-        flushTimer = setTimeout(flushFrames, FLUSH_INTERVAL_MS);
+        flushTimer = setTimeout(flushFrames, FLUSH_INTERVAL_MS)
       }
-    };
+    }
 
-    listen<VideoFrame>("video-frame", (event) => {
-      const { track_sid, data } = event.payload;
-      pendingFrames.set(track_sid, data);
-      scheduleFlush();
+    listen<VideoFrame>('video-frame', (event) => {
+      const { track_sid, data } = event.payload
+      pendingFrames.set(track_sid, data)
+      scheduleFlush()
     }).then((fn) => {
-      unlistenFrame = fn;
-    });
+      unlistenFrame = fn
+    })
 
     // Clean up video frames when tracks are unsubscribed — prevents the
     // videoFrames Map from growing unboundedly and leaking memory.
-    listen<string>("track-unsubscribed", (event) => {
-      const trackSid = event.payload;
-      pendingFrames.delete(trackSid);
-      pendingRemovals.add(trackSid);
-      scheduleFlush();
+    listen<string>('track-unsubscribed', (event) => {
+      const trackSid = event.payload
+      pendingFrames.delete(trackSid)
+      pendingRemovals.add(trackSid)
+      scheduleFlush()
     }).then((fn) => {
-      unlistenTrackUnsub = fn;
-    });
+      unlistenTrackUnsub = fn
+    })
 
     return () => {
-      if (unlistenFrame) unlistenFrame();
-      if (unlistenTrackUnsub) unlistenTrackUnsub();
-      if (flushTimer !== null) clearTimeout(flushTimer);
-    };
-  }, [view]);
+      if (unlistenFrame) unlistenFrame()
+      if (unlistenTrackUnsub) unlistenTrackUnsub()
+      if (flushTimer !== null) clearTimeout(flushTimer)
+    }
+  }, [view])
 
   // ---- Hand raise & unread events (Task 2.8) ------------------------------
   useEffect(() => {
-    if (view === "home") return;
+    if (view === 'home') return
 
-    let unlistenHand: UnlistenFn | null = null;
-    let unlistenUnread: UnlistenFn | null = null;
-    let unlistenSpeakers: UnlistenFn | null = null;
-    let unlistenBandwidth: UnlistenFn | null = null;
+    let unlistenHand: UnlistenFn | null = null
+    let unlistenUnread: UnlistenFn | null = null
+    let unlistenSpeakers: UnlistenFn | null = null
+    let unlistenBandwidth: UnlistenFn | null = null
 
     listen<{ participantSid: string; raised: boolean; position: number }>(
-      "hand-raised-changed",
+      'hand-raised-changed',
       (event) => {
-        const { participantSid, raised, position } = event.payload;
+        const { participantSid, raised, position } = event.payload
         setHandRaisedMap((prev) => ({
           ...prev,
           [participantSid]: raised ? position : 0,
-        }));
+        }))
         // If our own hand was auto-lowered
         // We don't have localSid here, but we track via isHandRaised
         if (!raised) {
           // Check via invoke if our hand is still raised
-          invoke<boolean>("is_hand_raised").then((val) => {
-            setIsHandRaised(val);
-          });
+          invoke<boolean>('is_hand_raised').then((val) => {
+            setIsHandRaised(val)
+          })
         }
       }
     ).then((fn) => {
-      unlistenHand = fn;
-    });
+      unlistenHand = fn
+    })
 
-    listen<number>("unread-count-changed", (event) => {
-      setUnreadCount(event.payload);
+    listen<number>('unread-count-changed', (event) => {
+      setUnreadCount(event.payload)
     }).then((fn) => {
-      unlistenUnread = fn;
-    });
+      unlistenUnread = fn
+    })
 
-    listen<string[]>("active-speakers-changed", (event) => {
-      setActiveSpeakers(event.payload);
+    listen<string[]>('active-speakers-changed', (event) => {
+      setActiveSpeakers(event.payload)
     }).then((fn) => {
-      unlistenSpeakers = fn;
-    });
+      unlistenSpeakers = fn
+    })
 
-    listen<string>("bandwidth-mode-changed", (event) => {
-      setBandwidthMode(event.payload);
+    listen<string>('bandwidth-mode-changed', (event) => {
+      setBandwidthMode(event.payload)
     }).then((fn) => {
-      unlistenBandwidth = fn;
-    });
+      unlistenBandwidth = fn
+    })
 
     return () => {
-      if (unlistenHand) unlistenHand();
-      if (unlistenUnread) unlistenUnread();
-      if (unlistenSpeakers) unlistenSpeakers();
-      if (unlistenBandwidth) unlistenBandwidth();
-    };
-  }, [view]);
+      if (unlistenHand) unlistenHand()
+      if (unlistenUnread) unlistenUnread()
+      if (unlistenSpeakers) unlistenSpeakers()
+      if (unlistenBandwidth) unlistenBandwidth()
+    }
+  }, [view])
 
   // ---- Lobby events -------------------------------------------------------
   useEffect(() => {
-    let unlistenDenied: UnlistenFn | null = null;
-    let unlistenTimeout: UnlistenFn | null = null;
-    let unlistenJoined: UnlistenFn | null = null;
-    let unlistenLeft: UnlistenFn | null = null;
+    let unlistenDenied: UnlistenFn | null = null
+    let unlistenTimeout: UnlistenFn | null = null
+    let unlistenJoined: UnlistenFn | null = null
+    let unlistenLeft: UnlistenFn | null = null
 
-    listen("lobby-denied", () => {
-      setConnectionState("disconnected");
-      setView("home");
-      alert(t("lobby.denied"));
+    listen('lobby-denied', () => {
+      setConnectionState('disconnected')
+      setView('home')
+      alert(t('lobby.denied'))
     }).then((fn) => {
-      unlistenDenied = fn;
-    });
+      unlistenDenied = fn
+    })
 
-    listen("lobby-timeout", () => {
-      setConnectionState("disconnected");
-      setView("home");
-      alert(t("lobby.timeout"));
+    listen('lobby-timeout', () => {
+      setConnectionState('disconnected')
+      setView('home')
+      alert(t('lobby.timeout'))
     }).then((fn) => {
-      unlistenTimeout = fn;
-    });
+      unlistenTimeout = fn
+    })
 
-    listen<{ id: string; username: string }>("lobby-participant-joined", (event) => {
-      const p = event.payload;
-      setWaitingParticipants((prev) => {
-        if (prev.some((x) => x.id === p.id)) return prev;
-        return [...prev, p];
-      });
-    }).then((fn) => {
-      unlistenJoined = fn;
-    });
+    listen<{ id: string; username: string }>(
+      'lobby-participant-joined',
+      (event) => {
+        const p = event.payload
+        setWaitingParticipants((prev) => {
+          if (prev.some((x) => x.id === p.id)) return prev
+          return [...prev, p]
+        })
+      }
+    ).then((fn) => {
+      unlistenJoined = fn
+    })
 
-    listen<{ id: string }>("lobby-participant-left", (event) => {
-      const { id } = event.payload;
-      setWaitingParticipants((prev) => prev.filter((x) => x.id !== id));
+    listen<{ id: string }>('lobby-participant-left', (event) => {
+      const { id } = event.payload
+      setWaitingParticipants((prev) => prev.filter((x) => x.id !== id))
     }).then((fn) => {
-      unlistenLeft = fn;
-    });
+      unlistenLeft = fn
+    })
 
     return () => {
-      if (unlistenDenied) unlistenDenied();
-      if (unlistenTimeout) unlistenTimeout();
-      if (unlistenJoined) unlistenJoined();
-      if (unlistenLeft) unlistenLeft();
-    };
-  }, [t]);
+      if (unlistenDenied) unlistenDenied()
+      if (unlistenTimeout) unlistenTimeout()
+      if (unlistenJoined) unlistenJoined()
+      if (unlistenLeft) unlistenLeft()
+    }
+  }, [t])
 
   // ---- Handlers -----------------------------------------------------------
-  const handleJoin = async (meetUrl: string, _username?: string | null, roomId?: string, accessLevel?: string) => {
-    setCurrentMeetUrl(meetUrl);
-    if (roomId) setCurrentRoomId(roomId);
-    if (accessLevel) setCurrentAccessLevel(accessLevel);
-    setView("call");
+  const handleJoin = async (
+    meetUrl: string,
+    _username?: string | null,
+    roomId?: string,
+    accessLevel?: string
+  ) => {
+    setCurrentMeetUrl(meetUrl)
+    if (roomId) setCurrentRoomId(roomId)
+    if (accessLevel) setCurrentAccessLevel(accessLevel)
+    setView('call')
 
     // Auto-enable mic/camera based on user settings
-    const s = settingsRef.current;
+    const s = settingsRef.current
     if (s?.mic_enabled_on_join) {
-      setMicEnabled(true);
-      invoke("toggle_mic", { enabled: true }).catch((e) => {
-        console.error("auto mic enable failed:", e);
-        setMicEnabled(false);
-      });
+      setMicEnabled(true)
+      invoke('toggle_mic', { enabled: true }).catch((e) => {
+        console.error('auto mic enable failed:', e)
+        setMicEnabled(false)
+      })
     }
     if (s?.camera_enabled_on_join) {
-      setCamEnabled(true);
-      invoke("toggle_camera", { enabled: true }).catch((e) => {
-        console.error("auto camera enable failed:", e);
-        setCamEnabled(false);
-      });
+      setCamEnabled(true)
+      invoke('toggle_camera', { enabled: true }).catch((e) => {
+        console.error('auto camera enable failed:', e)
+        setCamEnabled(false)
+      })
     }
-  };
+  }
 
   const handleToggleMic = async () => {
-    const next = !micEnabled;
-    setMicEnabled(next);
+    const next = !micEnabled
+    setMicEnabled(next)
     try {
-      await invoke("toggle_mic", { enabled: next });
+      await invoke('toggle_mic', { enabled: next })
     } catch (e) {
-      console.error("mic toggle error:", e);
-      setMicEnabled(!next);
+      console.error('mic toggle error:', e)
+      setMicEnabled(!next)
     }
-  };
+  }
 
   // Push-to-talk: hold Space to temporarily unmute
-  const pushToTalkRef = useRef(false);
+  const pushToTalkRef = useRef(false)
   useEffect(() => {
-    if (view !== "call") return;
+    if (view !== 'call') return
     const handleKeyDown = async (e: KeyboardEvent) => {
-      if (e.code !== "Space" || e.repeat) return;
+      if (e.code !== 'Space' || e.repeat) return
       // Don't activate if typing in an input
-      const tag = (e.target as HTMLElement)?.tagName;
-      if (tag === "INPUT" || tag === "TEXTAREA") return;
-      e.preventDefault();
+      const tag = (e.target as HTMLElement)?.tagName
+      if (tag === 'INPUT' || tag === 'TEXTAREA') return
+      e.preventDefault()
       if (!micEnabled && !pushToTalkRef.current) {
-        pushToTalkRef.current = true;
-        setMicEnabled(true);
-        try { await invoke("toggle_mic", { enabled: true }); } catch {}
+        pushToTalkRef.current = true
+        setMicEnabled(true)
+        try {
+          await invoke('toggle_mic', { enabled: true })
+        } catch {}
       }
-    };
+    }
     const handleKeyUp = async (e: KeyboardEvent) => {
-      if (e.code !== "Space") return;
+      if (e.code !== 'Space') return
       if (pushToTalkRef.current) {
-        pushToTalkRef.current = false;
-        setMicEnabled(false);
-        try { await invoke("toggle_mic", { enabled: false }); } catch {}
+        pushToTalkRef.current = false
+        setMicEnabled(false)
+        try {
+          await invoke('toggle_mic', { enabled: false })
+        } catch {}
       }
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    window.addEventListener("keyup", handleKeyUp);
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    window.addEventListener('keyup', handleKeyUp)
     return () => {
-      window.removeEventListener("keydown", handleKeyDown);
-      window.removeEventListener("keyup", handleKeyUp);
-    };
-  }, [view, micEnabled]);
+      window.removeEventListener('keydown', handleKeyDown)
+      window.removeEventListener('keyup', handleKeyUp)
+    }
+  }, [view, micEnabled])
 
   const handleToggleCam = async () => {
-    const next = !camEnabled;
-    setCamEnabled(next);
+    const next = !camEnabled
+    setCamEnabled(next)
     try {
-      await invoke("toggle_camera", { enabled: next });
+      await invoke('toggle_camera', { enabled: next })
     } catch (e) {
-      console.error("camera toggle error:", e);
-      setCamEnabled(!next);
+      console.error('camera toggle error:', e)
+      setCamEnabled(!next)
     }
-  };
+  }
 
   const handleHangUp = async () => {
     try {
-      await invoke("disconnect");
+      await invoke('disconnect')
     } catch (e) {
-      console.error("disconnect error:", e);
+      console.error('disconnect error:', e)
     }
-    setView("home");
-    setMicEnabled(false);
-    setCamEnabled(false);
-    setMessages([]);
-    setVideoFrames(new Map());
-    setShowChat(false);
-    setShowParticipants(false);
-    setShowInfo(false);
-    setShowTranscription(false);
-    setConnectionState("disconnected");
-    setIsHandRaised(false);
-    setUnreadCount(0);
-    setHandRaisedMap({});
-    setActiveSpeakers([]);
-    setLocalParticipant(null);
-    setCurrentMeetUrl("");
-    setBandwidthMode("full");
-  };
+    setView('home')
+    setMicEnabled(false)
+    setCamEnabled(false)
+    setMessages([])
+    setVideoFrames(new Map())
+    setShowChat(false)
+    setShowParticipants(false)
+    setShowInfo(false)
+    setShowTranscription(false)
+    setConnectionState('disconnected')
+    setIsHandRaised(false)
+    setUnreadCount(0)
+    setHandRaisedMap({})
+    setActiveSpeakers([])
+    setLocalParticipant(null)
+    setCurrentMeetUrl('')
+    setBandwidthMode('full')
+  }
 
   const handleToggleHandRaise = async () => {
     try {
       if (isHandRaised) {
-        await invoke("lower_hand");
+        await invoke('lower_hand')
       } else {
-        await invoke("raise_hand");
+        await invoke('raise_hand')
       }
-      setIsHandRaised(!isHandRaised);
+      setIsHandRaised(!isHandRaised)
     } catch (e) {
-      console.error("hand raise error:", e);
+      console.error('hand raise error:', e)
     }
-  };
+  }
 
   const handleToggleChat = async () => {
-    const newState = !showChat;
-    setShowChat(newState);
+    const newState = !showChat
+    setShowChat(newState)
     try {
-      await invoke("set_chat_open", { open: newState });
+      await invoke('set_chat_open', { open: newState })
     } catch (e) {
-      console.error("set_chat_open error:", e);
+      console.error('set_chat_open error:', e)
     }
-    if (newState) setUnreadCount(0);
-  };
+    if (newState) setUnreadCount(0)
+  }
 
   const handleSendChat = async (text: string) => {
     try {
-      await invoke("send_chat", { text });
+      await invoke('send_chat', { text })
     } catch (e) {
-      console.error("send error:", e);
+      console.error('send error:', e)
     }
-  };
+  }
 
   // ---- Device selection handlers ------------------------------------------
   const handleSelectAudioInput = async (name: string) => {
-    setSelectedAudioInput(name);
+    setSelectedAudioInput(name)
     try {
-      await invoke("select_audio_input", { deviceName: name });
+      await invoke('select_audio_input', { deviceName: name })
     } catch (e) {
-      console.error("Failed to select audio input:", e);
+      console.error('Failed to select audio input:', e)
     }
-  };
+  }
 
   const handleSelectAudioOutput = async (name: string) => {
-    setSelectedAudioOutput(name);
+    setSelectedAudioOutput(name)
     try {
-      await invoke("select_audio_output", { deviceName: name });
+      await invoke('select_audio_output', { deviceName: name })
     } catch (e) {
-      console.error("Failed to select audio output:", e);
+      console.error('Failed to select audio output:', e)
     }
-  };
+  }
 
   const handleSelectVideoInput = async (uniqueId: string) => {
-    setSelectedVideoInput(uniqueId);
+    setSelectedVideoInput(uniqueId)
     try {
-      await invoke("select_video_input", { uniqueId });
+      await invoke('select_video_input', { uniqueId })
     } catch (e) {
-      console.error("Failed to select video input:", e);
+      console.error('Failed to select video input:', e)
     }
-  };
+  }
 
   // ---- Render -------------------------------------------------------------
   return (
     <I18nContext.Provider value={t}>
-      {(view === "call" || connectionState === "waiting_for_host") && (
+      {(view === 'call' || connectionState === 'waiting_for_host') && (
         <header>
-          <h1>{t("app.title")}</h1>
+          <h1>{t('app.title')}</h1>
           <StatusBadge state={connectionState} />
         </header>
       )}
-      {view === "call" && bandwidthMode !== "full" && (
+      {view === 'call' && bandwidthMode !== 'full' && (
         <div className="bandwidth-indicator">
-          {bandwidthMode === "reduced_video"
-            ? t("bandwidth.reducedVideo")
-            : t("bandwidth.audioOnly")}
+          {bandwidthMode === 'reduced_video'
+            ? t('bandwidth.reducedVideo')
+            : t('bandwidth.audioOnly')}
         </div>
       )}
       <main>
-        {view === "home" && (
+        {view === 'home' && (
           <>
             <HomeView
               onJoin={handleJoin}
@@ -3075,24 +3819,26 @@ export default function App() {
               emailFromOidc={emailFromOidc}
               onLaunchOidc={async (meetInstance: string) => {
                 try {
-                  setPendingOidcInstance(meetInstance);
-                  pendingOidcRef.current = meetInstance;
-                  await invoke("launch_oidc_browser", { meetInstance });
+                  setPendingOidcInstance(meetInstance)
+                  pendingOidcRef.current = meetInstance
+                  await invoke('launch_oidc_browser', { meetInstance })
                 } catch (e) {
-                  console.error("Failed to open browser for OIDC:", e);
-                  setPendingOidcInstance(null);
-                  pendingOidcRef.current = null;
+                  console.error('Failed to open browser for OIDC:', e)
+                  setPendingOidcInstance(null)
+                  pendingOidcRef.current = null
                 }
               }}
               meetInstances={meetInstances}
               onLogout={() => {
                 if (authenticatedMeetInstance) {
-                  invoke("logout_session", { meetUrl: `https://${authenticatedMeetInstance}` }).then(() => {
-                    setIsAuthenticated(false);
-                    setAuthenticatedMeetInstance("");
-                    setDisplayNameFromOidc("");
-                    setEmailFromOidc("");
-                  });
+                  invoke('logout_session', {
+                    meetUrl: `https://${authenticatedMeetInstance}`,
+                  }).then(() => {
+                    setIsAuthenticated(false)
+                    setAuthenticatedMeetInstance('')
+                    setDisplayNameFromOidc('')
+                    setEmailFromOidc('')
+                  })
                 }
               }}
             />
@@ -3106,7 +3852,7 @@ export default function App() {
             )}
           </>
         )}
-        {view === "call" && connectionState !== "waiting_for_host" && (
+        {view === 'call' && connectionState !== 'waiting_for_host' && (
           <CallView
             participants={participants}
             localParticipant={localParticipant}
@@ -3127,18 +3873,23 @@ export default function App() {
             onSendChat={handleSendChat}
             onToggleParticipants={() => setShowParticipants(!showParticipants)}
             showParticipants={showParticipants}
-            onToggleInfo={() => { setShowInfo(!showInfo); if (showInfo) setShowTranscription(false); }}
+            onToggleInfo={() => {
+              setShowInfo(!showInfo)
+              if (showInfo) setShowTranscription(false)
+            }}
             showInfo={showInfo}
             meetUrl={currentMeetUrl}
-            onToggleTranscription={() => setShowTranscription(!showTranscription)}
+            onToggleTranscription={() =>
+              setShowTranscription(!showTranscription)
+            }
             showTranscription={showTranscription}
             onShowMicPicker={() => {
-              setShowMicPicker(!showMicPicker);
-              setShowCamPicker(false);
+              setShowMicPicker(!showMicPicker)
+              setShowCamPicker(false)
             }}
             onShowCamPicker={() => {
-              setShowCamPicker(!showCamPicker);
-              setShowMicPicker(false);
+              setShowCamPicker(!showCamPicker)
+              setShowMicPicker(false)
             }}
             showMicPicker={showMicPicker}
             showCamPicker={showCamPicker}
@@ -3157,18 +3908,22 @@ export default function App() {
             accessLevel={currentAccessLevel || undefined}
           />
         )}
-        {connectionState === "waiting_for_host" && (
+        {connectionState === 'waiting_for_host' && (
           <WaitingScreen
             t={t}
             onCancel={async () => {
               try {
-                await invoke("cancel_lobby");
-              } catch (_) { /* ignore */ }
+                await invoke('cancel_lobby')
+              } catch (_) {
+                /* ignore */
+              }
               try {
-                await invoke("disconnect");
-              } catch (_) { /* ignore */ }
-              setConnectionState("disconnected");
-              setView("home");
+                await invoke('disconnect')
+              } catch (_) {
+                /* ignore */
+              }
+              setConnectionState('disconnected')
+              setView('home')
             }}
           />
         )}
@@ -3176,9 +3931,11 @@ export default function App() {
       {showSettings && (
         <SettingsModal
           onClose={() => {
-            setShowSettings(false);
+            setShowSettings(false)
             // Reload meet instances in case they were modified in settings
-            invoke<string[]>("get_meet_instances").then(setMeetInstances).catch(() => {});
+            invoke<string[]>('get_meet_instances')
+              .then(setMeetInstances)
+              .catch(() => {})
           }}
           onLanguageChange={(l) => setLang(l)}
           onThemeChange={(t) => setTheme(t)}
@@ -3187,5 +3944,5 @@ export default function App() {
         />
       )}
     </I18nContext.Provider>
-  );
+  )
 }
