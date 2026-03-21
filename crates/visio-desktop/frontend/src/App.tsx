@@ -1031,7 +1031,7 @@ function CreateRoomDialog({
   }
 
   return (
-    <div className="modal-overlay" onClick={onCancel}>
+    <div className="modal-overlay" onClick={onCancel} onKeyDown={(e) => { if (e.key === 'Escape') onCancel() }} role="presentation">
       <div
         className="settings-modal create-room-dialog"
         onClick={(e) => e.stopPropagation()}
@@ -1626,7 +1626,7 @@ function SourcePickerModal({
   const windows = sources.filter((s) => s.source_type === 'window')
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay" onClick={onClose} onKeyDown={(e) => { if (e.key === 'Escape') onClose() }} role="presentation">
       <div
         className="settings-modal source-picker"
         data-testid="screen-share-source-picker"
@@ -2946,7 +2946,7 @@ function SettingsModal({
   }
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay" onClick={onClose} onKeyDown={(e) => { if (e.key === 'Escape') onClose() }} role="presentation">
       <div className="settings-modal" onClick={(e) => e.stopPropagation()}>
         <div className="settings-header">
           <span>{t('settings')}</span>
