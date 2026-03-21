@@ -327,8 +327,8 @@ fun HomeScreen(
             }
         } // end header Column
 
-        // Tab strip (only shown when authenticated)
-        if (VisioManager.isAuthenticated) {
+        // Tab strip (Rejoindre / Réunions)
+        run {
             TabRow(
                 selectedTabIndex = selectedTab,
                 containerColor = MaterialTheme.colorScheme.surface,
@@ -393,7 +393,7 @@ fun HomeScreen(
 
         // Tab content
         Box(modifier = Modifier.weight(1f)) {
-            if (!VisioManager.isAuthenticated || selectedTab == 0) {
+            if (selectedTab == 0) {
                 // Join tab content (scrollable)
                 Column(
                     modifier =

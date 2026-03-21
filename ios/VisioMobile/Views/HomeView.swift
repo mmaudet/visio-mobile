@@ -38,26 +38,24 @@ struct HomeView: View {
             VisioColors.background(dark: isDark).ignoresSafeArea()
 
             VStack(spacing: 0) {
-                // Tab segment control — only shown when authenticated
-                if manager.isAuthenticated {
-                    let meetingsLabel = manager.upcomingMeetings.isEmpty
-                        ? "Réunions"
-                        : "Réunions (\(manager.upcomingMeetings.count))"
-                    Picker("", selection: $selectedTab) {
-                        Text("Rejoindre").tag(0)
-                        Text(meetingsLabel).tag(1)
-                    }
-                    .pickerStyle(.segmented)
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 8)
-                    .onChange(of: selectedTab) { newTab in
-                        if newTab == 1 {
-                            manager.refreshCalendarNow()
-                        }
+                // Tab segment control (Rejoindre / Réunions)
+                let meetingsLabel = manager.upcomingMeetings.isEmpty
+                    ? "Réunions"
+                    : "Réunions (\(manager.upcomingMeetings.count))"
+                Picker("", selection: $selectedTab) {
+                    Text("Rejoindre").tag(0)
+                    Text(meetingsLabel).tag(1)
+                }
+                .pickerStyle(.segmented)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 8)
+                .onChange(of: selectedTab) { newTab in
+                    if newTab == 1 {
+                        manager.refreshCalendarNow()
                     }
                 }
 
-                if selectedTab == 1 && manager.isAuthenticated {
+                if selectedTab == 1 {
                     MeetingsTabView(
                         meetings: manager.upcomingMeetings,
                         hasCalendarUrl: manager.client.getCalendarUrl() != nil,
