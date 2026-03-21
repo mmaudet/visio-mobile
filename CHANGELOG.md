@@ -28,3 +28,5 @@ and this project adheres to
 - Bot interactive mode now uses --media-file audio
 - UIAutomator dump uses temp file for device compat
 - Deep link URL escaping no longer corrupts params
+- Desktop home tabs fixed at top, no vertical shift
+- Desktop tabs styled as segmented control

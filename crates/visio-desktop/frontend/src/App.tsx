@@ -936,28 +936,31 @@ function HomeView({
 
   return (
     <div id="home" className="section active">
-      <button
-        className="settings-gear"
-        onClick={onOpenSettings}
-        data-testid="home-settings-button"
-      >
-        <RiSettings3Line size={24} />
-      </button>
       <div className="home-tabs">
+        <div className="home-tabs-group">
+          <button
+            className={`home-tab${activeTab === 'join' ? ' home-tab-active' : ''}`}
+            onClick={() => setActiveTab('join')}
+          >
+            {t('home.tab.join')}
+          </button>
+          <button
+            className={`home-tab${activeTab === 'meetings' ? ' home-tab-active' : ''}`}
+            onClick={() => setActiveTab('meetings')}
+          >
+            {t('home.tab.meetings')}
+            {meetingCount > 0 && <span className="tab-badge">{meetingCount}</span>}
+          </button>
+        </div>
         <button
-          className={`home-tab${activeTab === 'join' ? ' home-tab-active' : ''}`}
-          onClick={() => setActiveTab('join')}
+          className="settings-gear"
+          onClick={onOpenSettings}
+          data-testid="home-settings-button"
         >
-          {t('home.tab.join')}
-        </button>
-        <button
-          className={`home-tab${activeTab === 'meetings' ? ' home-tab-active' : ''}`}
-          onClick={() => setActiveTab('meetings')}
-        >
-          {t('home.tab.meetings')}
-          {meetingCount > 0 && <span className="tab-badge">{meetingCount}</span>}
+          <RiSettings3Line size={20} />
         </button>
       </div>
+      <div className="home-tab-content">
       {activeTab === 'meetings' ? (
         <MeetingsTab onJoin={onJoin} displayName={displayName} onMeetingCountChange={setMeetingCount} />
       ) : (
@@ -1258,6 +1261,7 @@ function HomeView({
           )}
         </div>
       )}
+      </div>
       {showCreateRoom && authenticatedMeetInstance && (
         <CreateRoomDialog
           meetInstance={authenticatedMeetInstance}
@@ -4028,7 +4032,7 @@ function PreJoinScreen({
                 <div
                   className="prejoin-vu-bar"
                   data-testid="prejoin-vu-bar"
-                  style={{ width: `${Math.round(Math.min(micLevel * 5, 1) * 100)}%` }}
+                  style={{ width: `${Math.round(Math.min(micLevel * 25, 1) * 100)}%` }}
                 />
               </div>
 
@@ -4136,8 +4140,11 @@ function PreJoinScreen({
                 className={`prejoin-filter-thumb${backgroundMode === `image:${n}` ? ' active' : ''}`}
                 onClick={() => handleSetBackgroundMode(`image:${n}`)}
               >
-                <div
-                  className={`prejoin-filter-thumb-img prejoin-filter-thumb-img-${n}`}
+                <img
+                  src={`/backgrounds/thumbnails/${n}.jpg`}
+                  alt={`Background ${n}`}
+                  draggable={false}
+                  style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 6 }}
                 />
                 <span>{n}</span>
               </button>
