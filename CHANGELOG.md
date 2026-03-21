@@ -10,6 +10,7 @@ and this project adheres to
 
 ### Added
 
+- iCal calendar integration — upcoming meetings on home screen (#73)
 - E2E test framework with multi-platform orchestration
 - Bot interactive mode with stdin/stdout protocol
 - Semantic test tags for layout assertions

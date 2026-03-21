@@ -204,7 +204,7 @@ unsafe extern "C" {
 // ---------------------------------------------------------------------------
 
 struct CameraState {
-    video_source: NativeVideoSource,
+    video_source: Option<NativeVideoSource>,
     frame_count: AtomicU64,
 }
 
@@ -307,13 +307,15 @@ fn process_camera_frame(sample_buffer: *const c_void) {
         );
     }
 
-    // Feed frame into LiveKit
+    // Feed frame into LiveKit (only if connected — skip in preview mode)
     let frame = VideoFrame {
         rotation: VideoRotation::VideoRotation0,
         timestamp_us: 0,
         buffer: i420,
     };
-    state.video_source.capture_frame(&frame);
+    if let Some(ref source) = state.video_source {
+        source.capture_frame(&frame);
+    }
 
     // Self-view: render every 3rd frame (~10 fps) through desktop callback
     if count % 3 == 0 {
@@ -401,7 +403,7 @@ impl MacCameraCapture {
         {
             let mut state = CAMERA_STATE.lock().unwrap();
             *state = Some(CameraState {
-                video_source: source,
+                video_source: Some(source),
                 frame_count: AtomicU64::new(0),
             });
         }
@@ -417,7 +419,31 @@ impl MacCameraCapture {
         {
             let mut state = CAMERA_STATE.lock().unwrap();
             *state = Some(CameraState {
-                video_source: source,
+                video_source: Some(source),
+                frame_count: AtomicU64::new(0),
+            });
+        }
+        unsafe { Self::start_avfoundation_with_uid(unique_id) }
+    }
+
+    /// Start preview-only capture from the default camera (no LiveKit source).
+    pub fn start_preview() -> Result<Self, String> {
+        {
+            let mut state = CAMERA_STATE.lock().unwrap();
+            *state = Some(CameraState {
+                video_source: None,
+                frame_count: AtomicU64::new(0),
+            });
+        }
+        unsafe { Self::start_avfoundation() }
+    }
+
+    /// Start preview-only capture from a specific camera (no LiveKit source).
+    pub fn start_preview_with_unique_id(unique_id: &str) -> Result<Self, String> {
+        {
+            let mut state = CAMERA_STATE.lock().unwrap();
+            *state = Some(CameraState {
+                video_source: None,
                 frame_count: AtomicU64::new(0),
             });
         }

@@ -48,6 +48,14 @@ enum NetworkType {
     "Unknown",
 };
 
+enum CalendarRefreshInterval {
+    "Minutes5",
+    "Minutes15",
+    "Hour1",
+    "Hours4",
+    "Manual",
+};
+
 dictionary ParticipantInfo {
     string sid;
     string identity;
@@ -88,6 +96,14 @@ dictionary Settings {
     boolean notification_hand_raised;
     boolean notification_message_received;
     boolean adaptive_mode_enabled;
+    string background_mode;
+    string audio_mode;
+    string? audio_input_device;
+    string? audio_output_device;
+    string? camera_device;
+    string video_resolution;
+    string? calendar_url;
+    CalendarRefreshInterval calendar_refresh_interval;
 };
 
 [Enum]
@@ -117,6 +133,11 @@ interface VisioEvent {
     AloneInRoom(u32 remaining_secs);
     AloneInRoomCancelled();
     MuteRequested();
+    MeetingsUpdated(sequence<Meeting> meetings);
+    MeetingImminent(Meeting meeting);
+    MeetingStartingSoon(Meeting meeting);
+    MeetingStarted(Meeting meeting);
+    CalendarError(string message);
 };
 
 [Error]
@@ -174,6 +195,16 @@ dictionary CreateRoomResult {
     string access_level;
     string livekit_url;
     string livekit_token;
+};
+
+dictionary Meeting {
+    string id;
+    string summary;
+    i64 start_time;
+    i64 end_time;
+    string room_url;
+    string deep_link;
+    string server_name;
 };
 
 interface VisioClient {
@@ -238,6 +269,14 @@ interface VisioClient {
     boolean is_adaptive_mode_enabled();
 
     void set_adaptive_mode_enabled(boolean enabled);
+
+    void set_audio_mode(string mode);
+
+    void set_audio_input_device(string? name);
+
+    void set_audio_output_device(string? name);
+
+    void set_camera_device(string? name);
 
     [Throws=VisioError]
     void raise_hand();
@@ -331,4 +370,16 @@ interface VisioClient {
 
     [Throws=VisioError]
     void load_blur_model(string model_path);
+
+    void set_calendar_url(string? url);
+
+    string? get_calendar_url();
+
+    void set_calendar_refresh_interval(CalendarRefreshInterval interval);
+
+    CalendarRefreshInterval get_calendar_refresh_interval();
+
+    sequence<Meeting> get_upcoming_meetings();
+
+    void refresh_calendar_now();
 };

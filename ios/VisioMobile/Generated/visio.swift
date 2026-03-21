@@ -454,6 +454,22 @@ fileprivate struct FfiConverterUInt64: FfiConverterPrimitive {
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
+fileprivate struct FfiConverterInt64: FfiConverterPrimitive {
+    typealias FfiType = Int64
+    typealias SwiftType = Int64
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> Int64 {
+        return try lift(readInt(&buf))
+    }
+
+    public static func write(_ value: Int64, into buf: inout [UInt8]) {
+        writeInt(&buf, lower(value))
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
 fileprivate struct FfiConverterBool : FfiConverter {
     typealias FfiType = Int8
     typealias SwiftType = Bool
@@ -557,6 +573,10 @@ public protocol VisioClientProtocol: AnyObject, Sendable {
     
     func getBackgroundMode()  -> String
     
+    func getCalendarRefreshInterval()  -> CalendarRefreshInterval
+    
+    func getCalendarUrl()  -> String?
+    
     func getMeetInstances()  -> [String]
     
     func getRoomHistory()  -> [String]
@@ -564,6 +584,8 @@ public protocol VisioClientProtocol: AnyObject, Sendable {
     func getSessionState()  -> SessionState
     
     func getSettings()  -> Settings
+    
+    func getUpcomingMeetings()  -> [Meeting]
     
     func isAdaptiveModeEnabled()  -> Bool
     
@@ -595,6 +617,8 @@ public protocol VisioClientProtocol: AnyObject, Sendable {
     
     func reconnect() throws 
     
+    func refreshCalendarNow() 
+    
     func removeAccess(accessId: String) throws 
     
     func reportBluetoothCarKit(connected: Bool) 
@@ -613,7 +637,19 @@ public protocol VisioClientProtocol: AnyObject, Sendable {
     
     func setAdaptiveModeOverride(mode: AdaptiveMode?) 
     
+    func setAudioInputDevice(name: String?) 
+    
+    func setAudioMode(mode: String) 
+    
+    func setAudioOutputDevice(name: String?) 
+    
     func setBackgroundMode(mode: String) 
+    
+    func setCalendarRefreshInterval(interval: CalendarRefreshInterval) 
+    
+    func setCalendarUrl(url: String?) 
+    
+    func setCameraDevice(name: String?) 
     
     func setCameraEnabled(enabled: Bool) throws 
     
@@ -843,6 +879,20 @@ open func getBackgroundMode() -> String  {
 })
 }
     
+open func getCalendarRefreshInterval() -> CalendarRefreshInterval  {
+    return try!  FfiConverterTypeCalendarRefreshInterval_lift(try! rustCall() {
+    uniffi_visio_ffi_fn_method_visioclient_get_calendar_refresh_interval(self.uniffiClonePointer(),$0
+    )
+})
+}
+    
+open func getCalendarUrl() -> String?  {
+    return try!  FfiConverterOptionString.lift(try! rustCall() {
+    uniffi_visio_ffi_fn_method_visioclient_get_calendar_url(self.uniffiClonePointer(),$0
+    )
+})
+}
+    
 open func getMeetInstances() -> [String]  {
     return try!  FfiConverterSequenceString.lift(try! rustCall() {
     uniffi_visio_ffi_fn_method_visioclient_get_meet_instances(self.uniffiClonePointer(),$0
@@ -867,6 +917,13 @@ open func getSessionState() -> SessionState  {
 open func getSettings() -> Settings  {
     return try!  FfiConverterTypeSettings_lift(try! rustCall() {
     uniffi_visio_ffi_fn_method_visioclient_get_settings(self.uniffiClonePointer(),$0
+    )
+})
+}
+    
+open func getUpcomingMeetings() -> [Meeting]  {
+    return try!  FfiConverterSequenceTypeMeeting.lift(try! rustCall() {
+    uniffi_visio_ffi_fn_method_visioclient_get_upcoming_meetings(self.uniffiClonePointer(),$0
     )
 })
 }
@@ -973,6 +1030,12 @@ open func reconnect()throws   {try rustCallWithError(FfiConverterTypeVisioError_
 }
 }
     
+open func refreshCalendarNow()  {try! rustCall() {
+    uniffi_visio_ffi_fn_method_visioclient_refresh_calendar_now(self.uniffiClonePointer(),$0
+    )
+}
+}
+    
 open func removeAccess(accessId: String)throws   {try rustCallWithError(FfiConverterTypeVisioError_lift) {
     uniffi_visio_ffi_fn_method_visioclient_remove_access(self.uniffiClonePointer(),
         FfiConverterString.lower(accessId),$0
@@ -1038,9 +1101,51 @@ open func setAdaptiveModeOverride(mode: AdaptiveMode?)  {try! rustCall() {
 }
 }
     
+open func setAudioInputDevice(name: String?)  {try! rustCall() {
+    uniffi_visio_ffi_fn_method_visioclient_set_audio_input_device(self.uniffiClonePointer(),
+        FfiConverterOptionString.lower(name),$0
+    )
+}
+}
+    
+open func setAudioMode(mode: String)  {try! rustCall() {
+    uniffi_visio_ffi_fn_method_visioclient_set_audio_mode(self.uniffiClonePointer(),
+        FfiConverterString.lower(mode),$0
+    )
+}
+}
+    
+open func setAudioOutputDevice(name: String?)  {try! rustCall() {
+    uniffi_visio_ffi_fn_method_visioclient_set_audio_output_device(self.uniffiClonePointer(),
+        FfiConverterOptionString.lower(name),$0
+    )
+}
+}
+    
 open func setBackgroundMode(mode: String)  {try! rustCall() {
     uniffi_visio_ffi_fn_method_visioclient_set_background_mode(self.uniffiClonePointer(),
         FfiConverterString.lower(mode),$0
+    )
+}
+}
+    
+open func setCalendarRefreshInterval(interval: CalendarRefreshInterval)  {try! rustCall() {
+    uniffi_visio_ffi_fn_method_visioclient_set_calendar_refresh_interval(self.uniffiClonePointer(),
+        FfiConverterTypeCalendarRefreshInterval_lower(interval),$0
+    )
+}
+}
+    
+open func setCalendarUrl(url: String?)  {try! rustCall() {
+    uniffi_visio_ffi_fn_method_visioclient_set_calendar_url(self.uniffiClonePointer(),
+        FfiConverterOptionString.lower(url),$0
+    )
+}
+}
+    
+open func setCameraDevice(name: String?)  {try! rustCall() {
+    uniffi_visio_ffi_fn_method_visioclient_set_camera_device(self.uniffiClonePointer(),
+        FfiConverterOptionString.lower(name),$0
     )
 }
 }
@@ -1419,6 +1524,116 @@ public func FfiConverterTypeCreateRoomResult_lower(_ value: CreateRoomResult) ->
 }
 
 
+public struct Meeting {
+    public var id: String
+    public var summary: String
+    public var startTime: Int64
+    public var endTime: Int64
+    public var roomUrl: String
+    public var deepLink: String
+    public var serverName: String
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(id: String, summary: String, startTime: Int64, endTime: Int64, roomUrl: String, deepLink: String, serverName: String) {
+        self.id = id
+        self.summary = summary
+        self.startTime = startTime
+        self.endTime = endTime
+        self.roomUrl = roomUrl
+        self.deepLink = deepLink
+        self.serverName = serverName
+    }
+}
+
+#if compiler(>=6)
+extension Meeting: Sendable {}
+#endif
+
+
+extension Meeting: Equatable, Hashable {
+    public static func ==(lhs: Meeting, rhs: Meeting) -> Bool {
+        if lhs.id != rhs.id {
+            return false
+        }
+        if lhs.summary != rhs.summary {
+            return false
+        }
+        if lhs.startTime != rhs.startTime {
+            return false
+        }
+        if lhs.endTime != rhs.endTime {
+            return false
+        }
+        if lhs.roomUrl != rhs.roomUrl {
+            return false
+        }
+        if lhs.deepLink != rhs.deepLink {
+            return false
+        }
+        if lhs.serverName != rhs.serverName {
+            return false
+        }
+        return true
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(id)
+        hasher.combine(summary)
+        hasher.combine(startTime)
+        hasher.combine(endTime)
+        hasher.combine(roomUrl)
+        hasher.combine(deepLink)
+        hasher.combine(serverName)
+    }
+}
+
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeMeeting: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> Meeting {
+        return
+            try Meeting(
+                id: FfiConverterString.read(from: &buf), 
+                summary: FfiConverterString.read(from: &buf), 
+                startTime: FfiConverterInt64.read(from: &buf), 
+                endTime: FfiConverterInt64.read(from: &buf), 
+                roomUrl: FfiConverterString.read(from: &buf), 
+                deepLink: FfiConverterString.read(from: &buf), 
+                serverName: FfiConverterString.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: Meeting, into buf: inout [UInt8]) {
+        FfiConverterString.write(value.id, into: &buf)
+        FfiConverterString.write(value.summary, into: &buf)
+        FfiConverterInt64.write(value.startTime, into: &buf)
+        FfiConverterInt64.write(value.endTime, into: &buf)
+        FfiConverterString.write(value.roomUrl, into: &buf)
+        FfiConverterString.write(value.deepLink, into: &buf)
+        FfiConverterString.write(value.serverName, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeMeeting_lift(_ buf: RustBuffer) throws -> Meeting {
+    return try FfiConverterTypeMeeting.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeMeeting_lower(_ value: Meeting) -> RustBuffer {
+    return FfiConverterTypeMeeting.lower(value)
+}
+
+
 public struct ParticipantInfo {
     public var sid: String
     public var identity: String
@@ -1658,10 +1873,18 @@ public struct Settings {
     public var notificationHandRaised: Bool
     public var notificationMessageReceived: Bool
     public var adaptiveModeEnabled: Bool
+    public var backgroundMode: String
+    public var audioMode: String
+    public var audioInputDevice: String?
+    public var audioOutputDevice: String?
+    public var cameraDevice: String?
+    public var videoResolution: String
+    public var calendarUrl: String?
+    public var calendarRefreshInterval: CalendarRefreshInterval
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    public init(displayName: String?, language: String?, micEnabledOnJoin: Bool, cameraEnabledOnJoin: Bool, theme: String, meetInstances: [String], notificationParticipantJoin: Bool, notificationHandRaised: Bool, notificationMessageReceived: Bool, adaptiveModeEnabled: Bool) {
+    public init(displayName: String?, language: String?, micEnabledOnJoin: Bool, cameraEnabledOnJoin: Bool, theme: String, meetInstances: [String], notificationParticipantJoin: Bool, notificationHandRaised: Bool, notificationMessageReceived: Bool, adaptiveModeEnabled: Bool, backgroundMode: String, audioMode: String, audioInputDevice: String?, audioOutputDevice: String?, cameraDevice: String?, videoResolution: String, calendarUrl: String?, calendarRefreshInterval: CalendarRefreshInterval) {
         self.displayName = displayName
         self.language = language
         self.micEnabledOnJoin = micEnabledOnJoin
@@ -1672,6 +1895,14 @@ public struct Settings {
         self.notificationHandRaised = notificationHandRaised
         self.notificationMessageReceived = notificationMessageReceived
         self.adaptiveModeEnabled = adaptiveModeEnabled
+        self.backgroundMode = backgroundMode
+        self.audioMode = audioMode
+        self.audioInputDevice = audioInputDevice
+        self.audioOutputDevice = audioOutputDevice
+        self.cameraDevice = cameraDevice
+        self.videoResolution = videoResolution
+        self.calendarUrl = calendarUrl
+        self.calendarRefreshInterval = calendarRefreshInterval
     }
 }
 
@@ -1712,6 +1943,30 @@ extension Settings: Equatable, Hashable {
         if lhs.adaptiveModeEnabled != rhs.adaptiveModeEnabled {
             return false
         }
+        if lhs.backgroundMode != rhs.backgroundMode {
+            return false
+        }
+        if lhs.audioMode != rhs.audioMode {
+            return false
+        }
+        if lhs.audioInputDevice != rhs.audioInputDevice {
+            return false
+        }
+        if lhs.audioOutputDevice != rhs.audioOutputDevice {
+            return false
+        }
+        if lhs.cameraDevice != rhs.cameraDevice {
+            return false
+        }
+        if lhs.videoResolution != rhs.videoResolution {
+            return false
+        }
+        if lhs.calendarUrl != rhs.calendarUrl {
+            return false
+        }
+        if lhs.calendarRefreshInterval != rhs.calendarRefreshInterval {
+            return false
+        }
         return true
     }
 
@@ -1726,6 +1981,14 @@ extension Settings: Equatable, Hashable {
         hasher.combine(notificationHandRaised)
         hasher.combine(notificationMessageReceived)
         hasher.combine(adaptiveModeEnabled)
+        hasher.combine(backgroundMode)
+        hasher.combine(audioMode)
+        hasher.combine(audioInputDevice)
+        hasher.combine(audioOutputDevice)
+        hasher.combine(cameraDevice)
+        hasher.combine(videoResolution)
+        hasher.combine(calendarUrl)
+        hasher.combine(calendarRefreshInterval)
     }
 }
 
@@ -1747,7 +2010,15 @@ public struct FfiConverterTypeSettings: FfiConverterRustBuffer {
                 notificationParticipantJoin: FfiConverterBool.read(from: &buf), 
                 notificationHandRaised: FfiConverterBool.read(from: &buf), 
                 notificationMessageReceived: FfiConverterBool.read(from: &buf), 
-                adaptiveModeEnabled: FfiConverterBool.read(from: &buf)
+                adaptiveModeEnabled: FfiConverterBool.read(from: &buf), 
+                backgroundMode: FfiConverterString.read(from: &buf), 
+                audioMode: FfiConverterString.read(from: &buf), 
+                audioInputDevice: FfiConverterOptionString.read(from: &buf), 
+                audioOutputDevice: FfiConverterOptionString.read(from: &buf), 
+                cameraDevice: FfiConverterOptionString.read(from: &buf), 
+                videoResolution: FfiConverterString.read(from: &buf), 
+                calendarUrl: FfiConverterOptionString.read(from: &buf), 
+                calendarRefreshInterval: FfiConverterTypeCalendarRefreshInterval.read(from: &buf)
         )
     }
 
@@ -1762,6 +2033,14 @@ public struct FfiConverterTypeSettings: FfiConverterRustBuffer {
         FfiConverterBool.write(value.notificationHandRaised, into: &buf)
         FfiConverterBool.write(value.notificationMessageReceived, into: &buf)
         FfiConverterBool.write(value.adaptiveModeEnabled, into: &buf)
+        FfiConverterString.write(value.backgroundMode, into: &buf)
+        FfiConverterString.write(value.audioMode, into: &buf)
+        FfiConverterOptionString.write(value.audioInputDevice, into: &buf)
+        FfiConverterOptionString.write(value.audioOutputDevice, into: &buf)
+        FfiConverterOptionString.write(value.cameraDevice, into: &buf)
+        FfiConverterString.write(value.videoResolution, into: &buf)
+        FfiConverterOptionString.write(value.calendarUrl, into: &buf)
+        FfiConverterTypeCalendarRefreshInterval.write(value.calendarRefreshInterval, into: &buf)
     }
 }
 
@@ -2170,6 +2449,97 @@ public func FfiConverterTypeBandwidthMode_lower(_ value: BandwidthMode) -> RustB
 
 
 extension BandwidthMode: Equatable, Hashable {}
+
+
+
+
+
+
+// Note that we don't yet support `indirect` for enums.
+// See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
+
+public enum CalendarRefreshInterval {
+    
+    case minutes5
+    case minutes15
+    case hour1
+    case hours4
+    case manual
+}
+
+
+#if compiler(>=6)
+extension CalendarRefreshInterval: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeCalendarRefreshInterval: FfiConverterRustBuffer {
+    typealias SwiftType = CalendarRefreshInterval
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> CalendarRefreshInterval {
+        let variant: Int32 = try readInt(&buf)
+        switch variant {
+        
+        case 1: return .minutes5
+        
+        case 2: return .minutes15
+        
+        case 3: return .hour1
+        
+        case 4: return .hours4
+        
+        case 5: return .manual
+        
+        default: throw UniffiInternalError.unexpectedEnumCase
+        }
+    }
+
+    public static func write(_ value: CalendarRefreshInterval, into buf: inout [UInt8]) {
+        switch value {
+        
+        
+        case .minutes5:
+            writeInt(&buf, Int32(1))
+        
+        
+        case .minutes15:
+            writeInt(&buf, Int32(2))
+        
+        
+        case .hour1:
+            writeInt(&buf, Int32(3))
+        
+        
+        case .hours4:
+            writeInt(&buf, Int32(4))
+        
+        
+        case .manual:
+            writeInt(&buf, Int32(5))
+        
+        }
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeCalendarRefreshInterval_lift(_ buf: RustBuffer) throws -> CalendarRefreshInterval {
+    return try FfiConverterTypeCalendarRefreshInterval.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeCalendarRefreshInterval_lower(_ value: CalendarRefreshInterval) -> RustBuffer {
+    return FfiConverterTypeCalendarRefreshInterval.lower(value)
+}
+
+
+extension CalendarRefreshInterval: Equatable, Hashable {}
 
 
 
@@ -2938,6 +3308,16 @@ public enum VisioEvent {
     )
     case aloneInRoomCancelled
     case muteRequested
+    case meetingsUpdated(meetings: [Meeting]
+    )
+    case meetingImminent(meeting: Meeting
+    )
+    case meetingStartingSoon(meeting: Meeting
+    )
+    case meetingStarted(meeting: Meeting
+    )
+    case calendarError(message: String
+    )
 }
 
 
@@ -3022,6 +3402,21 @@ public struct FfiConverterTypeVisioEvent: FfiConverterRustBuffer {
         case 24: return .aloneInRoomCancelled
         
         case 25: return .muteRequested
+        
+        case 26: return .meetingsUpdated(meetings: try FfiConverterSequenceTypeMeeting.read(from: &buf)
+        )
+        
+        case 27: return .meetingImminent(meeting: try FfiConverterTypeMeeting.read(from: &buf)
+        )
+        
+        case 28: return .meetingStartingSoon(meeting: try FfiConverterTypeMeeting.read(from: &buf)
+        )
+        
+        case 29: return .meetingStarted(meeting: try FfiConverterTypeMeeting.read(from: &buf)
+        )
+        
+        case 30: return .calendarError(message: try FfiConverterString.read(from: &buf)
+        )
         
         default: throw UniffiInternalError.unexpectedEnumCase
         }
@@ -3156,6 +3551,31 @@ public struct FfiConverterTypeVisioEvent: FfiConverterRustBuffer {
         case .muteRequested:
             writeInt(&buf, Int32(25))
         
+        
+        case let .meetingsUpdated(meetings):
+            writeInt(&buf, Int32(26))
+            FfiConverterSequenceTypeMeeting.write(meetings, into: &buf)
+            
+        
+        case let .meetingImminent(meeting):
+            writeInt(&buf, Int32(27))
+            FfiConverterTypeMeeting.write(meeting, into: &buf)
+            
+        
+        case let .meetingStartingSoon(meeting):
+            writeInt(&buf, Int32(28))
+            FfiConverterTypeMeeting.write(meeting, into: &buf)
+            
+        
+        case let .meetingStarted(meeting):
+            writeInt(&buf, Int32(29))
+            FfiConverterTypeMeeting.write(meeting, into: &buf)
+            
+        
+        case let .calendarError(message):
+            writeInt(&buf, Int32(30))
+            FfiConverterString.write(message, into: &buf)
+            
         }
     }
 }
@@ -3400,6 +3820,31 @@ fileprivate struct FfiConverterSequenceTypeChatMessage: FfiConverterRustBuffer {
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
+fileprivate struct FfiConverterSequenceTypeMeeting: FfiConverterRustBuffer {
+    typealias SwiftType = [Meeting]
+
+    public static func write(_ value: [Meeting], into buf: inout [UInt8]) {
+        let len = Int32(value.count)
+        writeInt(&buf, len)
+        for item in value {
+            FfiConverterTypeMeeting.write(item, into: &buf)
+        }
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [Meeting] {
+        let len: Int32 = try readInt(&buf)
+        var seq = [Meeting]()
+        seq.reserveCapacity(Int(len))
+        for _ in 0 ..< len {
+            seq.append(try FfiConverterTypeMeeting.read(from: &buf))
+        }
+        return seq
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
 fileprivate struct FfiConverterSequenceTypeParticipantInfo: FfiConverterRustBuffer {
     typealias SwiftType = [ParticipantInfo]
 
@@ -3574,6 +4019,12 @@ private let initializationResult: InitializationResult = {
     if (uniffi_visio_ffi_checksum_method_visioclient_get_background_mode() != 47158) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_visio_ffi_checksum_method_visioclient_get_calendar_refresh_interval() != 3585) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_visio_ffi_checksum_method_visioclient_get_calendar_url() != 36642) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_visio_ffi_checksum_method_visioclient_get_meet_instances() != 1312) {
         return InitializationResult.apiChecksumMismatch
     }
@@ -3584,6 +4035,9 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_visio_ffi_checksum_method_visioclient_get_settings() != 24786) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_visio_ffi_checksum_method_visioclient_get_upcoming_meetings() != 17953) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_visio_ffi_checksum_method_visioclient_is_adaptive_mode_enabled() != 21420) {
@@ -3631,6 +4085,9 @@ private let initializationResult: InitializationResult = {
     if (uniffi_visio_ffi_checksum_method_visioclient_reconnect() != 64546) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_visio_ffi_checksum_method_visioclient_refresh_calendar_now() != 46332) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_visio_ffi_checksum_method_visioclient_remove_access() != 62026) {
         return InitializationResult.apiChecksumMismatch
     }
@@ -3658,7 +4115,25 @@ private let initializationResult: InitializationResult = {
     if (uniffi_visio_ffi_checksum_method_visioclient_set_adaptive_mode_override() != 48849) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_visio_ffi_checksum_method_visioclient_set_audio_input_device() != 64168) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_visio_ffi_checksum_method_visioclient_set_audio_mode() != 6787) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_visio_ffi_checksum_method_visioclient_set_audio_output_device() != 58658) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_visio_ffi_checksum_method_visioclient_set_background_mode() != 59805) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_visio_ffi_checksum_method_visioclient_set_calendar_refresh_interval() != 22554) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_visio_ffi_checksum_method_visioclient_set_calendar_url() != 49151) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_visio_ffi_checksum_method_visioclient_set_camera_device() != 27002) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_visio_ffi_checksum_method_visioclient_set_camera_enabled() != 34139) {

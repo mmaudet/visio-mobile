@@ -137,6 +137,12 @@ impl RoomManager {
         self.emitter.add_listener(listener);
     }
 
+    /// Expose the internal event emitter so other services (e.g. CalendarService)
+    /// can share the same emitter and thus reach all registered listeners.
+    pub fn emitter(&self) -> EventEmitter {
+        self.emitter.clone()
+    }
+
     /// Create MeetingControls bound to this room.
     pub fn controls(&self) -> crate::controls::MeetingControls {
         crate::controls::MeetingControls::new(

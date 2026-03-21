@@ -51,7 +51,7 @@ import {
 // Types
 // ---------------------------------------------------------------------------
 
-type View = 'home' | 'call'
+type View = 'home' | 'lobby' | 'call'
 
 interface Participant {
   sid: string
@@ -139,6 +139,19 @@ interface Settings {
   camera_enabled_on_join: boolean
   theme: string
   adaptive_mode_enabled: boolean
+  audio_mode: string
+  calendar_url?: string | null
+  calendar_refresh_interval?: string
+}
+
+interface Meeting {
+  id: string
+  summary: string
+  start_time: number
+  end_time: number
+  room_url: string
+  deep_link: string
+  server_name: string
 }
 
 interface ReactionData {
@@ -475,6 +488,178 @@ function ParticipantTile({
   )
 }
 
+// -- Meetings Tab -----------------------------------------------------------
+
+function MeetingsTab({
+  onJoin,
+  displayName,
+}: {
+  onJoin: (meetUrl: string, username: string | null) => void
+  displayName: string
+}) {
+  const t = useT()
+  const [status, setStatus] = useState<
+    'onboarding' | 'loading' | 'empty' | 'list'
+  >('onboarding')
+  const [meetings, setMeetings] = useState<Meeting[]>([])
+  const [calendarUrl, setCalendarUrl] = useState<string | null>(null)
+  const [joining, setJoining] = useState<string | null>(null)
+
+  // Load calendar URL and meetings on mount
+  useEffect(() => {
+    invoke<string | null>('get_calendar_url')
+      .then((url) => {
+        setCalendarUrl(url ?? null)
+        if (!url) {
+          setStatus('onboarding')
+          return
+        }
+        setStatus('loading')
+        invoke<Meeting[]>('get_upcoming_meetings')
+          .then((list) => {
+            setMeetings(list)
+            setStatus(list.length === 0 ? 'empty' : 'list')
+          })
+          .catch(() => setStatus('empty'))
+      })
+      .catch(() => setStatus('onboarding'))
+  }, [])
+
+  // Listen for meetings-updated events
+  useEffect(() => {
+    let unlisten: (() => void) | null = null
+    listen<Meeting[]>('meetings-updated', (event) => {
+      setMeetings(event.payload)
+      setStatus(event.payload.length === 0 ? 'empty' : 'list')
+    }).then((fn) => {
+      unlisten = fn
+    })
+    return () => {
+      if (unlisten) unlisten()
+    }
+  }, [])
+
+  const handleRefresh = async () => {
+    setStatus('loading')
+    try {
+      await invoke('refresh_calendar_now')
+      const list: Meeting[] = await invoke('get_upcoming_meetings')
+      setMeetings(list)
+      setStatus(list.length === 0 ? 'empty' : 'list')
+    } catch {
+      setStatus(meetings.length > 0 ? 'list' : 'empty')
+    }
+  }
+
+  const handleJoinMeeting = async (m: Meeting) => {
+    setJoining(m.id)
+    try {
+      const uname = displayName.trim() || null
+      await invoke('set_display_name', { name: uname })
+      onJoin(m.room_url, uname)
+    } catch {
+      setJoining(null)
+    }
+  }
+
+  const formatMeetingTime = (startTs: number, endTs: number) => {
+    const start = new Date(startTs * 1000)
+    const end = new Date(endTs * 1000)
+    const opts: Intl.DateTimeFormatOptions = {
+      hour: '2-digit',
+      minute: '2-digit',
+    }
+    const now = new Date()
+    const isToday =
+      start.getDate() === now.getDate() &&
+      start.getMonth() === now.getMonth() &&
+      start.getFullYear() === now.getFullYear()
+    const datePart = isToday
+      ? t('meetings.today')
+      : start.toLocaleDateString([], {
+          weekday: 'short',
+          month: 'short',
+          day: 'numeric',
+        })
+    return `${datePart} ${start.toLocaleTimeString([], opts)} – ${end.toLocaleTimeString([], opts)}`
+  }
+
+  const isOngoing = (m: Meeting) => {
+    const now = Date.now() / 1000
+    return m.start_time <= now && now <= m.end_time
+  }
+
+  if (status === 'onboarding') {
+    return (
+      <div className="meetings-onboarding">
+        <RiGlobalLine size={48} />
+        <p>{t('meetings.onboarding')}</p>
+        <p className="meetings-hint">{t('meetings.onboarding.hint')}</p>
+      </div>
+    )
+  }
+
+  if (status === 'loading') {
+    return (
+      <div className="meetings-loading">
+        <span className="meetings-spinner" />
+        <p>{t('meetings.loading')}</p>
+      </div>
+    )
+  }
+
+  if (status === 'empty') {
+    return (
+      <div className="meetings-empty">
+        <p>{t('meetings.empty')}</p>
+        <button className="btn btn-secondary" onClick={handleRefresh}>
+          {t('meetings.refresh')}
+        </button>
+      </div>
+    )
+  }
+
+  return (
+    <div className="meetings-list">
+      <div className="meetings-list-header">
+        <span className="meetings-count">
+          {meetings.length} {t('meetings.count')}
+        </span>
+        <button
+          className="btn-icon"
+          onClick={handleRefresh}
+          title={t('meetings.refresh')}
+        >
+          <RiArrowRightSLine size={18} />
+        </button>
+      </div>
+      {meetings.map((m) => (
+        <div
+          key={m.id}
+          className={`meeting-item${isOngoing(m) ? ' meeting-ongoing' : ''}`}
+        >
+          <div className="meeting-info">
+            <span className="meeting-summary">
+              {m.summary || t('meetings.noTitle')}
+            </span>
+            <span className="meeting-time">
+              {formatMeetingTime(m.start_time, m.end_time)}
+            </span>
+            <span className="meeting-server">{m.server_name}</span>
+          </div>
+          <button
+            className="btn btn-primary meeting-join-btn"
+            disabled={joining === m.id}
+            onClick={() => handleJoinMeeting(m)}
+          >
+            {joining === m.id ? t('home.connecting') : t('home.join')}
+          </button>
+        </div>
+      ))}
+    </div>
+  )
+}
+
 // -- Home View --------------------------------------------------------------
 
 function HomeView({
@@ -512,6 +697,7 @@ function HomeView({
   meetInstances: string[]
 }) {
   const t = useT()
+  const [activeTab, setActiveTab] = useState<'join' | 'meetings'>('join')
   const [meetUrl, setMeetUrl] = useState('')
   const [resolvedUrl, setResolvedUrl] = useState('')
   const [roomHistory, setRoomHistory] = useState<string[]>([])
@@ -610,7 +796,6 @@ function HomeView({
     try {
       const uname = displayName.trim() || null
       await invoke('set_display_name', { name: uname })
-      await invoke('connect', { meetUrl: url, username: uname })
       onJoin(url, uname)
     } catch (e) {
       setError(String(e))
@@ -654,269 +839,299 @@ function HomeView({
       >
         <RiSettings3Line size={24} />
       </button>
-      <div className="join-form">
-        <img src="/logo.png?v=2" alt="Visio Mobile" className="home-logo" />
-        <h2>{t('app.title')}</h2>
-        <p>{t('home.subtitle')}</p>
-        {isAuthenticated ? (
-          <div className="auth-card">
-            <div className="auth-avatar">
-              {(() => {
-                const parts = displayNameFromOidc
-                  .split(' ')
-                  .filter(Boolean)
-                  .slice(0, 2)
-                const initials = parts.map((p) => p[0]?.toUpperCase()).join('')
-                return initials || emailFromOidc?.[0]?.toUpperCase() || '?'
-              })()}
-            </div>
-            <div className="auth-info">
-              <span className="auth-name">
-                {displayNameFromOidc || emailFromOidc}
-              </span>
-              {emailFromOidc && displayNameFromOidc && (
-                <span className="auth-email">{emailFromOidc}</span>
-              )}
-            </div>
-            <button
-              className="auth-logout"
-              onClick={onLogout}
-              title={t('home.logout')}
-            >
-              <RiLogoutBoxRLine size={20} />
-            </button>
-          </div>
-        ) : (
-          <div className="auth-status">
-            <button
-              className="btn btn-primary"
-              data-testid="home-connect-button"
-              onClick={() => {
-                if (meetInstances.length <= 1) {
-                  if (meetInstances.length > 0) onLaunchOidc(meetInstances[0])
-                } else {
-                  setCustomServer('')
-                  setShowServerPicker(true)
-                }
-              }}
-            >
-              <RiAccountCircleLine size={18} /> {t('home.connect')}
-            </button>
-            {showServerPicker && (
-              <div
-                className="server-picker-overlay"
-                onClick={() => setShowServerPicker(false)}
+      <div className="home-tabs">
+        <button
+          className={`home-tab${activeTab === 'join' ? ' home-tab-active' : ''}`}
+          onClick={() => setActiveTab('join')}
+        >
+          {t('home.tab.join')}
+        </button>
+        <button
+          className={`home-tab${activeTab === 'meetings' ? ' home-tab-active' : ''}`}
+          onClick={() => setActiveTab('meetings')}
+        >
+          {t('home.tab.meetings')}
+        </button>
+      </div>
+      {activeTab === 'meetings' ? (
+        <MeetingsTab onJoin={onJoin} displayName={displayName} />
+      ) : (
+        <div className="join-form">
+          <img src="/logo.png?v=2" alt="Visio Mobile" className="home-logo" />
+          <h2>{t('app.title')}</h2>
+          <p>{t('home.subtitle')}</p>
+          {isAuthenticated ? (
+            <div className="auth-card">
+              <div className="auth-avatar">
+                {(() => {
+                  const parts = displayNameFromOidc
+                    .split(' ')
+                    .filter(Boolean)
+                    .slice(0, 2)
+                  const initials = parts
+                    .map((p) => p[0]?.toUpperCase())
+                    .join('')
+                  return initials || emailFromOidc?.[0]?.toUpperCase() || '?'
+                })()}
+              </div>
+              <div className="auth-info">
+                <span className="auth-name">
+                  {displayNameFromOidc || emailFromOidc}
+                </span>
+                {emailFromOidc && displayNameFromOidc && (
+                  <span className="auth-email">{emailFromOidc}</span>
+                )}
+              </div>
+              <button
+                className="auth-logout"
+                onClick={onLogout}
+                title={t('home.logout')}
               >
+                <RiLogoutBoxRLine size={20} />
+              </button>
+            </div>
+          ) : (
+            <div className="auth-status">
+              <button
+                className="btn btn-primary"
+                data-testid="home-connect-button"
+                onClick={() => {
+                  if (meetInstances.length <= 1) {
+                    if (meetInstances.length > 0) onLaunchOidc(meetInstances[0])
+                  } else {
+                    setCustomServer('')
+                    setShowServerPicker(true)
+                  }
+                }}
+              >
+                <RiAccountCircleLine size={18} /> {t('home.connect')}
+              </button>
+              {showServerPicker && (
                 <div
-                  className="server-picker"
-                  onClick={(e) => e.stopPropagation()}
+                  className="server-picker-overlay"
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => setShowServerPicker(false)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ')
+                      setShowServerPicker(false)
+                  }}
                 >
-                  <h3>{t('home.serverPicker.title')}</h3>
-                  <div className="server-list">
-                    {meetInstances.map((instance) => (
+                  <div
+                    className="server-picker"
+                    role="button"
+                    tabIndex={0}
+                    onClick={(e) => e.stopPropagation()}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ')
+                        e.stopPropagation()
+                    }}
+                  >
+                    <h3>{t('home.serverPicker.title')}</h3>
+                    <div className="server-list">
+                      {meetInstances.map((instance) => (
+                        <button
+                          key={instance}
+                          className="server-item"
+                          onClick={() => {
+                            setShowServerPicker(false)
+                            onLaunchOidc(instance)
+                          }}
+                        >
+                          {instance}
+                        </button>
+                      ))}
+                    </div>
+                    <div className="server-custom">
+                      <input
+                        type="text"
+                        placeholder="meet.example.com"
+                        value={customServer}
+                        onChange={(e) => setCustomServer(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' && customServer.trim()) {
+                            setShowServerPicker(false)
+                            onLaunchOidc(customServer.trim())
+                          }
+                        }}
+                      />
                       <button
-                        key={instance}
-                        className="server-item"
+                        className="btn btn-secondary"
+                        disabled={!customServer.trim()}
                         onClick={() => {
-                          setShowServerPicker(false)
-                          onLaunchOidc(instance)
+                          if (customServer.trim()) {
+                            setShowServerPicker(false)
+                            onLaunchOidc(customServer.trim())
+                          }
                         }}
                       >
-                        {instance}
+                        {t('home.connect')}
                       </button>
-                    ))}
-                  </div>
-                  <div className="server-custom">
-                    <input
-                      type="text"
-                      placeholder="meet.example.com"
-                      value={customServer}
-                      onChange={(e) => setCustomServer(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' && customServer.trim()) {
-                          setShowServerPicker(false)
-                          onLaunchOidc(customServer.trim())
-                        }
-                      }}
-                    />
+                    </div>
                     <button
-                      className="btn btn-secondary"
-                      disabled={!customServer.trim()}
-                      onClick={() => {
-                        if (customServer.trim()) {
-                          setShowServerPicker(false)
-                          onLaunchOidc(customServer.trim())
-                        }
-                      }}
+                      className="btn btn-cancel"
+                      onClick={() => setShowServerPicker(false)}
                     >
-                      {t('home.connect')}
+                      {t('home.serverPicker.cancel')}
                     </button>
                   </div>
-                  <button
-                    className="btn btn-cancel"
-                    onClick={() => setShowServerPicker(false)}
-                  >
-                    {t('home.serverPicker.cancel')}
-                  </button>
                 </div>
+              )}
+            </div>
+          )}
+          <div className="form-group">
+            <label htmlFor="meetUrl">{t('home.meetUrl')}</label>
+            <input
+              id="meetUrl"
+              type="text"
+              placeholder="abc-defg-hij"
+              autoComplete="off"
+              data-testid="home-room-url-input"
+              value={meetUrl}
+              onChange={(e) => setMeetUrl(e.target.value)}
+              onKeyDown={handleKeyDown}
+            />
+            {roomStatus === 'checking' && (
+              <div
+                className="room-status checking"
+                data-testid="home-room-status"
+              >
+                {t('home.room.checking')}
+              </div>
+            )}
+            {roomStatus === 'valid' && (
+              <div className="room-status valid" data-testid="home-room-status">
+                {t('home.room.valid')}
+              </div>
+            )}
+            {roomStatus === 'not_found' && (
+              <div
+                className="room-status not-found"
+                data-testid="home-room-status"
+              >
+                {t('home.room.notFound')}
+              </div>
+            )}
+            {roomStatus === 'auth_required' && (
+              <div
+                className="room-status auth-required"
+                data-testid="home-room-status"
+              >
+                {t('home.room.authRequired')}
+              </div>
+            )}
+            {roomStatus === 'authenticating' && (
+              <div
+                className="room-status checking"
+                data-testid="home-room-status"
+              >
+                {t('home.room.authenticating')}
+              </div>
+            )}
+            {roomStatus === 'error' && (
+              <div className="room-status error" data-testid="home-room-status">
+                {t('home.room.error')}
               </div>
             )}
           </div>
-        )}
-        <div className="form-group">
-          <label htmlFor="meetUrl">{t('home.meetUrl')}</label>
-          <input
-            id="meetUrl"
-            type="text"
-            placeholder="abc-defg-hij"
-            autoComplete="off"
-            data-testid="home-room-url-input"
-            value={meetUrl}
-            onChange={(e) => setMeetUrl(e.target.value)}
-            onKeyDown={handleKeyDown}
-          />
-          {roomStatus === 'checking' && (
-            <div
-              className="room-status checking"
-              data-testid="home-room-status"
+          <div className="form-group">
+            <label htmlFor="username">{t('home.displayName')}</label>
+            <input
+              id="username"
+              type="text"
+              placeholder={t('home.displayName.placeholder')}
+              autoComplete="off"
+              data-testid="home-display-name-input"
+              value={displayName}
+              onChange={(e) => onDisplayNameChange(e.target.value)}
+              onKeyDown={handleKeyDown}
+            />
+          </div>
+          {roomStatus === 'auth_required' ? (
+            <button className="btn btn-primary" onClick={handleAuth}>
+              {t('home.signIn')}
+            </button>
+          ) : (
+            <button
+              className="btn btn-primary"
+              disabled={joining || roomStatus !== 'valid'}
+              onClick={handleJoin}
+              data-testid="home-join-button"
             >
-              {t('home.room.checking')}
-            </div>
+              {joining ? t('home.connecting') : t('home.join')}
+            </button>
           )}
-          {roomStatus === 'valid' && (
-            <div className="room-status valid" data-testid="home-room-status">
-              {t('home.room.valid')}
-            </div>
-          )}
-          {roomStatus === 'not_found' && (
-            <div
-              className="room-status not-found"
-              data-testid="home-room-status"
+          {isAuthenticated && authenticatedMeetInstance && (
+            <button
+              className="btn btn-primary"
+              style={{
+                marginTop: '8px',
+                background: 'var(--bg-tertiary)',
+                color: 'var(--text)',
+              }}
+              onClick={() => setShowCreateRoom(true)}
+              data-testid="home-create-room-button"
             >
-              {t('home.room.notFound')}
-            </div>
+              {t('home.createRoom')}
+            </button>
           )}
-          {roomStatus === 'auth_required' && (
-            <div
-              className="room-status auth-required"
-              data-testid="home-room-status"
-            >
-              {t('home.room.authRequired')}
-            </div>
-          )}
-          {roomStatus === 'authenticating' && (
-            <div
-              className="room-status checking"
-              data-testid="home-room-status"
-            >
-              {t('home.room.authenticating')}
-            </div>
-          )}
-          {roomStatus === 'error' && (
-            <div className="room-status error" data-testid="home-room-status">
-              {t('home.room.error')}
-            </div>
-          )}
-        </div>
-        <div className="form-group">
-          <label htmlFor="username">{t('home.displayName')}</label>
-          <input
-            id="username"
-            type="text"
-            placeholder={t('home.displayName.placeholder')}
-            autoComplete="off"
-            data-testid="home-display-name-input"
-            value={displayName}
-            onChange={(e) => onDisplayNameChange(e.target.value)}
-            onKeyDown={handleKeyDown}
-          />
-        </div>
-        {roomStatus === 'auth_required' ? (
-          <button className="btn btn-primary" onClick={handleAuth}>
-            {t('home.signIn')}
-          </button>
-        ) : (
-          <button
-            className="btn btn-primary"
-            disabled={joining || roomStatus !== 'valid'}
-            onClick={handleJoin}
-            data-testid="home-join-button"
-          >
-            {joining ? t('home.connecting') : t('home.join')}
-          </button>
-        )}
-        {isAuthenticated && authenticatedMeetInstance && (
-          <button
-            className="btn btn-primary"
-            style={{
-              marginTop: '8px',
-              background: 'var(--bg-tertiary)',
-              color: 'var(--text)',
-            }}
-            onClick={() => setShowCreateRoom(true)}
-            data-testid="home-create-room-button"
-          >
-            {t('home.createRoom')}
-          </button>
-        )}
-        <div className="error-msg">{error}</div>
-        {roomHistory.length > 0 && (
-          <div className="room-history">
-            <h4>{t('home.recentRooms')}</h4>
-            {roomHistory.map((url, i) => {
-              const slug = url.includes('/') ? url.split('/').pop() : url
-              let host = ''
-              try {
-                host = new URL(url).host
-              } catch {}
-              return (
-                <button
-                  key={i}
-                  className="room-history-item"
-                  disabled={joining}
-                  onClick={async () => {
-                    setMeetUrl(url)
-                    setError('')
-                    setJoining(true)
-                    try {
-                      const uname = displayName.trim() || null
-                      const result = await invoke<{ status: string }>(
-                        'validate_room',
-                        { url, username: uname }
-                      )
-                      if (result.status === 'valid') {
-                        await invoke('set_display_name', { name: uname })
-                        await invoke('connect', {
-                          meetUrl: url,
-                          username: uname,
-                        })
-                        onJoin(url, uname)
-                      } else {
-                        // Validation failed — fall back to filling the URL field so the user can see the status
+          <div className="error-msg">{error}</div>
+          {roomHistory.length > 0 && (
+            <div className="room-history">
+              <h4>{t('home.recentRooms')}</h4>
+              {roomHistory.map((url, i) => {
+                const slug = url.includes('/') ? url.split('/').pop() : url
+                let host = ''
+                try {
+                  host = new URL(url).host
+                } catch {}
+                return (
+                  <button
+                    key={i}
+                    className="room-history-item"
+                    disabled={joining}
+                    onClick={async () => {
+                      setMeetUrl(url)
+                      setError('')
+                      setJoining(true)
+                      try {
+                        const uname = displayName.trim() || null
+                        const result = await invoke<{ status: string }>(
+                          'validate_room',
+                          { url, username: uname }
+                        )
+                        if (result.status === 'valid') {
+                          await invoke('set_display_name', { name: uname })
+                          onJoin(url, uname)
+                        } else {
+                          // Validation failed — fall back to filling the URL field so the user can see the status
+                          setJoining(false)
+                        }
+                      } catch (e) {
+                        setError(String(e))
                         setJoining(false)
                       }
-                    } catch (e) {
-                      setError(String(e))
-                      setJoining(false)
-                    }
-                  }}
-                  data-testid={`home_room_history_item_${i}`}
-                >
-                  {joining && meetUrl === url ? (
-                    <span className="room-history-spinner" />
-                  ) : (
-                    <RiGlobalLine size={16} />
-                  )}
-                  <div className="room-history-info">
-                    <span className="room-history-slug">{slug}</span>
-                    {host && <span className="room-history-host">{host}</span>}
-                  </div>
-                </button>
-              )
-            })}
-          </div>
-        )}
-      </div>
+                    }}
+                    data-testid={`home_room_history_item_${i}`}
+                  >
+                    {joining && meetUrl === url ? (
+                      <span className="room-history-spinner" />
+                    ) : (
+                      <RiGlobalLine size={16} />
+                    )}
+                    <div className="room-history-info">
+                      <span className="room-history-slug">{slug}</span>
+                      {host && (
+                        <span className="room-history-host">{host}</span>
+                      )}
+                    </div>
+                  </button>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      )}
       {showCreateRoom && authenticatedMeetInstance && (
         <CreateRoomDialog
           meetInstance={authenticatedMeetInstance}
@@ -925,7 +1140,6 @@ function HomeView({
             const uname = displayName.trim() || null
             try {
               await invoke('set_display_name', { name: uname })
-              await invoke('connect', { meetUrl: createdUrl, username: uname })
               onJoin(createdUrl, uname, roomId, accessLevel)
             } catch (e) {
               setError(String(e))
@@ -1033,17 +1247,21 @@ function CreateRoomDialog({
   return (
     <div
       className="modal-overlay"
+      role="button"
+      tabIndex={0}
       onClick={onCancel}
       onKeyDown={(e) => {
-        if (e.key === 'Escape') onCancel()
+        if (e.key === 'Enter' || e.key === ' ') onCancel()
       }}
-      role="presentation"
     >
       <div
         className="settings-modal create-room-dialog"
+        role="button"
+        tabIndex={0}
         onClick={(e) => e.stopPropagation()}
-        onKeyDown={(e) => e.stopPropagation()}
-        role="presentation"
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') e.stopPropagation()
+        }}
       >
         <div className="settings-header">
           <span>{t('home.createRoom')}</span>
@@ -1638,18 +1856,22 @@ function SourcePickerModal({
   return (
     <div
       className="modal-overlay"
+      role="button"
+      tabIndex={0}
       onClick={onClose}
       onKeyDown={(e) => {
-        if (e.key === 'Escape') onClose()
+        if (e.key === 'Enter' || e.key === ' ') onClose()
       }}
-      role="presentation"
     >
       <div
         className="settings-modal source-picker"
         data-testid="screen-share-source-picker"
+        role="button"
+        tabIndex={0}
         onClick={(e) => e.stopPropagation()}
-        onKeyDown={(e) => e.stopPropagation()}
-        role="presentation"
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') e.stopPropagation()
+        }}
       >
         <div className="settings-header">
           <span>{t('call.selectSource')}</span>
@@ -2103,16 +2325,10 @@ function CallView({
         })()}
       <div className="call-body">
         {/* Main video area */}
-        <div
-          className="call-content"
-          data-testid={`layout-mode:${focusedDisplayItem ? 'FOCUS' : 'GRID'}`}
-        >
+        <div className="call-content">
           {focusedDisplayItem ? (
             <div className="focus-layout">
-              <div
-                className="focus-main"
-                data-testid={`main-tile:${focusedDisplayItem.participant.sid}`}
-              >
+              <div className="focus-main">
                 <ParticipantTile
                   participant={focusedDisplayItem.participant}
                   videoFrames={videoFrames}
@@ -2155,11 +2371,12 @@ function CallView({
               </div>
               {showFocusThumbnails && thumbnailItems.length > 0 && (
                 <div className="focus-thumbnails">
-                  {thumbnailItems.map((d, i) => (
+                  {thumbnailItems.map((d) => (
                     <div
                       key={d.key}
                       className="tile"
-                      data-testid={`secondary-tile-${i}:${d.participant.sid}`}
+                      role="button"
+                      tabIndex={0}
                       onClick={() => {
                         userPinnedRef.current = true
                         setFocusedItem({
@@ -2176,8 +2393,6 @@ function CallView({
                           })
                         }
                       }}
-                      role="button"
-                      tabIndex={0}
                     >
                       <ParticipantTile
                         participant={d.participant}
@@ -2202,10 +2417,11 @@ function CallView({
               {displayItems.length === 0 ? (
                 <div className="empty-state">{t('call.noParticipants')}</div>
               ) : (
-                displayItems.map((d, i) => (
+                displayItems.map((d) => (
                   <div
                     key={d.key}
-                    data-testid={`grid-tile-${i}:${d.participant.sid}`}
+                    role="button"
+                    tabIndex={0}
                     onClick={() => {
                       userPinnedRef.current = true
                       setFocusedItem({
@@ -2222,8 +2438,6 @@ function CallView({
                         })
                       }
                     }}
-                    role="button"
-                    tabIndex={0}
                   >
                     <ParticipantTile
                       participant={d.participant}
@@ -2446,13 +2660,13 @@ function CallView({
                           {menuOpen && (
                             <div
                               className="participant-context-menu"
+                              role="button"
+                              tabIndex={0}
                               onClick={() => setParticipantMenu(null)}
                               onKeyDown={(e) => {
                                 if (e.key === 'Enter' || e.key === ' ')
                                   setParticipantMenu(null)
                               }}
-                              role="button"
-                              tabIndex={0}
                             >
                               <button
                                 className="context-menu-item"
@@ -2931,6 +3145,9 @@ function SettingsModal({
     'meet.numerique.gouv.fr',
   ])
   const [newInstance, setNewInstance] = useState('')
+  const [calendarUrl, setCalendarUrl] = useState('')
+  const [calendarRefreshInterval, setCalendarRefreshInterval] =
+    useState('Minutes15')
 
   const addInstance = () => {
     const val = newInstance.trim().toLowerCase()
@@ -2958,6 +3175,12 @@ function SettingsModal({
     invoke<string[]>('get_meet_instances')
       .then(setMeetInstances)
       .catch(() => {})
+    invoke<string | null>('get_calendar_url')
+      .then((url) => setCalendarUrl(url ?? ''))
+      .catch(() => {})
+    invoke<string>('get_calendar_refresh_interval')
+      .then((interval) => setCalendarRefreshInterval(interval))
+      .catch(() => {})
   }, [])
 
   const save = async () => {
@@ -2967,6 +3190,10 @@ function SettingsModal({
     await invoke('set_adaptive_mode_enabled', {
       enabled: form.adaptiveModeEnabled,
     })
+    await invoke('set_calendar_url', { url: calendarUrl.trim() || null })
+    await invoke('set_calendar_refresh_interval', {
+      interval: calendarRefreshInterval,
+    })
     onDisplayNameChange(form.displayName)
     onClose()
   }
@@ -2974,13 +3201,22 @@ function SettingsModal({
   return (
     <div
       className="modal-overlay"
+      role="button"
+      tabIndex={0}
       onClick={onClose}
       onKeyDown={(e) => {
-        if (e.key === 'Escape') onClose()
+        if (e.key === 'Enter' || e.key === ' ') onClose()
       }}
-      role="presentation"
     >
-      <div className="settings-modal" onClick={(e) => e.stopPropagation()}>
+      <div
+        className="settings-modal"
+        role="button"
+        tabIndex={0}
+        onClick={(e) => e.stopPropagation()}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') e.stopPropagation()
+        }}
+      >
         <div className="settings-header">
           <span>{t('settings')}</span>
           <button onClick={onClose} data-testid="settings-close-button">
@@ -3110,6 +3346,42 @@ function SettingsModal({
               </button>
             </div>
           </div>
+          <div className="settings-section settings-section-col">
+            <label className="settings-label">
+              {t('settings.calendarUrl')}
+            </label>
+            <input
+              className="settings-input"
+              type="url"
+              placeholder="https://cal.example.com/feed.ics"
+              value={calendarUrl}
+              onChange={(e) => setCalendarUrl(e.target.value)}
+            />
+            <span className="settings-hint">
+              {t('settings.calendarUrl.hint')}
+            </span>
+          </div>
+          <div className="settings-section">
+            <label className="settings-label">
+              {t('settings.calendarRefresh')}
+            </label>
+            <select
+              value={calendarRefreshInterval}
+              onChange={(e) => setCalendarRefreshInterval(e.target.value)}
+            >
+              <option value="Minutes5">
+                {t('settings.calendarRefresh.5min')}
+              </option>
+              <option value="Minutes15">
+                {t('settings.calendarRefresh.15min')}
+              </option>
+              <option value="Hour1">{t('settings.calendarRefresh.1h')}</option>
+              <option value="Hours4">{t('settings.calendarRefresh.4h')}</option>
+              <option value="Manual">
+                {t('settings.calendarRefresh.manual')}
+              </option>
+            </select>
+          </div>
         </div>
         <button className="settings-save" onClick={save}>
           {t('settings.save')}
@@ -3120,11 +3392,601 @@ function SettingsModal({
 }
 
 // ---------------------------------------------------------------------------
+// Pre-Join Screen
+// ---------------------------------------------------------------------------
+
+interface AudioDeviceInfo {
+  name: string
+  is_default: boolean
+}
+
+interface VideoDeviceInfo {
+  name: string
+  unique_id: string
+  is_default: boolean
+}
+
+function PreJoinScreen({
+  roomUrl,
+  username,
+  lang,
+  isDark,
+  onJoin,
+  onCancel,
+}: {
+  roomUrl: string
+  username: string | null
+  lang: string
+  isDark: boolean
+  onJoin: (username: string | null) => void
+  onCancel: () => void
+}) {
+  const t = useCallback(
+    (key: string) => translations[lang]?.[key] ?? translations.en[key] ?? key,
+    [lang]
+  )
+
+  const slug = roomUrl.includes('/') ? roomUrl.split('/').pop() : roomUrl
+
+  // ---- State ---------------------------------------------------------------
+  const [displayName, setDisplayName] = useState(username ?? '')
+  const [isCameraOn, setIsCameraOn] = useState(false)
+  const [isMicOn, setIsMicOn] = useState(true)
+  const [audioMode, setAudioMode] = useState<'computer' | 'none'>('computer')
+  const [previewFrame, setPreviewFrame] = useState<string | null>(null)
+  const [videoDevices, setVideoDevices] = useState<VideoDeviceInfo[]>([])
+  const [inputDevices, setInputDevices] = useState<AudioDeviceInfo[]>([])
+  const [outputDevices, setOutputDevices] = useState<AudioDeviceInfo[]>([])
+  const [selectedCamera, setSelectedCamera] = useState('')
+  const [selectedInput, setSelectedInput] = useState('')
+  const [selectedOutput, setSelectedOutput] = useState('')
+  const [micLevel, setMicLevel] = useState(0)
+  const [showFilters, setShowFilters] = useState(false)
+  const [backgroundMode, setBackgroundMode] = useState('off')
+
+  // Close filter panel on Escape
+  useEffect(() => {
+    if (!showFilters) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setShowFilters(false)
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [showFilters])
+  const [waitingState, setWaitingState] = useState<
+    'idle' | 'waiting' | 'denied' | 'timeout'
+  >('idle')
+
+  // ---- Refs ----------------------------------------------------------------
+  const micPollRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const unlistenVideoRef = useRef<UnlistenFn | null>(null)
+
+  // ---- Effect: load settings and device lists on mount --------------------
+  useEffect(() => {
+    // Load saved settings
+    invoke<Settings>('get_settings')
+      .then((s) => {
+        if (s.display_name) setDisplayName(s.display_name)
+        setIsMicOn(s.mic_enabled_on_join ?? true)
+        setIsCameraOn(s.camera_enabled_on_join ?? false)
+        if (s.audio_mode === 'none') setAudioMode('none')
+      })
+      .catch(() => {})
+
+    // Load device lists
+    Promise.all([
+      invoke<AudioDeviceInfo[]>('list_audio_input_devices'),
+      invoke<AudioDeviceInfo[]>('list_audio_output_devices'),
+      invoke<VideoDeviceInfo[]>('list_video_input_devices'),
+    ])
+      .then(([inputs, outputs, cameras]) => {
+        setInputDevices(inputs)
+        setOutputDevices(outputs)
+        setVideoDevices(cameras)
+        const defInput = inputs.find((d) => d.is_default)
+        const defOutput = outputs.find((d) => d.is_default)
+        const defCam = cameras.find((d) => d.is_default)
+        if (defInput) setSelectedInput(defInput.name)
+        if (defOutput) setSelectedOutput(defOutput.name)
+        if (defCam) setSelectedCamera(defCam.unique_id)
+      })
+      .catch(() => {})
+
+    // Subscribe to video frame events
+    listen<{ track_sid: string; data: string; width: number; height: number }>(
+      'video-frame',
+      (event) => {
+        if (event.payload.track_sid === 'local-camera') {
+          setPreviewFrame(event.payload.data)
+        }
+      }
+    ).then((unlisten) => {
+      unlistenVideoRef.current = unlisten
+    })
+
+    return () => {
+      unlistenVideoRef.current?.()
+      if (micPollRef.current) clearInterval(micPollRef.current)
+      if (timeoutRef.current) clearTimeout(timeoutRef.current)
+      // Stop previews on unmount
+      invoke('stop_camera_preview').catch(() => {})
+      invoke('stop_mic_preview').catch(() => {})
+    }
+  }, [])
+
+  // ---- Effect: camera on/off ----------------------------------------------
+  useEffect(() => {
+    if (isCameraOn) {
+      invoke('start_camera_preview').catch(() => {})
+    } else {
+      invoke('stop_camera_preview').catch(() => {})
+      setPreviewFrame(null)
+    }
+  }, [isCameraOn])
+
+  // ---- Effect: mic on/off + audioMode -------------------------------------
+  useEffect(() => {
+    if (isMicOn && audioMode === 'computer') {
+      invoke('start_mic_preview').catch(() => {})
+      micPollRef.current = setInterval(async () => {
+        try {
+          const level = await invoke<number>('get_mic_level')
+          setMicLevel(level)
+        } catch {
+          setMicLevel(0)
+        }
+      }, 100)
+    } else {
+      invoke('stop_mic_preview').catch(() => {})
+      if (micPollRef.current) {
+        clearInterval(micPollRef.current)
+        micPollRef.current = null
+      }
+      setMicLevel(0)
+    }
+    return () => {
+      if (micPollRef.current) {
+        clearInterval(micPollRef.current)
+        micPollRef.current = null
+      }
+    }
+  }, [isMicOn, audioMode])
+
+  // ---- Handlers -----------------------------------------------------------
+  const handleSelectCamera = async (uniqueId: string) => {
+    setSelectedCamera(uniqueId)
+    try {
+      await invoke('select_video_input', { uniqueId })
+    } catch {
+      /* ignore */
+    }
+  }
+
+  const handleSelectInput = async (name: string) => {
+    setSelectedInput(name)
+    try {
+      await invoke('select_audio_input', { deviceName: name })
+    } catch {
+      /* ignore */
+    }
+  }
+
+  const handleSelectOutput = async (name: string) => {
+    setSelectedOutput(name)
+    try {
+      await invoke('select_audio_output', { deviceName: name })
+    } catch {
+      /* ignore */
+    }
+  }
+
+  const handleSetBackgroundMode = async (mode: string) => {
+    setBackgroundMode(mode)
+    try {
+      await invoke('set_background_mode', { mode })
+    } catch {
+      /* ignore */
+    }
+  }
+
+  const handleJoinNow = async () => {
+    // Save preferences
+    const finalName = displayName.trim() || null
+    try {
+      await invoke('set_display_name', { name: finalName })
+    } catch {
+      /* ignore */
+    }
+    try {
+      await invoke('set_mic_enabled_on_join', { enabled: isMicOn })
+    } catch {
+      /* ignore */
+    }
+    try {
+      await invoke('set_camera_enabled_on_join', { enabled: isCameraOn })
+    } catch {
+      /* ignore */
+    }
+    try {
+      await invoke('set_audio_mode', { mode: audioMode })
+    } catch {
+      /* ignore */
+    }
+
+    // Stop camera preview before joining (the call screen takes over)
+    try {
+      await invoke('stop_camera_preview')
+    } catch {
+      /* ignore */
+    }
+    try {
+      await invoke('stop_mic_preview')
+    } catch {
+      /* ignore */
+    }
+
+    setWaitingState('waiting')
+
+    // Start 60s timeout
+    timeoutRef.current = setTimeout(() => {
+      setWaitingState((prev) => (prev === 'waiting' ? 'timeout' : prev))
+    }, 60_000)
+
+    // Listen for lobby denied event
+    listen<string>('lobby-denied', () => {
+      if (timeoutRef.current) clearTimeout(timeoutRef.current)
+      setWaitingState('denied')
+    })
+      .then((unlisten) => {
+        // Store unlisten so we can clean up when the component unmounts
+        const prev = unlistenVideoRef.current
+        unlistenVideoRef.current = () => {
+          unlisten()
+          prev?.()
+        }
+      })
+      .catch(() => {})
+
+    onJoin(finalName)
+  }
+
+  const handleBack = () => {
+    if (timeoutRef.current) clearTimeout(timeoutRef.current)
+    setWaitingState('idle')
+    onCancel()
+  }
+
+  // ---- Waiting state overlay ----------------------------------------------
+  if (waitingState !== 'idle') {
+    return (
+      <div
+        className="prejoin-waiting-overlay"
+        data-theme={isDark ? 'dark' : 'light'}
+      >
+        <div className="prejoin-waiting-content">
+          {waitingState === 'waiting' && (
+            <>
+              <div className="prejoin-spinner" />
+              <p className="prejoin-waiting-label">
+                {t('prejoin.waitingForApproval')}
+              </p>
+              <button className="btn btn-secondary" onClick={handleBack}>
+                {t('prejoin.cancel')}
+              </button>
+            </>
+          )}
+          {waitingState === 'denied' && (
+            <>
+              <p className="prejoin-waiting-error">
+                {t('prejoin.accessDenied')}
+              </p>
+              <button className="btn btn-secondary" onClick={handleBack}>
+                {t('prejoin.backToHome')}
+              </button>
+            </>
+          )}
+          {waitingState === 'timeout' && (
+            <>
+              <p className="prejoin-waiting-error">
+                {t('prejoin.requestTimeout')}
+              </p>
+              <button className="btn btn-secondary" onClick={handleBack}>
+                {t('prejoin.backToHome')}
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+    )
+  }
+
+  // ---- Main layout --------------------------------------------------------
+  const selectedCamName =
+    videoDevices.find((d) => d.unique_id === selectedCamera)?.name ?? ''
+  const selectedInputName =
+    inputDevices.find((d) => d.name === selectedInput)?.name ?? selectedInput
+  const selectedOutputName =
+    outputDevices.find((d) => d.name === selectedOutput)?.name ?? selectedOutput
+
+  return (
+    <div className="prejoin-container" data-theme={isDark ? 'dark' : 'light'}>
+      {/* Header */}
+      <div className="prejoin-header">
+        <span className="prejoin-app-name">Visio Mobile</span>
+        <span className="prejoin-slug">{slug}</span>
+      </div>
+
+      {/* Display name */}
+      <div className="prejoin-name-row">
+        <input
+          className="prejoin-name-input"
+          type="text"
+          value={displayName}
+          onChange={(e) => setDisplayName(e.target.value)}
+          placeholder={t('prejoin.displayName')}
+          maxLength={100}
+        />
+      </div>
+
+      {/* Two-column body */}
+      <div className="prejoin-body">
+        {/* Left: camera preview */}
+        <div className="prejoin-camera-panel">
+          <div className="prejoin-preview">
+            {isCameraOn && previewFrame ? (
+              <img
+                className="prejoin-preview-img"
+                src={`data:image/jpeg;base64,${previewFrame}`}
+                alt=""
+              />
+            ) : (
+              <div className="prejoin-preview-off">
+                <RiVideoOffLine size={40} color="var(--text-secondary)" />
+              </div>
+            )}
+          </div>
+
+          {/* Camera device row */}
+          <div className="prejoin-device-row">
+            <div className="prejoin-device-selector">
+              <RiVideoOnLine size={16} />
+              <select
+                className="prejoin-select"
+                value={selectedCamera}
+                onChange={(e) => handleSelectCamera(e.target.value)}
+                title={t('prejoin.camera')}
+              >
+                {videoDevices.length === 0 && (
+                  <option value="">{t('prejoin.camera')}</option>
+                )}
+                {videoDevices.map((d) => (
+                  <option key={d.unique_id} value={d.unique_id}>
+                    {d.name}
+                  </option>
+                ))}
+                {videoDevices.length > 0 && selectedCamera === '' && (
+                  <option value="">
+                    {selectedCamName || t('prejoin.camera')}
+                  </option>
+                )}
+              </select>
+            </div>
+            <button
+              className={`prejoin-toggle${isCameraOn ? ' active' : ''}`}
+              onClick={() => setIsCameraOn((v) => !v)}
+              title={t('prejoin.camera')}
+            >
+              {isCameraOn ? (
+                <RiVideoOnLine size={18} />
+              ) : (
+                <RiVideoOffLine size={18} />
+              )}
+            </button>
+          </div>
+
+          {/* Background filter row */}
+          <button
+            className={`prejoin-filter-btn${showFilters ? ' active' : ''}`}
+            onClick={() => setShowFilters((v) => !v)}
+          >
+            <span>{t('prejoin.backgroundFilters')}</span>
+            <RiArrowRightSLine size={16} />
+          </button>
+        </div>
+
+        {/* Right: audio panel */}
+        <div className="prejoin-audio-panel">
+          {/* Computer audio option */}
+          <label
+            className={`prejoin-audio-option${audioMode === 'computer' ? ' selected' : ''}`}
+          >
+            <input
+              type="radio"
+              name="audioMode"
+              value="computer"
+              checked={audioMode === 'computer'}
+              onChange={() => setAudioMode('computer')}
+            />
+            <span className="prejoin-audio-option-label">
+              {t('prejoin.computerAudio')}
+            </span>
+          </label>
+
+          {audioMode === 'computer' && (
+            <div className="prejoin-audio-details">
+              {/* Mic row */}
+              <div className="prejoin-device-row">
+                <div className="prejoin-device-selector">
+                  <RiMicLine size={16} />
+                  <select
+                    className="prejoin-select"
+                    value={selectedInput}
+                    onChange={(e) => handleSelectInput(e.target.value)}
+                    title={t('prejoin.microphone')}
+                  >
+                    {inputDevices.length === 0 && (
+                      <option value="">{t('prejoin.microphone')}</option>
+                    )}
+                    {inputDevices.map((d) => (
+                      <option key={d.name} value={d.name}>
+                        {d.name}
+                      </option>
+                    ))}
+                    {inputDevices.length > 0 && selectedInput === '' && (
+                      <option value="">
+                        {selectedInputName || t('prejoin.microphone')}
+                      </option>
+                    )}
+                  </select>
+                </div>
+                <button
+                  className={`prejoin-toggle${isMicOn ? ' active' : ''}`}
+                  onClick={() => setIsMicOn((v) => !v)}
+                  title={t('prejoin.microphone')}
+                >
+                  {isMicOn ? (
+                    <RiMicLine size={18} />
+                  ) : (
+                    <RiMicOffLine size={18} />
+                  )}
+                </button>
+              </div>
+
+              {/* VU meter */}
+              <div className="prejoin-vu-track" data-testid="prejoin-vu-track">
+                <div
+                  className="prejoin-vu-bar"
+                  data-testid="prejoin-vu-bar"
+                  style={{ width: `${Math.round(micLevel * 100)}%` }}
+                />
+              </div>
+
+              {/* Speaker row */}
+              <div className="prejoin-device-row prejoin-speaker-row">
+                <div className="prejoin-device-selector">
+                  <RiVolumeMuteLine size={16} />
+                  <select
+                    className="prejoin-select"
+                    value={selectedOutput}
+                    onChange={(e) => handleSelectOutput(e.target.value)}
+                    title="Speaker"
+                  >
+                    {outputDevices.length === 0 && (
+                      <option value="">Speaker</option>
+                    )}
+                    {outputDevices.map((d) => (
+                      <option key={d.name} value={d.name}>
+                        {d.name}
+                      </option>
+                    ))}
+                    {outputDevices.length > 0 && selectedOutput === '' && (
+                      <option value="">
+                        {selectedOutputName || 'Speaker'}
+                      </option>
+                    )}
+                  </select>
+                </div>
+              </div>
+              <button
+                className="btn btn-secondary prejoin-test-btn"
+                onClick={() => invoke('play_speaker_test').catch(() => {})}
+              >
+                {t('prejoin.testSpeaker')}
+              </button>
+            </div>
+          )}
+
+          {/* No audio option */}
+          <label
+            className={`prejoin-audio-option${audioMode === 'none' ? ' selected' : ''}`}
+          >
+            <input
+              type="radio"
+              name="audioMode"
+              value="none"
+              checked={audioMode === 'none'}
+              onChange={() => setAudioMode('none')}
+            />
+            <span className="prejoin-audio-option-label">
+              {t('prejoin.noAudio')}
+            </span>
+          </label>
+        </div>
+      </div>
+
+      {/* Actions */}
+      <div className="prejoin-actions">
+        <button className="btn btn-secondary" onClick={onCancel}>
+          {t('prejoin.cancel')}
+        </button>
+        <button className="btn btn-primary" onClick={handleJoinNow}>
+          {t('prejoin.joinNow')}
+        </button>
+      </div>
+
+      {/* Background filter side panel */}
+      {showFilters && (
+        <div className="prejoin-filter-panel">
+          <div className="prejoin-filter-panel-header">
+            <span>{t('prejoin.backgroundFilters')}</span>
+            <button onClick={() => setShowFilters(false)}>
+              <RiCloseLine size={20} />
+            </button>
+          </div>
+          <div className="prejoin-filter-grid">
+            {/* Off */}
+            <button
+              className={`prejoin-filter-thumb${backgroundMode === 'off' ? ' active' : ''}`}
+              onClick={() => handleSetBackgroundMode('off')}
+            >
+              <div className="prejoin-filter-thumb-off" />
+              <span>{t('prejoin.bgOff')}</span>
+            </button>
+            {/* Blur */}
+            <button
+              className={`prejoin-filter-thumb${backgroundMode === 'blur' ? ' active' : ''}`}
+              onClick={() => handleSetBackgroundMode('blur')}
+            >
+              <div className="prejoin-filter-thumb-blur" />
+              <span>{t('prejoin.bgBlur')}</span>
+            </button>
+            {/* Blur light */}
+            <button
+              className={`prejoin-filter-thumb${backgroundMode === 'blur-light' ? ' active' : ''}`}
+              onClick={() => handleSetBackgroundMode('blur-light')}
+            >
+              <div className="prejoin-filter-thumb-blur-light" />
+              <span>{t('prejoin.bgBlurLight')}</span>
+            </button>
+            {/* Background images 1-8 */}
+            {[1, 2, 3, 4, 5, 6, 7, 8].map((n) => (
+              <button
+                key={n}
+                className={`prejoin-filter-thumb${backgroundMode === `image:${n}` ? ' active' : ''}`}
+                onClick={() => handleSetBackgroundMode(`image:${n}`)}
+              >
+                <div
+                  className={`prejoin-filter-thumb-img prejoin-filter-thumb-img-${n}`}
+                />
+                <span>{n}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
 // App (root)
 // ---------------------------------------------------------------------------
 
 export default function App() {
   const [view, setView] = useState<View>('home')
+  const [lobbyRoomUrl, setLobbyRoomUrl] = useState('')
+  const [lobbyUsername, setLobbyUsername] = useState<string | null>(null)
   const [connectionState, setConnectionState] = useState('disconnected')
   const [participants, setParticipants] = useState<Participant[]>([])
   const [localParticipant, setLocalParticipant] = useState<Participant | null>(
@@ -3520,7 +4382,7 @@ export default function App() {
   }, [])
 
   useEffect(() => {
-    if (view === 'home') return
+    if (view === 'home' || view === 'lobby') return
 
     poll()
     const id = setInterval(poll, 1000)
@@ -3529,7 +4391,7 @@ export default function App() {
 
   // ---- Video frame events -------------------------------------------------
   useEffect(() => {
-    if (view === 'home') return
+    if (view === 'home' || view === 'lobby') return
 
     let unlistenFrame: UnlistenFn | null = null
     let unlistenTrackUnsub: UnlistenFn | null = null
@@ -3599,7 +4461,7 @@ export default function App() {
 
   // ---- Hand raise & unread events (Task 2.8) ------------------------------
   useEffect(() => {
-    if (view === 'home') return
+    if (view === 'home' || view === 'lobby') return
 
     let unlistenHand: UnlistenFn | null = null
     let unlistenUnread: UnlistenFn | null = null
@@ -3707,14 +4569,16 @@ export default function App() {
   // ---- Handlers -----------------------------------------------------------
   const handleJoin = async (
     meetUrl: string,
-    _username?: string | null,
+    username?: string | null,
     roomId?: string,
     accessLevel?: string
   ) => {
     setCurrentMeetUrl(meetUrl)
     if (roomId) setCurrentRoomId(roomId)
     if (accessLevel) setCurrentAccessLevel(accessLevel)
-    setView('call')
+    setLobbyRoomUrl(meetUrl)
+    setLobbyUsername(username ?? null)
+    setView('lobby')
 
     // Auto-enable mic/camera based on user settings
     const s = settingsRef.current
@@ -3941,6 +4805,26 @@ export default function App() {
               </div>
             )}
           </>
+        )}
+        {view === 'lobby' && (
+          <PreJoinScreen
+            roomUrl={lobbyRoomUrl}
+            username={lobbyUsername}
+            lang={lang}
+            isDark={theme === 'dark'}
+            onJoin={async (finalUsername) => {
+              try {
+                await invoke('connect', {
+                  meetUrl: lobbyRoomUrl,
+                  username: finalUsername,
+                })
+                setView('call')
+              } catch (e) {
+                // Error handled by connection state listener
+              }
+            }}
+            onCancel={() => setView('home')}
+          />
         )}
         {view === 'call' && connectionState !== 'waiting_for_host' && (
           <CallView

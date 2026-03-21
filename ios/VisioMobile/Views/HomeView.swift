@@ -17,6 +17,7 @@ struct HomeView: View {
     @State private var roomHistory: [String] = []
     @State private var historyJoinPending: Bool = false
     @State private var showCompactHeader: Bool = false
+    @State private var selectedTab: Int = 0
 
     private var lang: String { manager.currentLang }
     private var isDark: Bool { manager.currentTheme == "dark" }
@@ -36,7 +37,46 @@ struct HomeView: View {
         ZStack {
             VisioColors.background(dark: isDark).ignoresSafeArea()
 
-            ScrollView {
+            VStack(spacing: 0) {
+                // Tab segment control — only shown when authenticated
+                if manager.isAuthenticated {
+                    let meetingsLabel = manager.upcomingMeetings.isEmpty
+                        ? "Réunions"
+                        : "Réunions (\(manager.upcomingMeetings.count))"
+                    Picker("", selection: $selectedTab) {
+                        Text("Rejoindre").tag(0)
+                        Text(meetingsLabel).tag(1)
+                    }
+                    .pickerStyle(.segmented)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 8)
+                    .onChange(of: selectedTab) { newTab in
+                        if newTab == 1 {
+                            manager.refreshCalendarNow()
+                        }
+                    }
+                }
+
+                if selectedTab == 1 && manager.isAuthenticated {
+                    MeetingsTabView(
+                        meetings: manager.upcomingMeetings,
+                        hasCalendarUrl: manager.client.getCalendarUrl() != nil,
+                        isLoading: manager.calendarLoading,
+                        isDark: isDark,
+                        lang: lang,
+                        onSettings: { showSettings = true },
+                        onRefresh: { manager.refreshCalendarNow() },
+                        onJoinMeeting: { meeting in
+                            roomURL = meeting.roomUrl
+                            resolvedRoomURL = meeting.roomUrl
+                            roomStatus = "valid"
+                            selectedTab = 0
+                            navigateToCall = true
+                        }
+                    )
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else {
+                ScrollView {
                 VStack(spacing: 32) {
                     VStack(spacing: 8) {
                         VisioLogo(size: 96)
@@ -248,6 +288,8 @@ struct HomeView: View {
                 .padding(.bottom, 32)
             }
             .coordinateSpace(name: "scroll")
+            } // end else (join tab)
+            } // end VStack tabs
         }
         .navigationBarTitleDisplayMode(.inline)
         .toolbarColorScheme(isDark ? .dark : .light, for: .navigationBar)
