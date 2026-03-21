@@ -1,0 +1,67 @@
+name: Security
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  trivy-rust:
+    name: Trivy - Rust dependencies
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run Trivy vulnerability scanner (fs mode)
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: "fs"
+          scan-ref: "."
+          scanners: "vuln"
+          severity: "CRITICAL,HIGH"
+          exit-code: "1"
+          ignore-unfixed: true
+
+  trivy-docker:
+    name: Trivy - Docker images
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - context: android
+            name: android
+          - context: crates/visio-desktop
+            name: desktop
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build Docker image
+        run: |
+          if [ -f "${{ matrix.context }}/Dockerfile" ]; then
+            docker build -t visio-${{ matrix.name }}:scan \
+              ${{ matrix.context }}
+          else
+            echo "No Dockerfile found, skipping"
+            exit 0
+          fi
+      - name: Run Trivy on image
+        if: success()
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: "visio-${{ matrix.name }}:scan"
+          severity: "CRITICAL,HIGH"
+          exit-code: "1"
+          ignore-unfixed: true
+
+  gitguardian:
+    name: GitGuardian - Secret detection
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: GitGuardian scan
+        uses: GitGuardian/ggshield-action@v1
+        env:
+          GITGUARDIAN_API_KEY: ${{ secrets.GITGUARDIAN_API_KEY }}

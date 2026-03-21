@@ -1,0 +1,16 @@
+[general]
+contrib=contrib-title-conventional-commits
+regex-style-search=true
+
+[title-max-length]
+line-length=72
+
+[body-max-line-length]
+line-length=80
+
+[ignore-by-title]
+regex=^(Merge|Revert|dependabot|Bump)
+ignore=all
+
+[contrib-title-conventional-commits]
+types=feat,fix,docs,style,refactor,perf,test,build,ci,chore,revert
