@@ -1012,7 +1012,12 @@ async fn main() {
         if args.audio {
             match controls.publish_microphone().await {
                 Ok(source) => {
-                    spawn_synthetic_audio(source);
+                    if let Some(ref path) = args.media_file {
+                        tracing::info!("Publishing audio from file: {path} (muted)");
+                        spawn_file_audio(source, path.clone(), args.loop_media);
+                    } else {
+                        spawn_synthetic_audio(source);
+                    }
                     controls.set_microphone_enabled(false).await.ok();
                     tracing::info!("Audio track published (muted)");
                 }
@@ -1024,7 +1029,11 @@ async fn main() {
         if args.video {
             match controls.publish_camera("720p").await {
                 Ok(source) => {
-                    spawn_synthetic_video(source);
+                    if let Some(ref path) = args.media_file {
+                        spawn_file_video(source, path.clone(), args.loop_media);
+                    } else {
+                        spawn_synthetic_video(source);
+                    }
                     controls.set_camera_enabled(false).await.ok();
                     tracing::info!("Video track published (muted)");
                 }
