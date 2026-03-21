@@ -11,6 +11,7 @@ import io.visio.mobile.VisioManager
 import io.visio.mobile.ui.CallScreen
 import io.visio.mobile.ui.ChatScreen
 import io.visio.mobile.ui.HomeScreen
+import io.visio.mobile.ui.PreJoinScreen
 import io.visio.mobile.ui.SettingsScreen
 import java.net.URLDecoder
 import java.net.URLEncoder
@@ -34,11 +35,46 @@ fun AppNavigation() {
                 onJoin = { roomUrl, username ->
                     val encoded = URLEncoder.encode(roomUrl, "UTF-8")
                     val encodedName = URLEncoder.encode(username.ifBlank { "" }, "UTF-8")
-                    navController.navigate("call/$encoded?username=$encodedName")
+                    navController.navigate("lobby/$encoded?username=$encodedName")
                 },
                 onSettings = {
                     navController.navigate("settings")
                 },
+            )
+        }
+
+        composable(
+            route = "lobby/{roomUrl}?username={username}",
+            arguments =
+                listOf(
+                    navArgument("roomUrl") { type = NavType.StringType },
+                    navArgument("username") {
+                        type = NavType.StringType
+                        defaultValue = ""
+                    },
+                ),
+        ) { backStackEntry ->
+            val roomUrl =
+                URLDecoder.decode(
+                    backStackEntry.arguments?.getString("roomUrl") ?: "",
+                    "UTF-8",
+                )
+            val username =
+                URLDecoder.decode(
+                    backStackEntry.arguments?.getString("username") ?: "",
+                    "UTF-8",
+                )
+            PreJoinScreen(
+                roomUrl = roomUrl,
+                initialUsername = username,
+                onJoin = { finalUsername ->
+                    val enc = URLEncoder.encode(roomUrl, "UTF-8")
+                    val encName = URLEncoder.encode(finalUsername.ifBlank { "" }, "UTF-8")
+                    navController.navigate("call/$enc?username=$encName") {
+                        popUpTo("home")
+                    }
+                },
+                onCancel = { navController.popBackStack() },
             )
         }
 

@@ -1075,6 +1075,27 @@ function HomeView({
               {t('home.createRoom')}
             </button>
           )}
+          {roomStatus === 'auth_required' && (
+            <div
+              className="room-status auth-required"
+              data-testid="home-room-status"
+            >
+              {t('home.room.authRequired')}
+            </div>
+          )}
+          {roomStatus === 'authenticating' && (
+            <div
+              className="room-status checking"
+              data-testid="home-room-status"
+            >
+              {t('home.room.authenticating')}
+            </div>
+          )}
+          {roomStatus === 'error' && (
+            <div className="room-status error" data-testid="home-room-status">
+              {t('home.room.error')}
+            </div>
+          )}
           <div className="error-msg">{error}</div>
           {roomHistory.length > 0 && (
             <div className="room-history">
@@ -3648,7 +3669,34 @@ function PreJoinScreen({
       })
       .catch(() => {})
 
-    onJoin(finalName)
+    // Connect to the room. For lobby-gated rooms, connect() returns Ok
+    // immediately while the user is still waiting_for_host. We listen for the
+    // connection-state-changed event and only call onJoin once the backend
+    // transitions to "connected", avoiding a duplicate connect call from the
+    // parent and preventing the blank-screen caused by setView("call") firing
+    // before admission.
+    try {
+      await invoke('connect', { meetUrl: roomUrl, username: finalName })
+    } catch {
+      if (timeoutRef.current) clearTimeout(timeoutRef.current)
+      setWaitingState('idle')
+      return
+    }
+
+    listen<string>('connection-state-changed', (event) => {
+      if (event.payload === 'connected') {
+        if (timeoutRef.current) clearTimeout(timeoutRef.current)
+        onJoin(finalName)
+      }
+    })
+      .then((unlisten) => {
+        const prev = unlistenVideoRef.current
+        unlistenVideoRef.current = () => {
+          unlisten()
+          prev?.()
+        }
+      })
+      .catch(() => {})
   }
 
   const handleBack = () => {
@@ -4812,16 +4860,8 @@ export default function App() {
             username={lobbyUsername}
             lang={lang}
             isDark={theme === 'dark'}
-            onJoin={async (finalUsername) => {
-              try {
-                await invoke('connect', {
-                  meetUrl: lobbyRoomUrl,
-                  username: finalUsername,
-                })
-                setView('call')
-              } catch (e) {
-                // Error handled by connection state listener
-              }
+            onJoin={() => {
+              setView('call')
             }}
             onCancel={() => setView('home')}
           />

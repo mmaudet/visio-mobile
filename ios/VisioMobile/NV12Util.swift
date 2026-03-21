@@ -1,14 +1,12 @@
 import CoreVideo
 import visioFFI
 
-/// Push an NV12 CVPixelBuffer to Rust as I420 via the C FFI.
-///
-/// Optionally accepts pre-allocated U/V plane buffers (resized if needed)
-/// to avoid per-frame heap allocations on hot paths.
-func pushNV12FrameToRust(
+/// Convert an NV12 CVPixelBuffer to I420 planes and call `handler` with the Y/U/V pointers and strides.
+private func withI420Planes(
     _ pixelBuffer: CVPixelBuffer,
     uPlane: inout [UInt8],
-    vPlane: inout [UInt8]
+    vPlane: inout [UInt8],
+    handler: (UnsafePointer<UInt8>, UInt32, UnsafePointer<UInt8>, UInt32, UnsafePointer<UInt8>, UInt32, UInt32, UInt32) -> Void
 ) {
     CVPixelBufferLockBaseAddress(pixelBuffer, .readOnly)
     defer { CVPixelBufferUnlockBaseAddress(pixelBuffer, .readOnly) }
@@ -48,12 +46,29 @@ func pushNV12FrameToRust(
         vPlane.withUnsafeBufferPointer { vBuf in
             guard let uBase = uBuf.baseAddress,
                   let vBase = vBuf.baseAddress else { return }
-            visio_push_ios_camera_frame(
-                yPtr, UInt32(yStride),
-                uBase, UInt32(chromaW),
-                vBase, UInt32(chromaW),
-                UInt32(width), UInt32(height)
-            )
+            handler(yPtr, UInt32(yStride), uBase, UInt32(chromaW), vBase, UInt32(chromaW), UInt32(width), UInt32(height))
         }
+    }
+}
+
+/// Push an NV12 CVPixelBuffer to Rust as I420 via the C FFI (live call path).
+func pushNV12FrameToRust(
+    _ pixelBuffer: CVPixelBuffer,
+    uPlane: inout [UInt8],
+    vPlane: inout [UInt8]
+) {
+    withI420Planes(pixelBuffer, uPlane: &uPlane, vPlane: &vPlane) { yPtr, yStride, uPtr, uStride, vPtr, vStride, width, height in
+        visio_push_ios_camera_frame(yPtr, yStride, uPtr, uStride, vPtr, vStride, width, height)
+    }
+}
+
+/// Push an NV12 CVPixelBuffer to the local preview callback only (pre-join lobby).
+func pushNV12PreviewFrameToRust(
+    _ pixelBuffer: CVPixelBuffer,
+    uPlane: inout [UInt8],
+    vPlane: inout [UInt8]
+) {
+    withI420Planes(pixelBuffer, uPlane: &uPlane, vPlane: &vPlane) { yPtr, yStride, uPtr, uStride, vPtr, vStride, width, height in
+        visio_video_process_preview_frame(yPtr, yStride, uPtr, uStride, vPtr, vStride, width, height, 0)
     }
 }

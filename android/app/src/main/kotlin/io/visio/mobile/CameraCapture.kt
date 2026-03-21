@@ -43,6 +43,10 @@ class CameraCapture(private val context: Context) {
     @Volatile private var running = false
     private val displayManager = context.getSystemService(Context.DISPLAY_SERVICE) as DisplayManager
 
+    /** When true, frames are processed for local preview only (blur + render) without
+     *  feeding into a LiveKit NativeVideoSource. Set this before calling [start]. */
+    @Volatile var previewMode: Boolean = false
+
     @SuppressLint("MissingPermission") // Caller must check CAMERA permission first
     fun start() {
         if (running) return
@@ -94,19 +98,21 @@ class CameraCapture(private val context: Context) {
                                 (sensorOrientation - displayDegrees + 360) % 360
                             }
 
-                        NativeVideo.nativePushCameraFrame(
-                            yPlane.buffer,
-                            uPlane.buffer,
-                            vPlane.buffer,
-                            yPlane.rowStride,
-                            uPlane.rowStride,
-                            vPlane.rowStride,
-                            uPlane.pixelStride,
-                            vPlane.pixelStride,
-                            image.width,
-                            image.height,
-                            rotation,
-                        )
+                        if (previewMode) {
+                            NativeVideo.nativeProcessPreviewFrame(
+                                yPlane.buffer, uPlane.buffer, vPlane.buffer,
+                                yPlane.rowStride, uPlane.rowStride, vPlane.rowStride,
+                                uPlane.pixelStride, vPlane.pixelStride,
+                                image.width, image.height, rotation,
+                            )
+                        } else {
+                            NativeVideo.nativePushCameraFrame(
+                                yPlane.buffer, uPlane.buffer, vPlane.buffer,
+                                yPlane.rowStride, uPlane.rowStride, vPlane.rowStride,
+                                uPlane.pixelStride, vPlane.pixelStride,
+                                image.width, image.height, rotation,
+                            )
+                        }
                     } finally {
                         image.close()
                     }
@@ -215,12 +221,21 @@ class CameraCapture(private val context: Context) {
                             } else {
                                 (sensorOrientation - displayDegrees + 360) % 360
                             }
-                        NativeVideo.nativePushCameraFrame(
-                            yPlane.buffer, uPlane.buffer, vPlane.buffer,
-                            yPlane.rowStride, uPlane.rowStride, vPlane.rowStride,
-                            uPlane.pixelStride, vPlane.pixelStride,
-                            image.width, image.height, rotation,
-                        )
+                        if (previewMode) {
+                            NativeVideo.nativeProcessPreviewFrame(
+                                yPlane.buffer, uPlane.buffer, vPlane.buffer,
+                                yPlane.rowStride, uPlane.rowStride, vPlane.rowStride,
+                                uPlane.pixelStride, vPlane.pixelStride,
+                                image.width, image.height, rotation,
+                            )
+                        } else {
+                            NativeVideo.nativePushCameraFrame(
+                                yPlane.buffer, uPlane.buffer, vPlane.buffer,
+                                yPlane.rowStride, uPlane.rowStride, vPlane.rowStride,
+                                uPlane.pixelStride, vPlane.pixelStride,
+                                image.width, image.height, rotation,
+                            )
+                        }
                     } finally {
                         image.close()
                     }

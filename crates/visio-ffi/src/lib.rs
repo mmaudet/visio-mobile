@@ -1815,20 +1815,19 @@ fn audio_runtime() -> &'static tokio::runtime::Runtime {
     })
 }
 
-/// Receive a YUV_420_888 frame from the Android Camera2 pipeline and feed it
-/// into the LiveKit NativeVideoSource.
+/// Shared helper: extract JNI ByteBuffers, copy YUV planes into an I420Buffer,
+/// apply blur processing, and render to the local preview surface.
 ///
-/// Called from Kotlin via JNI on the ImageReader callback thread.
-/// ByteBuffer parameters are direct buffers from `Image.Plane.getBuffer()`.
+/// Returns `Some((i420, jni_env))` on success so the caller can use the buffer
+/// (e.g. feed it into a LiveKit source) and then `std::mem::forget(jni_env)`.
+/// Returns `None` if the JNI environment or any buffer address cannot be obtained.
 ///
 /// # Safety
 /// - `env` must be a valid JNI environment pointer.
 /// - `y_buf`, `u_buf`, `v_buf` must be valid direct ByteBuffer jobjects.
 #[cfg(target_os = "android")]
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn Java_io_visio_mobile_NativeVideo_nativePushCameraFrame(
+unsafe fn process_camera_frame_common(
     env: *mut jni::sys::JNIEnv,
-    _class: jni::sys::jobject,
     y_buf: jni::sys::jobject,
     u_buf: jni::sys::jobject,
     v_buf: jni::sys::jobject,
@@ -1840,16 +1839,10 @@ pub unsafe extern "C" fn Java_io_visio_mobile_NativeVideo_nativePushCameraFrame(
     width: jni::sys::jint,
     height: jni::sys::jint,
     rotation_degrees: jni::sys::jint,
-) {
-    let guard = CAMERA_SOURCE.lock().unwrap();
-    let Some(source) = guard.as_ref() else {
-        visio_log("VISIO FFI: CAMERA_SOURCE is None — discarding frame");
-        return;
-    };
-
+) -> Option<(I420Buffer, jni::JNIEnv<'static>)> {
     // Get direct buffer addresses from ByteBuffer objects
     let Ok(jni_env) = (unsafe { jni::JNIEnv::from_raw(env) }) else {
-        return;
+        return None;
     };
 
     let y_ptr =
@@ -1861,7 +1854,7 @@ pub unsafe extern "C" fn Java_io_visio_mobile_NativeVideo_nativePushCameraFrame(
 
     let (Ok(y_ptr), Ok(u_ptr), Ok(v_ptr)) = (y_ptr, u_ptr, v_ptr) else {
         visio_log("VISIO FFI: failed to get direct buffer addresses from ByteBuffers");
-        return;
+        return None;
     };
 
     let w = width as u32;
@@ -1932,16 +1925,9 @@ pub unsafe extern "C" fn Java_io_visio_mobile_NativeVideo_nativePushCameraFrame(
         );
     }
 
-    let rotation = match rotation_degrees {
-        90 => VideoRotation::VideoRotation90,
-        180 => VideoRotation::VideoRotation180,
-        270 => VideoRotation::VideoRotation270,
-        _ => VideoRotation::VideoRotation0,
-    };
-
-    // Render to local preview surface (self-view) BEFORE moving i420 into VideoFrame.
-    // The guard MUST be kept alive during rendering so that detachSurface cannot
-    // release the ANativeWindow while we are writing to it (prevents SIGSEGV).
+    // Render to local preview surface (self-view). The guard MUST be kept alive
+    // during rendering so that detachSurface cannot release the ANativeWindow
+    // while we are writing to it (prevents SIGSEGV).
     {
         let guard = LOCAL_PREVIEW_SURFACE.lock().unwrap();
         if let Some(ref handle) = *guard {
@@ -1955,6 +1941,67 @@ pub unsafe extern "C" fn Java_io_visio_mobile_NativeVideo_nativePushCameraFrame(
         drop(guard);
     }
 
+    Some((i420, jni_env))
+}
+
+/// Receive a YUV_420_888 frame from the Android Camera2 pipeline and feed it
+/// into the LiveKit NativeVideoSource.
+///
+/// Called from Kotlin via JNI on the ImageReader callback thread.
+/// ByteBuffer parameters are direct buffers from `Image.Plane.getBuffer()`.
+///
+/// # Safety
+/// - `env` must be a valid JNI environment pointer.
+/// - `y_buf`, `u_buf`, `v_buf` must be valid direct ByteBuffer jobjects.
+#[cfg(target_os = "android")]
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn Java_io_visio_mobile_NativeVideo_nativePushCameraFrame(
+    env: *mut jni::sys::JNIEnv,
+    _class: jni::sys::jobject,
+    y_buf: jni::sys::jobject,
+    u_buf: jni::sys::jobject,
+    v_buf: jni::sys::jobject,
+    y_stride: jni::sys::jint,
+    u_stride: jni::sys::jint,
+    v_stride: jni::sys::jint,
+    u_pixel_stride: jni::sys::jint,
+    v_pixel_stride: jni::sys::jint,
+    width: jni::sys::jint,
+    height: jni::sys::jint,
+    rotation_degrees: jni::sys::jint,
+) {
+    let guard = CAMERA_SOURCE.lock().unwrap();
+    let Some(source) = guard.as_ref() else {
+        visio_log("VISIO FFI: CAMERA_SOURCE is None — discarding frame");
+        return;
+    };
+
+    let Some((i420, jni_env)) = (unsafe {
+        process_camera_frame_common(
+            env,
+            y_buf,
+            u_buf,
+            v_buf,
+            y_stride,
+            u_stride,
+            v_stride,
+            u_pixel_stride,
+            v_pixel_stride,
+            width,
+            height,
+            rotation_degrees,
+        )
+    }) else {
+        return;
+    };
+
+    let rotation = match rotation_degrees {
+        90 => VideoRotation::VideoRotation90,
+        180 => VideoRotation::VideoRotation180,
+        270 => VideoRotation::VideoRotation270,
+        _ => VideoRotation::VideoRotation0,
+    };
+
     let frame = VideoFrame {
         rotation,
         timestamp_us: 0,
@@ -1962,6 +2009,52 @@ pub unsafe extern "C" fn Java_io_visio_mobile_NativeVideo_nativePushCameraFrame(
     };
     source.capture_frame(&frame);
     drop(guard);
+
+    // Prevent Drop from calling DestroyJavaVM
+    std::mem::forget(jni_env);
+}
+
+/// Preview-only frame processing: blur + local render, no LiveKit source needed.
+/// Called from CameraCapture in preview mode (pre-join lobby).
+///
+/// # Safety
+/// - `env` must be a valid JNI environment pointer.
+/// - `y_buf`, `u_buf`, `v_buf` must be valid direct ByteBuffer jobjects.
+#[cfg(target_os = "android")]
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn Java_io_visio_mobile_NativeVideo_nativeProcessPreviewFrame(
+    env: *mut jni::sys::JNIEnv,
+    _class: jni::sys::jobject,
+    y_buf: jni::sys::jobject,
+    u_buf: jni::sys::jobject,
+    v_buf: jni::sys::jobject,
+    y_stride: jni::sys::jint,
+    u_stride: jni::sys::jint,
+    v_stride: jni::sys::jint,
+    u_pixel_stride: jni::sys::jint,
+    v_pixel_stride: jni::sys::jint,
+    width: jni::sys::jint,
+    height: jni::sys::jint,
+    rotation_degrees: jni::sys::jint,
+) {
+    let Some((_i420, jni_env)) = (unsafe {
+        process_camera_frame_common(
+            env,
+            y_buf,
+            u_buf,
+            v_buf,
+            y_stride,
+            u_stride,
+            v_stride,
+            u_pixel_stride,
+            v_pixel_stride,
+            width,
+            height,
+            rotation_degrees,
+        )
+    }) else {
+        return;
+    };
 
     // Prevent Drop from calling DestroyJavaVM
     std::mem::forget(jni_env);
