@@ -791,6 +791,13 @@ function HomeView({
       .catch(() => {})
   }, [])
 
+  // Load meeting count from cache on mount (so badge shows immediately)
+  useEffect(() => {
+    invoke<Meeting[]>('get_upcoming_meetings')
+      .then((list) => setMeetingCount(list.length))
+      .catch(() => {})
+  }, [])
+
   // Also listen for meetings-updated to keep badge in sync even when not on meetings tab
   useEffect(() => {
     let unlisten: (() => void) | null = null
