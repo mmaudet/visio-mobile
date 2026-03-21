@@ -2997,7 +2997,7 @@ main {
 
 .meeting-item.meeting-imminent .meeting-time,
 .meeting-item.meeting-imminent .meeting-server {
-  color: rgba(255,255,255,0.8);
+  color: rgba(255, 255, 255, 0.8);
 }
 
 .meeting-item.meeting-ongoing {
@@ -3031,8 +3031,13 @@ main {
 }
 
 @keyframes pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.3; }
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.3;
+  }
 }
 
 .meeting-time {
