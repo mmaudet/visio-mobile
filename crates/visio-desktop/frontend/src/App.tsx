@@ -1035,6 +1035,8 @@ function CreateRoomDialog({
       <div
         className="settings-modal create-room-dialog"
         onClick={(e) => e.stopPropagation()}
+        onKeyDown={(e) => e.stopPropagation()}
+        role="presentation"
       >
         <div className="settings-header">
           <span>{t('home.createRoom')}</span>
@@ -1146,6 +1148,15 @@ function CreateRoomDialog({
                             setSearchQuery('')
                             setSearchResults([])
                           }}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' || e.key === ' ') {
+                              setInvitedUsers([...invitedUsers, user])
+                              setSearchQuery('')
+                              setSearchResults([])
+                            }
+                          }}
+                          role="button"
+                          tabIndex={0}
                         >
                           <span className="search-name">
                             {user.full_name || user.email}
@@ -1433,6 +1444,23 @@ function InfoSidebar({
                       setMemberSearch('')
                       setMemberResults([])
                     }}
+                    onKeyDown={async (e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        try {
+                          await invoke('add_access', { userId: user.id, roomId })
+                          const updated = await invoke<any[]>('list_accesses', {
+                            roomId,
+                          })
+                          setRoomAccesses(updated)
+                        } catch {
+                          /* ignore */
+                        }
+                        setMemberSearch('')
+                        setMemberResults([])
+                      }
+                    }}
+                    role="button"
+                    tabIndex={0}
                   >
                     <span className="search-name">
                       {user.full_name || user.email}
@@ -1603,6 +1631,8 @@ function SourcePickerModal({
         className="settings-modal source-picker"
         data-testid="screen-share-source-picker"
         onClick={(e) => e.stopPropagation()}
+        onKeyDown={(e) => e.stopPropagation()}
+        role="presentation"
       >
         <div className="settings-header">
           <span>{t('call.selectSource')}</span>
@@ -2113,6 +2143,17 @@ function CallView({
                           source: d.source,
                         })
                       }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          userPinnedRef.current = true
+                          setFocusedItem({
+                            participantSid: d.participant.sid,
+                            source: d.source,
+                          })
+                        }
+                      }}
+                      role="button"
+                      tabIndex={0}
                     >
                       <ParticipantTile
                         participant={d.participant}
@@ -2147,6 +2188,17 @@ function CallView({
                         source: d.source,
                       })
                     }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        userPinnedRef.current = true
+                        setFocusedItem({
+                          participantSid: d.participant.sid,
+                          source: d.source,
+                        })
+                      }
+                    }}
+                    role="button"
+                    tabIndex={0}
                   >
                     <ParticipantTile
                       participant={d.participant}
@@ -2370,6 +2422,11 @@ function CallView({
                             <div
                               className="participant-context-menu"
                               onClick={() => setParticipantMenu(null)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter' || e.key === ' ') setParticipantMenu(null)
+                              }}
+                              role="button"
+                              tabIndex={0}
                             >
                               <button
                                 className="context-menu-item"
