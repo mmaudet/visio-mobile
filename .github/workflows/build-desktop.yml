@@ -8,9 +8,6 @@ on:
         required: false
         default: ""
 
-permissions:
-  contents: write
-
 jobs:
   build:
     strategy:
@@ -165,6 +162,8 @@ jobs:
   release:
     needs: build
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
 
