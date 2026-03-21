@@ -2896,6 +2896,9 @@ main {
   padding: 4px 0;
   overflow-y: auto;
   max-height: 360px;
+  align-self: flex-start;
+  width: 100%;
+  max-width: 360px;
 }
 
 .meetings-list-header {

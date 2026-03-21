@@ -961,7 +961,15 @@ fn get_calendar_url(state: tauri::State<'_, VisioState>) -> Option<String> {
 
 #[tauri::command]
 fn set_calendar_url(state: tauri::State<'_, VisioState>, url: Option<String>) {
-    state.settings.set_calendar_url(url);
+    state.settings.set_calendar_url(url.clone());
+    if url.is_some() {
+        let calendar = state.calendar.clone();
+        tauri::async_runtime::spawn(async move {
+            calendar.refresh().await;
+        });
+    } else {
+        state.calendar.clear_cache();
+    }
 }
 
 #[tauri::command]

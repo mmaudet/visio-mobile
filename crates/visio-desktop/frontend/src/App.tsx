@@ -504,6 +504,7 @@ function MeetingsTab({
   const [meetings, setMeetings] = useState<Meeting[]>([])
   const [calendarUrl, setCalendarUrl] = useState<string | null>(null)
   const [joining, setJoining] = useState<string | null>(null)
+  const [loadingMessage, setLoadingMessage] = useState<string>('')
 
   // Load calendar URL and meetings on mount
   useEffect(() => {
@@ -541,12 +542,20 @@ function MeetingsTab({
 
   const handleRefresh = async () => {
     setStatus('loading')
+    setLoadingMessage('Téléchargement du calendrier...')
+    const t2 = setTimeout(() => setLoadingMessage('Analyse des événements...'), 2000)
+    const t5 = setTimeout(() => setLoadingMessage('Mise à jour... (fichier volumineux)'), 5000)
     try {
       await invoke('refresh_calendar_now')
+      clearTimeout(t2)
+      clearTimeout(t5)
+      setLoadingMessage('Mise à jour...')
       const list: Meeting[] = await invoke('get_upcoming_meetings')
       setMeetings(list)
       setStatus(list.length === 0 ? 'empty' : 'list')
     } catch {
+      clearTimeout(t2)
+      clearTimeout(t5)
       setStatus(meetings.length > 0 ? 'list' : 'empty')
     }
   }
@@ -603,7 +612,7 @@ function MeetingsTab({
     return (
       <div className="meetings-loading">
         <span className="meetings-spinner" />
-        <p>{t('meetings.loading')}</p>
+        <p>{loadingMessage || t('meetings.loading')}</p>
       </div>
     )
   }
