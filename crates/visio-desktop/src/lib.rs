@@ -3,8 +3,8 @@ use tokio::sync::Mutex;
 
 use tauri::{AppHandle, Emitter, Listener, Manager};
 use visio_core::{
-    AudioPlayoutBuffer, ChatService, MeetingControls, RoomManager, SessionManager, SessionState,
-    SettingsStore, TrackInfo, TrackKind, TrackSource, VisioEvent, VisioEventListener,
+    AudioPlayoutBuffer, CalendarService, ChatService, MeetingControls, RoomManager, SessionManager,
+    SessionState, SettingsStore, TrackInfo, TrackKind, TrackSource, VisioEvent, VisioEventListener,
 };
 
 mod audio_engine;
@@ -68,6 +68,7 @@ struct VisioState {
     chat: Arc<Mutex<ChatService>>,
     session: Mutex<SessionManager>,
     settings: Arc<SettingsStore>,
+    calendar: Arc<CalendarService>,
     #[cfg(target_os = "macos")]
     camera_capture: std::sync::Mutex<Option<camera_macos::MacCameraCapture>>,
     #[cfg(target_os = "linux")]
@@ -376,6 +377,46 @@ impl VisioEventListener for DesktopEventListener {
             VisioEvent::MuteRequested => {
                 if let Some(app) = APP_HANDLE.get() {
                     let _ = app.emit("mute-requested", ());
+                }
+            }
+            VisioEvent::MeetingsUpdated(meetings) => {
+                if let Some(app) = APP_HANDLE.get() {
+                    let payload: Vec<serde_json::Value> = meetings
+                        .iter()
+                        .map(|m| {
+                            serde_json::json!({
+                                "id": m.id,
+                                "summary": m.summary,
+                                "start_time": m.start_time,
+                                "end_time": m.end_time,
+                                "room_url": m.room_url,
+                                "deep_link": m.deep_link,
+                                "server_name": m.server_name,
+                            })
+                        })
+                        .collect();
+                    let _ = app.emit("meetings-updated", payload);
+                }
+            }
+            VisioEvent::MeetingImminent(m)
+            | VisioEvent::MeetingStartingSoon(m)
+            | VisioEvent::MeetingStarted(m) => {
+                if let Some(app) = APP_HANDLE.get() {
+                    let _ = app.emit(
+                        "meeting-reminder",
+                        serde_json::json!({
+                            "id": m.id,
+                            "summary": m.summary,
+                            "start_time": m.start_time,
+                            "room_url": m.room_url,
+                        }),
+                    );
+                }
+            }
+            VisioEvent::CalendarError(msg) => {
+                tracing::warn!("calendar error: {msg}");
+                if let Some(app) = APP_HANDLE.get() {
+                    let _ = app.emit("calendar-error", &msg);
                 }
             }
         }
@@ -809,6 +850,7 @@ fn get_settings(state: tauri::State<'_, VisioState>) -> Result<serde_json::Value
         "camera_enabled_on_join": s.camera_enabled_on_join,
         "theme": s.theme,
         "adaptive_mode_enabled": s.adaptive_mode_enabled,
+        "audio_mode": s.audio_mode,
     }))
 }
 
@@ -868,6 +910,12 @@ fn set_camera_enabled_on_join(app: AppHandle, state: tauri::State<'_, VisioState
 }
 
 #[tauri::command]
+fn set_audio_mode(app: AppHandle, state: tauri::State<'_, VisioState>, mode: String) {
+    state.settings.set_audio_mode(mode.clone());
+    let _ = app.emit("settings-changed", serde_json::json!({"audio_mode": mode}));
+}
+
+#[tauri::command]
 fn set_theme(
     app: AppHandle,
     state: tauri::State<'_, VisioState>,
@@ -900,6 +948,69 @@ fn get_room_history(state: tauri::State<'_, VisioState>) -> Result<Vec<String>, 
 #[tauri::command]
 fn clear_room_history(state: tauri::State<'_, VisioState>) {
     state.settings.clear_room_history();
+}
+
+// ---------------------------------------------------------------------------
+// Calendar commands
+// ---------------------------------------------------------------------------
+
+#[tauri::command]
+fn get_calendar_url(state: tauri::State<'_, VisioState>) -> Option<String> {
+    state.settings.get_calendar_url()
+}
+
+#[tauri::command]
+fn set_calendar_url(state: tauri::State<'_, VisioState>, url: Option<String>) {
+    state.settings.set_calendar_url(url);
+}
+
+#[tauri::command]
+fn get_calendar_refresh_interval(state: tauri::State<'_, VisioState>) -> String {
+    match state.settings.get_calendar_refresh_interval() {
+        visio_core::CalendarRefreshInterval::Minutes5 => "Minutes5".to_string(),
+        visio_core::CalendarRefreshInterval::Minutes15 => "Minutes15".to_string(),
+        visio_core::CalendarRefreshInterval::Hour1 => "Hour1".to_string(),
+        visio_core::CalendarRefreshInterval::Hours4 => "Hours4".to_string(),
+        visio_core::CalendarRefreshInterval::Manual => "Manual".to_string(),
+    }
+}
+
+#[tauri::command]
+fn set_calendar_refresh_interval(state: tauri::State<'_, VisioState>, interval: String) {
+    let parsed = match interval.as_str() {
+        "Minutes5" => visio_core::CalendarRefreshInterval::Minutes5,
+        "Minutes15" => visio_core::CalendarRefreshInterval::Minutes15,
+        "Hour1" => visio_core::CalendarRefreshInterval::Hour1,
+        "Hours4" => visio_core::CalendarRefreshInterval::Hours4,
+        _ => visio_core::CalendarRefreshInterval::Manual,
+    };
+    state.settings.set_calendar_refresh_interval(parsed);
+}
+
+#[tauri::command]
+fn get_upcoming_meetings(state: tauri::State<'_, VisioState>) -> Vec<serde_json::Value> {
+    state
+        .calendar
+        .get_meetings()
+        .into_iter()
+        .map(|m| {
+            serde_json::json!({
+                "id": m.id,
+                "summary": m.summary,
+                "start_time": m.start_time,
+                "end_time": m.end_time,
+                "room_url": m.room_url,
+                "deep_link": m.deep_link,
+                "server_name": m.server_name,
+            })
+        })
+        .collect()
+}
+
+#[tauri::command]
+async fn refresh_calendar_now(state: tauri::State<'_, VisioState>) -> Result<(), String> {
+    state.calendar.refresh().await;
+    Ok(())
 }
 
 #[tauri::command]
@@ -1313,6 +1424,105 @@ async fn select_video_input(
 }
 
 // ---------------------------------------------------------------------------
+// Camera preview commands (pre-join lobby, no LiveKit connection)
+// ---------------------------------------------------------------------------
+
+#[cfg(target_os = "macos")]
+#[tauri::command]
+async fn start_camera_preview(state: tauri::State<'_, VisioState>) -> Result<(), String> {
+    // No-op if camera is already running
+    {
+        let cam_guard = state
+            .camera_capture
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+        if cam_guard.is_some() {
+            return Ok(());
+        }
+    }
+
+    if !camera_macos::request_camera_permission() {
+        return Err("Camera permission denied".into());
+    }
+
+    let settings = state.settings.get();
+    let capture = if let Some(ref device_id) = settings.camera_device {
+        camera_macos::MacCameraCapture::start_preview_with_unique_id(device_id)
+    } else {
+        camera_macos::MacCameraCapture::start_preview()
+    };
+
+    let mut cam_guard = state
+        .camera_capture
+        .lock()
+        .unwrap_or_else(|e| e.into_inner());
+    *cam_guard = Some(capture.map_err(|e| e)?);
+    Ok(())
+}
+
+#[cfg(target_os = "macos")]
+#[tauri::command]
+async fn stop_camera_preview(state: tauri::State<'_, VisioState>) -> Result<(), String> {
+    let mut cam = state
+        .camera_capture
+        .lock()
+        .unwrap_or_else(|e| e.into_inner());
+    if let Some(mut capture) = cam.take() {
+        capture.stop();
+    }
+    Ok(())
+}
+
+// ---------------------------------------------------------------------------
+// Mic level / VU meter commands
+// ---------------------------------------------------------------------------
+
+/// Returns the current mic RMS level as 0.0–1.0 for VU meter display.
+/// Cheap — reads a single atomic; safe to call at high frequency.
+#[tauri::command]
+fn get_mic_level() -> f32 {
+    audio_engine::get_mic_level()
+}
+
+/// Start a lightweight preview capture on the currently selected input device.
+/// Opens a cpal input stream independent of any LiveKit session so the VU
+/// meter works in the pre-join lobby.
+#[tauri::command]
+async fn start_mic_preview(state: tauri::State<'_, VisioState>) -> Result<(), String> {
+    let device_name = state
+        .selected_input_device
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .clone();
+    let mut engine = state.audio_engine.lock().unwrap_or_else(|e| e.into_inner());
+    engine.start_preview_capture(device_name.as_deref())
+}
+
+/// Stop the preview capture stream and clear the VU meter level.
+#[tauri::command]
+async fn stop_mic_preview(state: tauri::State<'_, VisioState>) -> Result<(), String> {
+    let mut engine = state.audio_engine.lock().unwrap_or_else(|e| e.into_inner());
+    engine.stop_preview_capture();
+    Ok(())
+}
+
+/// Play a short 440 Hz test tone on the currently selected output device.
+/// Runs on a blocking thread so the async runtime is not stalled.
+#[tauri::command]
+async fn play_speaker_test(state: tauri::State<'_, VisioState>) -> Result<(), String> {
+    let device_name = state
+        .selected_output_device
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .clone();
+    tokio::task::spawn_blocking(move || {
+        audio_engine::play_speaker_test(device_name.as_deref())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+// ---------------------------------------------------------------------------
 // Lobby commands
 // ---------------------------------------------------------------------------
 
@@ -1637,6 +1847,23 @@ pub fn run() {
 
     let room_arc = Arc::new(Mutex::new(room_manager));
 
+    // Create the CalendarService, sharing the room's emitter so it can reach
+    // the DesktopEventListener and forward calendar events to the frontend.
+    let calendar_emitter = {
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let emitter = rt.block_on(async {
+            let rm = room_arc.lock().await;
+            rm.emitter()
+        });
+        drop(rt);
+        emitter
+    };
+    let calendar = Arc::new(CalendarService::new(
+        settings.clone(),
+        calendar_emitter,
+        data_dir.to_str().unwrap().to_string(),
+    ));
+
     // Register event listener for auto-starting video renderers
     {
         let listener = Arc::new(DesktopEventListener {
@@ -1654,12 +1881,17 @@ pub fn run() {
         drop(rt);
     }
 
+    // Calendar periodic refresh is started in the Tauri setup() callback
+    // where the async runtime is available.
+    let calendar_for_setup = calendar.clone();
+
     let state = VisioState {
         room: room_arc,
         controls: Arc::new(Mutex::new(controls)),
         chat: Arc::new(Mutex::new(chat)),
         session: Mutex::new(SessionManager::new()),
         settings,
+        calendar,
         #[cfg(target_os = "macos")]
         camera_capture: std::sync::Mutex::new(None),
         #[cfg(target_os = "linux")]
@@ -1739,6 +1971,12 @@ pub fn run() {
             tracing::info!("Visio desktop app started, video callback registered");
 
             // Note: devtools can be opened with Ctrl+Shift+I if needed
+
+            // Start calendar periodic refresh (Tauri runtime provides the async executor)
+            tauri::async_runtime::spawn(async move {
+                calendar_for_setup.refresh().await;
+                calendar_for_setup.start_periodic_refresh().await;
+            });
 
             // Log deep link events on the Rust side
             app.listen("deep-link://new-url", |event: tauri::Event| {
@@ -1832,6 +2070,7 @@ pub fn run() {
             set_language,
             set_mic_enabled_on_join,
             set_camera_enabled_on_join,
+            set_audio_mode,
             set_theme,
             get_meet_instances,
             set_meet_instances,
@@ -1871,10 +2110,22 @@ pub fn run() {
             select_audio_input,
             select_audio_output,
             select_video_input,
+            start_camera_preview,
+            stop_camera_preview,
+            get_mic_level,
+            start_mic_preview,
+            stop_mic_preview,
+            play_speaker_test,
             set_adaptive_mode_enabled,
             check_media_permissions,
             get_room_history,
             clear_room_history,
+            get_calendar_url,
+            set_calendar_url,
+            get_calendar_refresh_interval,
+            set_calendar_refresh_interval,
+            get_upcoming_meetings,
+            refresh_calendar_now,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -27,6 +27,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MenuAnchorType
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.RadioButtonDefaults
 import androidx.compose.material3.Switch
@@ -58,6 +59,7 @@ import io.visio.mobile.ui.i18n.Strings
 import io.visio.mobile.ui.theme.VisioColors
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import uniffi.visio.CalendarRefreshInterval
 
 private const val TAG = "SettingsScreen"
 
@@ -72,6 +74,8 @@ fun SettingsScreen(onBack: () -> Unit) {
     var adaptiveModeEnabled by remember { mutableStateOf(false) }
     var meetInstances by remember { mutableStateOf(listOf("meet.numerique.gouv.fr")) }
     var newInstance by remember { mutableStateOf("") }
+    var calendarUrl by remember { mutableStateOf("") }
+    var calendarRefreshInterval by remember { mutableStateOf(CalendarRefreshInterval.MINUTES15) }
     val coroutineScope = rememberCoroutineScope()
 
     // Use VisioManager.currentLang for live i18n (updates instantly when language radio changes)
@@ -89,6 +93,8 @@ fun SettingsScreen(onBack: () -> Unit) {
             cameraOnJoin = settings.cameraEnabledOnJoin
             adaptiveModeEnabled = VisioManager.client.isAdaptiveModeEnabled()
             meetInstances = VisioManager.client.getMeetInstances()
+            calendarUrl = VisioManager.client.getCalendarUrl() ?: ""
+            calendarRefreshInterval = VisioManager.client.getCalendarRefreshInterval()
         } catch (e: Exception) {
             Log.e(TAG, "Failed to load settings", e)
         }
@@ -181,6 +187,75 @@ fun SettingsScreen(onBack: () -> Unit) {
                 onCheckedChange = { adaptiveModeEnabled = it },
                 isDark = isDark,
             )
+
+            // Calendar section
+            SectionHeader(if (lang == "fr") "Calendrier" else "Calendar", isDark)
+            OutlinedTextField(
+                value = calendarUrl,
+                onValueChange = { calendarUrl = it },
+                label = {
+                    Text(
+                        if (lang == "fr") "URL du calendrier (iCal)" else "Calendar URL (iCal)",
+                        color = if (isDark) VisioColors.Greyscale400 else VisioColors.LightTextSecondary,
+                    )
+                },
+                placeholder = {
+                    Text(
+                        "https://example.com/calendar.ics",
+                        color = if (isDark) VisioColors.Greyscale400 else VisioColors.LightTextSecondary,
+                    )
+                },
+                singleLine = true,
+                keyboardOptions =
+                    KeyboardOptions(
+                        keyboardType = KeyboardType.Uri,
+                        autoCorrectEnabled = false,
+                        capitalization = KeyboardCapitalization.None,
+                    ),
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+            )
+            CalendarIntervalDropdown(
+                selected = calendarRefreshInterval,
+                isDark = isDark,
+                onSelect = { interval ->
+                    calendarRefreshInterval = interval
+                    coroutineScope.launch(Dispatchers.IO) {
+                        try {
+                            VisioManager.client.setCalendarRefreshInterval(interval)
+                        } catch (e: Exception) {
+                            Log.e(TAG, "Failed to save calendar refresh interval", e)
+                        }
+                    }
+                },
+                lang = lang,
+            )
+            if (calendarUrl.isNotBlank()) {
+                Button(
+                    onClick = {
+                        coroutineScope.launch(Dispatchers.IO) {
+                            try {
+                                VisioManager.client.setCalendarUrl(null)
+                            } catch (e: Exception) {
+                                Log.e(TAG, "Failed to delete calendar URL", e)
+                            }
+                        }
+                        calendarUrl = ""
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors =
+                        ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFFE1000F),
+                            contentColor = VisioColors.White,
+                        ),
+                    shape = RoundedCornerShape(12.dp),
+                ) {
+                    Text(
+                        if (lang == "fr") "Supprimer le calendrier" else "Remove calendar",
+                        modifier = Modifier.padding(vertical = 4.dp),
+                    )
+                }
+            }
 
             // Theme section
             SectionHeader(Strings.t("settings.theme", lang), isDark)
@@ -321,6 +396,7 @@ fun SettingsScreen(onBack: () -> Unit) {
                             VisioManager.startContextDetection()
                         }
                         VisioManager.client.setMeetInstances(instancesToSave)
+                        VisioManager.client.setCalendarUrl(calendarUrl.trim().ifBlank { null })
                     } catch (e: Exception) {
                         Log.e(TAG, "Failed to save settings", e)
                     }
@@ -447,6 +523,80 @@ private fun LanguageDropdown(
                         expanded = false
                     },
                     modifier = Modifier.testTag("settings_language_$code"),
+                )
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun CalendarIntervalDropdown(
+    selected: CalendarRefreshInterval,
+    isDark: Boolean,
+    lang: String,
+    onSelect: (CalendarRefreshInterval) -> Unit,
+) {
+    val intervalLabels =
+        listOf(
+            CalendarRefreshInterval.MINUTES5 to "5 min",
+            CalendarRefreshInterval.MINUTES15 to "15 min",
+            CalendarRefreshInterval.HOUR1 to if (lang == "fr") "1 heure" else "1 hour",
+            CalendarRefreshInterval.HOURS4 to if (lang == "fr") "4 heures" else "4 hours",
+            CalendarRefreshInterval.MANUAL to if (lang == "fr") "Manuel" else "Manual",
+        )
+    val selectedLabel = intervalLabels.firstOrNull { it.first == selected }?.second ?: selected.name
+    var expanded by remember { mutableStateOf(false) }
+
+    ExposedDropdownMenuBox(
+        expanded = expanded,
+        onExpandedChange = { expanded = it },
+    ) {
+        TextField(
+            value = selectedLabel,
+            onValueChange = {},
+            readOnly = true,
+            label = {
+                Text(
+                    if (lang == "fr") "Fréquence de synchronisation" else "Sync frequency",
+                    color = if (isDark) VisioColors.Greyscale400 else VisioColors.LightTextSecondary,
+                )
+            },
+            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+            modifier =
+                Modifier
+                    .menuAnchor(MenuAnchorType.PrimaryNotEditable)
+                    .fillMaxWidth(),
+            colors =
+                TextFieldDefaults.colors(
+                    focusedContainerColor = if (isDark) VisioColors.PrimaryDark100 else VisioColors.LightSurfaceVariant,
+                    unfocusedContainerColor = if (isDark) VisioColors.PrimaryDark100 else VisioColors.LightSurfaceVariant,
+                    focusedTextColor = if (isDark) VisioColors.White else VisioColors.LightOnBackground,
+                    unfocusedTextColor = if (isDark) VisioColors.White else VisioColors.LightOnBackground,
+                    focusedIndicatorColor = Color.Transparent,
+                    unfocusedIndicatorColor = Color.Transparent,
+                    focusedTrailingIconColor = if (isDark) VisioColors.White else VisioColors.LightOnBackground,
+                    unfocusedTrailingIconColor = if (isDark) VisioColors.Greyscale400 else VisioColors.LightTextSecondary,
+                ),
+            shape = RoundedCornerShape(12.dp),
+        )
+        ExposedDropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+            containerColor = if (isDark) VisioColors.PrimaryDark100 else VisioColors.LightSurfaceVariant,
+        ) {
+            intervalLabels.forEach { (interval, label) ->
+                DropdownMenuItem(
+                    text = {
+                        Text(
+                            label,
+                            color = if (isDark) VisioColors.White else VisioColors.LightOnBackground,
+                        )
+                    },
+                    onClick = {
+                        onSelect(interval)
+                        expanded = false
+                    },
                 )
             }
         }

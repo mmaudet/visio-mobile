@@ -1,5 +1,17 @@
 use std::sync::Arc;
 
+/// A calendar meeting parsed from an iCal feed.
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct Meeting {
+    pub id: String,
+    pub summary: String,
+    pub start_time: i64,
+    pub end_time: i64,
+    pub room_url: String,
+    pub deep_link: String,
+    pub server_name: String,
+}
+
 /// Events emitted by the core to native UI listeners.
 #[derive(Debug, Clone)]
 pub enum VisioEvent {
@@ -70,6 +82,16 @@ pub enum VisioEvent {
     AloneInRoomCancelled,
     /// Admin requested muting all participants — native UI should mute the local mic.
     MuteRequested,
+    /// Calendar feed was refreshed — full updated list of upcoming meetings.
+    MeetingsUpdated(Vec<Meeting>),
+    /// A meeting starts in ≤ 15 minutes (fired once per meeting).
+    MeetingImminent(Meeting),
+    /// A meeting starts in ≤ 5 minutes (fired once per meeting).
+    MeetingStartingSoon(Meeting),
+    /// A meeting's start time has been reached.
+    MeetingStarted(Meeting),
+    /// Calendar feed could not be fetched or parsed.
+    CalendarError(String),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

@@ -3,6 +3,16 @@ use std::sync::Mutex;
 
 use serde::{Deserialize, Serialize};
 
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Default)]
+pub enum CalendarRefreshInterval {
+    Minutes5,
+    #[default]
+    Minutes15,
+    Hour1,
+    Hours4,
+    Manual,
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct Settings {
     #[serde(default)]
@@ -25,6 +35,8 @@ pub struct Settings {
     pub notification_message_received: bool,
     #[serde(default = "default_background_mode")]
     pub background_mode: String,
+    #[serde(default = "default_audio_mode")]
+    pub audio_mode: String,
     #[serde(default)]
     pub adaptive_mode_enabled: bool,
     #[serde(default)]
@@ -43,6 +55,12 @@ pub struct Settings {
     /// Video resolution preset: "720p" (default), "360p", "180p".
     #[serde(default = "default_video_resolution")]
     pub video_resolution: String,
+    /// iCal/CalDAV feed URL for calendar integration.
+    #[serde(default)]
+    pub calendar_url: Option<String>,
+    /// How often to refresh the calendar feed.
+    #[serde(default)]
+    pub calendar_refresh_interval: CalendarRefreshInterval,
 }
 
 fn default_video_resolution() -> String {
@@ -64,6 +82,10 @@ fn default_background_mode() -> String {
     "off".to_string()
 }
 
+fn default_audio_mode() -> String {
+    "computer".to_string()
+}
+
 fn default_true() -> bool {
     true
 }
@@ -81,6 +103,7 @@ impl Default for Settings {
             notification_hand_raised: true,
             notification_message_received: true,
             background_mode: "off".to_string(),
+            audio_mode: "computer".to_string(),
             adaptive_mode_enabled: false,
             room_history: Vec::new(),
             noise_reduction_enabled: true,
@@ -88,6 +111,8 @@ impl Default for Settings {
             audio_output_device: None,
             camera_device: None,
             video_resolution: "720p".to_string(),
+            calendar_url: None,
+            calendar_refresh_interval: CalendarRefreshInterval::Minutes15,
         }
     }
 }
@@ -210,6 +235,22 @@ impl SettingsStore {
         self.save();
     }
 
+    pub fn get_audio_mode(&self) -> String {
+        self.settings
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .audio_mode
+            .clone()
+    }
+
+    pub fn set_audio_mode(&self, mode: String) {
+        self.settings
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .audio_mode = mode;
+        self.save();
+    }
+
     pub fn is_adaptive_mode_enabled(&self) -> bool {
         self.settings
             .lock()
@@ -319,6 +360,38 @@ impl SettingsStore {
             .lock()
             .unwrap_or_else(|e| e.into_inner())
             .video_resolution = resolution;
+        self.save();
+    }
+
+    pub fn get_calendar_url(&self) -> Option<String> {
+        self.settings
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .calendar_url
+            .clone()
+    }
+
+    pub fn set_calendar_url(&self, url: Option<String>) {
+        self.settings
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .calendar_url = url;
+        self.save();
+    }
+
+    pub fn get_calendar_refresh_interval(&self) -> CalendarRefreshInterval {
+        self.settings
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .calendar_refresh_interval
+            .clone()
+    }
+
+    pub fn set_calendar_refresh_interval(&self, interval: CalendarRefreshInterval) {
+        self.settings
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .calendar_refresh_interval = interval;
         self.save();
     }
 
@@ -684,6 +757,79 @@ mod tests {
                 "meet.linagora.com".to_string(),
                 "meet.numerique.gouv.fr".to_string()
             ]
+        );
+    }
+
+    #[test]
+    fn test_calendar_url_default_none() {
+        let s = Settings::default();
+        assert_eq!(s.calendar_url, None);
+    }
+
+    #[test]
+    fn test_calendar_refresh_interval_default() {
+        let s = Settings::default();
+        assert_eq!(
+            s.calendar_refresh_interval,
+            CalendarRefreshInterval::Minutes15
+        );
+    }
+
+    #[test]
+    fn test_set_calendar_url_persists() {
+        let dir = temp_dir();
+        let path = dir.path().to_str().unwrap();
+        {
+            let store = SettingsStore::new(path);
+            store.set_calendar_url(Some("https://cal.example.com/feed.ics".to_string()));
+        }
+        let store = SettingsStore::new(path);
+        assert_eq!(
+            store.get_calendar_url(),
+            Some("https://cal.example.com/feed.ics".to_string())
+        );
+    }
+
+    #[test]
+    fn test_clear_calendar_url() {
+        let dir = temp_dir();
+        let path = dir.path().to_str().unwrap();
+        let store = SettingsStore::new(path);
+        store.set_calendar_url(Some("https://cal.example.com/feed.ics".to_string()));
+        store.set_calendar_url(None);
+        assert_eq!(store.get_calendar_url(), None);
+    }
+
+    #[test]
+    fn test_set_calendar_refresh_interval_persists() {
+        let dir = temp_dir();
+        let path = dir.path().to_str().unwrap();
+        {
+            let store = SettingsStore::new(path);
+            store.set_calendar_refresh_interval(CalendarRefreshInterval::Hour1);
+        }
+        let store = SettingsStore::new(path);
+        assert_eq!(
+            store.get_calendar_refresh_interval(),
+            CalendarRefreshInterval::Hour1
+        );
+    }
+
+    #[test]
+    fn test_partial_json_defaults_calendar_fields() {
+        let dir = temp_dir();
+        let path = dir.path().to_str().unwrap();
+        std::fs::write(
+            dir.path().join("settings.json"),
+            r#"{"display_name":"Eve"}"#,
+        )
+        .unwrap();
+        let store = SettingsStore::new(path);
+        let s = store.get();
+        assert_eq!(s.calendar_url, None);
+        assert_eq!(
+            s.calendar_refresh_interval,
+            CalendarRefreshInterval::Minutes15
         );
     }
 }

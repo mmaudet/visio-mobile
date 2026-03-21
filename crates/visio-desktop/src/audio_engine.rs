@@ -5,15 +5,32 @@
 //! drain thread) lives here; platform files only handle native API setup.
 
 use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 
-use cpal::traits::{DeviceTrait, HostTrait};
+use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use livekit::webrtc::audio_frame::AudioFrame;
 use livekit::webrtc::audio_source::native::NativeAudioSource;
 use serde::Serialize;
 use tauri::AppHandle;
 // Re-export for platform modules
 pub use visio_core::{AudioCaptureBuffer, AudioPlayoutBuffer};
+
+// ---------------------------------------------------------------------------
+// Mic level monitoring (VU meter)
+// ---------------------------------------------------------------------------
+
+/// Current mic RMS level stored as f32 bits for lock-free atomic access.
+static MIC_LEVEL: AtomicU32 = AtomicU32::new(0);
+
+/// Returns the current mic RMS level in the range 0.0–1.0.
+pub fn get_mic_level() -> f32 {
+    f32::from_bits(MIC_LEVEL.load(Ordering::Relaxed))
+}
+
+/// Resets the mic level to 0.0 (call when stopping capture/preview).
+pub fn clear_mic_level() {
+    MIC_LEVEL.store(0f32.to_bits(), Ordering::Relaxed);
+}
 
 /// Internal sample rate used by LiveKit (48kHz mono i16).
 pub const LK_SAMPLE_RATE: u32 = 48_000;
@@ -30,6 +47,15 @@ pub trait VoiceAudioEngine: Send + Sync {
     fn stop_playout(&mut self);
     /// Register a callback for device add/remove events.
     fn set_device_change_callback(&mut self, callback: DeviceChangeCallback);
+    /// Start a lightweight preview capture for VU meter only (no LiveKit source).
+    /// Default implementation uses cpal and is platform-agnostic.
+    fn start_preview_capture(&mut self, device_name: Option<&str>) -> Result<(), String> {
+        start_cpal_preview(device_name)
+    }
+    /// Stop the preview capture stream started by `start_preview_capture`.
+    fn stop_preview_capture(&mut self) {
+        stop_cpal_preview();
+    }
 }
 
 /// Create the platform-appropriate audio engine.
@@ -80,6 +106,16 @@ pub fn start_drain_thread(
         rt.block_on(async move {
             while running_flag.load(Ordering::Relaxed) {
                 if let Some(frame) = capture_buffer.pop() {
+                    // Update VU meter with RMS of the raw captured frame.
+                    if !frame.pcm.is_empty() {
+                        let sum_sq: f64 = frame.pcm.iter().map(|&s| {
+                            let f = s as f64 / i16::MAX as f64;
+                            f * f
+                        }).sum();
+                        let rms = ((sum_sq / frame.pcm.len() as f64).sqrt() as f32).min(1.0);
+                        MIC_LEVEL.store(rms.to_bits(), Ordering::Relaxed);
+                    }
+
                     let pcm = if let Some(ref mut nr) = denoiser {
                         let processed = nr.process(&frame.pcm);
                         if processed.is_empty() {
@@ -105,6 +141,253 @@ pub fn start_drain_thread(
         });
     });
     running
+}
+
+// ---------------------------------------------------------------------------
+// cpal-based preview capture for VU meter (no LiveKit source required)
+// ---------------------------------------------------------------------------
+
+/// Holds a live cpal input stream.  Keeping the stream alive keeps it running;
+/// dropping it stops capture.
+struct PreviewStream {
+    _stream: cpal::Stream,
+}
+
+// SAFETY: cpal::Stream is not Send on all platforms (e.g. macOS CoreAudio).
+// We only ever access this through the global Mutex, never across threads.
+unsafe impl Send for PreviewStream {}
+
+static PREVIEW_STREAM: std::sync::Mutex<Option<PreviewStream>> =
+    std::sync::Mutex::new(None);
+
+/// Open a cpal input stream on `device_name` (or the default device) and
+/// compute RMS into `MIC_LEVEL` on every callback.  Idempotent — calling
+/// this while a preview is already running replaces it.
+pub fn start_cpal_preview(device_name: Option<&str>) -> Result<(), String> {
+    let host = cpal::default_host();
+
+    let device = if let Some(name) = device_name {
+        host.input_devices()
+            .map_err(|e| format!("cpal input_devices: {e}"))?
+            .find(|d| d.name().map(|n| n == name).unwrap_or(false))
+            .ok_or_else(|| format!("audio input device not found: {name}"))?
+    } else {
+        host.default_input_device()
+            .ok_or_else(|| "no default audio input device".to_string())?
+    };
+
+    let config = device
+        .default_input_config()
+        .map_err(|e| format!("cpal default_input_config: {e}"))?;
+
+    let channels = config.channels() as usize;
+
+    let stream = match config.sample_format() {
+        cpal::SampleFormat::F32 => {
+            device.build_input_stream(
+                &config.into(),
+                move |data: &[f32], _| {
+                    if data.is_empty() { return; }
+                    // Mix to mono then compute RMS.
+                    let frames = data.len() / channels.max(1);
+                    let sum_sq: f64 = (0..frames).map(|f| {
+                        let mut sum = 0.0f64;
+                        for ch in 0..channels {
+                            sum += data[f * channels + ch] as f64;
+                        }
+                        let mono = sum / channels as f64;
+                        mono * mono
+                    }).sum();
+                    let rms = ((sum_sq / frames as f64).sqrt() as f32).min(1.0);
+                    MIC_LEVEL.store(rms.to_bits(), Ordering::Relaxed);
+                },
+                |err| tracing::warn!("preview capture error: {err}"),
+                None,
+            ).map_err(|e| format!("build_input_stream(f32): {e}"))?
+        }
+        cpal::SampleFormat::I16 => {
+            device.build_input_stream(
+                &config.into(),
+                move |data: &[i16], _| {
+                    if data.is_empty() { return; }
+                    let frames = data.len() / channels.max(1);
+                    let sum_sq: f64 = (0..frames).map(|f| {
+                        let mut sum = 0.0f64;
+                        for ch in 0..channels {
+                            sum += data[f * channels + ch] as f64 / i16::MAX as f64;
+                        }
+                        let mono = sum / channels as f64;
+                        mono * mono
+                    }).sum();
+                    let rms = ((sum_sq / frames as f64).sqrt() as f32).min(1.0);
+                    MIC_LEVEL.store(rms.to_bits(), Ordering::Relaxed);
+                },
+                |err| tracing::warn!("preview capture error: {err}"),
+                None,
+            ).map_err(|e| format!("build_input_stream(i16): {e}"))?
+        }
+        cpal::SampleFormat::U16 => {
+            device.build_input_stream(
+                &config.into(),
+                move |data: &[u16], _| {
+                    if data.is_empty() { return; }
+                    let frames = data.len() / channels.max(1);
+                    let sum_sq: f64 = (0..frames).map(|f| {
+                        let mut sum = 0.0f64;
+                        for ch in 0..channels {
+                            // u16 centre is 32768; normalise to [-1, 1]
+                            sum += (data[f * channels + ch] as f64 - 32768.0) / 32768.0;
+                        }
+                        let mono = sum / channels as f64;
+                        mono * mono
+                    }).sum();
+                    let rms = ((sum_sq / frames as f64).sqrt() as f32).min(1.0);
+                    MIC_LEVEL.store(rms.to_bits(), Ordering::Relaxed);
+                },
+                |err| tracing::warn!("preview capture error: {err}"),
+                None,
+            ).map_err(|e| format!("build_input_stream(u16): {e}"))?
+        }
+        fmt => return Err(format!("unsupported sample format for preview: {fmt:?}")),
+    };
+
+    stream.play().map_err(|e| format!("preview stream play: {e}"))?;
+
+    let mut guard = PREVIEW_STREAM.lock().unwrap_or_else(|e| e.into_inner());
+    *guard = Some(PreviewStream { _stream: stream });
+    tracing::info!("mic preview capture started");
+    Ok(())
+}
+
+/// Stop the cpal preview stream and clear the VU meter level.
+pub fn stop_cpal_preview() {
+    let mut guard = PREVIEW_STREAM.lock().unwrap_or_else(|e| e.into_inner());
+    if guard.take().is_some() {
+        tracing::info!("mic preview capture stopped");
+    }
+    clear_mic_level();
+}
+
+// ---------------------------------------------------------------------------
+// Speaker test tone
+// ---------------------------------------------------------------------------
+
+/// Play a short test tone (1 second, 440 Hz sine wave) on the default/selected
+/// output device.  Blocks the calling thread for approximately 1.1 seconds.
+pub fn play_speaker_test(device_name: Option<&str>) -> Result<(), String> {
+    let host = cpal::default_host();
+
+    let device = if let Some(name) = device_name {
+        host.output_devices()
+            .map_err(|e| e.to_string())?
+            .find(|d| d.name().map(|n| n == name).unwrap_or(false))
+            .ok_or_else(|| format!("Output device '{}' not found", name))?
+    } else {
+        host.default_output_device()
+            .ok_or_else(|| "No default output device".to_string())?
+    };
+
+    let config = device.default_output_config().map_err(|e| e.to_string())?;
+    let sample_rate = config.sample_rate().0 as f32;
+    let channels = config.channels() as usize;
+
+    const FREQUENCY: f32 = 440.0;
+    const DURATION_SECS: f32 = 1.0;
+    let total_frames = (sample_rate * DURATION_SECS) as usize;
+    let mut frame_idx = 0usize;
+    let done = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let done_clone = done.clone();
+
+    let stream = match config.sample_format() {
+        cpal::SampleFormat::F32 => device.build_output_stream(
+            &config.into(),
+            move |data: &mut [f32], _: &cpal::OutputCallbackInfo| {
+                for frame in data.chunks_mut(channels) {
+                    if frame_idx >= total_frames {
+                        for s in frame.iter_mut() {
+                            *s = 0.0;
+                        }
+                        done_clone.store(true, std::sync::atomic::Ordering::Relaxed);
+                    } else {
+                        let t = frame_idx as f32 / sample_rate;
+                        let value =
+                            (t * FREQUENCY * 2.0 * std::f32::consts::PI).sin() * 0.3;
+                        for s in frame.iter_mut() {
+                            *s = value;
+                        }
+                        frame_idx += 1;
+                    }
+                }
+            },
+            |err| tracing::warn!("speaker test error: {err}"),
+            None,
+        ),
+        cpal::SampleFormat::I16 => device.build_output_stream(
+            &config.into(),
+            move |data: &mut [i16], _: &cpal::OutputCallbackInfo| {
+                for frame in data.chunks_mut(channels) {
+                    if frame_idx >= total_frames {
+                        for s in frame.iter_mut() {
+                            *s = 0;
+                        }
+                        done_clone.store(true, std::sync::atomic::Ordering::Relaxed);
+                    } else {
+                        let t = frame_idx as f32 / sample_rate;
+                        let value =
+                            (t * FREQUENCY * 2.0 * std::f32::consts::PI).sin() * 0.3;
+                        let sample = (value * i16::MAX as f32) as i16;
+                        for s in frame.iter_mut() {
+                            *s = sample;
+                        }
+                        frame_idx += 1;
+                    }
+                }
+            },
+            |err| tracing::warn!("speaker test error: {err}"),
+            None,
+        ),
+        cpal::SampleFormat::U16 => device.build_output_stream(
+            &config.into(),
+            move |data: &mut [u16], _: &cpal::OutputCallbackInfo| {
+                for frame in data.chunks_mut(channels) {
+                    if frame_idx >= total_frames {
+                        for s in frame.iter_mut() {
+                            *s = 32768;
+                        }
+                        done_clone.store(true, std::sync::atomic::Ordering::Relaxed);
+                    } else {
+                        let t = frame_idx as f32 / sample_rate;
+                        let value =
+                            (t * FREQUENCY * 2.0 * std::f32::consts::PI).sin() * 0.3;
+                        let sample = ((value * i16::MAX as f32) as i32 + 32768) as u16;
+                        for s in frame.iter_mut() {
+                            *s = sample;
+                        }
+                        frame_idx += 1;
+                    }
+                }
+            },
+            |err| tracing::warn!("speaker test error: {err}"),
+            None,
+        ),
+        fmt => return Err(format!("unsupported output sample format: {fmt:?}")),
+    }
+    .map_err(|e| e.to_string())?;
+
+    stream.play().map_err(|e| e.to_string())?;
+
+    // Wait for playback to complete (max 2 seconds)
+    let start = std::time::Instant::now();
+    while !done.load(std::sync::atomic::Ordering::Relaxed) {
+        if start.elapsed() > std::time::Duration::from_secs(2) {
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(50));
+    }
+    // Small extra delay to let the last samples drain
+    std::thread::sleep(std::time::Duration::from_millis(100));
+
+    Ok(())
 }
 
 // ---------------------------------------------------------------------------

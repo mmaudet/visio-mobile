@@ -13,10 +13,11 @@ use visio_core::{
     bandwidth::BandwidthMode as CoreBandwidthMode,
     events::{
         ChatMessage as CoreChatMessage, ConnectionQuality as CoreConnectionQuality,
-        ConnectionState as CoreConnectionState, ParticipantInfo as CoreParticipantInfo,
-        TrackInfo as CoreTrackInfo, TrackKind as CoreTrackKind, TrackSource as CoreTrackSource,
-        VisioEvent as CoreVisioEvent,
+        ConnectionState as CoreConnectionState, Meeting as CoreMeeting,
+        ParticipantInfo as CoreParticipantInfo, TrackInfo as CoreTrackInfo,
+        TrackKind as CoreTrackKind, TrackSource as CoreTrackSource, VisioEvent as CoreVisioEvent,
     },
+    settings::CalendarRefreshInterval as CoreCalendarRefreshInterval,
 };
 
 pub mod blur;
@@ -244,6 +245,64 @@ impl From<NetworkType> for CoreNetworkType {
 }
 
 #[derive(Debug, Clone)]
+pub enum CalendarRefreshInterval {
+    Minutes5,
+    Minutes15,
+    Hour1,
+    Hours4,
+    Manual,
+}
+
+impl From<CoreCalendarRefreshInterval> for CalendarRefreshInterval {
+    fn from(i: CoreCalendarRefreshInterval) -> Self {
+        match i {
+            CoreCalendarRefreshInterval::Minutes5 => Self::Minutes5,
+            CoreCalendarRefreshInterval::Minutes15 => Self::Minutes15,
+            CoreCalendarRefreshInterval::Hour1 => Self::Hour1,
+            CoreCalendarRefreshInterval::Hours4 => Self::Hours4,
+            CoreCalendarRefreshInterval::Manual => Self::Manual,
+        }
+    }
+}
+
+impl From<CalendarRefreshInterval> for CoreCalendarRefreshInterval {
+    fn from(i: CalendarRefreshInterval) -> Self {
+        match i {
+            CalendarRefreshInterval::Minutes5 => Self::Minutes5,
+            CalendarRefreshInterval::Minutes15 => Self::Minutes15,
+            CalendarRefreshInterval::Hour1 => Self::Hour1,
+            CalendarRefreshInterval::Hours4 => Self::Hours4,
+            CalendarRefreshInterval::Manual => Self::Manual,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct Meeting {
+    pub id: String,
+    pub summary: String,
+    pub start_time: i64,
+    pub end_time: i64,
+    pub room_url: String,
+    pub deep_link: String,
+    pub server_name: String,
+}
+
+impl From<CoreMeeting> for Meeting {
+    fn from(m: CoreMeeting) -> Self {
+        Self {
+            id: m.id,
+            summary: m.summary,
+            start_time: m.start_time,
+            end_time: m.end_time,
+            room_url: m.room_url,
+            deep_link: m.deep_link,
+            server_name: m.server_name,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
 pub struct ParticipantInfo {
     pub sid: String,
     pub identity: String,
@@ -328,6 +387,14 @@ pub struct Settings {
     pub notification_hand_raised: bool,
     pub notification_message_received: bool,
     pub adaptive_mode_enabled: bool,
+    pub background_mode: String,
+    pub audio_mode: String,
+    pub audio_input_device: Option<String>,
+    pub audio_output_device: Option<String>,
+    pub camera_device: Option<String>,
+    pub video_resolution: String,
+    pub calendar_url: Option<String>,
+    pub calendar_refresh_interval: CalendarRefreshInterval,
 }
 
 impl From<visio_core::Settings> for Settings {
@@ -343,6 +410,14 @@ impl From<visio_core::Settings> for Settings {
             notification_hand_raised: s.notification_hand_raised,
             notification_message_received: s.notification_message_received,
             adaptive_mode_enabled: s.adaptive_mode_enabled,
+            background_mode: s.background_mode,
+            audio_mode: s.audio_mode,
+            audio_input_device: s.audio_input_device,
+            audio_output_device: s.audio_output_device,
+            camera_device: s.camera_device,
+            video_resolution: s.video_resolution,
+            calendar_url: s.calendar_url,
+            calendar_refresh_interval: s.calendar_refresh_interval.into(),
         }
     }
 }
@@ -499,6 +574,21 @@ pub enum VisioEvent {
     },
     AloneInRoomCancelled,
     MuteRequested,
+    MeetingsUpdated {
+        meetings: Vec<Meeting>,
+    },
+    MeetingImminent {
+        meeting: Meeting,
+    },
+    MeetingStartingSoon {
+        meeting: Meeting,
+    },
+    MeetingStarted {
+        meeting: Meeting,
+    },
+    CalendarError {
+        message: String,
+    },
 }
 
 impl From<CoreVisioEvent> for VisioEvent {
@@ -577,6 +667,19 @@ impl From<CoreVisioEvent> for VisioEvent {
             CoreVisioEvent::AloneInRoom { remaining_secs } => Self::AloneInRoom { remaining_secs },
             CoreVisioEvent::AloneInRoomCancelled => Self::AloneInRoomCancelled,
             CoreVisioEvent::MuteRequested => Self::MuteRequested,
+            CoreVisioEvent::MeetingsUpdated(meetings) => Self::MeetingsUpdated {
+                meetings: meetings.into_iter().map(Into::into).collect(),
+            },
+            CoreVisioEvent::MeetingImminent(meeting) => Self::MeetingImminent {
+                meeting: meeting.into(),
+            },
+            CoreVisioEvent::MeetingStartingSoon(meeting) => Self::MeetingStartingSoon {
+                meeting: meeting.into(),
+            },
+            CoreVisioEvent::MeetingStarted(meeting) => Self::MeetingStarted {
+                meeting: meeting.into(),
+            },
+            CoreVisioEvent::CalendarError(message) => Self::CalendarError { message },
         }
     }
 }
@@ -738,6 +841,7 @@ pub struct VisioClient {
     chat: visio_core::ChatService,
     settings: Arc<visio_core::SettingsStore>,
     session_manager: Arc<StdMutex<visio_core::SessionManager>>,
+    calendar: Arc<visio_core::CalendarService>,
     rt: tokio::runtime::Runtime,
 }
 
@@ -770,6 +874,25 @@ impl VisioClient {
 
         let session_manager = Arc::new(StdMutex::new(visio_core::SessionManager::new()));
 
+        let calendar = Arc::new(visio_core::CalendarService::new(
+            settings.clone(),
+            room_manager.emitter(),
+            data_dir.clone(),
+        ));
+
+        // If a calendar URL is already configured, kick off an immediate
+        // refresh and start the periodic background timer.
+        if settings.get_calendar_url().is_some() {
+            let cal = calendar.clone();
+            rt.spawn(async move {
+                cal.refresh().await;
+            });
+            let cal = calendar.clone();
+            rt.spawn(async move {
+                let _ = cal.start_periodic_refresh().await;
+            });
+        }
+
         visio_log("VISIO FFI: VisioClient::new() completed");
         Self {
             room_manager,
@@ -777,6 +900,7 @@ impl VisioClient {
             chat,
             settings,
             session_manager,
+            calendar,
             rt,
         }
     }
@@ -1079,6 +1203,22 @@ impl VisioClient {
 
     pub fn set_adaptive_mode_enabled(&self, enabled: bool) {
         self.settings.set_adaptive_mode_enabled(enabled);
+    }
+
+    pub fn set_audio_mode(&self, mode: String) {
+        self.settings.set_audio_mode(mode);
+    }
+
+    pub fn set_audio_input_device(&self, name: Option<String>) {
+        self.settings.set_audio_input_device(name);
+    }
+
+    pub fn set_audio_output_device(&self, name: Option<String>) {
+        self.settings.set_audio_output_device(name);
+    }
+
+    pub fn set_camera_device(&self, name: Option<String>) {
+        self.settings.set_camera_device(name);
     }
 
     pub fn add_room_to_history(&self, url: String) {
@@ -1459,6 +1599,7 @@ impl VisioClient {
         // 2. Update BlurProcessor mode
         let bg_mode = match mode.as_str() {
             "blur" => blur::process::BackgroundMode::Blur,
+            "blur-light" => blur::process::BackgroundMode::BlurLight,
             m if m.starts_with("image:") => {
                 if let Ok(id) = m[6..].parse::<u8>() {
                     blur::process::BackgroundMode::Image(id)
@@ -1487,6 +1628,45 @@ impl VisioClient {
     pub fn load_blur_model(&self, model_path: String) -> Result<(), VisioError> {
         blur::model::load_model(std::path::Path::new(&model_path))
             .map_err(|e| VisioError::Generic { msg: e })
+    }
+
+    pub fn set_calendar_url(&self, url: Option<String>) {
+        self.settings.set_calendar_url(url.clone());
+        if url.is_some() {
+            let calendar = self.calendar.clone();
+            self.rt.spawn(async move {
+                calendar.refresh().await;
+            });
+        } else {
+            self.calendar.clear_cache();
+        }
+    }
+
+    pub fn get_calendar_url(&self) -> Option<String> {
+        self.settings.get_calendar_url()
+    }
+
+    pub fn set_calendar_refresh_interval(&self, interval: CalendarRefreshInterval) {
+        self.settings.set_calendar_refresh_interval(interval.into());
+    }
+
+    pub fn get_calendar_refresh_interval(&self) -> CalendarRefreshInterval {
+        self.settings.get_calendar_refresh_interval().into()
+    }
+
+    pub fn get_upcoming_meetings(&self) -> Vec<Meeting> {
+        self.calendar
+            .get_meetings()
+            .into_iter()
+            .map(Into::into)
+            .collect()
+    }
+
+    pub fn refresh_calendar_now(&self) {
+        let calendar = self.calendar.clone();
+        self.rt.spawn(async move {
+            calendar.refresh().await;
+        });
     }
 }
 

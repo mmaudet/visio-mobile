@@ -1,6 +1,7 @@
 import AVFoundation
 import Foundation
 import SwiftUI
+import UserNotifications
 import visioFFI
 
 struct TestConnectParams: Sendable {
@@ -55,6 +56,8 @@ class VisioManager: ObservableObject {
     @Published var adaptiveMode: AdaptiveMode = .office
     /// Set when a screen share track is subscribed; cleared on disconnect.
     @Published var lastScreenShareParticipantSid: String? = nil
+    @Published var upcomingMeetings: [Meeting] = []
+    @Published var calendarLoading: Bool = false
 
     let authManager = OidcAuthManager()
 
@@ -736,6 +739,39 @@ class VisioManager: ObservableObject {
         isFrontCamera = toFront
     }
 
+    func refreshCalendarNow() {
+        let client = self.client
+        calendarLoading = true
+        Task.detached {
+            client.refreshCalendarNow()
+        }
+    }
+
+    func requestNotificationPermissionIfNeeded() {
+        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { granted, error in
+            if let error {
+                NSLog("VisioManager: notification permission error: %@", error.localizedDescription)
+            } else {
+                NSLog("VisioManager: notification permission %@", granted ? "granted" : "denied")
+            }
+        }
+    }
+
+    private func scheduleMeetingNotification(title: String, body: String, identifier: String) {
+        let content = UNMutableNotificationContent()
+        content.title = title
+        content.body = body
+        content.sound = .default
+
+        let trigger = UNTimeIntervalNotificationTrigger(timeInterval: 1, repeats: false)
+        let request = UNNotificationRequest(identifier: identifier, content: content, trigger: trigger)
+        UNUserNotificationCenter.current().add(request) { error in
+            if let error {
+                NSLog("VisioManager: notification scheduling failed: %@", error.localizedDescription)
+            }
+        }
+    }
+
     func setNotificationParticipantJoin(_ enabled: Bool) {
         client.setNotificationParticipantJoin(enabled: enabled)
     }
@@ -1073,6 +1109,35 @@ class VisioManager: ObservableObject {
             if self.isMicEnabled {
                 self.toggleMic()
             }
+
+        case .meetingsUpdated(let meetings):
+            self.upcomingMeetings = meetings
+            self.calendarLoading = false
+
+        case .meetingImminent(let meeting):
+            scheduleMeetingNotification(
+                title: "Réunion bientôt",
+                body: "\(meeting.summary) commence dans 15 minutes",
+                identifier: "meeting-imminent-\(meeting.id)"
+            )
+
+        case .meetingStartingSoon(let meeting):
+            scheduleMeetingNotification(
+                title: "Réunion imminente",
+                body: "\(meeting.summary) commence dans moins de 5 minutes",
+                identifier: "meeting-soon-\(meeting.id)"
+            )
+
+        case .meetingStarted(let meeting):
+            scheduleMeetingNotification(
+                title: "Réunion en cours",
+                body: "\(meeting.summary) a commencé",
+                identifier: "meeting-started-\(meeting.id)"
+            )
+
+        case .calendarError(let message):
+            NSLog("VisioManager: calendar error: %@", message)
+            self.calendarLoading = false
         }
     }
 }

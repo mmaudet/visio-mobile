@@ -13,6 +13,8 @@ struct SettingsView: View {
     @State private var theme: String = "light"
     @State private var meetInstances: [String] = ["meet.numerique.gouv.fr"]
     @State private var newInstance: String = ""
+    @State private var calendarUrl: String = ""
+    @State private var calendarRefreshInterval: CalendarRefreshInterval = .minutes15
 
     private var lang: String { manager.currentLang }
     private var isDark: Bool { theme == "dark" }
@@ -120,6 +122,44 @@ struct SettingsView: View {
                     }
                     .listRowBackground(VisioColors.surface(dark: isDark))
                 }
+                Section("Calendrier") {
+                    TextField("URL du calendrier (iCal)", text: $calendarUrl)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .keyboardType(.URL)
+                        .foregroundStyle(VisioColors.onSurface(dark: isDark))
+                        .listRowBackground(VisioColors.surface(dark: isDark))
+                        .onChange(of: calendarUrl) { newUrl in
+                            let trimmed = newUrl.trimmingCharacters(in: .whitespacesAndNewlines)
+                            manager.client.setCalendarUrl(url: trimmed.isEmpty ? nil : trimmed)
+                            if !trimmed.isEmpty {
+                                manager.requestNotificationPermissionIfNeeded()
+                            }
+                        }
+
+                    Picker("Actualisation", selection: $calendarRefreshInterval) {
+                        Text("5 min").tag(CalendarRefreshInterval.minutes5)
+                        Text("15 min").tag(CalendarRefreshInterval.minutes15)
+                        Text("1 heure").tag(CalendarRefreshInterval.hour1)
+                        Text("4 heures").tag(CalendarRefreshInterval.hours4)
+                        Text("Manuel").tag(CalendarRefreshInterval.manual)
+                    }
+                    .foregroundStyle(VisioColors.onSurface(dark: isDark))
+                    .listRowBackground(VisioColors.surface(dark: isDark))
+                    .onChange(of: calendarRefreshInterval) { newInterval in
+                        manager.client.setCalendarRefreshInterval(interval: newInterval)
+                    }
+
+                    if !calendarUrl.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        Button(role: .destructive) {
+                            calendarUrl = ""
+                            manager.client.setCalendarUrl(url: nil)
+                        } label: {
+                            Text("Supprimer le calendrier")
+                        }
+                        .listRowBackground(VisioColors.surface(dark: isDark))
+                    }
+                }
             }
             .scrollContentBackground(.hidden)
             .background(VisioColors.background(dark: isDark))
@@ -151,6 +191,8 @@ struct SettingsView: View {
         theme = settings.theme
         adaptiveModeEnabled = manager.client.isAdaptiveModeEnabled()
         meetInstances = manager.client.getMeetInstances()
+        calendarUrl = manager.client.getCalendarUrl() ?? ""
+        calendarRefreshInterval = manager.client.getCalendarRefreshInterval()
     }
 
     private func save() {

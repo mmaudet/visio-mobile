@@ -1,5 +1,7 @@
 package io.visio.mobile
 
+import android.app.NotificationChannel
+import android.app.NotificationManager
 import android.content.Context
 import android.media.AudioDeviceInfo
 import android.media.AudioManager
@@ -9,6 +11,7 @@ import android.util.Log
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.core.app.NotificationCompat
 import io.visio.mobile.auth.OidcAuthManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -22,6 +25,7 @@ import kotlinx.coroutines.withContext
 import uniffi.visio.AdaptiveMode
 import uniffi.visio.ChatMessage
 import uniffi.visio.ConnectionState
+import uniffi.visio.Meeting
 import uniffi.visio.ParticipantInfo
 import uniffi.visio.RoomAccess
 import uniffi.visio.SessionState
@@ -33,6 +37,8 @@ import uniffi.visio.VisioEventListener
 import uniffi.visio.WaitingParticipant
 
 object VisioManager : VisioEventListener {
+    const val MEETING_CHANNEL_ID = "meetings"
+
     // Library loaded and WebRTC initialized by VisioApplication.onCreate()
     private lateinit var _client: VisioClient
     val client: VisioClient get() = _client
@@ -109,6 +115,14 @@ object VisioManager : VisioEventListener {
     private var reactionIdCounter = 0L
     private val _reactions = MutableStateFlow<List<ReactionData>>(emptyList())
     val reactions: StateFlow<List<ReactionData>> = _reactions.asStateFlow()
+
+    // Calendar: upcoming meetings
+    private val _upcomingMeetings = MutableStateFlow<List<Meeting>>(emptyList())
+    val upcomingMeetings: StateFlow<List<Meeting>> = _upcomingMeetings.asStateFlow()
+
+    // Calendar: loading state (true while first fetch in progress)
+    private val _calendarLoading = MutableStateFlow(false)
+    val calendarLoading: StateFlow<Boolean> = _calendarLoading.asStateFlow()
 
     // Adaptive mode
     private val _adaptiveMode = MutableStateFlow(AdaptiveMode.OFFICE)
@@ -192,7 +206,23 @@ object VisioManager : VisioEventListener {
         } catch (e: Exception) {
             Log.e("VisioManager", "Failed to load blur model", e)
         }
+        createNotificationChannels()
         initialized = true
+    }
+
+    private fun createNotificationChannels() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel =
+                NotificationChannel(
+                    MEETING_CHANNEL_ID,
+                    "Réunions",
+                    NotificationManager.IMPORTANCE_HIGH,
+                ).apply {
+                    description = "Notifications pour les réunions à venir"
+                }
+            val nm = appContext.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            nm.createNotificationChannel(channel)
+        }
     }
 
     fun setTheme(theme: String) {
@@ -793,6 +823,69 @@ object VisioManager : VisioEventListener {
     }
 
     /**
+     * Trigger an immediate calendar refresh (manual or on-tab-switch).
+     */
+    fun refreshCalendarNow() {
+        _calendarLoading.value = true
+        scope.launch(Dispatchers.IO) {
+            try {
+                client.refreshCalendarNow()
+            } catch (e: Exception) {
+                Log.e("VisioManager", "Calendar refresh failed", e)
+                _calendarLoading.value = false
+            }
+        }
+    }
+
+    /**
+     * Send a local notification for an upcoming meeting.
+     * @param meeting the meeting to notify about
+     * @param type "imminent" (15 min), "soon" (5 min), or "started"
+     */
+    fun sendMeetingNotification(
+        meeting: Meeting,
+        type: String,
+    ) {
+        val nm =
+            appContext.getSystemService(Context.NOTIFICATION_SERVICE)
+                as android.app.NotificationManager
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            !nm.areNotificationsEnabled()
+        ) {
+            return
+        }
+        val contentText =
+            when (type) {
+                "imminent" -> "Dans 15 min"
+                "soon" -> "Dans 5 min"
+                else -> "Commence maintenant"
+            }
+        val deepLinkIntent =
+            android.content.Intent(appContext, MainActivity::class.java).apply {
+                action = android.content.Intent.ACTION_VIEW
+                data = android.net.Uri.parse(meeting.deepLink)
+                flags = android.content.Intent.FLAG_ACTIVITY_SINGLE_TOP or android.content.Intent.FLAG_ACTIVITY_CLEAR_TOP
+            }
+        val pendingIntent =
+            android.app.PendingIntent.getActivity(
+                appContext,
+                meeting.id.hashCode(),
+                deepLinkIntent,
+                android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE,
+            )
+        val notification =
+            NotificationCompat.Builder(appContext, MEETING_CHANNEL_ID)
+                .setSmallIcon(android.R.drawable.ic_popup_reminder)
+                .setContentTitle(meeting.summary)
+                .setContentText(contentText)
+                .setPriority(NotificationCompat.PRIORITY_HIGH)
+                .setAutoCancel(true)
+                .setContentIntent(pendingIntent)
+                .build()
+        nm.notify(meeting.id.hashCode(), notification)
+    }
+
+    /**
      * Full teardown: stop captures, playout, cancel pending coroutines, disconnect.
      */
     fun disconnect() {
@@ -1018,6 +1111,23 @@ object VisioManager : VisioEventListener {
                         Log.e("VISIO", "Failed to handle mute request", e)
                     }
                 }
+            }
+            is VisioEvent.MeetingsUpdated -> {
+                _upcomingMeetings.value = event.meetings
+                _calendarLoading.value = false
+            }
+            is VisioEvent.MeetingImminent -> {
+                sendMeetingNotification(event.meeting, "imminent")
+            }
+            is VisioEvent.MeetingStartingSoon -> {
+                sendMeetingNotification(event.meeting, "soon")
+            }
+            is VisioEvent.MeetingStarted -> {
+                sendMeetingNotification(event.meeting, "started")
+            }
+            is VisioEvent.CalendarError -> {
+                Log.e("VisioManager", "Calendar error: ${event.message}")
+                _calendarLoading.value = false
             }
             is VisioEvent.AdaptiveModeChanged -> {
                 val previousMode = _adaptiveMode.value
