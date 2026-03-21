@@ -135,11 +135,25 @@ main {
 /* -- Home / Join ----------------------------------------------------------- */
 
 #home {
-  justify-content: center;
+  justify-content: flex-start;
   align-items: center;
-  padding: 40px 20px;
+  padding: 0;
   position: relative;
+  overflow: hidden;
+}
+
+#home .home-tabs {
+  flex-shrink: 0;
+}
+
+#home .home-tab-content {
+  flex: 1;
   overflow-y: auto;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 24px 20px 20px;
 }
 
 .join-form {
@@ -468,9 +482,6 @@ main {
 /* -- Settings gear --------------------------------------------------------- */
 
 .settings-gear {
-  position: absolute;
-  top: 16px;
-  right: 16px;
   background: none;
   border: none;
   color: var(--text-secondary);
@@ -480,6 +491,7 @@ main {
   display: flex;
   align-items: center;
   justify-content: center;
+  margin-left: auto;
   transition:
     color 0.2s,
     background 0.2s;
@@ -2829,24 +2841,35 @@ main {
 
 .home-tabs {
   display: flex;
-  gap: 0;
+  align-items: center;
+  gap: 4px;
+  margin: 0;
+  padding: 10px 12px;
+  width: 100%;
   border-bottom: 1px solid var(--border);
-  margin: 0 0 16px 0;
+}
+
+.home-tabs-group {
+  display: flex;
+  gap: 2px;
+  background: var(--bg-tertiary);
+  border-radius: 10px;
+  padding: 3px;
 }
 
 .home-tab {
-  flex: 1;
-  padding: 10px 16px;
+  padding: 8px 20px;
   background: none;
   border: none;
-  border-bottom: 2px solid transparent;
+  border-radius: 8px;
   color: var(--text-secondary);
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 500;
   cursor: pointer;
   transition:
     color 0.15s,
-    border-color 0.15s;
+    background 0.15s,
+    box-shadow 0.15s;
 }
 
 .home-tab:hover {
@@ -2855,7 +2878,8 @@ main {
 
 .home-tab-active {
   color: var(--accent);
-  border-bottom-color: var(--accent);
+  background: var(--bg);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
 }
 
 /* ---------------------------------------------------------------------------
