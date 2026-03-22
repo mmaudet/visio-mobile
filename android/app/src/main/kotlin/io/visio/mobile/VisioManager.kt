@@ -1000,39 +1000,7 @@ object VisioManager : VisioEventListener {
         when (event) {
             is VisioEvent.ConnectionStateChanged -> {
                 _connectionState.value = event.state
-                when (event.state) {
-                    is ConnectionState.Connected -> {
-                        connectionTimestampMs = System.currentTimeMillis()
-                        refreshParticipants()
-                        refreshChatMessages()
-                        CallForegroundService.start(appContext)
-                        android.os.Handler(android.os.Looper.getMainLooper()).post {
-                            startContextDetection()
-                        }
-                        startAudioFocusMonitoring()
-                        // Republish camera track and restart capture on reconnection
-                        scope.launch {
-                            if (client.isCameraEnabled()) {
-                                try {
-                                    // Re-publish camera track in Rust (recreates NativeVideoSource)
-                                    client.setCameraEnabled(true)
-                                } catch (e: Exception) {
-                                    Log.e("VISIO", "Failed to republish camera on reconnect: ${e.message}")
-                                }
-                                startCameraCapture()
-                            }
-                        }
-                    }
-                    is ConnectionState.Disconnected -> {
-                        _handRaisedMap.value = emptyMap()
-                        _unreadCount.value = 0
-                        _isHandRaised.value = false
-                        _waitingParticipants.value = emptyList()
-                        _lobbyNotification.value = null
-                        CallForegroundService.stop(appContext)
-                    }
-                    else -> {}
-                }
+                handleConnectionStateChanged(event.state)
             }
             is VisioEvent.ParticipantJoined -> {
                 refreshParticipants()
@@ -1173,6 +1141,41 @@ object VisioManager : VisioEventListener {
             is VisioEvent.AdaptiveModeChanged -> {
                 handleAdaptiveModeChanged(event.mode)
             }
+        }
+    }
+
+    private fun handleConnectionStateChanged(state: ConnectionState) {
+        when (state) {
+            is ConnectionState.Connected -> {
+                connectionTimestampMs = System.currentTimeMillis()
+                refreshParticipants()
+                refreshChatMessages()
+                CallForegroundService.start(appContext)
+                android.os.Handler(android.os.Looper.getMainLooper()).post {
+                    startContextDetection()
+                }
+                startAudioFocusMonitoring()
+                // Republish camera track and restart capture on reconnection
+                scope.launch {
+                    if (client.isCameraEnabled()) {
+                        try {
+                            client.setCameraEnabled(true)
+                        } catch (e: Exception) {
+                            Log.e("VISIO", "Failed to republish camera on reconnect: ${e.message}")
+                        }
+                        startCameraCapture()
+                    }
+                }
+            }
+            is ConnectionState.Disconnected -> {
+                _handRaisedMap.value = emptyMap()
+                _unreadCount.value = 0
+                _isHandRaised.value = false
+                _waitingParticipants.value = emptyList()
+                _lobbyNotification.value = null
+                CallForegroundService.stop(appContext)
+            }
+            else -> {}
         }
     }
 
