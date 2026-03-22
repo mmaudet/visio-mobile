@@ -4938,23 +4938,6 @@ export default function App() {
     setLobbyRoomUrl(meetUrl)
     setLobbyUsername(username ?? null)
     setView('lobby')
-
-    // Auto-enable mic/camera based on user settings
-    const s = settingsRef.current
-    if (s?.mic_enabled_on_join) {
-      setMicEnabled(true)
-      invoke('toggle_mic', { enabled: true }).catch((e) => {
-        console.error('auto mic enable failed:', e)
-        setMicEnabled(false)
-      })
-    }
-    if (s?.camera_enabled_on_join) {
-      setCamEnabled(true)
-      invoke('toggle_camera', { enabled: true }).catch((e) => {
-        console.error('auto camera enable failed:', e)
-        setCamEnabled(false)
-      })
-    }
   }
 
   const handleToggleMic = async () => {
