@@ -201,6 +201,7 @@ class ScenarioContextImpl implements ScenarioContext {
       livekitUrl: this._config.livekitUrl,
       token,
       screenshotDir: this._screenshotDir,
+      projectRoot: this._config.projectRoot,
     });
 
     return this._desktop;
