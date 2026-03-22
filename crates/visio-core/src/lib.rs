@@ -18,6 +18,7 @@ pub mod hand_raise;
 pub mod lobby;
 pub mod participants;
 pub mod room;
+pub mod room_display_name;
 pub mod session;
 pub mod settings;
 
@@ -37,5 +38,8 @@ pub use hand_raise::HandRaiseManager;
 pub use lobby::{LobbyPollResult, LobbyService, LobbyStatus, WaitingParticipant};
 pub use participants::ParticipantManager;
 pub use room::RoomManager;
+pub use room_display_name::{
+    extract_room_display_name, strip_room_display_name_param, validate_room_display_name,
+};
 pub use session::{CreateRoomLiveKit, CreateRoomResponse, SessionManager, SessionState, UserInfo};
 pub use settings::{CalendarRefreshInterval, Settings, SettingsStore};

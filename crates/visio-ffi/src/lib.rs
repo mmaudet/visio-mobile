@@ -278,6 +278,21 @@ impl From<CalendarRefreshInterval> for CoreCalendarRefreshInterval {
 }
 
 #[derive(Debug, Clone)]
+pub struct RoomHistoryEntry {
+    pub url: String,
+    pub display_name: Option<String>,
+}
+
+impl From<visio_core::settings::RoomHistoryEntry> for RoomHistoryEntry {
+    fn from(e: visio_core::settings::RoomHistoryEntry) -> Self {
+        Self {
+            url: e.url,
+            display_name: e.display_name,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
 pub struct Meeting {
     pub id: String,
     pub summary: String,
@@ -786,7 +801,7 @@ impl BridgeListener {
         let settings = self.settings.clone();
         tokio::spawn(async move {
             if let Some((url, _)) = rm.last_connection_info().await {
-                settings.add_room_to_history(url);
+                settings.add_room_to_history(url, None);
             }
         });
     }
@@ -921,7 +936,10 @@ impl VisioClient {
     }
 
     pub fn connect(&self, meet_url: String, username: Option<String>) -> Result<(), VisioError> {
-        visio_log(&format!("VISIO FFI: connect() entered, url={meet_url}"));
+        let display_name = visio_core::extract_room_display_name(&meet_url);
+        let clean_url = visio_core::strip_room_display_name_param(&meet_url);
+
+        visio_log(&format!("VISIO FFI: connect() entered, url={clean_url}"));
 
         let cookie = {
             let session = self.session_manager.lock().unwrap();
@@ -939,7 +957,7 @@ impl VisioClient {
             let res = self.rt.block_on(async {
                 visio_log("VISIO FFI: inside block_on async block");
                 self.room_manager
-                    .connect(&meet_url, username.as_deref(), cookie.as_deref())
+                    .connect(&clean_url, username.as_deref(), cookie.as_deref())
                     .await
                     .map_err(VisioError::from)
             });
@@ -958,7 +976,8 @@ impl VisioClient {
                     *CLIENT_FOR_VIDEO.lock().unwrap() = self as *const VisioClient as usize;
                 }
 
-                self.settings.add_room_to_history(meet_url.clone());
+                self.settings
+                    .add_room_to_history(clean_url.clone(), display_name);
 
                 Ok(())
             }
@@ -1236,16 +1255,28 @@ impl VisioClient {
         self.settings.set_camera_device(name);
     }
 
-    pub fn add_room_to_history(&self, url: String) {
-        self.settings.add_room_to_history(url);
+    pub fn add_room_to_history(&self, url: String, display_name: Option<String>) {
+        self.settings.add_room_to_history(url, display_name);
     }
 
-    pub fn get_room_history(&self) -> Vec<String> {
-        self.settings.get_room_history()
+    pub fn get_room_history(&self) -> Vec<RoomHistoryEntry> {
+        self.settings
+            .get_room_history()
+            .into_iter()
+            .map(Into::into)
+            .collect()
     }
 
     pub fn clear_room_history(&self) {
         self.settings.clear_room_history();
+    }
+
+    pub fn extract_room_display_name(&self, url: String) -> Option<String> {
+        visio_core::extract_room_display_name(&url)
+    }
+
+    pub fn validate_room_display_name(&self, raw: String) -> Option<String> {
+        visio_core::validate_room_display_name(&raw)
     }
 
     pub fn raise_hand(&self) -> Result<(), VisioError> {
@@ -1291,17 +1322,18 @@ impl VisioClient {
     }
 
     pub fn validate_room(&self, url: String, username: Option<String>) -> RoomValidationResult {
+        let clean_url = visio_core::strip_room_display_name_param(&url);
         let cookie = {
             let session = self.session_manager.lock().unwrap();
             session.cookie()
         };
-        if let Err(e) = visio_core::AuthService::extract_slug(&url) {
+        if let Err(e) = visio_core::AuthService::extract_slug(&clean_url) {
             return RoomValidationResult::InvalidFormat {
                 message: e.to_string(),
             };
         }
         match self.rt.block_on(visio_core::AuthService::validate_room(
-            &url,
+            &clean_url,
             username.as_deref(),
             cookie.as_deref(),
         )) {

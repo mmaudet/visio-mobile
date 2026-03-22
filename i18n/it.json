@@ -189,6 +189,8 @@
   "bandwidth.reducedVideo": "Banda bassa — video ridotto",
   "bandwidth.audioOnly": "Banda molto bassa — solo audio",
   "home.recentRooms": "Stanze recenti",
+  "home.roomDisplayName": "Nome stanza (opzionale)",
+  "home.roomDisplayNamePlaceholder": "es. \"Riunione settimanale\"",
   "participant.pin": "Fissa",
   "participant.unpin": "Sblocca",
   "participant.mute": "Silenzia",

@@ -476,6 +476,7 @@ private fun toggleCamera(
 fun CallScreen(
     roomUrl: String,
     username: String,
+    roomDisplayName: String? = null,
     onNavigateToChat: () -> Unit,
     onHangUp: () -> Unit,
 ) {
@@ -760,6 +761,7 @@ fun CallScreen(
     if (showInCallSettings) {
         InCallSettingsSheet(
             roomUrl = roomUrl,
+            roomName = roomDisplayName,
             initialTab = inCallSettingsTab,
             onDismiss = { showInCallSettings = false },
             onSelectAudioInput = { device -> VisioManager.setAudioInputDevice(device) },
@@ -783,6 +785,16 @@ fun CallScreen(
         Column(modifier = Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()) {
             // Connection state banner
             ConnectionStateBanner(connectionState, errorMessage)
+
+            // Room display name header
+            if (roomDisplayName != null) {
+                Text(
+                    text = roomDisplayName,
+                    style = MaterialTheme.typography.labelMedium,
+                    color = VisioColors.White.copy(alpha = 0.7f),
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
+                )
+            }
 
             // Compute layout decision for rendering
             val localSid = participants.firstOrNull()?.sid ?: ""

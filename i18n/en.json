@@ -189,6 +189,8 @@
   "bandwidth.reducedVideo": "Low bandwidth — reduced video",
   "bandwidth.audioOnly": "Very low bandwidth — audio only",
   "home.recentRooms": "Recent rooms",
+  "home.roomDisplayName": "Room name (optional)",
+  "home.roomDisplayNamePlaceholder": "e.g. \"Weekly standup\"",
   "participant.pin": "Pin",
   "participant.unpin": "Unpin",
   "participant.mute": "Mute",

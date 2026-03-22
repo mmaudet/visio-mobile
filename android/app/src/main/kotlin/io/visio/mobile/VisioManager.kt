@@ -153,6 +153,9 @@ object VisioManager : VisioEventListener {
     // Deep link: pre-fill room URL on HomeScreen
     var pendingDeepLink: String? by mutableStateOf(null)
 
+    // Room display name from deep link (e.g. ?room-display-name=...)
+    var pendingDeepLinkDisplayName: String? by mutableStateOf(null)
+
     // Test deep link: connect directly with LiveKit URL + token (debug builds only)
     var pendingTestConnect: Triple<String, String, String?>? = null // (livekitUrl, token, mediaFile?)
 

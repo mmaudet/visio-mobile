@@ -303,7 +303,7 @@ void uniffi_visio_ffi_fn_method_visioclient_add_listener(void*_Nonnull ptr, uint
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_FN_METHOD_VISIOCLIENT_ADD_ROOM_TO_HISTORY
 #define UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_FN_METHOD_VISIOCLIENT_ADD_ROOM_TO_HISTORY
-void uniffi_visio_ffi_fn_method_visioclient_add_room_to_history(void*_Nonnull ptr, RustBuffer url, RustCallStatus *_Nonnull out_status
+void uniffi_visio_ffi_fn_method_visioclient_add_room_to_history(void*_Nonnull ptr, RustBuffer url, RustBuffer display_name, RustCallStatus *_Nonnull out_status
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_FN_METHOD_VISIOCLIENT_ADMIT_PARTICIPANT
@@ -364,6 +364,11 @@ void uniffi_visio_ffi_fn_method_visioclient_disconnect(void*_Nonnull ptr, RustCa
 #ifndef UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_FN_METHOD_VISIOCLIENT_EXCHANGE_OIDC_CODE
 #define UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_FN_METHOD_VISIOCLIENT_EXCHANGE_OIDC_CODE
 RustBuffer uniffi_visio_ffi_fn_method_visioclient_exchange_oidc_code(void*_Nonnull ptr, RustBuffer meet_instance, RustBuffer code, RustCallStatus *_Nonnull out_status
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_FN_METHOD_VISIOCLIENT_EXTRACT_ROOM_DISPLAY_NAME
+#define UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_FN_METHOD_VISIOCLIENT_EXTRACT_ROOM_DISPLAY_NAME
+RustBuffer uniffi_visio_ffi_fn_method_visioclient_extract_room_display_name(void*_Nonnull ptr, RustBuffer url, RustCallStatus *_Nonnull out_status
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_FN_METHOD_VISIOCLIENT_GET_BACKGROUND_MODE
@@ -644,6 +649,11 @@ uint32_t uniffi_visio_ffi_fn_method_visioclient_unread_count(void*_Nonnull ptr, 
 #ifndef UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_FN_METHOD_VISIOCLIENT_VALIDATE_ROOM
 #define UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_FN_METHOD_VISIOCLIENT_VALIDATE_ROOM
 RustBuffer uniffi_visio_ffi_fn_method_visioclient_validate_room(void*_Nonnull ptr, RustBuffer url, RustBuffer username, RustCallStatus *_Nonnull out_status
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_FN_METHOD_VISIOCLIENT_VALIDATE_ROOM_DISPLAY_NAME
+#define UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_FN_METHOD_VISIOCLIENT_VALIDATE_ROOM_DISPLAY_NAME
+RustBuffer uniffi_visio_ffi_fn_method_visioclient_validate_room_display_name(void*_Nonnull ptr, RustBuffer raw, RustCallStatus *_Nonnull out_status
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_FN_METHOD_VISIOCLIENT_VALIDATE_SESSION
@@ -1050,6 +1060,12 @@ uint16_t uniffi_visio_ffi_checksum_method_visioclient_exchange_oidc_code(void
     
 );
 #endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_CHECKSUM_METHOD_VISIOCLIENT_EXTRACT_ROOM_DISPLAY_NAME
+#define UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_CHECKSUM_METHOD_VISIOCLIENT_EXTRACT_ROOM_DISPLAY_NAME
+uint16_t uniffi_visio_ffi_checksum_method_visioclient_extract_room_display_name(void
+    
+);
+#endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_CHECKSUM_METHOD_VISIOCLIENT_GET_BACKGROUND_MODE
 #define UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_CHECKSUM_METHOD_VISIOCLIENT_GET_BACKGROUND_MODE
 uint16_t uniffi_visio_ffi_checksum_method_visioclient_get_background_mode(void
@@ -1383,6 +1399,12 @@ uint16_t uniffi_visio_ffi_checksum_method_visioclient_unread_count(void
 #ifndef UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_CHECKSUM_METHOD_VISIOCLIENT_VALIDATE_ROOM
 #define UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_CHECKSUM_METHOD_VISIOCLIENT_VALIDATE_ROOM
 uint16_t uniffi_visio_ffi_checksum_method_visioclient_validate_room(void
+    
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_CHECKSUM_METHOD_VISIOCLIENT_VALIDATE_ROOM_DISPLAY_NAME
+#define UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_CHECKSUM_METHOD_VISIOCLIENT_VALIDATE_ROOM_DISPLAY_NAME
+uint16_t uniffi_visio_ffi_checksum_method_visioclient_validate_room_display_name(void
     
 );
 #endif

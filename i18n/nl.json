@@ -189,6 +189,8 @@
   "bandwidth.reducedVideo": "Lage bandbreedte — verminderde video",
   "bandwidth.audioOnly": "Zeer lage bandbreedte — alleen audio",
   "home.recentRooms": "Recente kamers",
+  "home.roomDisplayName": "Kamernaam (optioneel)",
+  "home.roomDisplayNamePlaceholder": "bijv. \"Wekelijkse vergadering\"",
   "participant.pin": "Vastzetten",
   "participant.unpin": "Losmaken",
   "participant.mute": "Dempen",

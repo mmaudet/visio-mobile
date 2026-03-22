@@ -14,7 +14,8 @@ struct HomeView: View {
     @State private var showServerPicker: Bool = false
     @State private var customServer: String = ""
     @State private var showCreateRoom: Bool = false
-    @State private var roomHistory: [String] = []
+    @State private var roomDisplayName: String = ""
+    @State private var roomHistory: [RoomHistoryEntry] = []
     @State private var historyJoinPending: Bool = false
     @State private var showCompactHeader: Bool = false
     @State private var selectedTab: Int = 0
@@ -150,6 +151,9 @@ struct HomeView: View {
                             .foregroundStyle(.red)
                     }
 
+                    TextField(Strings.t("home.roomDisplayName", lang: lang), text: $roomDisplayName)
+                        .textFieldStyle(.roundedBorder)
+
                     TextField(Strings.t("home.displayName", lang: lang), text: $displayName)
                         .textFieldStyle(.roundedBorder)
                         .textInputAutocapitalization(.words)
@@ -232,13 +236,16 @@ struct HomeView: View {
                             .fontWeight(.medium)
                             .foregroundStyle(VisioColors.secondaryText(dark: isDark))
 
-                        ForEach(Array(roomHistory.enumerated()), id: \.offset) { index, url in
-                            let slug = url.contains("/") ? String(url.split(separator: "/").last ?? "") : url
-                            let host = URL(string: url)?.host ?? ""
+                        ForEach(Array(roomHistory.enumerated()), id: \.offset) { index, entry in
+                            let slug = entry.url.contains("/") ? String(entry.url.split(separator: "/").last ?? "") : entry.url
+                            let host = URL(string: entry.url)?.host ?? ""
 
                             Button {
-                                roomURL = url
-                                resolvedRoomURL = url
+                                roomURL = entry.url
+                                resolvedRoomURL = entry.url
+                                if let name = entry.displayName {
+                                    roomDisplayName = name
+                                }
                                 // If already validated, navigate immediately
                                 if roomStatus == "valid" {
                                     navigateToCall = true
@@ -247,7 +254,7 @@ struct HomeView: View {
                                 }
                             } label: {
                                 HStack(spacing: 10) {
-                                    if historyJoinPending && roomURL == url {
+                                    if historyJoinPending && roomURL == entry.url {
                                         ProgressView()
                                             .scaleEffect(0.7)
                                             .frame(width: 14, height: 14)
@@ -258,14 +265,24 @@ struct HomeView: View {
                                     }
 
                                     VStack(alignment: .leading, spacing: 2) {
-                                        Text(slug)
-                                            .font(.body)
-                                            .fontWeight(.medium)
-                                            .foregroundStyle(VisioColors.onBackground(dark: isDark))
-                                        if !host.isEmpty {
-                                            Text(host)
+                                        if let name = entry.displayName {
+                                            Text(name)
+                                                .font(.body)
+                                                .fontWeight(.bold)
+                                                .foregroundStyle(VisioColors.onBackground(dark: isDark))
+                                            Text("\(slug) · \(host)")
                                                 .font(.caption)
                                                 .foregroundStyle(VisioColors.secondaryText(dark: isDark))
+                                        } else {
+                                            Text(slug)
+                                                .font(.body)
+                                                .fontWeight(.medium)
+                                                .foregroundStyle(VisioColors.onBackground(dark: isDark))
+                                            if !host.isEmpty {
+                                                Text(host)
+                                                    .font(.caption)
+                                                    .foregroundStyle(VisioColors.secondaryText(dark: isDark))
+                                            }
                                         }
                                     }
 
@@ -320,7 +337,10 @@ struct HomeView: View {
         .navigationDestination(isPresented: $navigateToCall) {
             PreJoinView(
                 roomURL: resolvedRoomURL,
-                initialDisplayName: displayName.trimmingCharacters(in: .whitespacesAndNewlines)
+                initialDisplayName: displayName.trimmingCharacters(in: .whitespacesAndNewlines),
+                roomDisplayName: roomDisplayName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                    ? nil
+                    : roomDisplayName.trimmingCharacters(in: .whitespacesAndNewlines)
             )
         }
         .sheet(isPresented: $showSettings) {
@@ -363,7 +383,13 @@ struct HomeView: View {
         }
         .onChange(of: manager.pendingDeepLink) { newValue in
             if let link = newValue {
-                roomURL = link
+                // Extract room-display-name from the URL if present, then strip the param
+                if let extracted = manager.client.extractRoomDisplayName(url: link) {
+                    roomDisplayName = extracted
+                }
+                // Strip the query param from the URL shown in the field
+                let cleanURL = link.components(separatedBy: "?").first ?? link
+                roomURL = cleanURL
                 manager.pendingDeepLink = nil
             }
         }

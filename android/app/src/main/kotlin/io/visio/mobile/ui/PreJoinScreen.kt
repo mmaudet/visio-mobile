@@ -176,6 +176,7 @@ private fun BlurredCameraPreview(
 fun PreJoinScreen(
     roomUrl: String,
     initialUsername: String,
+    roomDisplayName: String? = null,
     onJoin: (finalUsername: String) -> Unit,
     onCancel: () -> Unit,
 ) {
@@ -475,12 +476,28 @@ fun PreJoinScreen(
         // Top bar
         TopAppBar(
             title = {
-                Text(
-                    text = roomSlug,
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    fontWeight = FontWeight.Medium,
-                )
+                if (roomDisplayName != null) {
+                    Column {
+                        Text(
+                            text = roomDisplayName,
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            fontWeight = FontWeight.Medium,
+                        )
+                        Text(
+                            text = roomSlug,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                        )
+                    }
+                } else {
+                    Text(
+                        text = roomSlug,
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        fontWeight = FontWeight.Medium,
+                    )
+                }
             },
             navigationIcon = {
                 IconButton(onClick = onCancel) {

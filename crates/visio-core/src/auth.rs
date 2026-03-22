@@ -113,6 +113,11 @@ impl AuthService {
         } else {
             input
         };
+        let candidate = if candidate.contains('?') {
+            candidate.split('?').next().unwrap_or("")
+        } else {
+            candidate
+        };
         let re =
             SLUG_RE.get_or_init(|| regex::Regex::new(r"^[a-z]{3}-[a-z]{4}-[a-z]{3}$").unwrap());
         if re.is_match(candidate) {
@@ -142,11 +147,8 @@ impl AuthService {
 
     /// Parse a Meet URL into (instance, room_slug).
     pub fn parse_meet_url(url: &str) -> Result<(String, String), VisioError> {
-        let url = url
-            .trim()
-            .trim_end_matches('/')
-            .replace("https://", "")
-            .replace("http://", "");
+        let url = crate::strip_room_display_name_param(url.trim().trim_end_matches('/'));
+        let url = url.replace("https://", "").replace("http://", "");
 
         let parts: Vec<&str> = url.splitn(2, '/').collect();
         if parts.len() != 2 || parts[0].is_empty() || parts[1].is_empty() {
@@ -215,6 +217,25 @@ mod tests {
     #[test]
     fn extract_slug_from_url_with_trailing_slash() {
         let slug = AuthService::extract_slug("https://meet.example.com/abc-defg-hij/").unwrap();
+        assert_eq!(slug, "abc-defg-hij");
+    }
+
+    #[test]
+    fn parse_meet_url_strips_display_name_param() {
+        let (instance, slug) = AuthService::parse_meet_url(
+            "https://meet.example.com/abc-defg-hij?room-display-name=Comex",
+        )
+        .unwrap();
+        assert_eq!(instance, "meet.example.com");
+        assert_eq!(slug, "abc-defg-hij");
+    }
+
+    #[test]
+    fn extract_slug_with_query_param() {
+        let slug = AuthService::extract_slug(
+            "https://meet.example.com/abc-defg-hij?room-display-name=Test",
+        )
+        .unwrap();
         assert_eq!(slug, "abc-defg-hij");
     }
 }

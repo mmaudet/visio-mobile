@@ -189,6 +189,8 @@
   "bandwidth.reducedVideo": "Geringe Bandbreite — reduziertes Video",
   "bandwidth.audioOnly": "Sehr geringe Bandbreite — nur Audio",
   "home.recentRooms": "Letzte Räume",
+  "home.roomDisplayName": "Raumname (optional)",
+  "home.roomDisplayNamePlaceholder": "z.B. \"Wöchentliches Meeting\"",
   "participant.pin": "Anheften",
   "participant.unpin": "Loslösen",
   "participant.mute": "Stummschalten",

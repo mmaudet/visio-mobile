@@ -43,8 +43,11 @@ class MainActivity : ComponentActivity() {
         val slug = uri.path?.trimStart('/') ?: return null
         if (host.isBlank() || slug.isBlank()) return null
 
+        val displayName = uri.getQueryParameter("room-display-name")
+
         val instances = VisioManager.client.getMeetInstances()
         return if (instances.contains(host)) {
+            VisioManager.pendingDeepLinkDisplayName = displayName
             "https://$host/$slug"
         } else {
             null
