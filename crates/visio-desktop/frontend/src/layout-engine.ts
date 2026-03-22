@@ -38,6 +38,124 @@ export interface LayoutDisplayItem {
 const MIN_HOLD_MS = 2500
 const SILENCE_TO_GRID_MS = 5000
 
+/** Find a display item matching a focus target (participant + source). */
+function findByFocus<T extends LayoutDisplayItem>(
+  items: T[],
+  focus: FocusItemNonNull
+): T | null {
+  return (
+    items.find(
+      (d) =>
+        d.participant.sid === focus.participantSid && d.source === focus.source
+    ) ?? null
+  )
+}
+
+/** Build a focus-mode layout result with a main tile and remaining secondaries. */
+function buildFocusResult<T extends LayoutDisplayItem>(
+  items: T[],
+  main: T | null,
+  speakerSid: string | null,
+  pinnedSid: string | null,
+  state: LayoutState
+): [LayoutDecision<T>, LayoutState] {
+  const secondary = items.filter((d) => d.key !== main?.key)
+  return [
+    {
+      mode: 'focus',
+      mainTile: main,
+      secondaryTiles: secondary,
+      speakerIndicatorSid: speakerSid,
+      pinnedIndicatorSid: pinnedSid,
+    },
+    state,
+  ]
+}
+
+/** Build a grid-mode layout result (no main tile). */
+function buildGridResult<T extends LayoutDisplayItem>(
+  items: T[],
+  state: LayoutState
+): [LayoutDecision<T>, LayoutState] {
+  return [
+    {
+      mode: 'grid',
+      mainTile: null,
+      secondaryTiles: items,
+      speakerIndicatorSid: null,
+      pinnedIndicatorSid: null,
+    },
+    state,
+  ]
+}
+
+/** Determine whether focus should switch to a new target. */
+function shouldSwitchFocus(
+  previousState: LayoutState,
+  targetFocus: FocusItemNonNull,
+  nowMs: number
+): boolean {
+  if (!previousState.currentFocus) {
+    return true
+  }
+  if (
+    previousState.currentFocus.participantSid === targetFocus.participantSid &&
+    previousState.currentFocus.source === targetFocus.source
+  ) {
+    return false
+  }
+  const holdElapsed =
+    previousState.focusHoldStartMs != null
+      ? nowMs - previousState.focusHoldStartMs
+      : Infinity
+  return holdElapsed >= MIN_HOLD_MS
+}
+
+/** Handle active speaker logic with stabilization (step 3). */
+function handleActiveSpeaker<T extends LayoutDisplayItem>(
+  displayItems: T[],
+  currentSpeakerSid: string,
+  localParticipantSid: string,
+  previousState: LayoutState,
+  nowMs: number
+): [LayoutDecision<T>, LayoutState] | null {
+  const isLocalSpeaking = currentSpeakerSid === localParticipantSid
+
+  const newLastRemote = !isLocalSpeaking
+    ? currentSpeakerSid
+    : previousState.lastRemoteSpeakerSid
+
+  const targetSid = isLocalSpeaking
+    ? (previousState.lastRemoteSpeakerSid ?? null)
+    : currentSpeakerSid
+
+  if (!targetSid) {
+    return null
+  }
+
+  const targetFocus: FocusItemNonNull = {
+    participantSid: targetSid,
+    source: 'camera',
+  }
+
+  if (shouldSwitchFocus(previousState, targetFocus, nowMs)) {
+    const main = findByFocus(displayItems, targetFocus)
+    return buildFocusResult(displayItems, main, currentSpeakerSid, null, {
+      currentFocus: targetFocus,
+      focusHoldStartMs: nowMs,
+      lastRemoteSpeakerSid: newLastRemote,
+    })
+  }
+
+  const currentMain = previousState.currentFocus
+    ? findByFocus(displayItems, previousState.currentFocus)
+    : null
+  return buildFocusResult(displayItems, currentMain, currentSpeakerSid, null, {
+    ...previousState,
+    lastRemoteSpeakerSid: newLastRemote,
+  })
+}
+
 export function computeLayout<T extends LayoutDisplayItem>(
   displayItems: T[],
   activeSpeakers: string[],
@@ -49,125 +167,41 @@ export function computeLayout<T extends LayoutDisplayItem>(
 ): [LayoutDecision<T>, LayoutState] {
   // 1. Screen share has absolute priority
   if (screenShare) {
-    const main =
-      displayItems.find(
-        (d) =>
-          d.participant.sid === screenShare.participantSid &&
-          d.source === screenShare.source
-      ) ?? null
-    const secondary = displayItems.filter((d) => d.key !== main?.key)
+    const main = findByFocus(displayItems, screenShare)
     const speakerSid = activeSpeakers[0] ?? null
-    return [
-      {
-        mode: 'focus',
-        mainTile: main,
-        secondaryTiles: secondary,
-        speakerIndicatorSid: speakerSid,
-        pinnedIndicatorSid: pinnedItem?.participantSid ?? null,
-      },
-      { ...previousState, currentFocus: screenShare },
-    ]
+    return buildFocusResult(
+      displayItems,
+      main,
+      speakerSid,
+      pinnedItem?.participantSid ?? null,
+      { ...previousState, currentFocus: screenShare }
+    )
   }
 
   // 2. Pin has priority over auto-focus
   if (pinnedItem) {
-    const main =
-      displayItems.find(
-        (d) =>
-          d.participant.sid === pinnedItem.participantSid &&
-          d.source === pinnedItem.source
-      ) ?? null
-    const secondary = displayItems.filter((d) => d.key !== main?.key)
+    const main = findByFocus(displayItems, pinnedItem)
     const speakerSid = activeSpeakers[0] ?? null
-    return [
-      {
-        mode: 'focus',
-        mainTile: main,
-        secondaryTiles: secondary,
-        speakerIndicatorSid: speakerSid,
-        pinnedIndicatorSid: pinnedItem.participantSid,
-      },
-      { ...previousState, currentFocus: pinnedItem },
-    ]
+    return buildFocusResult(
+      displayItems,
+      main,
+      speakerSid,
+      pinnedItem.participantSid,
+      { ...previousState, currentFocus: pinnedItem }
+    )
   }
 
   // 3. Active speaker logic with stabilization
   const currentSpeakerSid = activeSpeakers[0] ?? null
-  const isLocalSpeaking = currentSpeakerSid === localParticipantSid
-
   if (currentSpeakerSid) {
-    const newLastRemote = !isLocalSpeaking
-      ? currentSpeakerSid
-      : previousState.lastRemoteSpeakerSid
-
-    const targetSid = isLocalSpeaking
-      ? (previousState.lastRemoteSpeakerSid ?? null)
-      : currentSpeakerSid
-
-    if (targetSid) {
-      const targetFocus: FocusItemNonNull = {
-        participantSid: targetSid,
-        source: 'camera',
-      }
-
-      let shouldSwitch: boolean
-      if (!previousState.currentFocus) {
-        shouldSwitch = true
-      } else if (
-        previousState.currentFocus.participantSid ===
-          targetFocus.participantSid &&
-        previousState.currentFocus.source === targetFocus.source
-      ) {
-        shouldSwitch = false
-      } else {
-        const holdElapsed =
-          previousState.focusHoldStartMs != null
-            ? nowMs - previousState.focusHoldStartMs
-            : Infinity
-        shouldSwitch = holdElapsed >= MIN_HOLD_MS
-      }
-
-      if (shouldSwitch) {
-        const main =
-          displayItems.find(
-            (d) => d.participant.sid === targetSid && d.source === 'camera'
-          ) ?? null
-        const secondary = displayItems.filter((d) => d.key !== main?.key)
-        return [
-          {
-            mode: 'focus',
-            mainTile: main,
-            secondaryTiles: secondary,
-            speakerIndicatorSid: currentSpeakerSid,
-            pinnedIndicatorSid: null,
-          },
-          {
-            currentFocus: targetFocus,
-            focusHoldStartMs: nowMs,
-            lastRemoteSpeakerSid: newLastRemote,
-          },
-        ]
-      } else {
-        const currentMain =
-          displayItems.find(
-            (d) =>
-              d.participant.sid ===
-                previousState.currentFocus?.participantSid &&
-              d.source === previousState.currentFocus?.source
-          ) ?? null
-        const secondary = displayItems.filter((d) => d.key !== currentMain?.key)
-        return [
-          {
-            mode: 'focus',
-            mainTile: currentMain,
-            secondaryTiles: secondary,
-            speakerIndicatorSid: currentSpeakerSid,
-            pinnedIndicatorSid: null,
-          },
-          { ...previousState, lastRemoteSpeakerSid: newLastRemote },
-        ]
-      }
-    }
+    const result = handleActiveSpeaker(
+      displayItems,
+      currentSpeakerSid,
+      localParticipantSid,
+      previousState,
+      nowMs
+    )
+    if (result) return result
   }
 
   // 4. No speaker — check silence timeout (Desktop is always "office" mode)
@@ -176,56 +210,32 @@ export function computeLayout<T extends LayoutDisplayItem>(
       ? nowMs - previousState.focusHoldStartMs
       : Infinity
   if (silenceElapsed > SILENCE_TO_GRID_MS) {
-    return [
-      {
-        mode: 'grid',
-        mainTile: null,
-        secondaryTiles: displayItems,
-        speakerIndicatorSid: null,
-        pinnedIndicatorSid: null,
-      },
-      {
-        currentFocus: null,
-        focusHoldStartMs: null,
-        lastRemoteSpeakerSid: previousState.lastRemoteSpeakerSid,
-      },
-    ]
+    return buildGridResult(displayItems, {
+      currentFocus: null,
+      focusHoldStartMs: null,
+      lastRemoteSpeakerSid: previousState.lastRemoteSpeakerSid,
+    })
   }
 
   // Keep current state
   if (previousState.currentFocus) {
-    const currentMain =
-      displayItems.find(
-        (d) =>
-          d.participant.sid === previousState.currentFocus!.participantSid &&
-          d.source === previousState.currentFocus!.source
-      ) ?? null
+    const currentMain = findByFocus(displayItems, previousState.currentFocus)
     if (currentMain) {
-      const secondary = displayItems.filter((d) => d.key !== currentMain.key)
-      return [
-        {
-          mode: 'focus',
-          mainTile: currentMain,
-          secondaryTiles: secondary,
-          speakerIndicatorSid: null,
-          pinnedIndicatorSid: null,
-        },
-        previousState,
-      ]
+      return buildFocusResult(
+        displayItems,
+        currentMain,
+        null,
+        null,
+        previousState
+      )
     }
   }
 
   // Default: grid
-  return [
-    {
-      mode: 'grid',
-      mainTile: null,
-      secondaryTiles: displayItems,
-      speakerIndicatorSid: null,
-      pinnedIndicatorSid: null,
-    },
-    { ...previousState, currentFocus: null },
-  ]
+  return buildGridResult(displayItems, {
+    ...previousState,
+    currentFocus: null,
+  })
 }
 
 export function initialLayoutState(): LayoutState {

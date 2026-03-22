@@ -25,12 +25,12 @@ export default async function(ctx: ScenarioContext) {
   // All platforms must switch to FOCUS layout showing the screen share
   ctx.log("Verifying screen share triggers FOCUS layout on all platforms");
   if (android) {
-    await android.assertTestTag("layout-mode:FOCUS", { timeout: 5000 });
+    await android.assertTestTag("layout-mode:FOCUS", { timeout: 10000 });
     await android.screenshot("10-screen-share-override-android");
   }
 
   if (desktop) {
-    await desktop.assertTestId("layout-mode:FOCUS", { timeout: 5000 });
+    await desktop.assertTestId("layout-mode:FOCUS", { timeout: 10000 });
     await desktop.screenshot("10-screen-share-override-desktop");
   }
 

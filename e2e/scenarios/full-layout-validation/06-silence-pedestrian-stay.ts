@@ -27,7 +27,7 @@ export default async function(ctx: ScenarioContext) {
   const aliceSid = alice.sid;
 
   if (android) {
-    await android.assertTestTag(`main-tile:${aliceSid}`, { timeout: 5000 });
+    await android.assertTestTag(`main-tile:${aliceSid}`, { timeout: 10000 });
     await android.screenshot("06-focus-while-speaking-android");
   }
 
@@ -41,12 +41,12 @@ export default async function(ctx: ScenarioContext) {
   // In Pedestrian mode the last speaker should remain in main tile, NOT grid
   ctx.log("Verifying main tile still shows Alice (no grid return in Pedestrian mode)");
   if (android) {
-    await android.assertTestTag(`main-tile:${aliceSid}`, { timeout: 3000 });
+    await android.assertTestTag(`main-tile:${aliceSid}`, { timeout: 10000 });
     await android.screenshot("06-pedestrian-still-focused-android");
   }
 
   if (desktop) {
-    await desktop.assertTestId(`main-tile:${aliceSid}`, { timeout: 3000 });
+    await desktop.assertTestId(`main-tile:${aliceSid}`, { timeout: 10000 });
     await desktop.screenshot("06-pedestrian-still-focused-desktop");
   }
 

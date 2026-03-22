@@ -24,6 +24,14 @@ void visio_push_ios_audio_frame(
     uint32_t sample_rate, uint32_t num_channels
 );
 
+// Preview frame — process I420 frame for local camera preview
+void visio_video_process_preview_frame(
+    const uint8_t *y_ptr, uint32_t y_stride,
+    const uint8_t *u_ptr, uint32_t u_stride,
+    const uint8_t *v_ptr, uint32_t v_stride,
+    uint32_t width, uint32_t height, uint32_t rotation
+);
+
 // Camera capture — push I420 frame from AVCaptureSession into LiveKit
 void visio_push_ios_camera_frame(
     const uint8_t *y_ptr, uint32_t y_stride,

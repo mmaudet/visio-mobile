@@ -416,12 +416,21 @@ class VisioManager: ObservableObject {
     }
 
     /// Configure AVAudioSession for voice chat (play + record).
+    /// Preserves the current Bluetooth route if one is active.
     nonisolated static func configureAudioSession() {
         let session = AVAudioSession.sharedInstance()
+        let previousBtInput = session.currentRoute.inputs.first {
+            [.bluetoothHFP, .bluetoothA2DP, .bluetoothLE].contains($0.portType)
+        }
         do {
-            try session.setCategory(.playAndRecord, mode: .voiceChat, options: [.defaultToSpeaker, .allowBluetooth])
+            try session.setCategory(.playAndRecord, mode: .voiceChat, options: [.defaultToSpeaker, .allowBluetooth, .allowBluetoothA2DP])
             try session.setPreferredSampleRate(48_000)
             try session.setActive(true)
+            if let btInput = previousBtInput,
+               let matchingInput = session.availableInputs?.first(where: { $0.portType == btInput.portType }) {
+                try session.setPreferredInput(matchingInput)
+                NSLog("VisioManager: restored Bluetooth input: %@", matchingInput.portName)
+            }
             NSLog("VisioManager: audio session configured (.playAndRecord)")
         } catch {
             NSLog("VisioManager: audio session config failed: %@", error.localizedDescription)

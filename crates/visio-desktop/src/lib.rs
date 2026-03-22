@@ -100,53 +100,138 @@ fn source_to_str(source: &TrackSource) -> &'static str {
     }
 }
 
+/// Emit a Tauri event to the frontend if the app handle is available.
+fn emit_event<S: serde::Serialize + Clone>(event_name: &str, payload: S) {
+    if let Some(app) = APP_HANDLE.get() {
+        let _ = app.emit(event_name, payload);
+    }
+}
+
+fn handle_connection_state_changed(
+    state: visio_core::ConnectionState,
+    room: &Arc<Mutex<RoomManager>>,
+    settings: &Arc<SettingsStore>,
+) {
+    let name = match &state {
+        visio_core::ConnectionState::Disconnected => "disconnected",
+        visio_core::ConnectionState::Connecting => "connecting",
+        visio_core::ConnectionState::Connected => "connected",
+        visio_core::ConnectionState::Reconnecting { .. } => "reconnecting",
+        visio_core::ConnectionState::WaitingForHost => "waiting_for_host",
+    };
+    tracing::info!("connection state changed: {name}");
+
+    // Record room in history on successful connection (covers
+    // both direct connect and lobby acceptance paths).
+    if matches!(state, visio_core::ConnectionState::Connected) {
+        let room = room.clone();
+        let settings = settings.clone();
+        tokio::spawn(async move {
+            if let Some((url, _)) = room.lock().await.last_connection_info().await {
+                settings.add_room_to_history(url);
+            }
+        });
+    }
+
+    emit_event("connection-state-changed", name);
+}
+
+fn handle_track_subscribed_video(
+    track_sid: &str,
+    participant_sid: &str,
+    source: &TrackSource,
+    room: &Arc<Mutex<RoomManager>>,
+) {
+    let room = room.clone();
+    let sid = track_sid.to_owned();
+    let is_screencast = *source == TrackSource::ScreenShare;
+    tokio::spawn(async move {
+        let rm = room.lock().await;
+        if let Some(video_track) = rm.get_video_track(&sid).await {
+            tracing::info!(
+                "auto-starting video renderer for track {sid} screencast={is_screencast}"
+            );
+            visio_video::start_track_renderer(
+                sid,
+                video_track,
+                std::ptr::null_mut(),
+                None,
+                is_screencast,
+            );
+        }
+    });
+    emit_event(
+        "track-subscribed",
+        serde_json::json!({
+            "trackSid": track_sid,
+            "participantSid": participant_sid,
+            "source": source_to_str(source),
+        }),
+    );
+}
+
+fn handle_connection_lost(room: &Arc<Mutex<RoomManager>>) {
+    emit_event("connection-lost", ());
+    let room = room.clone();
+    tokio::spawn(async move {
+        let rm = room.lock().await;
+        tracing::info!("connection lost, attempting reconnection");
+        if let Err(e) = rm.reconnect().await {
+            tracing::error!("desktop reconnection failed: {e}");
+        }
+    });
+}
+
+fn handle_meetings_updated(meetings: Vec<visio_core::events::Meeting>) {
+    let payload: Vec<serde_json::Value> = meetings
+        .iter()
+        .map(|m| {
+            serde_json::json!({
+                "id": m.id,
+                "summary": m.summary,
+                "start_time": m.start_time,
+                "end_time": m.end_time,
+                "room_url": m.room_url,
+                "deep_link": m.deep_link,
+                "server_name": m.server_name,
+            })
+        })
+        .collect();
+    emit_event("meetings-updated", payload);
+}
+
+fn handle_meeting_reminder(m: visio_core::events::Meeting) {
+    emit_event(
+        "meeting-reminder",
+        serde_json::json!({
+            "id": m.id,
+            "summary": m.summary,
+            "start_time": m.start_time,
+            "room_url": m.room_url,
+        }),
+    );
+}
+
 impl VisioEventListener for DesktopEventListener {
     fn on_event(&self, event: VisioEvent) {
         match event {
             VisioEvent::ConnectionStateChanged(state) => {
-                let name = match &state {
-                    visio_core::ConnectionState::Disconnected => "disconnected",
-                    visio_core::ConnectionState::Connecting => "connecting",
-                    visio_core::ConnectionState::Connected => "connected",
-                    visio_core::ConnectionState::Reconnecting { .. } => "reconnecting",
-                    visio_core::ConnectionState::WaitingForHost => "waiting_for_host",
-                };
-                tracing::info!("connection state changed: {name}");
-
-                // Record room in history on successful connection (covers
-                // both direct connect and lobby acceptance paths).
-                if matches!(state, visio_core::ConnectionState::Connected) {
-                    let room = self.room.clone();
-                    let settings = self.settings.clone();
-                    tokio::spawn(async move {
-                        if let Some((url, _)) = room.lock().await.last_connection_info().await {
-                            settings.add_room_to_history(url);
-                        }
-                    });
-                }
-
-                if let Some(app) = APP_HANDLE.get() {
-                    let _ = app.emit("connection-state-changed", name);
-                }
+                handle_connection_state_changed(state, &self.room, &self.settings);
             }
             VisioEvent::ParticipantJoined(info) => {
                 tracing::info!("participant joined: {} ({})", info.identity, info.sid);
-                if let Some(app) = APP_HANDLE.get() {
-                    let _ = app.emit(
-                        "participant-joined",
-                        serde_json::json!({
-                            "sid": info.sid,
-                            "identity": info.identity,
-                            "name": info.name,
-                        }),
-                    );
-                }
+                emit_event(
+                    "participant-joined",
+                    serde_json::json!({
+                        "sid": info.sid,
+                        "identity": info.identity,
+                        "name": info.name,
+                    }),
+                );
             }
             VisioEvent::ParticipantLeft(sid) => {
                 tracing::info!("participant left: {sid}");
-                if let Some(app) = APP_HANDLE.get() {
-                    let _ = app.emit("participant-left", &sid);
-                }
+                emit_event("participant-left", sid);
             }
             VisioEvent::TrackSubscribed(TrackInfo {
                 sid: ref track_sid,
@@ -155,70 +240,37 @@ impl VisioEventListener for DesktopEventListener {
                 ref source,
                 ..
             }) => {
-                let room = self.room.clone();
-                let sid = track_sid.clone();
-                let is_screencast = *source == TrackSource::ScreenShare;
-                tokio::spawn(async move {
-                    let rm = room.lock().await;
-                    if let Some(video_track) = rm.get_video_track(&sid).await {
-                        tracing::info!(
-                            "auto-starting video renderer for track {sid} screencast={is_screencast}"
-                        );
-                        visio_video::start_track_renderer(
-                            sid,
-                            video_track,
-                            std::ptr::null_mut(),
-                            None,
-                            is_screencast,
-                        );
-                    }
-                });
-                if let Some(app) = APP_HANDLE.get() {
-                    let _ = app.emit(
-                        "track-subscribed",
-                        serde_json::json!({
-                            "trackSid": track_sid,
-                            "participantSid": participant_sid,
-                            "source": source_to_str(source),
-                        }),
-                    );
-                }
+                handle_track_subscribed_video(track_sid, participant_sid, source, &self.room);
             }
             VisioEvent::TrackSubscribed(_) => {}
             VisioEvent::TrackUnsubscribed(track_sid) => {
                 tracing::info!("auto-stopping video renderer for track {track_sid}");
                 visio_video::stop_track_renderer(&track_sid);
-                if let Some(app) = APP_HANDLE.get() {
-                    let _ = app.emit("track-unsubscribed", &track_sid);
-                }
+                emit_event("track-unsubscribed", track_sid);
             }
             VisioEvent::TrackMuted {
                 participant_sid,
                 source,
             } => {
-                if let Some(app) = APP_HANDLE.get() {
-                    let _ = app.emit(
-                        "track-muted",
-                        serde_json::json!({
-                            "participantSid": participant_sid,
-                            "source": source_to_str(&source),
-                        }),
-                    );
-                }
+                emit_event(
+                    "track-muted",
+                    serde_json::json!({
+                        "participantSid": participant_sid,
+                        "source": source_to_str(&source),
+                    }),
+                );
             }
             VisioEvent::TrackUnmuted {
                 participant_sid,
                 source,
             } => {
-                if let Some(app) = APP_HANDLE.get() {
-                    let _ = app.emit(
-                        "track-unmuted",
-                        serde_json::json!({
-                            "participantSid": participant_sid,
-                            "source": source_to_str(&source),
-                        }),
-                    );
-                }
+                emit_event(
+                    "track-unmuted",
+                    serde_json::json!({
+                        "participantSid": participant_sid,
+                        "source": source_to_str(&source),
+                    }),
+                );
             }
             VisioEvent::HandRaisedChanged {
                 participant_sid,
@@ -228,94 +280,74 @@ impl VisioEventListener for DesktopEventListener {
                 tracing::info!(
                     "DesktopEventListener: HandRaisedChanged sid={participant_sid} raised={raised} position={position}"
                 );
-                if let Some(app) = APP_HANDLE.get() {
-                    let _ = app.emit(
-                        "hand-raised-changed",
-                        serde_json::json!({
-                            "participantSid": participant_sid,
-                            "raised": raised,
-                            "position": position,
-                        }),
-                    );
-                }
+                emit_event(
+                    "hand-raised-changed",
+                    serde_json::json!({
+                        "participantSid": participant_sid,
+                        "raised": raised,
+                        "position": position,
+                    }),
+                );
             }
             VisioEvent::UnreadCountChanged(count) => {
-                if let Some(app) = APP_HANDLE.get() {
-                    let _ = app.emit("unread-count-changed", count);
-                }
+                emit_event("unread-count-changed", count);
             }
             VisioEvent::ActiveSpeakersChanged(sids) => {
-                if let Some(app) = APP_HANDLE.get() {
-                    let _ = app.emit("active-speakers-changed", &sids);
-                }
+                emit_event("active-speakers-changed", sids);
             }
             VisioEvent::ConnectionQualityChanged {
                 participant_sid,
                 quality,
             } => {
-                if let Some(app) = APP_HANDLE.get() {
-                    let _ = app.emit(
-                        "connection-quality-changed",
-                        serde_json::json!({
-                            "participantSid": participant_sid,
-                            "quality": format!("{:?}", quality),
-                        }),
-                    );
-                }
+                emit_event(
+                    "connection-quality-changed",
+                    serde_json::json!({
+                        "participantSid": participant_sid,
+                        "quality": format!("{:?}", quality),
+                    }),
+                );
             }
             VisioEvent::ChatMessageReceived(msg) => {
-                if let Some(app) = APP_HANDLE.get() {
-                    let _ = app.emit(
-                        "chat-message-received",
-                        serde_json::json!({
-                            "id": msg.id,
-                            "senderSid": msg.sender_sid,
-                            "senderName": msg.sender_name,
-                            "text": msg.text,
-                            "timestampMs": msg.timestamp_ms,
-                        }),
-                    );
-                }
+                emit_event(
+                    "chat-message-received",
+                    serde_json::json!({
+                        "id": msg.id,
+                        "senderSid": msg.sender_sid,
+                        "senderName": msg.sender_name,
+                        "text": msg.text,
+                        "timestampMs": msg.timestamp_ms,
+                    }),
+                );
             }
             VisioEvent::LobbyParticipantJoined { id, username } => {
                 tracing::info!("lobby participant joined: {username} (id={id})");
-                if let Some(app) = APP_HANDLE.get() {
-                    let _ = app.emit(
-                        "lobby-participant-joined",
-                        serde_json::json!({ "id": id, "username": username }),
-                    );
-                }
+                emit_event(
+                    "lobby-participant-joined",
+                    serde_json::json!({ "id": id, "username": username }),
+                );
             }
             VisioEvent::LobbyParticipantLeft { id } => {
-                if let Some(app) = APP_HANDLE.get() {
-                    let _ = app.emit("lobby-participant-left", &id);
-                }
+                emit_event("lobby-participant-left", id);
             }
             VisioEvent::LobbyDenied => {
-                if let Some(app) = APP_HANDLE.get() {
-                    let _ = app.emit("lobby-denied", ());
-                }
+                emit_event("lobby-denied", ());
             }
             VisioEvent::LobbyTimeout => {
-                if let Some(app) = APP_HANDLE.get() {
-                    let _ = app.emit("lobby-timeout", ());
-                }
+                emit_event("lobby-timeout", ());
             }
             VisioEvent::ReactionReceived {
                 participant_sid,
                 participant_name,
                 emoji,
             } => {
-                if let Some(app) = APP_HANDLE.get() {
-                    let _ = app.emit(
-                        "reaction-received",
-                        serde_json::json!({
-                            "participantSid": participant_sid,
-                            "participantName": participant_name,
-                            "emoji": emoji,
-                        }),
-                    );
-                }
+                emit_event(
+                    "reaction-received",
+                    serde_json::json!({
+                        "participantSid": participant_sid,
+                        "participantName": participant_name,
+                        "emoji": emoji,
+                    }),
+                );
             }
             VisioEvent::AdaptiveModeChanged { mode } => {
                 let mode_str = match mode {
@@ -324,9 +356,7 @@ impl VisioEventListener for DesktopEventListener {
                     visio_core::adaptive::AdaptiveMode::Car => "car",
                 };
                 tracing::info!("adaptive mode changed: {mode_str}");
-                if let Some(app) = APP_HANDLE.get() {
-                    let _ = app.emit("adaptive-mode-changed", mode_str);
-                }
+                emit_event("adaptive-mode-changed", mode_str);
             }
             VisioEvent::BandwidthModeChanged { mode } => {
                 let mode_str = match mode {
@@ -335,89 +365,39 @@ impl VisioEventListener for DesktopEventListener {
                     visio_core::bandwidth::BandwidthMode::AudioOnly => "audio_only",
                 };
                 tracing::info!("bandwidth mode changed: {mode_str}");
-                if let Some(app) = APP_HANDLE.get() {
-                    let _ = app.emit("bandwidth-mode-changed", mode_str);
-                }
+                emit_event("bandwidth-mode-changed", mode_str);
             }
             VisioEvent::ConnectionLost => {
-                if let Some(app) = APP_HANDLE.get() {
-                    let _ = app.emit("connection-lost", ());
-                }
-                let room = self.room.clone();
-                tokio::spawn(async move {
-                    let rm = room.lock().await;
-                    tracing::info!("connection lost, attempting reconnection");
-                    if let Err(e) = rm.reconnect().await {
-                        tracing::error!("desktop reconnection failed: {e}");
-                    }
-                });
+                handle_connection_lost(&self.room);
             }
             VisioEvent::DisconnectedDuplicateIdentity => {
                 tracing::warn!("disconnected: duplicate identity");
-                if let Some(app) = APP_HANDLE.get() {
-                    let _ = app.emit("disconnected-reason", "duplicate_identity");
-                }
+                emit_event("disconnected-reason", "duplicate_identity");
             }
             VisioEvent::DisconnectedByAdmin => {
                 tracing::warn!("disconnected: removed by admin");
-                if let Some(app) = APP_HANDLE.get() {
-                    let _ = app.emit("disconnected-reason", "removed_by_admin");
-                }
+                emit_event("disconnected-reason", "removed_by_admin");
             }
             VisioEvent::AloneInRoom { remaining_secs } => {
-                if let Some(app) = APP_HANDLE.get() {
-                    let _ = app.emit("alone-in-room", remaining_secs);
-                }
+                emit_event("alone-in-room", remaining_secs);
             }
             VisioEvent::AloneInRoomCancelled => {
-                if let Some(app) = APP_HANDLE.get() {
-                    let _ = app.emit("alone-in-room-cancelled", ());
-                }
+                emit_event("alone-in-room-cancelled", ());
             }
             VisioEvent::MuteRequested => {
-                if let Some(app) = APP_HANDLE.get() {
-                    let _ = app.emit("mute-requested", ());
-                }
+                emit_event("mute-requested", ());
             }
             VisioEvent::MeetingsUpdated(meetings) => {
-                if let Some(app) = APP_HANDLE.get() {
-                    let payload: Vec<serde_json::Value> = meetings
-                        .iter()
-                        .map(|m| {
-                            serde_json::json!({
-                                "id": m.id,
-                                "summary": m.summary,
-                                "start_time": m.start_time,
-                                "end_time": m.end_time,
-                                "room_url": m.room_url,
-                                "deep_link": m.deep_link,
-                                "server_name": m.server_name,
-                            })
-                        })
-                        .collect();
-                    let _ = app.emit("meetings-updated", payload);
-                }
+                handle_meetings_updated(meetings);
             }
             VisioEvent::MeetingImminent(m)
             | VisioEvent::MeetingStartingSoon(m)
             | VisioEvent::MeetingStarted(m) => {
-                if let Some(app) = APP_HANDLE.get() {
-                    let _ = app.emit(
-                        "meeting-reminder",
-                        serde_json::json!({
-                            "id": m.id,
-                            "summary": m.summary,
-                            "start_time": m.start_time,
-                            "room_url": m.room_url,
-                        }),
-                    );
-                }
+                handle_meeting_reminder(m);
             }
             VisioEvent::CalendarError(msg) => {
                 tracing::warn!("calendar error: {msg}");
-                if let Some(app) = APP_HANDLE.get() {
-                    let _ = app.emit("calendar-error", &msg);
-                }
+                emit_event("calendar-error", msg);
             }
         }
     }
@@ -1498,7 +1478,6 @@ async fn stop_camera_preview() -> Result<(), String> {
     Ok(())
 }
 
-
 // ---------------------------------------------------------------------------
 // Mic level / VU meter commands
 // ---------------------------------------------------------------------------
@@ -1547,11 +1526,9 @@ async fn play_speaker_test(state: tauri::State<'_, VisioState>) -> Result<(), St
         .lock()
         .unwrap_or_else(|e| e.into_inner())
         .clone();
-    tokio::task::spawn_blocking(move || {
-        audio_engine::play_speaker_test(device_name.as_deref())
-    })
-    .await
-    .map_err(|e| e.to_string())?
+    tokio::task::spawn_blocking(move || audio_engine::play_speaker_test(device_name.as_deref()))
+        .await
+        .map_err(|e| e.to_string())?
 }
 
 // ---------------------------------------------------------------------------

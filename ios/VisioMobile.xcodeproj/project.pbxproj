@@ -10,6 +10,11 @@
 		A10001000000000000000001 /* VisioMobileApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10002000000000000000001 /* VisioMobileApp.swift */; };
 		A10001000000000000000003 /* VisioManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10002000000000000000003 /* VisioManager.swift */; };
 		A10001000000000000000004 /* AudioPlayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10002000000000000000004 /* AudioPlayout.swift */; };
+		A10001000000000000000020 /* LayoutEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10002000000000000000020 /* LayoutEngine.swift */; };
+		A10001000000000000000021 /* MeetingsTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10002000000000000000021 /* MeetingsTabView.swift */; };
+		A10001000000000000000022 /* PreJoinView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10002000000000000000022 /* PreJoinView.swift */; };
+		A10001000000000000000023 /* AudioRoutePickerButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10002000000000000000023 /* AudioRoutePickerButton.swift */; };
+		A10001000000000000000024 /* LocalCameraPreviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10002000000000000000024 /* LocalCameraPreviewView.swift */; };
 		A10001000000000000000005 /* VideoFrameRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10002000000000000000005 /* VideoFrameRouter.swift */; };
 		A10001000000000000000006 /* HomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10002000000000000000006 /* HomeView.swift */; };
 		A10001000000000000000007 /* CallView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10002000000000000000007 /* CallView.swift */; };
@@ -42,6 +47,11 @@
 		A10002000000000000000001 /* VisioMobileApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VisioMobileApp.swift; sourceTree = "<group>"; };
 		A10002000000000000000003 /* VisioManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VisioManager.swift; sourceTree = "<group>"; };
 		A10002000000000000000004 /* AudioPlayout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioPlayout.swift; sourceTree = "<group>"; };
+		A10002000000000000000020 /* LayoutEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LayoutEngine.swift; sourceTree = "<group>"; };
+		A10002000000000000000021 /* MeetingsTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeetingsTabView.swift; sourceTree = "<group>"; };
+		A10002000000000000000022 /* PreJoinView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreJoinView.swift; sourceTree = "<group>"; };
+		A10002000000000000000023 /* AudioRoutePickerButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioRoutePickerButton.swift; sourceTree = "<group>"; };
+		A10002000000000000000024 /* LocalCameraPreviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalCameraPreviewView.swift; sourceTree = "<group>"; };
 		A10002000000000000000005 /* VideoFrameRouter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoFrameRouter.swift; sourceTree = "<group>"; };
 		A10002000000000000000006 /* HomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeView.swift; sourceTree = "<group>"; };
 		A10002000000000000000007 /* CallView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CallView.swift; sourceTree = "<group>"; };
@@ -151,6 +161,10 @@
 				A10002000000000000000016 /* VisioLogo.swift */,
 				A10002000000000000000017 /* SettingsView.swift */,
 				A1000200000000000000001C /* InCallSettingsSheet.swift */,
+				A10002000000000000000021 /* MeetingsTabView.swift */,
+				A10002000000000000000022 /* PreJoinView.swift */,
+				A10002000000000000000023 /* AudioRoutePickerButton.swift */,
+				A10002000000000000000024 /* LocalCameraPreviewView.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -188,6 +202,7 @@
 			children = (
 				A10002000000000000000018 /* CallKitManager.swift */,
 				A1000200000000000000001E /* ContextDetector.swift */,
+				A10002000000000000000020 /* LayoutEngine.swift */,
 				A10002000000000000000019 /* PiPManager.swift */,
 			);
 			path = Services;
@@ -362,6 +377,11 @@
 				A10001000000000000000003 /* VisioManager.swift in Sources */,
 				A10001000000000000000004 /* AudioPlayout.swift in Sources */,
 				A10001000000000000000005 /* VideoFrameRouter.swift in Sources */,
+				A10001000000000000000020 /* LayoutEngine.swift in Sources */,
+				A10001000000000000000021 /* MeetingsTabView.swift in Sources */,
+				A10001000000000000000022 /* PreJoinView.swift in Sources */,
+				A10001000000000000000023 /* AudioRoutePickerButton.swift in Sources */,
+				A10001000000000000000024 /* LocalCameraPreviewView.swift in Sources */,
 				A10001000000000000000006 /* HomeView.swift in Sources */,
 				A10001000000000000000007 /* CallView.swift in Sources */,
 				A10001000000000000000008 /* ChatView.swift in Sources */,

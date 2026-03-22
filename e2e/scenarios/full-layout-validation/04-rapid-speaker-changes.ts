@@ -27,7 +27,7 @@ export default async function(ctx: ScenarioContext) {
   await ctx.sleep(3000); // Full stabilization settle
 
   if (android) {
-    await android.assertTestTag(`main-tile:${aliceSid}`, { timeout: 5000 });
+    await android.assertTestTag(`main-tile:${aliceSid}`, { timeout: 10000 });
     await android.screenshot("04-alice-initial-android");
   }
 

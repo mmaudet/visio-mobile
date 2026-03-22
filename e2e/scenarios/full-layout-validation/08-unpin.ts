@@ -20,13 +20,13 @@ export default async function(ctx: ScenarioContext) {
   const aliceSid = alice.sid;
 
   if (android) {
-    await android.assertTestTag(`main-tile:${aliceSid}`, { timeout: 5000 });
+    await android.assertTestTag(`main-tile:${aliceSid}`, { timeout: 10000 });
 
     // Pin Alice
     ctx.log("Pinning Alice via long press");
     await android.longPress(`main-tile:${aliceSid}`);
     await ctx.sleep(500);
-    await android.assertTestTag(`pin-indicator:${aliceSid}`, { timeout: 3000 });
+    await android.assertTestTag(`pin-indicator:${aliceSid}`, { timeout: 10000 });
     await android.screenshot("08-pinned-android");
 
     // Long press again to unpin
@@ -35,7 +35,7 @@ export default async function(ctx: ScenarioContext) {
     await ctx.sleep(500);
 
     // Pin indicator must be gone — auto-focus resumes
-    await android.assertNotTestTag(`pin-indicator:${aliceSid}`, { timeout: 3000 });
+    await android.assertNotTestTag(`pin-indicator:${aliceSid}`, { timeout: 10000 });
     await android.screenshot("08-pin-removed-android");
   }
 

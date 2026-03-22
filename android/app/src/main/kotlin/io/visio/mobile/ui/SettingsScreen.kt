@@ -372,62 +372,117 @@ fun SettingsScreen(onBack: () -> Unit) {
             }
         }
 
-        // Save button
-        Button(
-            onClick = {
-                // Auto-add pending instance text before saving
-                val trimmed = newInstance.trim()
-                val instancesToSave =
-                    if (trimmed.isNotEmpty() && trimmed !in meetInstances) {
-                        meetInstances + trimmed
-                    } else {
-                        meetInstances
-                    }
-                coroutineScope.launch(Dispatchers.IO) {
-                    try {
-                        VisioManager.client.setDisplayName(displayName.ifBlank { null })
-                        VisioManager.client.setLanguage(language)
-                        VisioManager.client.setMicEnabledOnJoin(micOnJoin)
-                        VisioManager.client.setCameraEnabledOnJoin(cameraOnJoin)
-                        val wasEnabled = VisioManager.client.isAdaptiveModeEnabled()
-                        VisioManager.client.setAdaptiveModeEnabled(adaptiveModeEnabled)
-                        if (wasEnabled && !adaptiveModeEnabled) {
-                            VisioManager.stopContextDetection()
-                        } else if (!wasEnabled && adaptiveModeEnabled) {
-                            VisioManager.startContextDetection()
-                        }
-                        VisioManager.client.setMeetInstances(instancesToSave)
-                        val calUrl = calendarUrl.trim().ifBlank { null }
-                        VisioManager.client.setCalendarUrl(calUrl)
-                        // Trigger immediate refresh if calendar URL is set
-                        if (calUrl != null) {
-                            VisioManager.refreshCalendarNow()
-                        }
-                    } catch (e: Exception) {
-                        Log.e(TAG, "Failed to save settings", e)
-                    }
+        SettingsSaveButton(
+            displayName = displayName,
+            language = language,
+            micOnJoin = micOnJoin,
+            cameraOnJoin = cameraOnJoin,
+            adaptiveModeEnabled = adaptiveModeEnabled,
+            meetInstances = meetInstances,
+            newInstance = newInstance,
+            calendarUrl = calendarUrl,
+            lang = lang,
+            context = context,
+            coroutineScope = coroutineScope,
+            onBack = onBack,
+        )
+    }
+}
+
+@Composable
+private fun SettingsSaveButton(
+    displayName: String,
+    language: String,
+    micOnJoin: Boolean,
+    cameraOnJoin: Boolean,
+    adaptiveModeEnabled: Boolean,
+    meetInstances: List<String>,
+    newInstance: String,
+    calendarUrl: String,
+    lang: String,
+    context: android.content.Context,
+    coroutineScope: kotlinx.coroutines.CoroutineScope,
+    onBack: () -> Unit,
+) {
+    Button(
+        onClick = {
+            val trimmed = newInstance.trim()
+            val instancesToSave =
+                if (trimmed.isNotEmpty() && trimmed !in meetInstances) {
+                    meetInstances + trimmed
+                } else {
+                    meetInstances
                 }
-                VisioManager.updateDisplayName(displayName)
-                android.widget.Toast.makeText(
-                    context,
-                    Strings.t("settings.saved", lang),
-                    android.widget.Toast.LENGTH_SHORT,
-                ).show()
-                onBack()
-            },
-            modifier =
-                Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp),
-            colors =
-                ButtonDefaults.buttonColors(
-                    containerColor = VisioColors.Primary500,
-                    contentColor = VisioColors.White,
-                ),
-            shape = RoundedCornerShape(12.dp),
-        ) {
-            Text(Strings.t("settings.save", lang), modifier = Modifier.padding(vertical = 4.dp))
+            coroutineScope.launch(Dispatchers.IO) {
+                saveSettings(
+                    displayName,
+                    language,
+                    micOnJoin,
+                    cameraOnJoin,
+                    adaptiveModeEnabled,
+                    instancesToSave,
+                    calendarUrl,
+                )
+            }
+            VisioManager.updateDisplayName(displayName)
+            android.widget.Toast.makeText(
+                context,
+                Strings.t("settings.saved", lang),
+                android.widget.Toast.LENGTH_SHORT,
+            ).show()
+            onBack()
+        },
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+        colors =
+            ButtonDefaults.buttonColors(
+                containerColor = VisioColors.Primary500,
+                contentColor = VisioColors.White,
+            ),
+        shape = RoundedCornerShape(12.dp),
+    ) {
+        Text(Strings.t("settings.save", lang), modifier = Modifier.padding(vertical = 4.dp))
+    }
+}
+
+private fun saveSettings(
+    displayName: String,
+    language: String,
+    micOnJoin: Boolean,
+    cameraOnJoin: Boolean,
+    adaptiveModeEnabled: Boolean,
+    instancesToSave: List<String>,
+    calendarUrl: String,
+) {
+    try {
+        VisioManager.client.setDisplayName(displayName.ifBlank { null })
+        VisioManager.client.setLanguage(language)
+        VisioManager.client.setMicEnabledOnJoin(micOnJoin)
+        VisioManager.client.setCameraEnabledOnJoin(cameraOnJoin)
+        val wasEnabled = VisioManager.client.isAdaptiveModeEnabled()
+        VisioManager.client.setAdaptiveModeEnabled(adaptiveModeEnabled)
+        syncContextDetection(wasEnabled, adaptiveModeEnabled)
+        VisioManager.client.setMeetInstances(instancesToSave)
+        val calUrl = calendarUrl.trim().ifBlank { null }
+        VisioManager.client.setCalendarUrl(calUrl)
+        if (calUrl != null) {
+            VisioManager.refreshCalendarNow()
         }
+    } catch (e: Exception) {
+        Log.e(TAG, "Failed to save settings", e)
+    }
+}
+
+private fun syncContextDetection(
+    wasEnabled: Boolean,
+    isEnabled: Boolean,
+) {
+    if (wasEnabled && !isEnabled) {
+        VisioManager.stopContextDetection()
+    } else if (!wasEnabled && isEnabled) {
+        VisioManager.startContextDetection()
     }
 }
 

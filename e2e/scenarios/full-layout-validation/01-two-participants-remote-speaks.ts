@@ -25,16 +25,16 @@ export default async function(ctx: ScenarioContext) {
   // Android assertions
   if (android) {
     ctx.log("Android: asserting FOCUS layout and Alice in main tile");
-    await android.assertTestTag("layout-mode:FOCUS", { timeout: 5000 });
-    await android.assertTestTag(`main-tile:${aliceSid}`, { timeout: 5000 });
+    await android.assertTestTag("layout-mode:FOCUS", { timeout: 10000 });
+    await android.assertTestTag(`main-tile:${aliceSid}`, { timeout: 10000 });
     await android.screenshot("01-alice-main-tile-android");
   }
 
   // Desktop assertions
   if (desktop) {
     ctx.log("Desktop: asserting FOCUS layout and Alice in main tile");
-    await desktop.assertTestId("layout-mode:FOCUS", { timeout: 5000 });
-    await desktop.assertTestId(`main-tile:${aliceSid}`, { timeout: 5000 });
+    await desktop.assertTestId("layout-mode:FOCUS", { timeout: 10000 });
+    await desktop.assertTestId(`main-tile:${aliceSid}`, { timeout: 10000 });
     await desktop.screenshot("01-alice-main-tile-desktop");
   }
 

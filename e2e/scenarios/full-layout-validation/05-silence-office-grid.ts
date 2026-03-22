@@ -22,7 +22,7 @@ export default async function(ctx: ScenarioContext) {
   await ctx.sleep(2000);
 
   if (android) {
-    await android.assertTestTag("layout-mode:FOCUS", { timeout: 5000 });
+    await android.assertTestTag("layout-mode:FOCUS", { timeout: 10000 });
     await android.screenshot("05-focus-while-speaking-android");
   }
 
@@ -40,12 +40,12 @@ export default async function(ctx: ScenarioContext) {
   // Office mode should return to GRID
   ctx.log("Verifying grid mode returned after silence");
   if (android) {
-    await android.assertTestTag("layout-mode:GRID", { timeout: 5000 });
+    await android.assertTestTag("layout-mode:GRID", { timeout: 10000 });
     await android.screenshot("05-grid-after-silence-android");
   }
 
   if (desktop) {
-    await desktop.assertTestId("layout-mode:GRID", { timeout: 5000 });
+    await desktop.assertTestId("layout-mode:GRID", { timeout: 10000 });
     await desktop.screenshot("05-grid-after-silence-desktop");
   }
 

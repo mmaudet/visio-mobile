@@ -3695,6 +3695,39 @@ interface VideoDeviceInfo {
   is_default: boolean
 }
 
+/** Save user preferences (display name, mic/camera state, audio mode) before joining. */
+async function savePreJoinPreferences(
+  displayName: string | null,
+  isMicOn: boolean,
+  isCameraOn: boolean,
+  audioMode: string
+) {
+  await invoke('set_display_name', { name: displayName }).catch(() => {})
+  await invoke('set_mic_enabled_on_join', { enabled: isMicOn }).catch(() => {})
+  await invoke('set_camera_enabled_on_join', { enabled: isCameraOn }).catch(
+    () => {}
+  )
+  await invoke('set_audio_mode', { mode: audioMode }).catch(() => {})
+}
+
+/** Stop camera and mic previews before transitioning to the call screen. */
+async function stopPreviews() {
+  await invoke('stop_camera_preview').catch(() => {})
+  await invoke('stop_mic_preview').catch(() => {})
+}
+
+/** Append an unlisten callback, chaining with any previous one. */
+function chainUnlisten(
+  ref: React.MutableRefObject<UnlistenFn | null>,
+  unlisten: UnlistenFn
+) {
+  const prev = ref.current
+  ref.current = () => {
+    unlisten()
+    prev?.()
+  }
+}
+
 function PreJoinScreen({
   roomUrl,
   username,
@@ -3912,40 +3945,10 @@ function PreJoinScreen({
   }
 
   const handleJoinNow = async () => {
-    // Save preferences
     const finalName = displayName.trim() || null
-    try {
-      await invoke('set_display_name', { name: finalName })
-    } catch {
-      /* ignore */
-    }
-    try {
-      await invoke('set_mic_enabled_on_join', { enabled: isMicOn })
-    } catch {
-      /* ignore */
-    }
-    try {
-      await invoke('set_camera_enabled_on_join', { enabled: isCameraOn })
-    } catch {
-      /* ignore */
-    }
-    try {
-      await invoke('set_audio_mode', { mode: audioMode })
-    } catch {
-      /* ignore */
-    }
 
-    // Stop camera preview before joining (the call screen takes over)
-    try {
-      await invoke('stop_camera_preview')
-    } catch {
-      /* ignore */
-    }
-    try {
-      await invoke('stop_mic_preview')
-    } catch {
-      /* ignore */
-    }
+    await savePreJoinPreferences(finalName, isMicOn, isCameraOn, audioMode)
+    await stopPreviews()
 
     setWaitingState('waiting')
 
@@ -3959,14 +3962,7 @@ function PreJoinScreen({
       if (timeoutRef.current) clearTimeout(timeoutRef.current)
       setWaitingState('denied')
     })
-      .then((unlisten) => {
-        // Store unlisten so we can clean up when the component unmounts
-        const prev = unlistenVideoRef.current
-        unlistenVideoRef.current = () => {
-          unlisten()
-          prev?.()
-        }
-      })
+      .then((unlisten) => chainUnlisten(unlistenVideoRef, unlisten))
       .catch(() => {})
 
     // Connect to the room. For lobby-gated rooms, connect() returns Ok
@@ -3989,13 +3985,7 @@ function PreJoinScreen({
         onJoin(finalName)
       }
     })
-      .then((unlisten) => {
-        const prev = unlistenVideoRef.current
-        unlistenVideoRef.current = () => {
-          unlisten()
-          prev?.()
-        }
-      })
+      .then((unlisten) => chainUnlisten(unlistenVideoRef, unlisten))
       .catch(() => {})
   }
 
