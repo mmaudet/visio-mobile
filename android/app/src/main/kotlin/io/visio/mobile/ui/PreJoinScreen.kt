@@ -582,6 +582,7 @@ fun PreJoinScreen(
                 isFrontCamera = isFrontCamera,
                 isDark = isDark,
                 lang = lang,
+                backgroundMode = backgroundMode,
                 cameraPreviewRef = cameraPreviewRef,
                 onToggleCamera = { newEnabled ->
                     if (newEnabled) {
@@ -966,6 +967,7 @@ private fun PreJoinCameraSection(
     isFrontCamera: Boolean,
     isDark: Boolean,
     lang: String,
+    backgroundMode: String,
     cameraPreviewRef: androidx.compose.runtime.MutableState<LocalCameraPreview?>,
     onToggleCamera: (Boolean) -> Unit,
     onFlipCamera: () -> Unit,

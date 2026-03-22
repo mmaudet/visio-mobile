@@ -689,8 +689,11 @@ fun CallScreen(
                     } catch (_: Exception) {
                         null
                     }
-                micEnabled = s?.micEnabledOnJoin ?: VisioManager.client.isMicrophoneEnabled()
-                cameraEnabled = s?.cameraEnabledOnJoin ?: VisioManager.client.isCameraEnabled()
+                // Apply mic/camera on join so Rust-side capture is started
+                applyMicOnJoin(context, s?.micEnabledOnJoin ?: false)
+                micEnabled = VisioManager.client.isMicrophoneEnabled()
+                applyCameraOnJoin(context, s?.cameraEnabledOnJoin ?: false)
+                cameraEnabled = VisioManager.client.isCameraEnabled()
                 return@withContext
             }
 

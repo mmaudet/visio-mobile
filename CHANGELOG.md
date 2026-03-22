@@ -15,6 +15,7 @@ and this project adheres to
 
 ### Fixed
 
+- Fix lobby bypass, background filters and camera in call (#106)
 - Fix 12 SonarCloud reliability issues in desktop frontend (#92)
 - Lobby camera/mic/Bluetooth settings now applied when joining room (#98)
 - Auto-fallback to default audio device when Bluetooth disconnects (#83)
