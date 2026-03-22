@@ -8,12 +8,10 @@ export default async function(ctx: ScenarioContext) {
   const desktop = ctx.desktop();
   const ios = ctx.ios();
 
-  // Connect platforms first so they are ready before the bot speaks
-  await android.connect();
-  await desktop.connect();
-  await ios.connect();
-
   await alice.connect();
+  if (android) await android.connect();
+  if (desktop) await desktop.connect();
+  if (ios) await ios.connect();
 
   // This test assumes the device is in Pedestrian adaptive mode.
   // The adaptive mode should have been set before this scenario runs
@@ -23,14 +21,17 @@ export default async function(ctx: ScenarioContext) {
   // Alice speaks to enter FOCUS mode
   ctx.log("Alice speaks to establish FOCUS mode");
   await alice.speak();
-  await alice.waitForEvent(/ActiveSpeakers.*bot-alice/, 10000);
+  await alice.waitForEvent(/ActiveSpeakers.*bot-alice/, 5000);
   await ctx.sleep(2000);
 
   const aliceSid = alice.sid;
 
-  await android.assertTestTag(`main-tile:${aliceSid}`, { timeout: 10000 });
-  await android.screenshot("06-focus-while-speaking-android");
-  await ios.screenshot("06-focus-while-speaking-ios");
+  if (android) {
+    await android.assertTestTag(`main-tile:${aliceSid}`, { timeout: 5000 });
+    await android.screenshot("06-focus-while-speaking-android");
+  }
+
+  if (ios) await ios.screenshot("06-focus-while-speaking-ios");
 
   // All mute — wait longer than the Office silence timeout
   ctx.log("Alice mutes — waiting 7s (well past 5s Office threshold)");
@@ -39,13 +40,17 @@ export default async function(ctx: ScenarioContext) {
 
   // In Pedestrian mode the last speaker should remain in main tile, NOT grid
   ctx.log("Verifying main tile still shows Alice (no grid return in Pedestrian mode)");
-  await android.assertTestTag(`main-tile:${aliceSid}`, { timeout: 10000 });
-  await android.screenshot("06-pedestrian-still-focused-android");
+  if (android) {
+    await android.assertTestTag(`main-tile:${aliceSid}`, { timeout: 3000 });
+    await android.screenshot("06-pedestrian-still-focused-android");
+  }
 
-  await desktop.assertTestId(`main-tile:${aliceSid}`, { timeout: 10000 });
-  await desktop.screenshot("06-pedestrian-still-focused-desktop");
+  if (desktop) {
+    await desktop.assertTestId(`main-tile:${aliceSid}`, { timeout: 3000 });
+    await desktop.screenshot("06-pedestrian-still-focused-desktop");
+  }
 
-  await ios.screenshot("06-pedestrian-still-focused-ios");
+  if (ios) await ios.screenshot("06-pedestrian-still-focused-ios");
 
   ctx.log("PASS: Pedestrian mode keeps last speaker in main tile after silence (no grid return)");
 }

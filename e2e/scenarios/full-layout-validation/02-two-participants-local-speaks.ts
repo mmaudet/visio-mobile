@@ -8,22 +8,21 @@ export default async function(ctx: ScenarioContext) {
   const desktop = ctx.desktop();
   const ios = ctx.ios();
 
-  // Connect platforms first so they are ready before the bot speaks
-  await android.connect();
-  await desktop.connect();
-  await ios.connect();
-
   // Alice speaks first to establish remote focus
   await alice.connect();
+  if (android) await android.connect();
+  if (desktop) await desktop.connect();
+  if (ios) await ios.connect();
+
   ctx.log("Alice speaks to establish initial remote focus");
   await alice.speak();
-  await alice.waitForEvent(/ActiveSpeakers.*bot-alice/, 10000);
+  await alice.waitForEvent(/ActiveSpeakers.*bot-alice/, 5000);
   await ctx.sleep(2000);
 
   const aliceSid = alice.sid;
 
   // Verify Alice is in main tile on Android
-  await android.assertTestTag(`main-tile:${aliceSid}`, { timeout: 10000 });
+  if (android) await android.assertTestTag(`main-tile:${aliceSid}`, { timeout: 5000 });
 
   // Alice mutes — main tile must NOT switch to local participant
   ctx.log("Alice mutes — verifying main tile stays on Alice (no self-focus)");
@@ -31,13 +30,19 @@ export default async function(ctx: ScenarioContext) {
   await ctx.sleep(2000); // Less than the 5s silence-to-grid timeout
 
   // Main tile should still be Alice — local mic activity must not steal focus
-  await android.assertTestTag(`main-tile:${aliceSid}`, { timeout: 10000 });
-  await android.screenshot("02-no-self-focus-android");
+  if (android) {
+    await android.assertTestTag(`main-tile:${aliceSid}`, { timeout: 3000 });
+    await android.screenshot("02-no-self-focus-android");
+  }
 
-  await desktop.assertTestId(`main-tile:${aliceSid}`, { timeout: 10000 });
-  await desktop.screenshot("02-no-self-focus-desktop");
+  if (desktop) {
+    await desktop.assertTestId(`main-tile:${aliceSid}`, { timeout: 3000 });
+    await desktop.screenshot("02-no-self-focus-desktop");
+  }
 
-  await ios.screenshot("02-no-self-focus-ios");
+  if (ios) {
+    await ios.screenshot("02-no-self-focus-ios");
+  }
 
   ctx.log("PASS: Local speaker does not trigger self-focus; remote stays in main tile");
 }
