@@ -112,6 +112,9 @@ import kotlinx.coroutines.withContext
 import uniffi.visio.ConnectionState
 import kotlin.math.sqrt
 
+private const val KEY_DEVICE_MICROPHONE = "device.microphone"
+private const val KEY_SETTINGS_BACKGROUND = "settings.incall.background"
+
 // ── Waiting-room state ────────────────────────────────────────────────────────
 
 sealed interface WaitingState {
@@ -162,7 +165,9 @@ class LocalCameraPreview(
         return true
     }
 
-    override fun onSurfaceTextureUpdated(surface: SurfaceTexture) {}
+    override fun onSurfaceTextureUpdated(surface: SurfaceTexture) {
+        // No-op: frame updates handled by camera capture session
+    }
 
     fun switchCamera(front: Boolean) {
         if (front == useFront) return
@@ -206,7 +211,9 @@ class LocalCameraPreview(
                                 post { updateTransform() }
                             }
 
-                            override fun onConfigureFailed(sess: CameraCaptureSession) {}
+                            override fun onConfigureFailed(sess: CameraCaptureSession) {
+                                // No-op: preview failure is non-fatal, user can still join
+                            }
                         },
                         handler,
                     )
@@ -708,7 +715,7 @@ fun PreJoinScreen(
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Text(
-                            text = Strings.t("device.microphone", lang),
+                            text = Strings.t(KEY_DEVICE_MICROPHONE, lang),
                             style = MaterialTheme.typography.bodyMedium,
                             color = if (isDark) VisioColors.White else VisioColors.LightOnBackground,
                         )
@@ -777,7 +784,7 @@ fun PreJoinScreen(
                                 )
                                 Spacer(modifier = Modifier.size(8.dp))
                                 Text(
-                                    text = selectedInputRoute ?: Strings.t("device.microphone", lang),
+                                    text = selectedInputRoute ?: Strings.t(KEY_DEVICE_MICROPHONE, lang),
                                     style = MaterialTheme.typography.bodySmall,
                                     modifier = Modifier.weight(1f),
                                 )
@@ -861,10 +868,10 @@ fun PreJoinScreen(
                             val id = backgroundMode.removePrefix("image:")
                             "Background $id"
                         }
-                        else -> Strings.t("settings.incall.background", lang)
+                        else -> Strings.t(KEY_SETTINGS_BACKGROUND, lang)
                     }
                 Text(
-                    text = "${Strings.t("settings.incall.background", lang)}: $bgLabel",
+                    text = "${Strings.t(KEY_SETTINGS_BACKGROUND, lang)}: $bgLabel",
                     modifier = Modifier.padding(vertical = 4.dp),
                 )
             }
@@ -1102,7 +1109,7 @@ private fun BackgroundFilterSheet(
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             Text(
-                text = Strings.t("settings.incall.background", lang),
+                text = Strings.t(KEY_SETTINGS_BACKGROUND, lang),
                 style = MaterialTheme.typography.titleMedium,
                 color = if (isDark) VisioColors.White else MaterialTheme.colorScheme.onSurface,
                 fontWeight = FontWeight.SemiBold,
@@ -1310,7 +1317,7 @@ private fun audioDeviceTypeLabel(
     when (type) {
         AudioDeviceInfo.TYPE_BUILTIN_SPEAKER -> Strings.t("audio.speaker", lang)
         AudioDeviceInfo.TYPE_BUILTIN_EARPIECE -> Strings.t("audio.earpiece", lang)
-        AudioDeviceInfo.TYPE_BUILTIN_MIC -> Strings.t("device.microphone", lang)
+        AudioDeviceInfo.TYPE_BUILTIN_MIC -> Strings.t(KEY_DEVICE_MICROPHONE, lang)
         AudioDeviceInfo.TYPE_BLUETOOTH_SCO, AudioDeviceInfo.TYPE_BLUETOOTH_A2DP -> Strings.t("audio.bluetooth", lang)
         AudioDeviceInfo.TYPE_BLE_HEADSET, AudioDeviceInfo.TYPE_BLE_SPEAKER -> Strings.t("audio.bluetooth", lang)
         AudioDeviceInfo.TYPE_HEARING_AID -> Strings.t("audio.hearingAid", lang)
