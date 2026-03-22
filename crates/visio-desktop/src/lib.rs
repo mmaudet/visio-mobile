@@ -1521,6 +1521,12 @@ async fn start_mic_preview(state: tauri::State<'_, VisioState>) -> Result<(), St
         .unwrap_or_else(|e| e.into_inner())
         .clone();
     let mut engine = state.audio_engine.lock().unwrap_or_else(|e| e.into_inner());
+    engine.set_device_change_callback(Arc::new(|| {
+        tracing::info!("audio devices changed (lobby) — re-enumerating");
+        if let Some(app) = APP_HANDLE.get() {
+            let _ = app.emit("audio-devices-changed", ());
+        }
+    }));
     engine.start_preview_capture(device_name.as_deref())
 }
 

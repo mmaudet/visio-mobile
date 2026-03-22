@@ -119,6 +119,21 @@ class VisioManager: ObservableObject {
         } else {
             NSLog("VisioManager: selfie_segmentation.onnx not found in bundle")
         }
+
+        // Observe Bluetooth audio device disconnection so we can log the
+        // iOS automatic fallback to built-in speaker.
+        NotificationCenter.default.addObserver(
+            forName: AVAudioSession.routeChangeNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] notification in
+            guard let reason = notification.userInfo?[AVAudioSessionRouteChangeReasonKey] as? UInt,
+                  reason == AVAudioSession.RouteChangeReason.oldDeviceUnavailable.rawValue else {
+                return
+            }
+            _ = self  // capture self to silence unused-capture warning
+            print("Audio route changed: Bluetooth device disconnected, iOS auto-fallback to built-in")
+        }
     }
 
     // MARK: - Public API
