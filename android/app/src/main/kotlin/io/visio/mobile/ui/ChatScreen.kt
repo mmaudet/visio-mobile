@@ -155,57 +155,74 @@ fun ChatScreen(onBack: () -> Unit) {
         }
 
         // Input bar
-        Row(
-            modifier =
-                Modifier
-                    .fillMaxWidth()
-                    .background(VisioColors.PrimaryDark75)
-                    .padding(8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ChatInputBar(
+            inputText = inputText,
+            onInputTextChange = { inputText = it },
+            lang = lang,
+            onSend = { text ->
+                try {
+                    VisioManager.client.sendChatMessage(text)
+                    inputText = ""
+                } catch (e: Exception) {
+                    Log.e(TAG, "Failed to send chat message", e)
+                }
+            },
+        )
+    }
+}
+
+@Composable
+private fun ChatInputBar(
+    inputText: String,
+    onInputTextChange: (String) -> Unit,
+    lang: String,
+    onSend: (String) -> Unit,
+) {
+    Row(
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .background(VisioColors.PrimaryDark75)
+                .padding(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        TextField(
+            value = inputText,
+            onValueChange = onInputTextChange,
+            placeholder = {
+                Text(Strings.t("chat.placeholder", lang), color = VisioColors.Greyscale400)
+            },
+            modifier = Modifier.weight(1f).testTag("chat_message_input"),
+            singleLine = true,
+            colors =
+                TextFieldDefaults.colors(
+                    focusedContainerColor = VisioColors.PrimaryDark100,
+                    unfocusedContainerColor = VisioColors.PrimaryDark100,
+                    cursorColor = VisioColors.Primary500,
+                    focusedTextColor = VisioColors.White,
+                    unfocusedTextColor = VisioColors.White,
+                    focusedIndicatorColor = Color.Transparent,
+                    unfocusedIndicatorColor = Color.Transparent,
+                ),
+            shape = RoundedCornerShape(12.dp),
+        )
+        IconButton(
+            onClick = {
+                val text = inputText.trim()
+                if (text.isNotEmpty()) {
+                    onSend(text)
+                }
+            },
+            enabled = inputText.isNotBlank(),
+            modifier = Modifier.testTag("chat_send_button"),
         ) {
-            TextField(
-                value = inputText,
-                onValueChange = { inputText = it },
-                placeholder = {
-                    Text(Strings.t("chat.placeholder", lang), color = VisioColors.Greyscale400)
-                },
-                modifier = Modifier.weight(1f).testTag("chat_message_input"),
-                singleLine = true,
-                colors =
-                    TextFieldDefaults.colors(
-                        focusedContainerColor = VisioColors.PrimaryDark100,
-                        unfocusedContainerColor = VisioColors.PrimaryDark100,
-                        cursorColor = VisioColors.Primary500,
-                        focusedTextColor = VisioColors.White,
-                        unfocusedTextColor = VisioColors.White,
-                        focusedIndicatorColor = Color.Transparent,
-                        unfocusedIndicatorColor = Color.Transparent,
-                    ),
-                shape = RoundedCornerShape(12.dp),
+            Icon(
+                painter = painterResource(R.drawable.ri_send_plane_2_fill),
+                contentDescription = Strings.t("accessibility.send", lang),
+                tint = if (inputText.isNotBlank()) VisioColors.Primary500 else VisioColors.Greyscale400,
+                modifier = Modifier.size(24.dp),
             )
-            IconButton(
-                onClick = {
-                    val text = inputText.trim()
-                    if (text.isNotEmpty()) {
-                        try {
-                            VisioManager.client.sendChatMessage(text)
-                            inputText = ""
-                        } catch (e: Exception) {
-                            Log.e(TAG, "Failed to send chat message", e)
-                        }
-                    }
-                },
-                enabled = inputText.isNotBlank(),
-                modifier = Modifier.testTag("chat_send_button"),
-            ) {
-                Icon(
-                    painter = painterResource(R.drawable.ri_send_plane_2_fill),
-                    contentDescription = Strings.t("accessibility.send", lang),
-                    tint = if (inputText.isNotBlank()) VisioColors.Primary500 else VisioColors.Greyscale400,
-                    modifier = Modifier.size(24.dp),
-                )
-            }
         }
     }
 }
