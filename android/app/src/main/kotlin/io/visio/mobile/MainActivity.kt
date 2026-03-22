@@ -188,6 +188,8 @@ class MainActivity : ComponentActivity() {
 
     override fun onUserLeaveHint() {
         super.onUserLeaveHint()
+        // Skip PiP for E2E test connections (UIAutomator can't access PiP windows)
+        if (VisioManager.isTestConnection) return
         val state = VisioManager.connectionState.value
         if (state is ConnectionState.Connected) {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {

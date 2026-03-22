@@ -155,6 +155,7 @@ object VisioManager : VisioEventListener {
 
     // Test deep link: connect directly with LiveKit URL + token (debug builds only)
     var pendingTestConnect: Triple<String, String, String?>? = null // (livekitUrl, token, mediaFile?)
+    var isTestConnection: Boolean = false
 
     // Media file capture for E2E testing (replaces synthetic audio/camera)
     private var mediaFileCapture: MediaFileCapture? = null

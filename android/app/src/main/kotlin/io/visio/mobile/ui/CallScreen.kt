@@ -385,6 +385,7 @@ fun CallScreen(
             val testConnect = VisioManager.pendingTestConnect
             if (testConnect != null) {
                 VisioManager.pendingTestConnect = null
+                VisioManager.isTestConnection = true
                 val (livekitUrl, token, mediaFile) = testConnect
                 Log.i(TAG, "Test deep link: connecting directly to $livekitUrl, media=$mediaFile")
                 try {
