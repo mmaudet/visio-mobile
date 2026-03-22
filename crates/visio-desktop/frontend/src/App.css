@@ -1758,14 +1758,13 @@ main {
   padding: 24px 32px;
   display: flex;
   flex-direction: column;
+  width: 100%;
   gap: 16px;
-  max-width: 600px;
 }
 
 .settings-page-footer {
   padding: 16px 32px;
   border-top: 1px solid var(--border);
-  max-width: 600px;
 }
 
 .settings-section-col {
