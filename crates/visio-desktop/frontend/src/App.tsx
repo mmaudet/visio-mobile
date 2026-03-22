@@ -327,7 +327,9 @@ function getInitials(name: string | null | undefined): string {
 }
 
 function getHue(name: string | null | undefined): number {
-  return [...(name || '')].reduce((h, c) => h + c.charCodeAt(0), 0) % 360
+  return (
+    [...(name || '')].reduce((h, c) => h + (c.codePointAt(0) ?? 0), 0) % 360
+  )
 }
 
 function formatTime(timestampMs: number): string {
@@ -1452,10 +1454,11 @@ function CreateRoomDialog({
                 <div className="access-level-options">
                   <label
                     className={`access-option ${accessLevel === 'public' ? 'selected' : ''}`}
-                    onClick={() => setAccessLevel('public')}
+                    htmlFor="access-public"
                   >
                     <input
                       type="radio"
+                      id="access-public"
                       name="accessLevel"
                       value="public"
                       checked={accessLevel === 'public'}
@@ -1477,10 +1480,11 @@ function CreateRoomDialog({
                   </label>
                   <label
                     className={`access-option ${accessLevel === 'trusted' ? 'selected' : ''}`}
-                    onClick={() => setAccessLevel('trusted')}
+                    htmlFor="access-trusted"
                   >
                     <input
                       type="radio"
+                      id="access-trusted"
                       name="accessLevel"
                       value="trusted"
                       checked={accessLevel === 'trusted'}
@@ -1502,10 +1506,11 @@ function CreateRoomDialog({
                   </label>
                   <label
                     className={`access-option ${accessLevel === 'restricted' ? 'selected' : ''}`}
-                    onClick={() => setAccessLevel('restricted')}
+                    htmlFor="access-restricted"
                   >
                     <input
                       type="radio"
+                      id="access-restricted"
                       name="accessLevel"
                       value="restricted"
                       checked={accessLevel === 'restricted'}
@@ -2358,7 +2363,7 @@ function CallView({
   const handleBgMode = async (mode: string) => {
     try {
       if (mode.startsWith('image:')) {
-        const id = parseInt(mode.slice(6), 10)
+        const id = Number.parseInt(mode.slice(6), 10)
         const path = await resolveResource(`backgrounds/${id}.jpg`)
         await invoke('load_background_image', { id, jpegPath: path })
       }
@@ -3871,7 +3876,7 @@ function PreJoinScreen({
     setBackgroundMode(mode)
     try {
       if (mode.startsWith('image:')) {
-        const id = parseInt(mode.slice(6), 10)
+        const id = Number.parseInt(mode.slice(6), 10)
         const path = await resolveResource(`backgrounds/${id}.jpg`)
         await invoke('load_background_image', { id, jpegPath: path })
       }
