@@ -10,7 +10,7 @@ and this project adheres to
 
 ### Changed
 
-- Reduce cognitive complexity across Android, Rust, and Desktop codebases (SonarCloud S3776, S2004, S1186, S1192)
+- Reduce cognitive complexity across Android, Rust, and Desktop codebases (SonarCloud S3776, S2004, S1186, S1192) (#94)
 
 ### Fixed
 
