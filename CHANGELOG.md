@@ -8,6 +8,10 @@ and this project adheres to
 
 ## [Unreleased]
 
+### Fixed
+
+- Auto-fallback to default audio device when Bluetooth disconnects (#83)
+
 ### Added
 
 - Pre-join lobby screen with live camera preview,

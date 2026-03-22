@@ -276,24 +276,34 @@ private fun MeetingCard(
     onJoin: () -> Unit,
 ) {
     val isAccent = isInProgress || isImminent
-    val accentGradient = Brush.linearGradient(
-        colors = listOf(VisioColors.Primary500, Color(0xFF5C3CDC)),
-    )
+    val accentGradient =
+        Brush.linearGradient(
+            colors = listOf(VisioColors.Primary500, Color(0xFF5C3CDC)),
+        )
 
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(10.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = if (isAccent) Color.Transparent else if (isDark) VisioColors.PrimaryDark100 else VisioColors.LightSurfaceVariant,
-        ),
+        colors =
+            CardDefaults.cardColors(
+                containerColor =
+                    if (isAccent) {
+                        Color.Transparent
+                    } else if (isDark) {
+                        VisioColors.PrimaryDark100
+                    } else {
+                        VisioColors.LightSurfaceVariant
+                    },
+            ),
     ) {
         Row(
-            modifier = Modifier
-                .then(
-                    if (isAccent) Modifier.background(accentGradient, RoundedCornerShape(10.dp)) else Modifier
-                )
-                .fillMaxWidth()
-                .padding(12.dp),
+            modifier =
+                Modifier
+                    .then(
+                        if (isAccent) Modifier.background(accentGradient, RoundedCornerShape(10.dp)) else Modifier,
+                    )
+                    .fillMaxWidth()
+                    .padding(12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Column(modifier = Modifier.weight(1f)) {
@@ -308,21 +318,42 @@ private fun MeetingCard(
                         text = meeting.summary,
                         style = MaterialTheme.typography.bodyLarge,
                         fontWeight = FontWeight.Bold,
-                        color = if (isAccent) VisioColors.White else if (isDark) VisioColors.White else VisioColors.LightOnBackground,
+                        color =
+                            if (isAccent) {
+                                VisioColors.White
+                            } else if (isDark) {
+                                VisioColors.White
+                            } else {
+                                VisioColors.LightOnBackground
+                            },
                     )
                 }
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
                     text = formatMeetingTime(meeting, now, lang),
                     style = MaterialTheme.typography.bodySmall,
-                    color = if (isAccent) VisioColors.White.copy(alpha = 0.8f) else if (isDark) VisioColors.Greyscale400 else VisioColors.LightTextSecondary,
+                    color =
+                        if (isAccent) {
+                            VisioColors.White.copy(alpha = 0.8f)
+                        } else if (isDark) {
+                            VisioColors.Greyscale400
+                        } else {
+                            VisioColors.LightTextSecondary
+                        },
                 )
                 if (meeting.serverName.isNotBlank()) {
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
                         text = meeting.serverName,
                         style = MaterialTheme.typography.bodySmall,
-                        color = if (isAccent) VisioColors.White.copy(alpha = 0.8f) else if (isDark) VisioColors.Greyscale400 else VisioColors.LightTextSecondary,
+                        color =
+                            if (isAccent) {
+                                VisioColors.White.copy(alpha = 0.8f)
+                            } else if (isDark) {
+                                VisioColors.Greyscale400
+                            } else {
+                                VisioColors.LightTextSecondary
+                            },
                     )
                 }
             }
@@ -330,13 +361,15 @@ private fun MeetingCard(
             OutlinedButton(
                 onClick = onJoin,
                 shape = RoundedCornerShape(8.dp),
-                colors = ButtonDefaults.outlinedButtonColors(
-                    contentColor = if (isAccent) VisioColors.White else VisioColors.Primary500,
-                ),
-                border = androidx.compose.foundation.BorderStroke(
-                    1.5.dp,
-                    if (isAccent) VisioColors.White else VisioColors.Primary500,
-                ),
+                colors =
+                    ButtonDefaults.outlinedButtonColors(
+                        contentColor = if (isAccent) VisioColors.White else VisioColors.Primary500,
+                    ),
+                border =
+                    androidx.compose.foundation.BorderStroke(
+                        1.5.dp,
+                        if (isAccent) VisioColors.White else VisioColors.Primary500,
+                    ),
             ) {
                 Text(
                     if (lang == "fr") "Rejoindre" else "Join",

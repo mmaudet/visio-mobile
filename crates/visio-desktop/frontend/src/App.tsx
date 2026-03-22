@@ -554,8 +554,14 @@ function MeetingsTab({
   const handleRefresh = async () => {
     setStatus('loading')
     setLoadingMessage('Téléchargement du calendrier...')
-    const t2 = setTimeout(() => setLoadingMessage('Analyse des événements...'), 2000)
-    const t5 = setTimeout(() => setLoadingMessage('Mise à jour... (fichier volumineux)'), 5000)
+    const t2 = setTimeout(
+      () => setLoadingMessage('Analyse des événements...'),
+      2000
+    )
+    const t5 = setTimeout(
+      () => setLoadingMessage('Mise à jour... (fichier volumineux)'),
+      5000
+    )
     try {
       await invoke('refresh_calendar_now')
       clearTimeout(t2)
@@ -614,25 +620,42 @@ function MeetingsTab({
     if (minutesUntil < 240) {
       const hours = Math.floor(minutesUntil / 60)
       const mins = minutesUntil % 60
-      return mins > 0 ? `Dans ${hours}h${mins.toString().padStart(2, '0')}` : `Dans ${hours}h`
+      return mins > 0
+        ? `Dans ${hours}h${mins.toString().padStart(2, '0')}`
+        : `Dans ${hours}h`
     }
     if (isToday) {
-      return start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      return start.toLocaleTimeString([], {
+        hour: '2-digit',
+        minute: '2-digit',
+      })
     }
-    return start.toLocaleDateString([], { weekday: 'short' }) +
+    return (
+      start.toLocaleDateString([], { weekday: 'short' }) +
       ' ' +
       start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    )
   }
 
   const getDayLabel = (ts: number): string => {
     const date = new Date(ts * 1000)
     const now = new Date()
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-    const meetDay = new Date(date.getFullYear(), date.getMonth(), date.getDate())
-    const diffDays = Math.round((meetDay.getTime() - today.getTime()) / 86400000)
+    const meetDay = new Date(
+      date.getFullYear(),
+      date.getMonth(),
+      date.getDate()
+    )
+    const diffDays = Math.round(
+      (meetDay.getTime() - today.getTime()) / 86400000
+    )
     if (diffDays === 0) return t('meetings.today')
     if (diffDays === 1) return t('meetings.tomorrow')
-    return date.toLocaleDateString([], { weekday: 'long', day: 'numeric', month: 'long' })
+    return date.toLocaleDateString([], {
+      weekday: 'long',
+      day: 'numeric',
+      month: 'long',
+    })
   }
 
   const groupMeetingsByDay = (list: Meeting[]) => {
@@ -718,9 +741,7 @@ function MeetingsTab({
                     {imminent && <span className="meeting-imminent-dot" />}
                     {m.summary || t('meetings.noTitle')}
                   </span>
-                  <span className="meeting-time">
-                    {formatRelativeTime(m)}
-                  </span>
+                  <span className="meeting-time">{formatRelativeTime(m)}</span>
                   <span className="meeting-server">{m.server_name}</span>
                 </div>
                 <button
@@ -949,7 +970,9 @@ function HomeView({
             onClick={() => setActiveTab('meetings')}
           >
             {t('home.tab.meetings')}
-            {meetingCount > 0 && <span className="tab-badge">{meetingCount}</span>}
+            {meetingCount > 0 && (
+              <span className="tab-badge">{meetingCount}</span>
+            )}
           </button>
         </div>
         <button
@@ -961,164 +984,238 @@ function HomeView({
         </button>
       </div>
       <div className="home-tab-content">
-      {activeTab === 'meetings' ? (
-        <MeetingsTab onJoin={onJoin} displayName={displayName} onMeetingCountChange={setMeetingCount} />
-      ) : (
-        <div className="join-form">
-          <img src="/logo.png?v=2" alt="Visio Mobile" className="home-logo" />
-          <h2>{t('app.title')}</h2>
-          <p>{t('home.subtitle')}</p>
-          {isAuthenticated ? (
-            <div className="auth-card">
-              <div className="auth-avatar">
-                {(() => {
-                  const parts = displayNameFromOidc
-                    .split(' ')
-                    .filter(Boolean)
-                    .slice(0, 2)
-                  const initials = parts
-                    .map((p) => p[0]?.toUpperCase())
-                    .join('')
-                  return initials || emailFromOidc?.[0]?.toUpperCase() || '?'
-                })()}
+        {activeTab === 'meetings' ? (
+          <MeetingsTab
+            onJoin={onJoin}
+            displayName={displayName}
+            onMeetingCountChange={setMeetingCount}
+          />
+        ) : (
+          <div className="join-form">
+            <img src="/logo.png?v=2" alt="Visio Mobile" className="home-logo" />
+            <h2>{t('app.title')}</h2>
+            <p>{t('home.subtitle')}</p>
+            {isAuthenticated ? (
+              <div className="auth-card">
+                <div className="auth-avatar">
+                  {(() => {
+                    const parts = displayNameFromOidc
+                      .split(' ')
+                      .filter(Boolean)
+                      .slice(0, 2)
+                    const initials = parts
+                      .map((p) => p[0]?.toUpperCase())
+                      .join('')
+                    return initials || emailFromOidc?.[0]?.toUpperCase() || '?'
+                  })()}
+                </div>
+                <div className="auth-info">
+                  <span className="auth-name">
+                    {displayNameFromOidc || emailFromOidc}
+                  </span>
+                  {emailFromOidc && displayNameFromOidc && (
+                    <span className="auth-email">{emailFromOidc}</span>
+                  )}
+                </div>
+                <button
+                  className="auth-logout"
+                  onClick={onLogout}
+                  title={t('home.logout')}
+                >
+                  <RiLogoutBoxRLine size={20} />
+                </button>
               </div>
-              <div className="auth-info">
-                <span className="auth-name">
-                  {displayNameFromOidc || emailFromOidc}
-                </span>
-                {emailFromOidc && displayNameFromOidc && (
-                  <span className="auth-email">{emailFromOidc}</span>
-                )}
-              </div>
-              <button
-                className="auth-logout"
-                onClick={onLogout}
-                title={t('home.logout')}
-              >
-                <RiLogoutBoxRLine size={20} />
-              </button>
-            </div>
-          ) : (
-            <div className="auth-status">
-              <button
-                className="btn btn-primary"
-                data-testid="home-connect-button"
-                onClick={() => {
-                  if (meetInstances.length <= 1) {
-                    if (meetInstances.length > 0) onLaunchOidc(meetInstances[0])
-                  } else {
-                    setCustomServer('')
-                    setShowServerPicker(true)
-                  }
-                }}
-              >
-                <RiAccountCircleLine size={18} /> {t('home.connect')}
-              </button>
-              {showServerPicker && (
-                <div
-                  className="server-picker-overlay"
-                  role="button"
-                  tabIndex={0}
-                  onClick={() => setShowServerPicker(false)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' || e.key === ' ')
-                      setShowServerPicker(false)
+            ) : (
+              <div className="auth-status">
+                <button
+                  className="btn btn-primary"
+                  data-testid="home-connect-button"
+                  onClick={() => {
+                    if (meetInstances.length <= 1) {
+                      if (meetInstances.length > 0)
+                        onLaunchOidc(meetInstances[0])
+                    } else {
+                      setCustomServer('')
+                      setShowServerPicker(true)
+                    }
                   }}
                 >
+                  <RiAccountCircleLine size={18} /> {t('home.connect')}
+                </button>
+                {showServerPicker && (
                   <div
-                    className="server-picker"
+                    className="server-picker-overlay"
                     role="button"
                     tabIndex={0}
-                    onClick={(e) => e.stopPropagation()}
+                    onClick={() => setShowServerPicker(false)}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter' || e.key === ' ')
-                        e.stopPropagation()
+                        setShowServerPicker(false)
                     }}
                   >
-                    <h3>{t('home.serverPicker.title')}</h3>
-                    <div className="server-list">
-                      {meetInstances.map((instance) => (
+                    <div
+                      className="server-picker"
+                      role="button"
+                      tabIndex={0}
+                      onClick={(e) => e.stopPropagation()}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ')
+                          e.stopPropagation()
+                      }}
+                    >
+                      <h3>{t('home.serverPicker.title')}</h3>
+                      <div className="server-list">
+                        {meetInstances.map((instance) => (
+                          <button
+                            key={instance}
+                            className="server-item"
+                            onClick={() => {
+                              setShowServerPicker(false)
+                              onLaunchOidc(instance)
+                            }}
+                          >
+                            {instance}
+                          </button>
+                        ))}
+                      </div>
+                      <div className="server-custom">
+                        <input
+                          type="text"
+                          placeholder="meet.example.com"
+                          value={customServer}
+                          onChange={(e) => setCustomServer(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' && customServer.trim()) {
+                              setShowServerPicker(false)
+                              onLaunchOidc(customServer.trim())
+                            }
+                          }}
+                        />
                         <button
-                          key={instance}
-                          className="server-item"
+                          className="btn btn-secondary"
+                          disabled={!customServer.trim()}
                           onClick={() => {
-                            setShowServerPicker(false)
-                            onLaunchOidc(instance)
+                            if (customServer.trim()) {
+                              setShowServerPicker(false)
+                              onLaunchOidc(customServer.trim())
+                            }
                           }}
                         >
-                          {instance}
+                          {t('home.connect')}
                         </button>
-                      ))}
-                    </div>
-                    <div className="server-custom">
-                      <input
-                        type="text"
-                        placeholder="meet.example.com"
-                        value={customServer}
-                        onChange={(e) => setCustomServer(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter' && customServer.trim()) {
-                            setShowServerPicker(false)
-                            onLaunchOidc(customServer.trim())
-                          }
-                        }}
-                      />
+                      </div>
                       <button
-                        className="btn btn-secondary"
-                        disabled={!customServer.trim()}
-                        onClick={() => {
-                          if (customServer.trim()) {
-                            setShowServerPicker(false)
-                            onLaunchOidc(customServer.trim())
-                          }
-                        }}
+                        className="btn btn-cancel"
+                        onClick={() => setShowServerPicker(false)}
                       >
-                        {t('home.connect')}
+                        {t('home.serverPicker.cancel')}
                       </button>
                     </div>
-                    <button
-                      className="btn btn-cancel"
-                      onClick={() => setShowServerPicker(false)}
-                    >
-                      {t('home.serverPicker.cancel')}
-                    </button>
                   </div>
+                )}
+              </div>
+            )}
+            <div className="form-group">
+              <label htmlFor="meetUrl">{t('home.meetUrl')}</label>
+              <input
+                id="meetUrl"
+                type="text"
+                placeholder="abc-defg-hij"
+                autoComplete="off"
+                data-testid="home-room-url-input"
+                value={meetUrl}
+                onChange={(e) => setMeetUrl(e.target.value)}
+                onKeyDown={handleKeyDown}
+              />
+              {roomStatus === 'checking' && (
+                <div
+                  className="room-status checking"
+                  data-testid="home-room-status"
+                >
+                  {t('home.room.checking')}
+                </div>
+              )}
+              {roomStatus === 'valid' && (
+                <div
+                  className="room-status valid"
+                  data-testid="home-room-status"
+                >
+                  {t('home.room.valid')}
+                </div>
+              )}
+              {roomStatus === 'not_found' && (
+                <div
+                  className="room-status not-found"
+                  data-testid="home-room-status"
+                >
+                  {t('home.room.notFound')}
+                </div>
+              )}
+              {roomStatus === 'auth_required' && (
+                <div
+                  className="room-status auth-required"
+                  data-testid="home-room-status"
+                >
+                  {t('home.room.authRequired')}
+                </div>
+              )}
+              {roomStatus === 'authenticating' && (
+                <div
+                  className="room-status checking"
+                  data-testid="home-room-status"
+                >
+                  {t('home.room.authenticating')}
+                </div>
+              )}
+              {roomStatus === 'error' && (
+                <div
+                  className="room-status error"
+                  data-testid="home-room-status"
+                >
+                  {t('home.room.error')}
                 </div>
               )}
             </div>
-          )}
-          <div className="form-group">
-            <label htmlFor="meetUrl">{t('home.meetUrl')}</label>
-            <input
-              id="meetUrl"
-              type="text"
-              placeholder="abc-defg-hij"
-              autoComplete="off"
-              data-testid="home-room-url-input"
-              value={meetUrl}
-              onChange={(e) => setMeetUrl(e.target.value)}
-              onKeyDown={handleKeyDown}
-            />
-            {roomStatus === 'checking' && (
-              <div
-                className="room-status checking"
-                data-testid="home-room-status"
+            <div className="form-group">
+              <label htmlFor="username">{t('home.displayName')}</label>
+              <input
+                id="username"
+                type="text"
+                placeholder={t('home.displayName.placeholder')}
+                autoComplete="off"
+                data-testid="home-display-name-input"
+                value={displayName}
+                onChange={(e) => onDisplayNameChange(e.target.value)}
+                onKeyDown={handleKeyDown}
+              />
+            </div>
+            {roomStatus === 'auth_required' ? (
+              <button className="btn btn-primary" onClick={handleAuth}>
+                {t('home.signIn')}
+              </button>
+            ) : (
+              <button
+                className="btn btn-primary"
+                disabled={joining || roomStatus !== 'valid'}
+                onClick={handleJoin}
+                data-testid="home-join-button"
               >
-                {t('home.room.checking')}
-              </div>
+                {joining ? t('home.connecting') : t('home.join')}
+              </button>
             )}
-            {roomStatus === 'valid' && (
-              <div className="room-status valid" data-testid="home-room-status">
-                {t('home.room.valid')}
-              </div>
-            )}
-            {roomStatus === 'not_found' && (
-              <div
-                className="room-status not-found"
-                data-testid="home-room-status"
+            {isAuthenticated && authenticatedMeetInstance && (
+              <button
+                className="btn btn-primary"
+                style={{
+                  marginTop: '8px',
+                  background: 'var(--bg-tertiary)',
+                  color: 'var(--text)',
+                }}
+                onClick={() => setShowCreateRoom(true)}
+                data-testid="home-create-room-button"
               >
-                {t('home.room.notFound')}
-              </div>
+                {t('home.createRoom')}
+              </button>
             )}
             {roomStatus === 'auth_required' && (
               <div
@@ -1141,126 +1238,63 @@ function HomeView({
                 {t('home.room.error')}
               </div>
             )}
-          </div>
-          <div className="form-group">
-            <label htmlFor="username">{t('home.displayName')}</label>
-            <input
-              id="username"
-              type="text"
-              placeholder={t('home.displayName.placeholder')}
-              autoComplete="off"
-              data-testid="home-display-name-input"
-              value={displayName}
-              onChange={(e) => onDisplayNameChange(e.target.value)}
-              onKeyDown={handleKeyDown}
-            />
-          </div>
-          {roomStatus === 'auth_required' ? (
-            <button className="btn btn-primary" onClick={handleAuth}>
-              {t('home.signIn')}
-            </button>
-          ) : (
-            <button
-              className="btn btn-primary"
-              disabled={joining || roomStatus !== 'valid'}
-              onClick={handleJoin}
-              data-testid="home-join-button"
-            >
-              {joining ? t('home.connecting') : t('home.join')}
-            </button>
-          )}
-          {isAuthenticated && authenticatedMeetInstance && (
-            <button
-              className="btn btn-primary"
-              style={{
-                marginTop: '8px',
-                background: 'var(--bg-tertiary)',
-                color: 'var(--text)',
-              }}
-              onClick={() => setShowCreateRoom(true)}
-              data-testid="home-create-room-button"
-            >
-              {t('home.createRoom')}
-            </button>
-          )}
-          {roomStatus === 'auth_required' && (
-            <div
-              className="room-status auth-required"
-              data-testid="home-room-status"
-            >
-              {t('home.room.authRequired')}
-            </div>
-          )}
-          {roomStatus === 'authenticating' && (
-            <div
-              className="room-status checking"
-              data-testid="home-room-status"
-            >
-              {t('home.room.authenticating')}
-            </div>
-          )}
-          {roomStatus === 'error' && (
-            <div className="room-status error" data-testid="home-room-status">
-              {t('home.room.error')}
-            </div>
-          )}
-          <div className="error-msg">{error}</div>
-          {roomHistory.length > 0 && (
-            <div className="room-history">
-              <h4>{t('home.recentRooms')}</h4>
-              {roomHistory.map((url, i) => {
-                const slug = url.includes('/') ? url.split('/').pop() : url
-                let host = ''
-                try {
-                  host = new URL(url).host
-                } catch {}
-                return (
-                  <button
-                    key={i}
-                    className="room-history-item"
-                    disabled={joining}
-                    onClick={async () => {
-                      setMeetUrl(url)
-                      setError('')
-                      setJoining(true)
-                      try {
-                        const uname = displayName.trim() || null
-                        const result = await invoke<{ status: string }>(
-                          'validate_room',
-                          { url, username: uname }
-                        )
-                        if (result.status === 'valid') {
-                          await invoke('set_display_name', { name: uname })
-                          onJoin(url, uname)
-                        } else {
-                          // Validation failed — fall back to filling the URL field so the user can see the status
+            <div className="error-msg">{error}</div>
+            {roomHistory.length > 0 && (
+              <div className="room-history">
+                <h4>{t('home.recentRooms')}</h4>
+                {roomHistory.map((url, i) => {
+                  const slug = url.includes('/') ? url.split('/').pop() : url
+                  let host = ''
+                  try {
+                    host = new URL(url).host
+                  } catch {}
+                  return (
+                    <button
+                      key={i}
+                      className="room-history-item"
+                      disabled={joining}
+                      onClick={async () => {
+                        setMeetUrl(url)
+                        setError('')
+                        setJoining(true)
+                        try {
+                          const uname = displayName.trim() || null
+                          const result = await invoke<{ status: string }>(
+                            'validate_room',
+                            { url, username: uname }
+                          )
+                          if (result.status === 'valid') {
+                            await invoke('set_display_name', { name: uname })
+                            onJoin(url, uname)
+                          } else {
+                            // Validation failed — fall back to filling the URL field so the user can see the status
+                            setJoining(false)
+                          }
+                        } catch (e) {
+                          setError(String(e))
                           setJoining(false)
                         }
-                      } catch (e) {
-                        setError(String(e))
-                        setJoining(false)
-                      }
-                    }}
-                    data-testid={`home_room_history_item_${i}`}
-                  >
-                    {joining && meetUrl === url ? (
-                      <span className="room-history-spinner" />
-                    ) : (
-                      <RiGlobalLine size={16} />
-                    )}
-                    <div className="room-history-info">
-                      <span className="room-history-slug">{slug}</span>
-                      {host && (
-                        <span className="room-history-host">{host}</span>
+                      }}
+                      data-testid={`home_room_history_item_${i}`}
+                    >
+                      {joining && meetUrl === url ? (
+                        <span className="room-history-spinner" />
+                      ) : (
+                        <RiGlobalLine size={16} />
                       )}
-                    </div>
-                  </button>
-                )
-              })}
-            </div>
-          )}
-        </div>
-      )}
+                      <div className="room-history-info">
+                        <span className="room-history-slug">{slug}</span>
+                        {host && (
+                          <span className="room-history-host">{host}</span>
+                        )}
+                      </div>
+                    </button>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        )}
       </div>
       {showCreateRoom && authenticatedMeetInstance && (
         <CreateRoomDialog
@@ -3522,13 +3556,80 @@ function SettingsModal({
 }
 
 // ---------------------------------------------------------------------------
+// Shared hook: audio device fallback on Bluetooth connect/disconnect
+// ---------------------------------------------------------------------------
+
+/**
+ * Subscribes to the `audio-devices-changed` Tauri event and:
+ *  1. Re-enumerates input/output audio devices.
+ *  2. Falls back to the default device if the currently selected one disappears.
+ *
+ * @param setInputs   - Setter for the input device list state.
+ * @param setOutputs  - Setter for the output device list state.
+ * @param setSelected - Setters for the currently selected device names.
+ * @param onInputFallback - Optional callback invoked after an input fallback
+ *                          (e.g. to restart a mic preview).
+ */
+function useAudioDeviceFallback({
+  setInputs,
+  setOutputs,
+  setSelectedInput,
+  setSelectedOutput,
+  onInputFallback,
+}: {
+  setInputs: (devices: NativeAudioDevice[]) => void
+  setOutputs: (devices: NativeAudioDevice[]) => void
+  setSelectedInput: (updater: (prev: string) => string) => void
+  setSelectedOutput: (updater: (prev: string) => string) => void
+  onInputFallback?: () => void
+}) {
+  useEffect(() => {
+    let unlistenFn: (() => void) | null = null
+    listen('audio-devices-changed', async () => {
+      try {
+        const [inputs, outputs] = await Promise.all([
+          invoke<NativeAudioDevice[]>('list_audio_input_devices'),
+          invoke<NativeAudioDevice[]>('list_audio_output_devices'),
+        ])
+        setInputs(inputs)
+        setOutputs(outputs)
+
+        setSelectedInput((prev) => {
+          if (!prev || inputs.some((d) => d.name === prev)) return prev
+          const def = inputs.find((d) => d.is_default)
+          const fallback = def ? def.name : (inputs[0]?.name ?? '')
+          invoke('select_audio_input', { deviceName: fallback }).catch(() => {})
+          onInputFallback?.()
+          return fallback
+        })
+
+        setSelectedOutput((prev) => {
+          if (!prev || outputs.some((d) => d.name === prev)) return prev
+          const def = outputs.find((d) => d.is_default)
+          const fallback = def ? def.name : (outputs[0]?.name ?? '')
+          invoke('select_audio_output', { deviceName: fallback }).catch(
+            () => {}
+          )
+          return fallback
+        })
+      } catch (e) {
+        console.warn('Failed to re-enumerate audio devices after change:', e)
+      }
+    }).then((fn) => {
+      unlistenFn = fn
+    })
+    return () => {
+      unlistenFn?.()
+    }
+  }, [])
+}
+
+// ---------------------------------------------------------------------------
 // Pre-Join Screen
 // ---------------------------------------------------------------------------
 
-interface AudioDeviceInfo {
-  name: string
-  is_default: boolean
-}
+// AudioDeviceInfo is an alias for NativeAudioDevice (same shape, local name).
+type AudioDeviceInfo = NativeAudioDevice
 
 interface VideoDeviceInfo {
   name: string
@@ -3682,6 +3783,21 @@ function PreJoinScreen({
       }
     }
   }, [isMicOn, audioMode])
+
+  // ---- Effect: audio device changes (Bluetooth connect/disconnect) ---------
+  // Restart mic preview when the input falls back to a new device.
+  useAudioDeviceFallback({
+    setInputs: setInputDevices,
+    setOutputs: setOutputDevices,
+    setSelectedInput,
+    setSelectedOutput,
+    onInputFallback: () => {
+      invoke('stop_mic_preview')
+        .catch(() => {})
+        .then(() => invoke('start_mic_preview'))
+        .catch(() => {})
+    },
+  })
 
   // ---- Handlers -----------------------------------------------------------
   const handleSelectCamera = async (uniqueId: string) => {
@@ -4032,7 +4148,9 @@ function PreJoinScreen({
                 <div
                   className="prejoin-vu-bar"
                   data-testid="prejoin-vu-bar"
-                  style={{ width: `${Math.round(Math.min(micLevel * 25, 1) * 100)}%` }}
+                  style={{
+                    width: `${Math.round(Math.min(micLevel * 25, 1) * 100)}%`,
+                  }}
                 />
               </div>
 
@@ -4144,7 +4262,12 @@ function PreJoinScreen({
                   src={`/backgrounds/thumbnails/${n}.jpg`}
                   alt={`Background ${n}`}
                   draggable={false}
-                  style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 6 }}
+                  style={{
+                    width: '100%',
+                    height: '100%',
+                    objectFit: 'cover',
+                    borderRadius: 6,
+                  }}
                 />
                 <span>{n}</span>
               </button>
@@ -4441,6 +4564,17 @@ export default function App() {
 
   const viewRef = useRef(view)
   viewRef.current = view
+
+  // ---- Audio device change listener (in-call) -----------------------------
+  // Handles Bluetooth headset connect/disconnect during an active call.
+  // Re-enumerates devices and falls back to default if the selected device
+  // is no longer available.
+  useAudioDeviceFallback({
+    setInputs: setAudioInputs,
+    setOutputs: setAudioOutputs,
+    setSelectedInput: setSelectedAudioInput,
+    setSelectedOutput: setSelectedAudioOutput,
+  })
 
   // ---- Device enumeration -------------------------------------------------
   // WORKAROUND: Defer device enumeration to avoid USB blocking at startup.
