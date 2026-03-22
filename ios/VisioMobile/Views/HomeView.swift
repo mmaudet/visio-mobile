@@ -39,14 +39,14 @@ struct HomeView: View {
 
             VStack(spacing: 0) {
                 // Tab segment control (Rejoindre / Réunions)
-                let meetingsBase = lang == "fr" ? "Réunions planifiées" : "Scheduled meetings"
+                let meetingsBase = Strings.t("home.tab.meetings", lang: lang)
                 let meetingsLabel = manager.calendarLoading && manager.upcomingMeetings.isEmpty
                     ? meetingsBase + " …"
                     : manager.upcomingMeetings.isEmpty
                         ? meetingsBase
                         : meetingsBase + " (\(manager.upcomingMeetings.count))"
                 Picker("", selection: $selectedTab) {
-                    Text(lang == "fr" ? "Rejoindre" : "Join").tag(0)
+                    Text(Strings.t("home.tab.join", lang: lang)).tag(0)
                     Text(meetingsLabel).tag(1)
                 }
                 .pickerStyle(.segmented)

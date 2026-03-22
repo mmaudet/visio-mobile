@@ -44,12 +44,13 @@ export class AndroidParticipantImpl implements AndroidParticipant {
     adb.forceStop();
     await new Promise((resolve) => setTimeout(resolve, 1000));
 
-    // Replace localhost with local IP so Android device can reach the host
-    let androidUrl = this._livekitUrl;
-    if (androidUrl.includes("localhost") || androidUrl.includes("127.0.0.1")) {
-      const localIp = getLocalIp();
-      androidUrl = androidUrl.replace(/localhost|127\.0\.0\.1/, localIp);
-    }
+    // Set up ADB reverse port forwarding so Android can reach LiveKit via localhost
+    adb.exec("reverse tcp:7880 tcp:7880");
+    adb.exec("reverse tcp:7881 tcp:7881");
+    adb.exec("reverse tcp:7882 tcp:7882");
+
+    // Keep localhost in URL — ADB reverse routes to host machine
+    const androidUrl = this._livekitUrl;
     const deepLink =
       `visio-test://connect?livekit_url=${encodeURIComponent(androidUrl)}` +
       `&token=${encodeURIComponent(this._token)}` +
@@ -57,7 +58,7 @@ export class AndroidParticipantImpl implements AndroidParticipant {
 
     adb.launchDeepLink(deepLink);
 
-    // Give the app time to launch and connect
+    // Give the app time to cold-start and connect to LiveKit
     await new Promise((resolve) => setTimeout(resolve, LAUNCH_SETTLE_MS));
     this._connected = true;
   }

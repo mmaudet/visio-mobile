@@ -350,7 +350,7 @@ fun HomeScreen(
                     onClick = { selectedTab = 0 },
                     text = {
                         Text(
-                            if (lang == "fr") "Rejoindre" else "Join",
+                            Strings.t("home.tab.join", lang),
                             color =
                                 if (selectedTab == 0) {
                                     VisioColors.Primary500
@@ -368,7 +368,7 @@ fun HomeScreen(
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             Text(
-                                if (lang == "fr") "Réunions planifiées" else "Scheduled meetings",
+                                Strings.t("home.tab.meetings", lang),
                                 color =
                                     if (selectedTab == 1) {
                                         VisioColors.Primary500

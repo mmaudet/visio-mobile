@@ -122,8 +122,8 @@ struct SettingsView: View {
                     }
                     .listRowBackground(VisioColors.surface(dark: isDark))
                 }
-                Section("Calendrier") {
-                    TextField("URL du calendrier (iCal)", text: $calendarUrl)
+                Section(Strings.t("settings.calendar", lang: lang)) {
+                    TextField(Strings.t("settings.calendarUrl", lang: lang), text: $calendarUrl)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
                         .keyboardType(.URL)
@@ -137,12 +137,12 @@ struct SettingsView: View {
                             }
                         }
 
-                    Picker("Actualisation", selection: $calendarRefreshInterval) {
-                        Text("5 min").tag(CalendarRefreshInterval.minutes5)
-                        Text("15 min").tag(CalendarRefreshInterval.minutes15)
-                        Text("1 heure").tag(CalendarRefreshInterval.hour1)
-                        Text("4 heures").tag(CalendarRefreshInterval.hours4)
-                        Text("Manuel").tag(CalendarRefreshInterval.manual)
+                    Picker(Strings.t("settings.calendarRefresh", lang: lang), selection: $calendarRefreshInterval) {
+                        Text(Strings.t("settings.calendarRefresh.5min", lang: lang)).tag(CalendarRefreshInterval.minutes5)
+                        Text(Strings.t("settings.calendarRefresh.15min", lang: lang)).tag(CalendarRefreshInterval.minutes15)
+                        Text(Strings.t("settings.calendarRefresh.1h", lang: lang)).tag(CalendarRefreshInterval.hour1)
+                        Text(Strings.t("settings.calendarRefresh.4h", lang: lang)).tag(CalendarRefreshInterval.hours4)
+                        Text(Strings.t("settings.calendarRefresh.manual", lang: lang)).tag(CalendarRefreshInterval.manual)
                     }
                     .foregroundStyle(VisioColors.onSurface(dark: isDark))
                     .listRowBackground(VisioColors.surface(dark: isDark))
@@ -155,7 +155,7 @@ struct SettingsView: View {
                             calendarUrl = ""
                             manager.client.setCalendarUrl(url: nil)
                         } label: {
-                            Text("Supprimer le calendrier")
+                            Text(Strings.t("settings.calendarRemove", lang: lang))
                         }
                         .listRowBackground(VisioColors.surface(dark: isDark))
                     }

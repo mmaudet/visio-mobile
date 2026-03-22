@@ -149,3 +149,8 @@ export function launchDeepLink(url: string): void {
 export function forceStop(): void {
   execFileSync("adb", ["shell", "am", "force-stop", "io.visio.mobile"]);
 }
+
+/** Run an arbitrary adb command (e.g. "reverse tcp:7880 tcp:7880"). */
+export function exec(args: string): void {
+  execFileSync("adb", args.split(/\s+/));
+}

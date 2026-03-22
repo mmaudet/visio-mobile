@@ -190,13 +190,13 @@ fun SettingsScreen(onBack: () -> Unit) {
             )
 
             // Calendar section
-            SectionHeader(if (lang == "fr") "Calendrier" else "Calendar", isDark)
+            SectionHeader(Strings.t("settings.calendar", lang), isDark)
             OutlinedTextField(
                 value = calendarUrl,
                 onValueChange = { calendarUrl = it },
                 label = {
                     Text(
-                        if (lang == "fr") "URL du calendrier (iCal)" else "Calendar URL (iCal)",
+                        Strings.t("settings.calendarUrl", lang),
                         color = if (isDark) VisioColors.Greyscale400 else VisioColors.LightTextSecondary,
                     )
                 },
@@ -252,7 +252,7 @@ fun SettingsScreen(onBack: () -> Unit) {
                     shape = RoundedCornerShape(12.dp),
                 ) {
                     Text(
-                        if (lang == "fr") "Supprimer le calendrier" else "Remove calendar",
+                        Strings.t("settings.calendarRemove", lang),
                         modifier = Modifier.padding(vertical = 4.dp),
                     )
                 }
@@ -410,7 +410,7 @@ fun SettingsScreen(onBack: () -> Unit) {
                 VisioManager.updateDisplayName(displayName)
                 android.widget.Toast.makeText(
                     context,
-                    if (lang == "fr") "Paramètres enregistrés" else "Settings saved",
+                    Strings.t("settings.saved", lang),
                     android.widget.Toast.LENGTH_SHORT,
                 ).show()
                 onBack()
@@ -550,11 +550,11 @@ private fun CalendarIntervalDropdown(
 ) {
     val intervalLabels =
         listOf(
-            CalendarRefreshInterval.MINUTES5 to "5 min",
-            CalendarRefreshInterval.MINUTES15 to "15 min",
-            CalendarRefreshInterval.HOUR1 to if (lang == "fr") "1 heure" else "1 hour",
-            CalendarRefreshInterval.HOURS4 to if (lang == "fr") "4 heures" else "4 hours",
-            CalendarRefreshInterval.MANUAL to if (lang == "fr") "Manuel" else "Manual",
+            CalendarRefreshInterval.MINUTES5 to Strings.t("settings.calendarRefresh.5min", lang),
+            CalendarRefreshInterval.MINUTES15 to Strings.t("settings.calendarRefresh.15min", lang),
+            CalendarRefreshInterval.HOUR1 to Strings.t("settings.calendarRefresh.1h", lang),
+            CalendarRefreshInterval.HOURS4 to Strings.t("settings.calendarRefresh.4h", lang),
+            CalendarRefreshInterval.MANUAL to Strings.t("settings.calendarRefresh.manual", lang),
         )
     val selectedLabel = intervalLabels.firstOrNull { it.first == selected }?.second ?: selected.name
     var expanded by remember { mutableStateOf(false) }
@@ -569,7 +569,7 @@ private fun CalendarIntervalDropdown(
             readOnly = true,
             label = {
                 Text(
-                    if (lang == "fr") "Fréquence de synchronisation" else "Sync frequency",
+                    Strings.t("settings.calendarRefresh", lang),
                     color = if (isDark) VisioColors.Greyscale400 else VisioColors.LightTextSecondary,
                 )
             },

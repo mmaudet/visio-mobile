@@ -29,20 +29,18 @@ struct MeetingsTabView: View {
         VStack(spacing: 24) {
             Text("\u{1F4C5}")
                 .font(.system(size: 64))
-            Text(lang == "fr" ? "Connectez votre agenda" : "Connect your calendar")
+            Text(Strings.t("meetings.onboarding", lang: lang))
                 .font(.title2)
                 .fontWeight(.semibold)
                 .foregroundStyle(VisioColors.onBackground(dark: isDark))
                 .multilineTextAlignment(.center)
-            Text(lang == "fr"
-                 ? "Ajoutez l'URL de votre calendrier iCal pour voir vos réunions à venir."
-                 : "Add your iCal calendar URL to see your upcoming meetings.")
+            Text(Strings.t("meetings.onboarding.hint", lang: lang))
                 .font(.subheadline)
                 .foregroundStyle(VisioColors.secondaryText(dark: isDark))
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 32)
             Button(action: onSettings) {
-                Label(lang == "fr" ? "Configurer le calendrier" : "Configure calendar",
+                Label(Strings.t("meetings.onboarding.configure", lang: lang),
                       systemImage: "calendar.badge.plus")
                     .font(.headline)
                     .frame(maxWidth: .infinity)
@@ -59,7 +57,7 @@ struct MeetingsTabView: View {
         VStack(spacing: 16) {
             ProgressView()
                 .scaleEffect(1.4)
-            Text(lang == "fr" ? "Synchronisation du calendrier..." : "Syncing calendar...")
+            Text(Strings.t("meetings.loading", lang: lang))
                 .font(.subheadline)
                 .foregroundStyle(VisioColors.secondaryText(dark: isDark))
         }
@@ -70,17 +68,17 @@ struct MeetingsTabView: View {
         VStack(spacing: 24) {
             Text("\u{2600}\u{FE0F}")
                 .font(.system(size: 64))
-            Text(lang == "fr" ? "Aucune réunion à venir" : "No upcoming meetings")
+            Text(Strings.t("meetings.empty", lang: lang))
                 .font(.title2)
                 .fontWeight(.semibold)
                 .foregroundStyle(VisioColors.onBackground(dark: isDark))
                 .multilineTextAlignment(.center)
-            Text(lang == "fr" ? "Profitez de votre temps libre !" : "Enjoy your free time!")
+            Text(Strings.t("meetings.empty.subtitle", lang: lang))
                 .font(.subheadline)
                 .foregroundStyle(VisioColors.secondaryText(dark: isDark))
                 .multilineTextAlignment(.center)
             Button(action: onRefresh) {
-                Label(lang == "fr" ? "Rafraîchir" : "Refresh", systemImage: "arrow.clockwise")
+                Label(Strings.t("meetings.refresh", lang: lang), systemImage: "arrow.clockwise")
                     .font(.subheadline)
             }
             .foregroundStyle(VisioColors.primary500)
@@ -118,7 +116,7 @@ struct MeetingsTabView: View {
             }
 
             // Sync footer
-            Text(lang == "fr" ? "Synchro : il y a < 1 min" : "Sync: < 1 min ago")
+            Text(Strings.t("meetings.sync", lang: lang).replacingOccurrences(of: "{time}", with: "< 1 min"))
                 .font(.caption2)
                 .foregroundStyle(VisioColors.secondaryText(dark: isDark))
                 .opacity(0.7)
@@ -144,9 +142,9 @@ struct MeetingsTabView: View {
             let date = Date(timeIntervalSince1970: TimeInterval(meeting.startTime))
             let dayLabel: String
             if calendar.isDateInToday(date) {
-                dayLabel = lang == "fr" ? "Aujourd'hui" : "Today"
+                dayLabel = Strings.t("meetings.today", lang: lang)
             } else if calendar.isDateInTomorrow(date) {
-                dayLabel = lang == "fr" ? "Demain" : "Tomorrow"
+                dayLabel = Strings.t("meetings.tomorrow", lang: lang)
             } else {
                 formatter.dateFormat = "EEEE d MMMM"
                 dayLabel = formatter.string(from: date).capitalized
@@ -212,20 +210,20 @@ private struct MeetingRow: View {
         if isInProgress {
             formatter.dateFormat = "HH:mm"
             let endStr = formatter.string(from: endDate)
-            return lang == "fr" ? "Jusqu'à \(endStr)" : "Until \(endStr)"
+            return Strings.t("meetings.time.until", lang: lang).replacingOccurrences(of: "{time}", with: endStr)
         }
 
         if interval < 4 * 3600 && interval > 0 {
             let minutes = Int(interval / 60)
             if minutes < 60 {
-                return lang == "fr" ? "Dans \(minutes) min" : "In \(minutes) min"
+                return Strings.t("meetings.time.inMinutes", lang: lang).replacingOccurrences(of: "{minutes}", with: "\(minutes)")
             } else {
                 let hours = minutes / 60
                 let remaining = minutes % 60
                 if remaining == 0 {
-                    return lang == "fr" ? "Dans \(hours)h" : "In \(hours)h"
+                    return Strings.t("meetings.time.inHours", lang: lang).replacingOccurrences(of: "{hours}", with: "\(hours)")
                 } else {
-                    return lang == "fr" ? "Dans \(hours)h\(String(format: "%02d", remaining))" : "In \(hours)h\(String(format: "%02d", remaining))"
+                    return Strings.t("meetings.time.inHoursMinutes", lang: lang).replacingOccurrences(of: "{hours}", with: "\(hours)").replacingOccurrences(of: "{minutes}", with: String(format: "%02d", remaining))
                 }
             }
         } else if Calendar.current.isDateInToday(startDate) {
@@ -282,7 +280,7 @@ private struct MeetingRow: View {
             Spacer()
 
             Button(action: onJoin) {
-                Text(lang == "fr" ? "Rejoindre" : "Join")
+                Text(Strings.t("home.tab.join", lang: lang))
                     .font(.subheadline)
                     .fontWeight(.semibold)
                     .padding(.horizontal, 14)

@@ -46,6 +46,7 @@ import uniffi.visio.Meeting
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import io.visio.mobile.ui.i18n.Strings
 import java.util.Locale
 
 @Composable
@@ -100,19 +101,14 @@ private fun MeetingsOnboarding(
         )
         Spacer(modifier = Modifier.height(16.dp))
         Text(
-            text = if (lang == "fr") "Connectez votre agenda" else "Connect your calendar",
+            text = Strings.t("meetings.onboarding.title", lang),
             style = MaterialTheme.typography.titleLarge,
             color = if (isDark) VisioColors.White else VisioColors.LightOnBackground,
             fontWeight = FontWeight.Bold,
         )
         Spacer(modifier = Modifier.height(8.dp))
         Text(
-            text =
-                if (lang == "fr") {
-                    "Ajoutez l'URL iCal de votre agenda pour voir vos réunions ici."
-                } else {
-                    "Add your calendar iCal URL to see your meetings here."
-                },
+            text = Strings.t("meetings.onboarding", lang),
             style = MaterialTheme.typography.bodyMedium,
             color = if (isDark) VisioColors.Greyscale400 else VisioColors.LightTextSecondary,
             textAlign = androidx.compose.ui.text.style.TextAlign.Center,
@@ -128,7 +124,7 @@ private fun MeetingsOnboarding(
             shape = RoundedCornerShape(12.dp),
         ) {
             Text(
-                if (lang == "fr") "Configurer le calendrier" else "Configure calendar",
+                Strings.t("meetings.onboarding.configure", lang),
                 modifier = Modifier.padding(vertical = 4.dp),
             )
         }
@@ -151,7 +147,7 @@ private fun MeetingsLoading(
         CircularProgressIndicator(color = VisioColors.Primary500)
         Spacer(modifier = Modifier.height(16.dp))
         Text(
-            text = if (lang == "fr") "Synchronisation du calendrier..." else "Syncing calendar...",
+            text = Strings.t("meetings.loading", lang),
             style = MaterialTheme.typography.bodyMedium,
             color = if (isDark) VisioColors.Greyscale400 else VisioColors.LightTextSecondary,
         )
@@ -178,14 +174,14 @@ private fun MeetingsEmpty(
         )
         Spacer(modifier = Modifier.height(16.dp))
         Text(
-            text = if (lang == "fr") "Aucune réunion à venir" else "No upcoming meetings",
+            text = Strings.t("meetings.empty", lang),
             style = MaterialTheme.typography.titleLarge,
             color = if (isDark) VisioColors.White else VisioColors.LightOnBackground,
             fontWeight = FontWeight.Bold,
         )
         Spacer(modifier = Modifier.height(8.dp))
         Text(
-            text = if (lang == "fr") "Profitez de votre temps libre !" else "Enjoy your free time!",
+            text = Strings.t("meetings.empty.subtitle", lang),
             style = MaterialTheme.typography.bodyMedium,
             color = if (isDark) VisioColors.Greyscale400 else VisioColors.LightTextSecondary,
             textAlign = TextAlign.Center,
@@ -195,7 +191,7 @@ private fun MeetingsEmpty(
             onClick = onRefresh,
             shape = RoundedCornerShape(12.dp),
         ) {
-            Text(if (lang == "fr") "Rafraîchir" else "Refresh")
+            Text(Strings.t("meetings.refresh", lang))
         }
     }
 }
@@ -255,7 +251,7 @@ private fun MeetingsList(
 
         item {
             Text(
-                text = if (lang == "fr") "Synchro : il y a < 1 min" else "Sync: < 1 min ago",
+                text = Strings.t("meetings.sync", lang).replace("{time}", "< 1 min"),
                 style = MaterialTheme.typography.bodySmall,
                 color = if (isDark) VisioColors.Greyscale400 else VisioColors.LightTextSecondary,
                 textAlign = TextAlign.Center,
@@ -372,7 +368,7 @@ private fun MeetingCard(
                     ),
             ) {
                 Text(
-                    if (lang == "fr") "Rejoindre" else "Join",
+                    Strings.t("home.tab.join", lang),
                     style = MaterialTheme.typography.labelLarge,
                     fontWeight = FontWeight.SemiBold,
                 )
@@ -420,20 +416,16 @@ private fun formatMeetingTime(
             // in progress
             val endLocal = Instant.ofEpochSecond(meeting.endTime).atZone(zone).toLocalDateTime()
             val timeFormatter = DateTimeFormatter.ofPattern("HH:mm")
-            if (lang == "fr") {
-                "Jusqu'à ${timeFormatter.format(endLocal)}"
-            } else {
-                "Until ${timeFormatter.format(endLocal)}"
-            }
+            Strings.t("meetings.time.until", lang).replace("{time}", timeFormatter.format(endLocal))
         }
         minutesUntil < 60 -> {
             // relative time for imminent meetings (< 1h)
-            if (lang == "fr") "Dans $minutesUntil min" else "In $minutesUntil min"
+            Strings.t("meetings.time.inMinutes", lang).replace("{minutes}", minutesUntil.toString())
         }
         minutesUntil < 240 -> {
             // relative hours
             val hours = minutesUntil / 60
-            if (lang == "fr") "Dans $hours h" else "In $hours h"
+            Strings.t("meetings.time.inHours", lang).replace("{hours}", hours.toString())
         }
         startLocal.toLocalDate() == nowLocal -> {
             // same day: show time
@@ -470,8 +462,8 @@ private fun groupMeetingsByDay(
         .map { (date, dayMeetings) ->
             val label =
                 when (date) {
-                    today -> if (lang == "fr") "Aujourd'hui" else "Today"
-                    tomorrow -> if (lang == "fr") "Demain" else "Tomorrow"
+                    today -> Strings.t("meetings.today", lang)
+                    tomorrow -> Strings.t("meetings.tomorrow", lang)
                     else -> dayFormatter.format(date).replaceFirstChar { it.uppercase() }
                 }
             label.uppercase() to dayMeetings.sortedBy { it.startTime }

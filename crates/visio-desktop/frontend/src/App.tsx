@@ -459,7 +459,7 @@ function ParticipantTile({
             e.stopPropagation()
             onExpand()
           }}
-          title="Plein écran"
+          title={t('call.fullscreen')}
         >
           <RiFullscreenLine size={20} />
         </button>
@@ -556,20 +556,20 @@ function MeetingsTab({
 
   const handleRefresh = async () => {
     setStatus('loading')
-    setLoadingMessage('Téléchargement du calendrier...')
+    setLoadingMessage(t('meetings.calendar.downloading'))
     const t2 = setTimeout(
-      () => setLoadingMessage('Analyse des événements...'),
+      () => setLoadingMessage(t('meetings.calendar.analyzing')),
       2000
     )
     const t5 = setTimeout(
-      () => setLoadingMessage('Mise à jour... (fichier volumineux)'),
+      () => setLoadingMessage(t('meetings.calendar.updatingLarge')),
       5000
     )
     try {
       await invoke('refresh_calendar_now')
       clearTimeout(t2)
       clearTimeout(t5)
-      setLoadingMessage('Mise à jour...')
+      setLoadingMessage(t('meetings.calendar.updating'))
       const list: Meeting[] = await invoke('get_upcoming_meetings')
       setMeetings(list)
       setLastSyncTime(new Date())
@@ -615,17 +615,17 @@ function MeetingsTab({
 
     if (isOngoing(m)) {
       const end = new Date(m.end_time * 1000)
-      return `Jusqu'à ${end.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
+      return t('meetings.time.until').replace('{time}', end.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }))
     }
     if (minutesUntil < 60) {
-      return `Dans ${minutesUntil} min`
+      return t('meetings.time.inMinutes').replace('{minutes}', String(minutesUntil))
     }
     if (minutesUntil < 240) {
       const hours = Math.floor(minutesUntil / 60)
       const mins = minutesUntil % 60
       return mins > 0
-        ? `Dans ${hours}h${mins.toString().padStart(2, '0')}`
-        : `Dans ${hours}h`
+        ? t('meetings.time.inHoursMinutes').replace('{hours}', String(hours)).replace('{minutes}', mins.toString().padStart(2, '0'))
+        : t('meetings.time.inHours').replace('{hours}', String(hours))
     }
     if (isToday) {
       return start.toLocaleTimeString([], {
@@ -1931,7 +1931,7 @@ function ToolsSidebar({ onClose }: { onClose: () => void }) {
             </div>
             <div className="transcribe-feature">
               <RiGlobalLine size={16} />
-              <span>{t('transcribe.language')} : Français (fr)</span>
+              <span>{t('transcribe.language')} : {t('transcribe.currentLanguage')}</span>
             </div>
           </div>
           <label className="transcribe-record-check">
@@ -2526,8 +2526,8 @@ function CallView({
                     onClick={() => setShowFocusThumbnails((v) => !v)}
                     title={
                       showFocusThumbnails
-                        ? 'Masquer les vignettes'
-                        : 'Afficher les vignettes'
+                        ? t('call.focus.hideThumbnails')
+                        : t('call.focus.showThumbnails')
                     }
                   >
                     {showFocusThumbnails ? (
@@ -2543,7 +2543,7 @@ function CallView({
                       userPinnedRef.current = false
                       setShowFocusThumbnails(true)
                     }}
-                    title="Retour à la grille"
+                    title={t('call.focus.backToGrid')}
                   >
                     <RiCloseLine size={18} />
                   </button>
@@ -4192,7 +4192,7 @@ function PreJoinScreen({
                     ))}
                     {outputDevices.length > 0 && selectedOutput === '' && (
                       <option value="">
-                        {selectedOutputName || 'Speaker'}
+                        {selectedOutputName || t('device.speaker')}
                       </option>
                     )}
                   </select>
