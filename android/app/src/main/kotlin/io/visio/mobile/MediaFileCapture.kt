@@ -322,20 +322,20 @@ class MediaFileCapture(private val filePath: String) {
                             val outWidth = image.width
                             val outHeight = image.height
 
-                            NativeVideo.nativePushCameraFrame(
-                                yPlane.buffer,
-                                uPlane.buffer,
-                                vPlane.buffer,
-                                yPlane.rowStride,
-                                uPlane.rowStride,
-                                vPlane.rowStride,
-                                uPlane.pixelStride,
-                                vPlane.pixelStride,
-                                outWidth,
-                                outHeight,
-                                // no rotation for file playback
-                                0,
-                            )
+                            val frame =
+                                YuvFrame(
+                                    y = yPlane.buffer,
+                                    u = uPlane.buffer,
+                                    v = vPlane.buffer,
+                                    yStride = yPlane.rowStride,
+                                    uStride = uPlane.rowStride,
+                                    vStride = vPlane.rowStride,
+                                    uPixelStride = uPlane.pixelStride,
+                                    vPixelStride = vPlane.pixelStride,
+                                    width = outWidth,
+                                    height = outHeight,
+                                )
+                            NativeVideo.nativePushCameraFrame(frame, rotation = 0)
 
                             image.close()
 

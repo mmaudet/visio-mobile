@@ -3,6 +3,26 @@ package io.visio.mobile
 import android.view.Surface
 import java.nio.ByteBuffer
 
+/**
+ * YUV_420_888 frame planes and layout info, used for camera and preview FFI calls.
+ *
+ * The ByteBuffers must be direct buffers pointing to the Y, U, V planes.
+ * pixelStride indicates the byte spacing between consecutive pixel values
+ * in each plane (1 for planar I420, 2 for semi-planar NV12/NV21).
+ */
+data class YuvFrame(
+    val y: ByteBuffer,
+    val u: ByteBuffer,
+    val v: ByteBuffer,
+    val yStride: Int,
+    val uStride: Int,
+    val vStride: Int,
+    val uPixelStride: Int,
+    val vPixelStride: Int,
+    val width: Int,
+    val height: Int,
+)
+
 object NativeVideo {
     init {
         System.loadLibrary("visio_ffi")
@@ -18,12 +38,20 @@ object NativeVideo {
     /**
      * Push a YUV_420_888 camera frame into the LiveKit NativeVideoSource.
      * Called from CameraCapture's ImageReader callback.
-     *
-     * The ByteBuffers must be direct buffers pointing to the Y, U, V planes.
-     * pixelStride indicates the byte spacing between consecutive pixel values
-     * in each plane (1 for planar I420, 2 for semi-planar NV12/NV21).
      */
-    external fun nativePushCameraFrame(
+    fun nativePushCameraFrame(
+        frame: YuvFrame,
+        rotation: Int,
+    ) = nativePushCameraFrameRaw(
+        frame.y, frame.u, frame.v,
+        frame.yStride, frame.uStride, frame.vStride,
+        frame.uPixelStride, frame.vPixelStride,
+        frame.width, frame.height,
+        rotation,
+    )
+
+    @Suppress("LongParameterList")
+    private external fun nativePushCameraFrameRaw(
         y: ByteBuffer,
         u: ByteBuffer,
         v: ByteBuffer,
@@ -46,15 +74,23 @@ object NativeVideo {
      * Preview-only frame processing: applies blur and renders to the local preview
      * surface without feeding into a LiveKit NativeVideoSource.
      * Called from CameraCapture in preview mode (pre-join lobby).
-     *
-     * The ByteBuffers must be direct buffers pointing to the Y, U, V planes.
-     * pixelStride indicates the byte spacing between consecutive pixel values
-     * in each plane (1 for planar I420, 2 for semi-planar NV12/NV21).
      */
-    external fun nativeProcessPreviewFrame(
-        yBuf: java.nio.ByteBuffer,
-        uBuf: java.nio.ByteBuffer,
-        vBuf: java.nio.ByteBuffer,
+    fun nativeProcessPreviewFrame(
+        frame: YuvFrame,
+        rotationDegrees: Int,
+    ) = nativeProcessPreviewFrameRaw(
+        frame.y, frame.u, frame.v,
+        frame.yStride, frame.uStride, frame.vStride,
+        frame.uPixelStride, frame.vPixelStride,
+        frame.width, frame.height,
+        rotationDegrees,
+    )
+
+    @Suppress("LongParameterList")
+    private external fun nativeProcessPreviewFrameRaw(
+        yBuf: ByteBuffer,
+        uBuf: ByteBuffer,
+        vBuf: ByteBuffer,
         yStride: Int,
         uStride: Int,
         vStride: Int,

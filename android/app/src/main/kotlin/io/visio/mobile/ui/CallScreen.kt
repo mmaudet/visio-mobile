@@ -107,6 +107,18 @@ private const val TAG = "CallScreen"
 
 data class FocusItem(val participantSid: String, val source: String)
 
+data class ControlBarState(
+    val micEnabled: Boolean,
+    val cameraEnabled: Boolean,
+    val isHandRaised: Boolean,
+    val unreadCount: Int,
+    val participantCount: Int,
+    val showReactionPicker: Boolean,
+    val adaptiveMode: AdaptiveMode,
+    val isAdaptiveModeEnabled: Boolean,
+    val lang: String,
+)
+
 data class DisplayItem(
     val key: String,
     val participant: ParticipantInfo,
@@ -202,6 +214,7 @@ private suspend fun handleTestConnect(
     try {
         VisioManager.startAudioCapture()
     } catch (_: Exception) {
+        // No-op: audio capture failure is non-fatal, call continues without mic
     }
 
     val hasMediaFile = !mediaFile.isNullOrBlank() && java.io.File(mediaFile).exists()
@@ -234,26 +247,31 @@ private fun launchTestChatMessages(coroutineScope: CoroutineScope) {
         try {
             VisioManager.client.sendChatMessage("Android joined the room!")
         } catch (_: Exception) {
+            // No-op: test chat message failure is non-fatal
         }
         delay(47000)
         try {
             VisioManager.client.sendChatMessage("Android: my turn to speak!")
         } catch (_: Exception) {
+            // No-op: test chat message failure is non-fatal
         }
         delay(15000)
         try {
             VisioManager.client.sendChatMessage("Android: mid-turn check-in")
         } catch (_: Exception) {
+            // No-op: test chat message failure is non-fatal
         }
         delay(10000)
         try {
             VisioManager.client.sendChatMessage("Android: muted — iOS's turn")
         } catch (_: Exception) {
+            // No-op: test chat message failure is non-fatal
         }
         delay(25000)
         try {
             VisioManager.client.sendChatMessage("Android: everyone speaking together!")
         } catch (_: Exception) {
+            // No-op: test chat message failure is non-fatal
         }
     }
 }
@@ -270,10 +288,12 @@ private fun launchTestTurnSequence(
             stopMediaCapture()
             VisioManager.client.setMicrophoneEnabled(false)
         } catch (_: Exception) {
+            // No-op: test turn sequence failure is non-fatal
         }
         try {
             VisioManager.client.setCameraEnabled(false)
         } catch (_: Exception) {
+            // No-op: test turn sequence failure is non-fatal
         }
 
         delay(45000)
@@ -282,10 +302,12 @@ private fun launchTestTurnSequence(
             VisioManager.client.setMicrophoneEnabled(true)
             VisioManager.client.setCameraEnabled(true)
         } catch (_: Exception) {
+            // No-op: test turn sequence failure is non-fatal
         }
         try {
             startMediaCapture()
         } catch (_: Exception) {
+            // No-op: test turn sequence failure is non-fatal
         }
 
         delay(25000)
@@ -294,10 +316,12 @@ private fun launchTestTurnSequence(
             stopMediaCapture()
             VisioManager.client.setMicrophoneEnabled(false)
         } catch (_: Exception) {
+            // No-op: test turn sequence failure is non-fatal
         }
         try {
             VisioManager.client.setCameraEnabled(false)
         } catch (_: Exception) {
+            // No-op: test turn sequence failure is non-fatal
         }
 
         delay(25000)
@@ -306,10 +330,12 @@ private fun launchTestTurnSequence(
             VisioManager.client.setMicrophoneEnabled(true)
             VisioManager.client.setCameraEnabled(true)
         } catch (_: Exception) {
+            // No-op: test turn sequence failure is non-fatal
         }
         try {
             startMediaCapture()
         } catch (_: Exception) {
+            // No-op: test turn sequence failure is non-fatal
         }
     }
 }
@@ -574,15 +600,10 @@ fun CallScreen(
         }
     }
 
-    var lastMode by remember { mutableStateOf(adaptiveMode) }
-
     LaunchedEffect(adaptiveMode) {
-        if (adaptiveMode != lastMode) {
-            lastMode = adaptiveMode
-            // Sync local cameraEnabled with actual Rust state (FFI call off main thread)
-            val camState = withContext(Dispatchers.IO) { VisioManager.client.isCameraEnabled() }
-            cameraEnabled = camState
-        }
+        // Sync local cameraEnabled with actual Rust state on each adaptive mode change
+        val camState = withContext(Dispatchers.IO) { VisioManager.client.isCameraEnabled() }
+        cameraEnabled = camState
     }
 
     val coroutineScope = rememberCoroutineScope()
@@ -860,15 +881,18 @@ fun CallScreen(
                 Spacer(modifier = Modifier.height(8.dp))
 
                 ControlBar(
-                    micEnabled = micEnabled,
-                    cameraEnabled = cameraEnabled,
-                    isHandRaised = isHandRaised,
-                    unreadCount = unreadCount,
-                    participantCount = participants.size,
-                    showReactionPicker = showReactionPicker,
-                    adaptiveMode = effectiveAdaptiveMode,
-                    isAdaptiveModeEnabled = isAdaptiveModeEnabled,
-                    lang = lang,
+                    state =
+                        ControlBarState(
+                            micEnabled = micEnabled,
+                            cameraEnabled = cameraEnabled,
+                            isHandRaised = isHandRaised,
+                            unreadCount = unreadCount,
+                            participantCount = participants.size,
+                            showReactionPicker = showReactionPicker,
+                            adaptiveMode = effectiveAdaptiveMode,
+                            isAdaptiveModeEnabled = isAdaptiveModeEnabled,
+                            lang = lang,
+                        ),
                     onToggleMic = {
                         toggleMic(micEnabled, context, coroutineScope, micPermissionLauncher) {
                             micEnabled = it
@@ -1458,15 +1482,7 @@ private fun AdaptiveModeIndicator(
 
 @Composable
 private fun ControlBar(
-    micEnabled: Boolean,
-    cameraEnabled: Boolean,
-    isHandRaised: Boolean,
-    unreadCount: Int,
-    participantCount: Int,
-    showReactionPicker: Boolean,
-    adaptiveMode: AdaptiveMode,
-    isAdaptiveModeEnabled: Boolean,
-    lang: String,
+    state: ControlBarState,
     onToggleMic: () -> Unit,
     onAudioPicker: () -> Unit,
     onToggleCamera: () -> Unit,
@@ -1485,15 +1501,15 @@ private fun ControlBar(
     Column(
         modifier = Modifier.fillMaxWidth(),
     ) {
-        if (showReactionPicker) {
+        if (state.showReactionPicker) {
             ReactionPickerRow(onReaction = onReaction)
         }
 
         if (showOverflow) {
             OverflowMenu(
-                isHandRaised = isHandRaised,
-                lang = lang,
-                isAdaptiveModeEnabled = isAdaptiveModeEnabled,
+                isHandRaised = state.isHandRaised,
+                lang = state.lang,
+                isAdaptiveModeEnabled = state.isAdaptiveModeEnabled,
                 adaptiveModeOverride = adaptiveModeOverride,
                 onToggleHandRaise = {
                     onToggleHandRaise()
@@ -1515,14 +1531,14 @@ private fun ControlBar(
         }
 
         ControlBarButtons(
-            micEnabled = micEnabled,
-            cameraEnabled = cameraEnabled,
-            unreadCount = unreadCount,
-            participantCount = participantCount,
-            adaptiveMode = adaptiveMode,
-            isAdaptiveModeEnabled = isAdaptiveModeEnabled,
+            micEnabled = state.micEnabled,
+            cameraEnabled = state.cameraEnabled,
+            unreadCount = state.unreadCount,
+            participantCount = state.participantCount,
+            adaptiveMode = state.adaptiveMode,
+            isAdaptiveModeEnabled = state.isAdaptiveModeEnabled,
             showOverflow = showOverflow,
-            lang = lang,
+            lang = state.lang,
             onToggleMic = onToggleMic,
             onAudioPicker = onAudioPicker,
             onToggleCamera = onToggleCamera,

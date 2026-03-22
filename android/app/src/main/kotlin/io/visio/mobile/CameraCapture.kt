@@ -98,20 +98,19 @@ class CameraCapture(private val context: Context) {
                                 (sensorOrientation - displayDegrees + 360) % 360
                             }
 
+                        val frame =
+                            YuvFrame(
+                                y = yPlane.buffer, u = uPlane.buffer, v = vPlane.buffer,
+                                yStride = yPlane.rowStride, uStride = uPlane.rowStride,
+                                vStride = vPlane.rowStride,
+                                uPixelStride = uPlane.pixelStride,
+                                vPixelStride = vPlane.pixelStride,
+                                width = image.width, height = image.height,
+                            )
                         if (previewMode) {
-                            NativeVideo.nativeProcessPreviewFrame(
-                                yPlane.buffer, uPlane.buffer, vPlane.buffer,
-                                yPlane.rowStride, uPlane.rowStride, vPlane.rowStride,
-                                uPlane.pixelStride, vPlane.pixelStride,
-                                image.width, image.height, rotation,
-                            )
+                            NativeVideo.nativeProcessPreviewFrame(frame, rotation)
                         } else {
-                            NativeVideo.nativePushCameraFrame(
-                                yPlane.buffer, uPlane.buffer, vPlane.buffer,
-                                yPlane.rowStride, uPlane.rowStride, vPlane.rowStride,
-                                uPlane.pixelStride, vPlane.pixelStride,
-                                image.width, image.height, rotation,
-                            )
+                            NativeVideo.nativePushCameraFrame(frame, rotation)
                         }
                     } finally {
                         image.close()
@@ -221,20 +220,19 @@ class CameraCapture(private val context: Context) {
                             } else {
                                 (sensorOrientation - displayDegrees + 360) % 360
                             }
+                        val frame =
+                            YuvFrame(
+                                y = yPlane.buffer, u = uPlane.buffer, v = vPlane.buffer,
+                                yStride = yPlane.rowStride, uStride = uPlane.rowStride,
+                                vStride = vPlane.rowStride,
+                                uPixelStride = uPlane.pixelStride,
+                                vPixelStride = vPlane.pixelStride,
+                                width = image.width, height = image.height,
+                            )
                         if (previewMode) {
-                            NativeVideo.nativeProcessPreviewFrame(
-                                yPlane.buffer, uPlane.buffer, vPlane.buffer,
-                                yPlane.rowStride, uPlane.rowStride, vPlane.rowStride,
-                                uPlane.pixelStride, vPlane.pixelStride,
-                                image.width, image.height, rotation,
-                            )
+                            NativeVideo.nativeProcessPreviewFrame(frame, rotation)
                         } else {
-                            NativeVideo.nativePushCameraFrame(
-                                yPlane.buffer, uPlane.buffer, vPlane.buffer,
-                                yPlane.rowStride, uPlane.rowStride, vPlane.rowStride,
-                                uPlane.pixelStride, vPlane.pixelStride,
-                                image.width, image.height, rotation,
-                            )
+                            NativeVideo.nativePushCameraFrame(frame, rotation)
                         }
                     } finally {
                         image.close()
