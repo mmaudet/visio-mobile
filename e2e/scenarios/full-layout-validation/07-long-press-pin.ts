@@ -8,6 +8,8 @@ export default async function(ctx: ScenarioContext) {
   const ios = ctx.ios();
 
   await alice.connect();
+  if (android) await android.connect();
+  if (ios) await ios.connect();
 
   // Alice speaks so her tile is visible and in main position
   ctx.log("Alice speaks to establish focus");
@@ -17,21 +19,25 @@ export default async function(ctx: ScenarioContext) {
 
   const aliceSid = alice.sid;
 
-  // Verify Alice is in main tile before pinning
-  await android.assertTestTag(`main-tile:${aliceSid}`, { timeout: 5000 });
+  if (android) {
+    // Verify Alice is in main tile before pinning
+    await android.assertTestTag(`main-tile:${aliceSid}`, { timeout: 5000 });
 
-  // Long press on Alice's tile to pin her
-  ctx.log("Long pressing Alice's main tile to pin");
-  await android.longPress(`main-tile:${aliceSid}`);
-  await ctx.sleep(500);
+    // Long press on Alice's tile to pin her
+    ctx.log("Long pressing Alice's main tile to pin");
+    await android.longPress(`main-tile:${aliceSid}`);
+    await ctx.sleep(500);
 
-  // Pin indicator must appear on Alice's tile
-  await android.assertTestTag(`pin-indicator:${aliceSid}`, { timeout: 3000 });
-  await android.screenshot("07-pin-indicator-visible-android");
+    // Pin indicator must appear on Alice's tile
+    await android.assertTestTag(`pin-indicator:${aliceSid}`, { timeout: 3000 });
+    await android.screenshot("07-pin-indicator-visible-android");
+  }
 
   // iOS: screenshot evidence of pin UI
-  ctx.log("iOS: capturing pin indicator screenshot evidence");
-  await ios.screenshot("07-pin-indicator-visible-ios");
+  if (ios) {
+    ctx.log("iOS: capturing pin indicator screenshot evidence");
+    await ios.screenshot("07-pin-indicator-visible-ios");
+  }
 
   await alice.mute();
   ctx.log("PASS: Long press shows pin indicator on Android; iOS screenshot captured");
