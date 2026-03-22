@@ -348,14 +348,22 @@ private fun MeetingCardDetails(
     modifier: Modifier = Modifier,
 ) {
     val primaryColor =
-        if (isAccent) VisioColors.White
-        else if (isDark) VisioColors.White
-        else VisioColors.LightOnBackground
+        if (isAccent) {
+            VisioColors.White
+        } else if (isDark) {
+            VisioColors.White
+        } else {
+            VisioColors.LightOnBackground
+        }
 
     val secondaryColor =
-        if (isAccent) VisioColors.White.copy(alpha = 0.8f)
-        else if (isDark) VisioColors.Greyscale400
-        else VisioColors.LightTextSecondary
+        if (isAccent) {
+            VisioColors.White.copy(alpha = 0.8f)
+        } else if (isDark) {
+            VisioColors.Greyscale400
+        } else {
+            VisioColors.LightTextSecondary
+        }
 
     Column(modifier = modifier) {
         Row(

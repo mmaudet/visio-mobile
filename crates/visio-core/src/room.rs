@@ -1137,8 +1137,12 @@ impl RoomManager {
                     let track_sid = track.sid().to_string();
                     let identity = participant.identity().to_string();
 
-                    ctx.update_participant_video_on_subscribe(&psid, &track_sid, track_kind, source).await;
-                    ctx.store_video_track(&track_sid, &track, track_kind, source).await;
+                    ctx.update_participant_video_on_subscribe(
+                        &psid, &track_sid, track_kind, source,
+                    )
+                    .await;
+                    ctx.store_video_track(&track_sid, &track, track_kind, source)
+                        .await;
                     ctx.start_audio_playout(&track_sid, &track, track_kind);
 
                     let info = TrackInfo {
@@ -1165,11 +1169,9 @@ impl RoomManager {
                         ctx.clear_participant_video(&psid, lk_source).await;
                         ctx.subscribed_tracks.lock().await.remove(&track_sid);
                     }
-                    if is_audio {
-                        if let Some(handle) = ctx.audio_stream_tasks.remove(&track_sid) {
-                            handle.abort();
-                            tracing::info!("audio playout stream aborted for track {track_sid}");
-                        }
+                    if is_audio && let Some(handle) = ctx.audio_stream_tasks.remove(&track_sid) {
+                        handle.abort();
+                        tracing::info!("audio playout stream aborted for track {track_sid}");
                     }
                     ctx.emitter.emit(VisioEvent::TrackUnsubscribed(track_sid));
                 }
@@ -1222,7 +1224,8 @@ impl RoomManager {
                     changed_attributes,
                 } => {
                     let psid = participant.sid().to_string();
-                    ctx.handle_participant_attributes_changed(psid, changed_attributes).await;
+                    ctx.handle_participant_attributes_changed(psid, changed_attributes)
+                        .await;
                 }
                 RoomEvent::ConnectionQualityChanged {
                     quality,
@@ -1245,7 +1248,14 @@ impl RoomManager {
                         .as_ref()
                         .map(|p| p.name().to_string())
                         .unwrap_or_default();
-                    ctx.handle_chat_message(message.id, sender_sid, sender_name, message.message, message.timestamp as u64).await;
+                    ctx.handle_chat_message(
+                        message.id,
+                        sender_sid,
+                        sender_name,
+                        message.message,
+                        message.timestamp as u64,
+                    )
+                    .await;
                 }
                 RoomEvent::TextStreamOpened {
                     reader,
@@ -1270,7 +1280,8 @@ impl RoomManager {
                             let timestamp_ms = reader.info().timestamp.timestamp_millis() as u64;
                             match reader.read_all().await {
                                 Ok(text) => {
-                                    let sender_name = lookup_participant_name(&room_ref, &identity).await;
+                                    let sender_name =
+                                        lookup_participant_name(&room_ref, &identity).await;
                                     let msg = ChatMessage {
                                         id: stream_id,
                                         sender_sid: identity,
@@ -1278,11 +1289,16 @@ impl RoomManager {
                                         text,
                                         timestamp_ms,
                                     };
-                                    tracing::info!("Chat via TextStream: from={} text={}", msg.sender_name, msg.text);
+                                    tracing::info!(
+                                        "Chat via TextStream: from={} text={}",
+                                        msg.sender_name,
+                                        msg.text
+                                    );
                                     messages.lock().await.push(msg.clone());
                                     emitter.emit(VisioEvent::ChatMessageReceived(msg));
                                     if !chat_open.load(Ordering::Relaxed) {
-                                        let count = unread_count.fetch_add(1, Ordering::Relaxed) + 1;
+                                        let count =
+                                            unread_count.fetch_add(1, Ordering::Relaxed) + 1;
                                         emitter.emit(VisioEvent::UnreadCountChanged(count));
                                     }
                                 }
@@ -1314,7 +1330,14 @@ impl RoomManager {
                         "DataReceived: from={psid} topic={topic_str} kind={kind:?} len={}",
                         payload.len()
                     );
-                    ctx.handle_data_received(&psid, &sender_name, topic_str, &payload, participant.is_none()).await;
+                    ctx.handle_data_received(
+                        &psid,
+                        &sender_name,
+                        topic_str,
+                        &payload,
+                        participant.is_none(),
+                    )
+                    .await;
                 }
                 _ => {
                     tracing::debug!("unhandled room event: {event:?}");
@@ -1350,8 +1373,9 @@ impl EventLoopContext {
     async fn handle_connected(&mut self) {
         self.reconnect_attempt = 0;
         *self.connection_state.lock().await = ConnectionState::Connected;
-        self.emitter
-            .emit(VisioEvent::ConnectionStateChanged(ConnectionState::Connected));
+        self.emitter.emit(VisioEvent::ConnectionStateChanged(
+            ConnectionState::Connected,
+        ));
     }
 
     async fn handle_reconnecting(&mut self) {
@@ -1360,15 +1384,15 @@ impl EventLoopContext {
             attempt: self.reconnect_attempt,
         };
         *self.connection_state.lock().await = state.clone();
-        self.emitter
-            .emit(VisioEvent::ConnectionStateChanged(state));
+        self.emitter.emit(VisioEvent::ConnectionStateChanged(state));
     }
 
     async fn handle_reconnected(&mut self) {
         self.reconnect_attempt = 0;
         *self.connection_state.lock().await = ConnectionState::Connected;
-        self.emitter
-            .emit(VisioEvent::ConnectionStateChanged(ConnectionState::Connected));
+        self.emitter.emit(VisioEvent::ConnectionStateChanged(
+            ConnectionState::Connected,
+        ));
     }
 
     async fn handle_disconnected(&mut self, reason: DisconnectReason) {
@@ -1401,10 +1425,7 @@ impl EventLoopContext {
 
     async fn handle_participant_connected(&mut self, participant: &RemoteParticipant) {
         let info = RoomManager::remote_participant_to_info(participant);
-        self.participants
-            .lock()
-            .await
-            .add_participant(info.clone());
+        self.participants.lock().await.add_participant(info.clone());
         self.emitter.emit(VisioEvent::ParticipantJoined(info));
         if let Some(handle) = self.idle_timer.take() {
             handle.abort();
@@ -1414,12 +1435,8 @@ impl EventLoopContext {
 
     async fn handle_participant_disconnected(&mut self, participant: &RemoteParticipant) {
         let sid = participant.sid().to_string();
-        self.participants
-            .lock()
-            .await
-            .remove_participant(&sid);
-        self.emitter
-            .emit(VisioEvent::ParticipantLeft(sid.clone()));
+        self.participants.lock().await.remove_participant(&sid);
+        self.emitter.emit(VisioEvent::ParticipantLeft(sid.clone()));
         self.maybe_start_idle_timer().await;
     }
 
@@ -1578,8 +1595,7 @@ impl EventLoopContext {
         if let Some(hm) = self.hand_raise.lock().await.as_ref() {
             hm.start_auto_lower(sids.clone());
         }
-        self.emitter
-            .emit(VisioEvent::ActiveSpeakersChanged(sids));
+        self.emitter.emit(VisioEvent::ActiveSpeakersChanged(sids));
     }
 
     async fn handle_participant_attributes_changed(
@@ -1730,10 +1746,14 @@ impl EventLoopContext {
         if self.try_handle_admin_command(psid, payload).await {
             return;
         }
-        if self.try_handle_reaction(psid, sender_name, payload, is_self).await {
+        if self
+            .try_handle_reaction(psid, sender_name, payload, is_self)
+            .await
+        {
             return;
         }
-        self.try_handle_legacy_chat(psid, sender_name, topic_str, payload).await;
+        self.try_handle_legacy_chat(psid, sender_name, topic_str, payload)
+            .await;
     }
 
     async fn try_handle_admin_command(&self, psid: &str, payload: &[u8]) -> bool {
@@ -1747,10 +1767,10 @@ impl EventLoopContext {
         match json["type"].as_str() {
             Some("lowerAllHands") => {
                 tracing::info!("received lowerAllHands from {psid}");
-                if let Some(hm) = self.hand_raise.lock().await.as_ref() {
-                    if hm.is_hand_raised().await {
-                        let _ = hm.lower_hand().await;
-                    }
+                if let Some(hm) = self.hand_raise.lock().await.as_ref()
+                    && hm.is_hand_raised().await
+                {
+                    let _ = hm.lower_hand().await;
                 }
                 true
             }

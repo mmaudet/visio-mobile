@@ -8,6 +8,10 @@ and this project adheres to
 
 ## [Unreleased]
 
+### Changed
+
+- Reduce cognitive complexity across all platforms (#94)
+
 ### Fixed
 
 - Fix 12 SonarCloud reliability issues in desktop frontend (#92)

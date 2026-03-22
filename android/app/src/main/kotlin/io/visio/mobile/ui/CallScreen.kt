@@ -410,7 +410,7 @@ fun CallScreen(
                         null
                     }
                 micEnabled = settings?.micEnabledOnJoin ?: true
-                cameraEnabled = true  // Always enable camera for E2E tests
+                cameraEnabled = true // Always enable camera for E2E tests
 
                 // Ensure mic capture is active so the phone's audio is published
                 try {
