@@ -1,5 +1,6 @@
 use futures_util::StreamExt;
 use livekit::DisconnectReason;
+use livekit::data_stream::StreamReader;
 use livekit::participant::ConnectionQuality as LkConnectionQuality;
 use livekit::prelude::{DataPacket, RemoteParticipant, Room, RoomEvent, RoomOptions};
 use livekit::track::{
