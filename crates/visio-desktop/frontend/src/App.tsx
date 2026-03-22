@@ -228,7 +228,7 @@ function detectSystemLang(): string {
 // Logo SVG tricolore
 // ---------------------------------------------------------------------------
 
-function VisioLogo({ size = 64 }: { size?: number }) {
+function VisioLogo({ size = 64 }: Readonly<{ size?: number }>) {
   // Camera body: 64×54 (ratio ~1.19), centered at x=52
   // Wifi arcs: 3 concentric arcs (r=10,17,24) centered at (52,62), pointing up
   // Stripe: same width as camera body (64), centered on same axis
@@ -307,7 +307,7 @@ function VisioLogo({ size = 64 }: { size?: number }) {
 // Screen Share Icon
 // ---------------------------------------------------------------------------
 
-function ScreenShareIcon({ size = 16 }: { size?: number }) {
+function ScreenShareIcon({ size = 16 }: Readonly<{ size?: number }>) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor">
       <path d="M21 3H3c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h7v2H8v2h8v-2h-2v-2h7c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 14H3V5h18v12z" />
@@ -339,7 +339,7 @@ function formatTime(timestampMs: number): string {
 }
 
 /** Render text with URLs auto-linked. */
-function AutoLinkText({ text }: { text: string }) {
+function AutoLinkText({ text }: Readonly<{ text: string }>) {
   const parts = text.split(/(https?:\/\/[^\s<]+)/g)
   return (
     <>
@@ -366,7 +366,7 @@ function AutoLinkText({ text }: { text: string }) {
 // Components
 // ---------------------------------------------------------------------------
 
-function StatusBadge({ state }: { state: string }) {
+function StatusBadge({ state }: Readonly<{ state: string }>) {
   const t = useT()
   const key = `status.${state}`
   return <span className={`status-badge ${state}`}>{t(key)}</span>
@@ -374,7 +374,7 @@ function StatusBadge({ state }: { state: string }) {
 
 // -- Connection Quality Bars ------------------------------------------------
 
-function ConnectionQualityBars({ quality }: { quality: string }) {
+function ConnectionQualityBars({ quality }: Readonly<{ quality: string }>) {
   const bars =
     quality === 'Excellent'
       ? 3
@@ -398,14 +398,14 @@ function ConnectionQualityBars({ quality }: { quality: string }) {
 
 // -- Participant Tile -------------------------------------------------------
 
-interface ParticipantTileProps {
+type ParticipantTileProps = Readonly<{
   participant: Participant
   videoFrames: Map<string, string>
   isActiveSpeaker?: boolean
   handRaisePosition?: number
   displayItem?: DisplayItem
   onExpand?: () => void
-}
+}>
 
 function ParticipantTile({
   participant,
@@ -510,7 +510,6 @@ function MeetingsTab({
     'onboarding' | 'loading' | 'empty' | 'list'
   >('onboarding')
   const [meetings, setMeetings] = useState<Meeting[]>([])
-  const [calendarUrl, setCalendarUrl] = useState<string | null>(null)
   const [joining, setJoining] = useState<string | null>(null)
   const [loadingMessage, setLoadingMessage] = useState<string>('')
   const [lastSyncTime, setLastSyncTime] = useState<Date | null>(null)
@@ -524,7 +523,6 @@ function MeetingsTab({
   useEffect(() => {
     invoke<string | null>('get_calendar_url')
       .then((url) => {
-        setCalendarUrl(url ?? null)
         if (!url) {
           setStatus('onboarding')
           return
@@ -676,7 +674,7 @@ function MeetingsTab({
     for (const m of list) {
       const label = getDayLabel(m.start_time)
       const last = groups[groups.length - 1]
-      if (last && last.label === label) {
+      if (last?.label === label) {
         last.meetings.push(m)
       } else {
         groups.push({ label, meetings: [m] })
@@ -1056,25 +1054,16 @@ function HomeView({
                   <RiAccountCircleLine size={18} /> {t('home.connect')}
                 </button>
                 {showServerPicker && (
-                  <div
+                  <button
                     className="server-picker-overlay"
-                    role="button"
-                    tabIndex={0}
+                    aria-label={t('home.serverPicker.close')}
                     onClick={() => setShowServerPicker(false)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' || e.key === ' ')
-                        setShowServerPicker(false)
-                    }}
                   >
                     <div
                       className="server-picker"
-                      role="button"
-                      tabIndex={0}
+                      role="presentation"
                       onClick={(e) => e.stopPropagation()}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' || e.key === ' ')
-                          e.stopPropagation()
-                      }}
+                      onKeyDown={(e) => e.stopPropagation()}
                     >
                       <h3>{t('home.serverPicker.title')}</h3>
                       <div className="server-list">
@@ -1124,7 +1113,7 @@ function HomeView({
                         {t('home.serverPicker.cancel')}
                       </button>
                     </div>
-                  </div>
+                  </button>
                 )}
               </div>
             )}
@@ -1422,27 +1411,20 @@ function CreateRoomDialog({
   }
 
   return (
-    <div
+    <button
       className="modal-overlay"
-      role="button"
-      tabIndex={0}
+      aria-label={t('home.createRoom.close')}
       onClick={onCancel}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') onCancel()
-      }}
     >
       <div
         className="settings-modal create-room-dialog"
-        role="button"
-        tabIndex={0}
+        role="presentation"
         onClick={(e) => e.stopPropagation()}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter' || e.key === ' ') e.stopPropagation()
-        }}
+        onKeyDown={(e) => e.stopPropagation()}
       >
         <div className="settings-header">
           <span>{t('home.createRoom')}</span>
-          <button onClick={onCancel}>
+          <button onClick={onCancel} aria-label={t('home.createRoom.close')}>
             <RiCloseLine size={20} />
           </button>
         </div>
@@ -1545,7 +1527,7 @@ function CreateRoomDialog({
                   {searchResults.length > 0 && (
                     <div className="search-dropdown">
                       {searchResults.map((user: any) => (
-                        <div
+                        <button
                           key={user.id}
                           className="search-result"
                           onClick={() => {
@@ -1553,21 +1535,12 @@ function CreateRoomDialog({
                             setSearchQuery('')
                             setSearchResults([])
                           }}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter' || e.key === ' ') {
-                              setInvitedUsers([...invitedUsers, user])
-                              setSearchQuery('')
-                              setSearchResults([])
-                            }
-                          }}
-                          role="button"
-                          tabIndex={0}
                         >
                           <span className="search-name">
                             {user.full_name || user.email}
                           </span>
                           <span className="search-email">{user.email}</span>
-                        </div>
+                        </button>
                       ))}
                     </div>
                   )}
@@ -1680,7 +1653,7 @@ function CreateRoomDialog({
           )}
         </div>
       </div>
-    </div>
+    </button>
   )
 }
 
@@ -1833,7 +1806,7 @@ function InfoSidebar({
             {memberResults.length > 0 && (
               <div className="search-dropdown">
                 {memberResults.map((user: any) => (
-                  <div
+                  <button
                     key={user.id}
                     className="search-result"
                     onClick={async () => {
@@ -1849,32 +1822,12 @@ function InfoSidebar({
                       setMemberSearch('')
                       setMemberResults([])
                     }}
-                    onKeyDown={async (e) => {
-                      if (e.key === 'Enter' || e.key === ' ') {
-                        try {
-                          await invoke('add_access', {
-                            userId: user.id,
-                            roomId,
-                          })
-                          const updated = await invoke<any[]>('list_accesses', {
-                            roomId,
-                          })
-                          setRoomAccesses(updated)
-                        } catch {
-                          /* ignore */
-                        }
-                        setMemberSearch('')
-                        setMemberResults([])
-                      }
-                    }}
-                    role="button"
-                    tabIndex={0}
                   >
                     <span className="search-name">
                       {user.full_name || user.email}
                     </span>
                     <span className="search-email">{user.email}</span>
-                  </div>
+                  </button>
                 ))}
               </div>
             )}
@@ -1914,7 +1867,7 @@ function InfoSidebar({
 
 // -- Tools Sidebar ----------------------------------------------------------
 
-function ToolsSidebar({ onClose }: { onClose: () => void }) {
+function ToolsSidebar({ onClose }: Readonly<{ onClose: () => void }>) {
   const t = useT()
   const [subView, setSubView] = useState<'menu' | 'transcribe'>('menu')
 
@@ -2036,28 +1989,21 @@ function SourcePickerModal({
   const windows = sources.filter((s) => s.source_type === 'window')
 
   return (
-    <div
+    <button
       className="modal-overlay"
-      role="button"
-      tabIndex={0}
+      aria-label={t('call.selectSource.close')}
       onClick={onClose}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') onClose()
-      }}
     >
       <div
         className="settings-modal source-picker"
         data-testid="screen-share-source-picker"
-        role="button"
-        tabIndex={0}
+        role="presentation"
         onClick={(e) => e.stopPropagation()}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter' || e.key === ' ') e.stopPropagation()
-        }}
+        onKeyDown={(e) => e.stopPropagation()}
       >
         <div className="settings-header">
           <span>{t('call.selectSource')}</span>
-          <button onClick={onClose}>
+          <button onClick={onClose} aria-label={t('call.selectSource.close')}>
             <RiCloseLine size={20} />
           </button>
         </div>
@@ -2122,7 +2068,7 @@ function SourcePickerModal({
           )}
         </div>
       </div>
-    </div>
+    </button>
   )
 }
 
@@ -2567,11 +2513,10 @@ function CallView({
               {showFocusThumbnails && thumbnailItems.length > 0 && (
                 <div className="focus-thumbnails">
                   {thumbnailItems.map((d, index) => (
-                    <div
+                    <button
                       key={d.key}
                       className="tile"
-                      role="button"
-                      tabIndex={0}
+                      aria-label={d.label}
                       data-testid={`secondary-tile-${index}:${d.participant.sid}`}
                       onClick={() => {
                         userPinnedRef.current = true
@@ -2579,15 +2524,6 @@ function CallView({
                           participantSid: d.participant.sid,
                           source: d.source,
                         })
-                      }}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' || e.key === ' ') {
-                          userPinnedRef.current = true
-                          setFocusedItem({
-                            participantSid: d.participant.sid,
-                            source: d.source,
-                          })
-                        }
                       }}
                     >
                       <ParticipantTile
@@ -2599,7 +2535,7 @@ function CallView({
                         handRaisePosition={handRaisedMap[d.participant.sid]}
                         displayItem={d}
                       />
-                    </div>
+                    </button>
                   ))}
                 </div>
               )}
@@ -2614,10 +2550,9 @@ function CallView({
                 <div className="empty-state">{t('call.noParticipants')}</div>
               ) : (
                 displayItems.map((d, index) => (
-                  <div
+                  <button
                     key={d.key}
-                    role="button"
-                    tabIndex={0}
+                    aria-label={d.label}
                     data-testid={`grid-tile-${index}:${d.participant.sid}`}
                     onClick={() => {
                       userPinnedRef.current = true
@@ -2625,15 +2560,6 @@ function CallView({
                         participantSid: d.participant.sid,
                         source: d.source,
                       })
-                    }}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' || e.key === ' ') {
-                        userPinnedRef.current = true
-                        setFocusedItem({
-                          participantSid: d.participant.sid,
-                          source: d.source,
-                        })
-                      }
                     }}
                   >
                     <ParticipantTile
@@ -2656,7 +2582,7 @@ function CallView({
                           : undefined
                       }
                     />
-                  </div>
+                  </button>
                 ))
               )}
             </div>
@@ -2857,12 +2783,11 @@ function CallView({
                           {menuOpen && (
                             <div
                               className="participant-context-menu"
-                              role="button"
-                              tabIndex={0}
+                              role="menu"
+                              tabIndex={-1}
                               onClick={() => setParticipantMenu(null)}
                               onKeyDown={(e) => {
-                                if (e.key === 'Enter' || e.key === ' ')
-                                  setParticipantMenu(null)
+                                if (e.key === 'Escape') setParticipantMenu(null)
                               }}
                             >
                               <button
@@ -3396,27 +3321,24 @@ function SettingsModal({
   }
 
   return (
-    <div
+    <button
       className="modal-overlay"
-      role="button"
-      tabIndex={0}
+      aria-label={t('settings.close')}
       onClick={onClose}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') onClose()
-      }}
     >
       <div
         className="settings-modal"
-        role="button"
-        tabIndex={0}
+        role="presentation"
         onClick={(e) => e.stopPropagation()}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter' || e.key === ' ') e.stopPropagation()
-        }}
+        onKeyDown={(e) => e.stopPropagation()}
       >
         <div className="settings-header">
           <span>{t('settings')}</span>
-          <button onClick={onClose} data-testid="settings-close-button">
+          <button
+            onClick={onClose}
+            data-testid="settings-close-button"
+            aria-label={t('settings.close')}
+          >
             <RiCloseLine size={20} />
           </button>
         </div>
@@ -3509,7 +3431,7 @@ function SettingsModal({
               {t('settings.meetInstances')}
             </label>
             {meetInstances.map((inst, i) => (
-              <div key={i} className="instance-row">
+              <div key={inst} className="instance-row">
                 <span>{inst}</span>
                 <button
                   className="btn-icon"
@@ -3584,7 +3506,7 @@ function SettingsModal({
           {t('settings.save')}
         </button>
       </div>
-    </div>
+    </button>
   )
 }
 
@@ -4300,26 +4222,29 @@ function PreJoinScreen({
               <span>{t('prejoin.bgBlurLight')}</span>
             </button>
             {/* Background images 1-8 */}
-            {[1, 2, 3, 4, 5, 6, 7, 8].map((n) => (
-              <button
-                key={n}
-                className={`prejoin-filter-thumb${backgroundMode === `image:${n}` ? ' active' : ''}`}
-                onClick={() => handleSetBackgroundMode(`image:${n}`)}
-              >
-                <img
-                  src={`/backgrounds/thumbnails/${n}.jpg`}
-                  alt={`Background ${n}`}
-                  draggable={false}
-                  style={{
-                    width: '100%',
-                    height: '100%',
-                    objectFit: 'cover',
-                    borderRadius: 6,
-                  }}
-                />
-                <span>{n}</span>
-              </button>
-            ))}
+            {[1, 2, 3, 4, 5, 6, 7, 8].map((n) => {
+              const imgKey = `image:${n}`
+              return (
+                <button
+                  key={n}
+                  className={`prejoin-filter-thumb${backgroundMode === imgKey ? ' active' : ''}`}
+                  onClick={() => handleSetBackgroundMode(imgKey)}
+                >
+                  <img
+                    src={`/backgrounds/thumbnails/${n}.jpg`}
+                    alt={`Background ${n}`}
+                    draggable={false}
+                    style={{
+                      width: '100%',
+                      height: '100%',
+                      objectFit: 'cover',
+                      borderRadius: 6,
+                    }}
+                  />
+                  <span>{n}</span>
+                </button>
+              )
+            })}
           </div>
         </div>
       )}

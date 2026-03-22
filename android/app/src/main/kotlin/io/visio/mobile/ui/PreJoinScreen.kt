@@ -712,6 +712,7 @@ fun PreJoinScreen(
                                 try {
                                     VisioManager.setAudioOutputDevice(device)
                                 } catch (_: Exception) {
+                                    // No-op: audio output routing failure is non-fatal
                                 }
                             }
 
@@ -721,6 +722,7 @@ fun PreJoinScreen(
                                     VisioManager.client.setMicrophoneEnabled(true)
                                     VisioManager.startAudioCapture(selectedInputDeviceRef)
                                 } catch (_: Exception) {
+                                    // No-op: mic enable failure is non-fatal
                                 }
                             }
                             if (cameraEnabled) {
@@ -728,6 +730,7 @@ fun PreJoinScreen(
                                     VisioManager.client.setCameraEnabled(true)
                                     VisioManager.startCameraCapture()
                                 } catch (_: Exception) {
+                                    // No-op: camera enable failure is non-fatal
                                 }
                             }
                         } catch (e: Exception) {
@@ -747,6 +750,7 @@ fun PreJoinScreen(
                                     VisioManager.cancelLobby()
                                     VisioManager.disconnect()
                                 } catch (_: Exception) {
+                                    // No-op: lobby cancellation failure is non-fatal
                                 }
                             }
                         }
@@ -787,6 +791,7 @@ fun PreJoinScreen(
                                 VisioManager.cancelLobby()
                                 VisioManager.disconnect()
                             } catch (_: Exception) {
+                                // No-op: lobby cancellation failure is non-fatal
                             }
                         }
                     },
@@ -863,6 +868,7 @@ private fun BackgroundFilterSheet(
                             try {
                                 VisioManager.client.setBackgroundMode("off")
                             } catch (_: Exception) {
+                                // No-op: background mode change failure is non-fatal
                             }
                         }
                         onSelect("off")
@@ -878,6 +884,7 @@ private fun BackgroundFilterSheet(
                             try {
                                 VisioManager.client.setBackgroundMode("blur")
                             } catch (_: Exception) {
+                                // No-op: background mode change failure is non-fatal
                             }
                         }
                         onSelect("blur")
@@ -938,6 +945,7 @@ private fun BackgroundFilterSheet(
                                             )
                                             VisioManager.client.setBackgroundMode("image:$id")
                                         } catch (_: Exception) {
+                                            // No-op: background image load failure is non-fatal
                                         }
                                     }
                                     onSelect("image:$id")

@@ -95,20 +95,21 @@ function shouldSwitchFocus(
   targetFocus: FocusItemNonNull,
   nowMs: number
 ): boolean {
-  if (!previousState.currentFocus) {
-    return true
+  if (previousState.currentFocus) {
+    if (
+      previousState.currentFocus.participantSid ===
+        targetFocus.participantSid &&
+      previousState.currentFocus.source === targetFocus.source
+    ) {
+      return false
+    }
+    const holdElapsed =
+      previousState.focusHoldStartMs === null
+        ? Infinity
+        : nowMs - previousState.focusHoldStartMs
+    return holdElapsed >= MIN_HOLD_MS
   }
-  if (
-    previousState.currentFocus.participantSid === targetFocus.participantSid &&
-    previousState.currentFocus.source === targetFocus.source
-  ) {
-    return false
-  }
-  const holdElapsed =
-    previousState.focusHoldStartMs != null
-      ? nowMs - previousState.focusHoldStartMs
-      : Infinity
-  return holdElapsed >= MIN_HOLD_MS
+  return true
 }
 
 /** Handle active speaker logic with stabilization (step 3). */
@@ -121,15 +122,15 @@ function handleActiveSpeaker<T extends LayoutDisplayItem>(
 ): [LayoutDecision<T>, LayoutState] | null {
   const isLocalSpeaking = currentSpeakerSid === localParticipantSid
 
-  const newLastRemote = !isLocalSpeaking
-    ? currentSpeakerSid
-    : previousState.lastRemoteSpeakerSid
+  const newLastRemote = isLocalSpeaking
+    ? previousState.lastRemoteSpeakerSid
+    : currentSpeakerSid
 
   const targetSid = isLocalSpeaking
     ? (previousState.lastRemoteSpeakerSid ?? null)
     : currentSpeakerSid
 
-  if (!targetSid) {
+  if (targetSid === null) {
     return null
   }
 
@@ -206,9 +207,9 @@ export function computeLayout<T extends LayoutDisplayItem>(
 
   // 4. No speaker — check silence timeout (Desktop is always "office" mode)
   const silenceElapsed =
-    previousState.focusHoldStartMs != null
-      ? nowMs - previousState.focusHoldStartMs
-      : Infinity
+    previousState.focusHoldStartMs === null
+      ? Infinity
+      : nowMs - previousState.focusHoldStartMs
   if (silenceElapsed > SILENCE_TO_GRID_MS) {
     return buildGridResult(displayItems, {
       currentFocus: null,

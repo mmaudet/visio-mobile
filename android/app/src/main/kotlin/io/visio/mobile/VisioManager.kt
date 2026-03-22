@@ -343,6 +343,7 @@ object VisioManager : VisioEventListener {
                     client.logout("https://$instance")
                 }
             } catch (_: Exception) {
+                // No-op: logout failure is non-fatal, clear local session regardless
             }
             authManager.clearCookie()
             withContext(Dispatchers.Main) {
@@ -830,6 +831,7 @@ object VisioManager : VisioEventListener {
                 val accesses = client.listAccesses(roomId)
                 _roomAccesses.value = accesses
             } catch (_: Exception) {
+                // No-op: access list refresh failure is non-fatal
             }
         }
     }
@@ -844,6 +846,7 @@ object VisioManager : VisioEventListener {
                 client.addAccess(userId, roomId)
                 refreshAccesses()
             } catch (_: Exception) {
+                // No-op: access member add failure is non-fatal
             }
             withContext(Dispatchers.Main) { onDone() }
         }
@@ -855,6 +858,7 @@ object VisioManager : VisioEventListener {
                 client.removeAccess(accessId)
                 refreshAccesses()
             } catch (_: Exception) {
+                // No-op: access member remove failure is non-fatal
             }
         }
     }
@@ -1007,7 +1011,9 @@ object VisioManager : VisioEventListener {
                         Log.e("VISIO", "Foreground reconnection failed: ${e.message}")
                     }
                 }
-                else -> {}
+                else -> {
+                    // No-op: other states (Connecting, Reconnecting) don't need foreground handling
+                }
             }
         }
     }

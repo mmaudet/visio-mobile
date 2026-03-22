@@ -12,6 +12,7 @@ and this project adheres to
 
 - Reduce all functions to cognitive complexity <=15 (#103)
 - Reduce cognitive complexity across all platforms (#94)
+- Address SonarCloud MAJOR and MINOR maintainability issues (#95, #96)
 
 ### Fixed
 
