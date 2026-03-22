@@ -68,6 +68,7 @@ class CameraCapture(private val context: Context) {
         val chars = cameraManager.getCameraCharacteristics(cameraId)
         sensorOrientation = chars.get(CameraCharacteristics.SENSOR_ORIENTATION) ?: 0
         isFrontCamera = chars.get(CameraCharacteristics.LENS_FACING) == CameraCharacteristics.LENS_FACING_FRONT
+        NativeVideo.nativeSetFrontCamera(isFrontCamera)
         Log.i(TAG, "Camera $cameraId: sensorOrientation=$sensorOrientation, front=$isFrontCamera")
 
         // ImageReader receives YUV_420_888 frames
@@ -98,21 +99,12 @@ class CameraCapture(private val context: Context) {
                                 (sensorOrientation - displayDegrees + 360) % 360
                             }
 
-                        if (previewMode) {
-                            NativeVideo.nativeProcessPreviewFrame(
-                                yPlane.buffer, uPlane.buffer, vPlane.buffer,
-                                yPlane.rowStride, uPlane.rowStride, vPlane.rowStride,
-                                uPlane.pixelStride, vPlane.pixelStride,
-                                image.width, image.height, rotation,
-                            )
-                        } else {
-                            NativeVideo.nativePushCameraFrame(
-                                yPlane.buffer, uPlane.buffer, vPlane.buffer,
-                                yPlane.rowStride, uPlane.rowStride, vPlane.rowStride,
-                                uPlane.pixelStride, vPlane.pixelStride,
-                                image.width, image.height, rotation,
-                            )
-                        }
+                        NativeVideo.nativePushCameraFrame(
+                            yPlane.buffer, uPlane.buffer, vPlane.buffer,
+                            yPlane.rowStride, uPlane.rowStride, vPlane.rowStride,
+                            uPlane.pixelStride, vPlane.pixelStride,
+                            image.width, image.height, rotation,
+                        )
                     } finally {
                         image.close()
                     }
@@ -199,6 +191,7 @@ class CameraCapture(private val context: Context) {
         val chars = cameraManager.getCameraCharacteristics(newId)
         sensorOrientation = chars.get(CameraCharacteristics.SENSOR_ORIENTATION) ?: 0
         isFrontCamera = chars.get(CameraCharacteristics.LENS_FACING) == CameraCharacteristics.LENS_FACING_FRONT
+        NativeVideo.nativeSetFrontCamera(isFrontCamera)
         Log.i(TAG, "Switching to camera $newId: sensorOrientation=$sensorOrientation, front=$isFrontCamera")
 
         // Recreate ImageReader
@@ -221,21 +214,12 @@ class CameraCapture(private val context: Context) {
                             } else {
                                 (sensorOrientation - displayDegrees + 360) % 360
                             }
-                        if (previewMode) {
-                            NativeVideo.nativeProcessPreviewFrame(
-                                yPlane.buffer, uPlane.buffer, vPlane.buffer,
-                                yPlane.rowStride, uPlane.rowStride, vPlane.rowStride,
-                                uPlane.pixelStride, vPlane.pixelStride,
-                                image.width, image.height, rotation,
-                            )
-                        } else {
-                            NativeVideo.nativePushCameraFrame(
-                                yPlane.buffer, uPlane.buffer, vPlane.buffer,
-                                yPlane.rowStride, uPlane.rowStride, vPlane.rowStride,
-                                uPlane.pixelStride, vPlane.pixelStride,
-                                image.width, image.height, rotation,
-                            )
-                        }
+                        NativeVideo.nativePushCameraFrame(
+                            yPlane.buffer, uPlane.buffer, vPlane.buffer,
+                            yPlane.rowStride, uPlane.rowStride, vPlane.rowStride,
+                            uPlane.pixelStride, vPlane.pixelStride,
+                            image.width, image.height, rotation,
+                        )
                     } finally {
                         image.close()
                     }

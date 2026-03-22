@@ -795,11 +795,11 @@ impl BridgeListener {
 /// Handle pending Android surface attach/detach on track subscribe/unsubscribe.
 #[cfg(target_os = "android")]
 fn handle_android_surface_events(event: &CoreVisioEvent) {
-    if let CoreVisioEvent::TrackUnsubscribed(ref track_sid) = event {
+    if let CoreVisioEvent::TrackUnsubscribed(track_sid) = event {
         pending::remove(track_sid);
     }
 
-    if let CoreVisioEvent::TrackSubscribed(ref info) = event {
+    if let CoreVisioEvent::TrackSubscribed(info) = event {
         if info.kind == visio_core::events::TrackKind::Video {
             try_attach_pending_surface(info);
         }
@@ -1759,6 +1759,11 @@ unsafe impl Send for NativeWindowHandle {}
 #[cfg(target_os = "android")]
 static LOCAL_PREVIEW_SURFACE: StdMutex<Option<NativeWindowHandle>> = StdMutex::new(None);
 
+/// Whether the active camera is front-facing. Used to decide mirroring
+/// for the local preview surface.
+#[cfg(target_os = "android")]
+static IS_FRONT_CAMERA: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(true);
+
 /// Stores the NativeAudioSource after `set_microphone_enabled(true)` publishes
 /// the audio track. The Android AudioCapture Kotlin class pushes PCM frames
 /// into this source via JNI → `nativePushAudioFrame()`.
@@ -1915,7 +1920,7 @@ fn apply_blur_and_preview(i420: &mut I420Buffer, w: u32, h: u32, rotation_degree
                 i420,
                 handle.as_ptr() as *mut std::ffi::c_void,
                 rotation_degrees,
-                true, // mirror for front-camera self-view
+                IS_FRONT_CAMERA.load(std::sync::atomic::Ordering::Relaxed),
             );
         }
         drop(guard);
@@ -2040,12 +2045,6 @@ pub unsafe extern "C" fn Java_io_visio_mobile_NativeVideo_nativePushCameraFrame(
     height: jni::sys::jint,
     rotation_degrees: jni::sys::jint,
 ) {
-    let guard = CAMERA_SOURCE.lock().unwrap();
-    let Some(source) = guard.as_ref() else {
-        visio_log("VISIO FFI: CAMERA_SOURCE is None — discarding frame");
-        return;
-    };
-
     let Some((i420, jni_env)) = (unsafe {
         process_camera_frame_common(
             env,
@@ -2065,66 +2064,24 @@ pub unsafe extern "C" fn Java_io_visio_mobile_NativeVideo_nativePushCameraFrame(
         return;
     };
 
-    let rotation = match rotation_degrees {
-        90 => VideoRotation::VideoRotation90,
-        180 => VideoRotation::VideoRotation180,
-        270 => VideoRotation::VideoRotation270,
-        _ => VideoRotation::VideoRotation0,
-    };
+    // Publish to LiveKit if connected (lobby preview: source is None → skip).
+    let guard = CAMERA_SOURCE.lock().unwrap();
+    if let Some(source) = guard.as_ref() {
+        let rotation = match rotation_degrees {
+            90 => VideoRotation::VideoRotation90,
+            180 => VideoRotation::VideoRotation180,
+            270 => VideoRotation::VideoRotation270,
+            _ => VideoRotation::VideoRotation0,
+        };
 
-    let frame = VideoFrame {
-        rotation,
-        timestamp_us: 0,
-        buffer: i420,
-    };
-    source.capture_frame(&frame);
+        let frame = VideoFrame {
+            rotation,
+            timestamp_us: 0,
+            buffer: i420,
+        };
+        source.capture_frame(&frame);
+    }
     drop(guard);
-
-    // Prevent Drop from calling DestroyJavaVM
-    std::mem::forget(jni_env);
-}
-
-/// Preview-only frame processing: blur + local render, no LiveKit source needed.
-/// Called from CameraCapture in preview mode (pre-join lobby).
-///
-/// # Safety
-/// - `env` must be a valid JNI environment pointer.
-/// - `y_buf`, `u_buf`, `v_buf` must be valid direct ByteBuffer jobjects.
-#[cfg(target_os = "android")]
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn Java_io_visio_mobile_NativeVideo_nativeProcessPreviewFrame(
-    env: *mut jni::sys::JNIEnv,
-    _class: jni::sys::jobject,
-    y_buf: jni::sys::jobject,
-    u_buf: jni::sys::jobject,
-    v_buf: jni::sys::jobject,
-    y_stride: jni::sys::jint,
-    u_stride: jni::sys::jint,
-    v_stride: jni::sys::jint,
-    u_pixel_stride: jni::sys::jint,
-    v_pixel_stride: jni::sys::jint,
-    width: jni::sys::jint,
-    height: jni::sys::jint,
-    rotation_degrees: jni::sys::jint,
-) {
-    let Some((_i420, jni_env)) = (unsafe {
-        process_camera_frame_common(
-            env,
-            y_buf,
-            u_buf,
-            v_buf,
-            y_stride,
-            u_stride,
-            v_stride,
-            u_pixel_stride,
-            v_pixel_stride,
-            width,
-            height,
-            rotation_degrees,
-        )
-    }) else {
-        return;
-    };
 
     // Prevent Drop from calling DestroyJavaVM
     std::mem::forget(jni_env);
@@ -2140,6 +2097,17 @@ pub extern "C" fn Java_io_visio_mobile_NativeVideo_nativeStopCameraCapture(
     visio_log("VISIO FFI: nativeStopCameraCapture — clearing camera source");
     let mut guard = CAMERA_SOURCE.lock().unwrap();
     *guard = None;
+}
+
+/// JNI: NativeVideo.nativeSetFrontCamera(isFront: Boolean)
+#[cfg(target_os = "android")]
+#[unsafe(no_mangle)]
+pub extern "C" fn Java_io_visio_mobile_NativeVideo_nativeSetFrontCamera(
+    _env: *mut jni::sys::JNIEnv,
+    _class: jni::sys::jobject,
+    is_front: jni::sys::jboolean,
+) {
+    IS_FRONT_CAMERA.store(is_front != 0, std::sync::atomic::Ordering::Relaxed);
 }
 
 // ── JNI: audio capture pipeline ──────────────────────────────────────
@@ -2669,6 +2637,20 @@ pub unsafe extern "C" fn Java_io_visio_mobile_NativeVideo_detachSurface(
     // Clean up any pending surface that was never claimed by TrackSubscribed.
     pending::remove(&track_sid);
     visio_video::stop_track_renderer(&track_sid);
+}
+
+/// JNI: NativeVideo.nativeClearLocalPreviewSurface()
+/// Explicitly clears the LOCAL_PREVIEW_SURFACE. Used when the lobby preview
+/// is dismissed (detachSurface("local-camera") is intentionally a no-op
+/// during calls to avoid recomposition races).
+#[cfg(target_os = "android")]
+#[unsafe(no_mangle)]
+pub extern "C" fn Java_io_visio_mobile_NativeVideo_nativeClearLocalPreviewSurface(
+    _env: *mut jni::sys::JNIEnv,
+    _class: jni::sys::jobject,
+) {
+    visio_log("VISIO JNI: clearing local preview surface (lobby dismissed)");
+    LOCAL_PREVIEW_SURFACE.lock().unwrap().take();
 }
 
 #[cfg(test)]

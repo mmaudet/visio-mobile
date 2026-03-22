@@ -5,23 +5,13 @@ import android.annotation.SuppressLint
 import android.content.Context
 import android.content.pm.PackageManager
 import android.graphics.BitmapFactory
-import android.graphics.Matrix
-import android.graphics.SurfaceTexture
-import android.hardware.camera2.CameraCaptureSession
-import android.hardware.camera2.CameraCharacteristics
-import android.hardware.camera2.CameraDevice
-import android.hardware.camera2.CameraManager
 import android.media.AudioDeviceInfo
 import android.media.AudioFormat
 import android.media.AudioManager
 import android.media.AudioRecord
 import android.media.MediaRecorder
 import android.os.Build
-import android.os.Handler
-import android.os.HandlerThread
 import android.util.Log
-import android.view.Surface
-import android.view.TextureView
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
@@ -102,6 +92,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
+import io.visio.mobile.NativeVideo
 import io.visio.mobile.R
 import io.visio.mobile.VisioManager
 import io.visio.mobile.ui.i18n.Strings
@@ -129,159 +120,53 @@ sealed interface WaitingState {
     data object Timeout : WaitingState
 }
 
-// ── Local camera preview (Camera2, TextureView with center-crop) ─────────────
+// ── Blurred camera preview (CameraCapture → Rust blur → SurfaceView) ────────
 
-class LocalCameraPreview(
-    context: Context,
-    private var useFront: Boolean,
-) : TextureView(context),
-    TextureView.SurfaceTextureListener {
-    private var session: CameraCaptureSession? = null
-    private var camera: CameraDevice? = null
-    private val handlerThread = HandlerThread("PreviewCamera").also { it.start() }
-    private val handler = Handler(handlerThread.looper)
-
-    init {
-        surfaceTextureListener = this
+@Composable
+private fun BlurredCameraPreview(
+    isFrontCamera: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    DisposableEffect(Unit) {
+        VisioManager.startPreviewCapture()
+        onDispose {
+            VisioManager.stopPreviewCapture()
+        }
     }
 
-    override fun onSurfaceTextureAvailable(
-        surface: SurfaceTexture,
-        width: Int,
-        height: Int,
-    ) {
-        openCamera()
+    // Switch camera when user toggles front/back
+    LaunchedEffect(isFrontCamera) {
+        VisioManager.switchCamera(isFrontCamera)
     }
 
-    override fun onSurfaceTextureSizeChanged(
-        surface: SurfaceTexture,
-        width: Int,
-        height: Int,
-    ) {
-        updateTransform()
-    }
+    AndroidView(
+        factory = { context ->
+            android.view.SurfaceView(context).apply {
+                holder.addCallback(
+                    object : android.view.SurfaceHolder.Callback {
+                        override fun surfaceCreated(holder: android.view.SurfaceHolder) {
+                            NativeVideo.attachSurface("local-camera", holder.surface)
+                        }
 
-    override fun onSurfaceTextureDestroyed(surface: SurfaceTexture): Boolean {
-        stopCamera()
-        handlerThread.quitSafely()
-        return true
-    }
+                        override fun surfaceChanged(
+                            holder: android.view.SurfaceHolder,
+                            format: Int,
+                            width: Int,
+                            height: Int,
+                        ) {
+                            // Re-attach on size change to update ANativeWindow dimensions
+                            NativeVideo.attachSurface("local-camera", holder.surface)
+                        }
 
-    override fun onSurfaceTextureUpdated(surface: SurfaceTexture) {
-        // No-op: frame updates handled by camera capture session
-    }
-
-    fun switchCamera(front: Boolean) {
-        if (front == useFront) return
-        useFront = front
-        stopCamera()
-        openCamera()
-    }
-
-    @SuppressLint("MissingPermission")
-    private fun openCamera() {
-        val texture = surfaceTexture ?: return
-        val surface = Surface(texture)
-        val cm = context.getSystemService(Context.CAMERA_SERVICE) as CameraManager
-        val cameraId =
-            cm.cameraIdList.firstOrNull { id ->
-                val facing = cm.getCameraCharacteristics(id).get(CameraCharacteristics.LENS_FACING)
-                if (useFront) {
-                    facing == CameraCharacteristics.LENS_FACING_FRONT
-                } else {
-                    facing == CameraCharacteristics.LENS_FACING_BACK
-                }
-            } ?: return
-
-        cm.openCamera(
-            cameraId,
-            object : CameraDevice.StateCallback() {
-                override fun onOpened(dev: CameraDevice) {
-                    camera = dev
-                    @Suppress("DEPRECATION")
-                    dev.createCaptureSession(
-                        listOf(surface),
-                        object : CameraCaptureSession.StateCallback() {
-                            override fun onConfigured(sess: CameraCaptureSession) {
-                                session = sess
-                                val req =
-                                    dev
-                                        .createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW)
-                                        .apply { addTarget(surface) }
-                                        .build()
-                                sess.setRepeatingRequest(req, null, handler)
-                                post { updateTransform() }
-                            }
-
-                            override fun onConfigureFailed(sess: CameraCaptureSession) {
-                                // No-op: preview failure is non-fatal, user can still join
-                            }
-                        },
-                        handler,
-                    )
-                }
-
-                override fun onDisconnected(dev: CameraDevice) {
-                    dev.close()
-                }
-
-                override fun onError(
-                    dev: CameraDevice,
-                    error: Int,
-                ) {
-                    dev.close()
-                }
-            },
-            handler,
-        )
-    }
-
-    private fun updateTransform() {
-        val viewWidth = width.toFloat()
-        val viewHeight = height.toFloat()
-        if (viewWidth == 0f || viewHeight == 0f) return
-
-        val cm = context.getSystemService(Context.CAMERA_SERVICE) as CameraManager
-        val cameraId =
-            cm.cameraIdList.firstOrNull { id ->
-                val facing = cm.getCameraCharacteristics(id).get(CameraCharacteristics.LENS_FACING)
-                if (useFront) {
-                    facing == CameraCharacteristics.LENS_FACING_FRONT
-                } else {
-                    facing == CameraCharacteristics.LENS_FACING_BACK
-                }
-            } ?: return
-
-        val characteristics = cm.getCameraCharacteristics(cameraId)
-        val map = characteristics.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP) ?: return
-        val previewSize =
-            map.getOutputSizes(SurfaceTexture::class.java)
-                ?.maxByOrNull { it.width * it.height } ?: return
-
-        // Camera sensor is rotated 90 degrees relative to the view on most devices
-        val previewWidth = previewSize.height.toFloat()
-        val previewHeight = previewSize.width.toFloat()
-
-        val scaleX = viewWidth / previewWidth
-        val scaleY = viewHeight / previewHeight
-        val scale = maxOf(scaleX, scaleY) // center-crop
-
-        val matrix = Matrix()
-        matrix.setScale(
-            scale * previewWidth / viewWidth,
-            scale * previewHeight / viewHeight,
-            viewWidth / 2f,
-            viewHeight / 2f,
-        )
-        setTransform(matrix)
-    }
-
-    internal fun stopCamera() {
-        session?.close()
-        session = null
-        camera?.close()
-        camera = null
-    }
+                        override fun surfaceDestroyed(holder: android.view.SurfaceHolder) {
+                            // Cleanup handled by DisposableEffect → stopPreviewCapture()
+                        }
+                    },
+                )
+            }
+        },
+        modifier = modifier,
+    )
 }
 
 // ── PreJoinScreen ─────────────────────────────────────────────────────────────
@@ -314,7 +199,6 @@ fun PreJoinScreen(
             PackageManager.PERMISSION_GRANTED
     var cameraEnabled by remember { mutableStateOf(hasCameraPermission) }
     var isFrontCamera by remember { mutableStateOf(true) }
-    val cameraPreviewRef = remember { mutableStateOf<LocalCameraPreview?>(null) }
 
     // ── Audio state ───────────────────────────────────────────────────────────
     val hasMicPermission =
@@ -556,14 +440,9 @@ fun PreJoinScreen(
                 VisioManager.pendingInputDevice = null
 
                 if (cameraEnabled) {
-                    // Stop the lobby Camera2 preview FIRST to release the
-                    // physical camera device before CameraCapture opens it
-                    withContext(Dispatchers.Main) {
-                        cameraPreviewRef.value?.stopCamera()
-                        cameraPreviewRef.value = null
-                    }
-                    // Small delay to let Camera2 fully release the device
-                    kotlinx.coroutines.delay(200)
+                    // Stop the preview capture to release Camera2 before starting call capture.
+                    VisioManager.stopPreviewCapture()
+                    kotlinx.coroutines.delay(300)
                     try {
                         Log.i("PreJoinScreen", "Calling setCameraEnabled(true)...")
                         VisioManager.client.setCameraEnabled(true)
@@ -663,7 +542,6 @@ fun PreJoinScreen(
                 isDark = isDark,
                 lang = lang,
                 backgroundMode = backgroundMode,
-                cameraPreviewRef = cameraPreviewRef,
                 onToggleCamera = { newEnabled ->
                     if (newEnabled) {
                         val hasPerm =
@@ -1031,7 +909,6 @@ private fun PreJoinCameraSection(
     isDark: Boolean,
     lang: String,
     backgroundMode: String,
-    cameraPreviewRef: androidx.compose.runtime.MutableState<LocalCameraPreview?>,
     onToggleCamera: (Boolean) -> Unit,
     onFlipCamera: () -> Unit,
 ) {
@@ -1050,15 +927,8 @@ private fun PreJoinCameraSection(
         contentAlignment = Alignment.Center,
     ) {
         if (cameraEnabled && hasCameraPermission) {
-            AndroidView(
-                factory = { ctx ->
-                    LocalCameraPreview(ctx, isFrontCamera).also { preview ->
-                        cameraPreviewRef.value = preview
-                    }
-                },
-                update = { preview ->
-                    preview.switchCamera(isFrontCamera)
-                },
+            BlurredCameraPreview(
+                isFrontCamera = isFrontCamera,
                 modifier =
                     Modifier
                         .fillMaxSize()

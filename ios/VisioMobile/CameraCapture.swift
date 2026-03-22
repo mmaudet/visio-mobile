@@ -15,10 +15,6 @@ final class CameraCapture: NSObject, AVCaptureVideoDataOutputSampleBufferDelegat
     private var uPlane = [UInt8]()
     private var vPlane = [UInt8]()
 
-    /// When true, frames are routed to the local preview callback only
-    /// (no LiveKit source required). Set before calling `start()`.
-    var previewMode: Bool = false
-
     func start() {
         // Configure and start on the camera queue (Apple warns against
         // calling startRunning() on the main queue).
@@ -226,10 +222,6 @@ final class CameraCapture: NSObject, AVCaptureVideoDataOutputSampleBufferDelegat
                   frameCount, width, height, yStride, uvStride)
         }
 
-        if previewMode {
-            pushNV12PreviewFrameToRust(pixelBuffer, uPlane: &uPlane, vPlane: &vPlane)
-        } else {
-            pushNV12FrameToRust(pixelBuffer, uPlane: &uPlane, vPlane: &vPlane)
-        }
+        pushNV12FrameToRust(pixelBuffer, uPlane: &uPlane, vPlane: &vPlane)
     }
 }

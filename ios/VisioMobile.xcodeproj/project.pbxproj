@@ -14,7 +14,7 @@
 		A10001000000000000000021 /* MeetingsTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10002000000000000000021 /* MeetingsTabView.swift */; };
 		A10001000000000000000022 /* PreJoinView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10002000000000000000022 /* PreJoinView.swift */; };
 		A10001000000000000000023 /* AudioRoutePickerButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10002000000000000000023 /* AudioRoutePickerButton.swift */; };
-		A10001000000000000000024 /* LocalCameraPreviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10002000000000000000024 /* LocalCameraPreviewView.swift */; };
+		A10001000000000000000024 /* BlurredCameraPreviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10002000000000000000024 /* BlurredCameraPreviewView.swift */; };
 		A10001000000000000000005 /* VideoFrameRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10002000000000000000005 /* VideoFrameRouter.swift */; };
 		A10001000000000000000006 /* HomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10002000000000000000006 /* HomeView.swift */; };
 		A10001000000000000000007 /* CallView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10002000000000000000007 /* CallView.swift */; };
@@ -51,7 +51,7 @@
 		A10002000000000000000021 /* MeetingsTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeetingsTabView.swift; sourceTree = "<group>"; };
 		A10002000000000000000022 /* PreJoinView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreJoinView.swift; sourceTree = "<group>"; };
 		A10002000000000000000023 /* AudioRoutePickerButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioRoutePickerButton.swift; sourceTree = "<group>"; };
-		A10002000000000000000024 /* LocalCameraPreviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalCameraPreviewView.swift; sourceTree = "<group>"; };
+		A10002000000000000000024 /* BlurredCameraPreviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BlurredCameraPreviewView.swift; sourceTree = "<group>"; };
 		A10002000000000000000005 /* VideoFrameRouter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoFrameRouter.swift; sourceTree = "<group>"; };
 		A10002000000000000000006 /* HomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeView.swift; sourceTree = "<group>"; };
 		A10002000000000000000007 /* CallView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CallView.swift; sourceTree = "<group>"; };
@@ -164,7 +164,7 @@
 				A10002000000000000000021 /* MeetingsTabView.swift */,
 				A10002000000000000000022 /* PreJoinView.swift */,
 				A10002000000000000000023 /* AudioRoutePickerButton.swift */,
-				A10002000000000000000024 /* LocalCameraPreviewView.swift */,
+				A10002000000000000000024 /* BlurredCameraPreviewView.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -381,7 +381,7 @@
 				A10001000000000000000021 /* MeetingsTabView.swift in Sources */,
 				A10001000000000000000022 /* PreJoinView.swift in Sources */,
 				A10001000000000000000023 /* AudioRoutePickerButton.swift in Sources */,
-				A10001000000000000000024 /* LocalCameraPreviewView.swift in Sources */,
+				A10001000000000000000024 /* BlurredCameraPreviewView.swift in Sources */,
 				A10001000000000000000006 /* HomeView.swift in Sources */,
 				A10001000000000000000007 /* CallView.swift in Sources */,
 				A10001000000000000000008 /* ChatView.swift in Sources */,

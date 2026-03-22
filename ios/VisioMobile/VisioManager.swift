@@ -66,7 +66,7 @@ class VisioManager: ObservableObject {
     nonisolated let client: VisioClient
     private var audioPlayout: AudioPlayout?
     private var audioCapture: AudioCapture?
-    private var cameraCapture: CameraCapture?
+    var cameraCapture: CameraCapture?
     private var syntheticAudio: SyntheticAudioCapture?
     private var mediaFileCapture: MediaFileCapture?
     private var contextDetector: ContextDetector?
@@ -179,6 +179,13 @@ class VisioManager: ObservableObject {
                     audioCapture = capture
                 }
 
+                // Stop preview capture before starting call capture
+                // (releases the physical camera device)
+                await MainActor.run { [weak self] in
+                    self?.cameraCapture?.stop()
+                    self?.cameraCapture = nil
+                }
+
                 var cameraCapture: CameraCapture?
                 if cam {
                     let capture = CameraCapture()
@@ -242,6 +249,13 @@ class VisioManager: ObservableObject {
                     let capture = AudioCapture()
                     capture.start()
                     audioCapture = capture
+                }
+
+                // Stop preview capture before starting call capture
+                // (releases the physical camera device)
+                await MainActor.run { [weak self] in
+                    self?.cameraCapture?.stop()
+                    self?.cameraCapture = nil
                 }
 
                 var cameraCapture: CameraCapture?
@@ -761,6 +775,32 @@ class VisioManager: ObservableObject {
     func switchCamera(toFront: Bool) {
         cameraCapture?.switchCamera(toFront: toFront)
         isFrontCamera = toFront
+    }
+
+    /// Start camera capture for the pre-join lobby preview.
+    /// Frames go through the Rust blur pipeline and are delivered via
+    /// VideoFrameRouter with track SID "local-camera".
+    func startPreviewCapture(isFront: Bool) {
+        cameraCapture?.stop()
+
+        // Sync BlurProcessor with persisted background mode so the preview
+        // applies the user's last-selected filter immediately.
+        let mode = client.getBackgroundMode()
+        NSLog("VisioManager: startPreviewCapture syncing blur mode='%@'", mode)
+        client.setBackgroundMode(mode: mode)
+
+        let capture = CameraCapture()
+        capture.start()
+        if !isFront {
+            capture.switchCamera(toFront: false)
+        }
+        cameraCapture = capture
+    }
+
+    /// Stop the preview camera capture.
+    func stopPreviewCapture() {
+        cameraCapture?.stop()
+        cameraCapture = nil
     }
 
     func refreshCalendarNow() {

@@ -32,65 +32,6 @@ final class VideoFrameRouter: @unchecked Sendable {
         }
     }
 
-    func deliverLocalPreviewBuffer(_ sampleBuffer: CMSampleBuffer) {
-        guard let pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
-
-        CVPixelBufferLockBaseAddress(pixelBuffer, .readOnly)
-        let width  = CVPixelBufferGetWidth(pixelBuffer)
-        let height = CVPixelBufferGetHeight(pixelBuffer)
-        let chromaW = width / 2
-        let chromaH = height / 2
-
-        guard let yBase  = CVPixelBufferGetBaseAddressOfPlane(pixelBuffer, 0),
-              let uvBase = CVPixelBufferGetBaseAddressOfPlane(pixelBuffer, 1) else {
-            CVPixelBufferUnlockBaseAddress(pixelBuffer, .readOnly)
-            return
-        }
-        let yStride  = CVPixelBufferGetBytesPerRowOfPlane(pixelBuffer, 0)
-        let uvStride = CVPixelBufferGetBytesPerRowOfPlane(pixelBuffer, 1)
-        let yPtr  = yBase.assumingMemoryBound(to: UInt8.self)
-        let uvPtr = uvBase.assumingMemoryBound(to: UInt8.self)
-
-        let chromaSize = chromaW * chromaH
-        var uPlane = [UInt8](repeating: 0, count: chromaSize)
-        var vPlane = [UInt8](repeating: 0, count: chromaSize)
-        for row in 0..<chromaH {
-            let uvRow = uvPtr.advanced(by: row * uvStride)
-            let dstOffset = row * chromaW
-            for col in 0..<chromaW {
-                uPlane[dstOffset + col] = uvRow[col * 2]
-                vPlane[dstOffset + col] = uvRow[col * 2 + 1]
-            }
-        }
-        CVPixelBufferUnlockBaseAddress(pixelBuffer, .readOnly)
-
-        let converted: CMSampleBuffer? = uPlane.withUnsafeBufferPointer { uBuf in
-            vPlane.withUnsafeBufferPointer { vBuf in
-                guard let uBase = uBuf.baseAddress,
-                      let vBase = vBuf.baseAddress else { return nil }
-                guard let pb = createNV12PixelBuffer(
-                    width: width, height: height,
-                    yPtr: yPtr, yStride: yStride,
-                    uPtr: uBase, uStride: chromaW,
-                    vPtr: vBase, vStride: chromaW
-                ) else { return nil }
-                return createSampleBuffer(from: pb)
-            }
-        }
-        guard let converted else { return }
-
-        lock.lock()
-        lastBuffers["local-camera"] = converted
-        let view = views["local-camera"]
-        lock.unlock()
-
-        guard let view else { return }
-        let box = SendableSampleBuffer(buffer: converted)
-        DispatchQueue.main.async {
-            view.enqueueSampleBuffer(box.buffer)
-        }
-    }
-
     func clearAll() {
         lock.lock()
         views.removeAll()
