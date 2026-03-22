@@ -13,11 +13,10 @@ and this project adheres to
 - Convert desktop settings from modal to full-page view (#80)
 - Reduce all functions to cognitive complexity <=15 (#103)
 - Reduce cognitive complexity across all platforms (#94)
-- Address SonarCloud MAJOR and MINOR maintainability issues (#95, #96)
 
 ### Fixed
 
-- Fix lobby bypass, background filters and camera in call (#106)
+- Fix video freeze after surface destruction and orientation distortion (#100)
 - Fix 12 SonarCloud reliability issues in desktop frontend (#92)
 - Lobby camera/mic/Bluetooth settings now applied when joining room (#98)
 - Auto-fallback to default audio device when Bluetooth disconnects (#83)

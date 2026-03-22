@@ -603,26 +603,15 @@ private fun CalendarIntervalDropdown(
     lang: String,
     onSelect: (CalendarRefreshInterval) -> Unit,
 ) {
-    val intervalValues =
+    val intervalLabels =
         listOf(
-            CalendarRefreshInterval.MINUTES5,
-            CalendarRefreshInterval.MINUTES15,
-            CalendarRefreshInterval.HOUR1,
-            CalendarRefreshInterval.HOURS4,
-            CalendarRefreshInterval.MANUAL,
+            CalendarRefreshInterval.MINUTES5 to Strings.t("settings.calendarRefresh.5min", lang),
+            CalendarRefreshInterval.MINUTES15 to Strings.t("settings.calendarRefresh.15min", lang),
+            CalendarRefreshInterval.HOUR1 to Strings.t("settings.calendarRefresh.1h", lang),
+            CalendarRefreshInterval.HOURS4 to Strings.t("settings.calendarRefresh.4h", lang),
+            CalendarRefreshInterval.MANUAL to Strings.t("settings.calendarRefresh.manual", lang),
         )
-    val intervalLabelKeys =
-        listOf(
-            "settings.calendarRefresh.5min",
-            "settings.calendarRefresh.15min",
-            "settings.calendarRefresh.1h",
-            "settings.calendarRefresh.4h",
-            "settings.calendarRefresh.manual",
-        )
-    val selectedLabel =
-        intervalValues.indexOf(selected).takeIf { it >= 0 }
-            ?.let { Strings.t(intervalLabelKeys[it], lang) }
-            ?: selected.toString()
+    val selectedLabel = intervalLabels.firstOrNull { it.first == selected }?.second ?: selected.name
     var expanded by remember { mutableStateOf(false) }
 
     ExposedDropdownMenuBox(
@@ -662,11 +651,11 @@ private fun CalendarIntervalDropdown(
             onDismissRequest = { expanded = false },
             containerColor = if (isDark) VisioColors.PrimaryDark100 else VisioColors.LightSurfaceVariant,
         ) {
-            intervalValues.forEachIndexed { index, interval ->
+            intervalLabels.forEach { (interval, label) ->
                 DropdownMenuItem(
                     text = {
                         Text(
-                            Strings.t(intervalLabelKeys[index], lang),
+                            label,
                             color = if (isDark) VisioColors.White else VisioColors.LightOnBackground,
                         )
                     },

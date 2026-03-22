@@ -986,7 +986,7 @@ private fun getFilteredOutputDevices(audioManager: AudioManager): List<AudioDevi
         // Keep SCO (communication profile) and drop A2DP duplicates.
         .filter { device ->
             if (device.type in BLUETOOTH_TYPES) {
-                val name = device.productName.toString()
+                val name = device.productName?.toString() ?: ""
                 // SCO always passes; A2DP only if no SCO with same name was seen
                 if (device.type == AudioDeviceInfo.TYPE_BLUETOOTH_SCO) {
                     seenBtNames.add(name)
@@ -1007,7 +1007,7 @@ private fun audioDeviceLabel(
     return if (device.type in BUILTIN_TYPES) {
         audioDeviceTypeName(device.type, lang)
     } else {
-        device.productName.toString().ifBlank { null }
+        device.productName?.toString()?.ifBlank { null }
             ?: audioDeviceTypeName(device.type, lang)
     }
 }

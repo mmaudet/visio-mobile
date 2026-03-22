@@ -58,9 +58,11 @@ class VideoDisplayView: UIView, @unchecked Sendable {
     }
 
     func enqueueSampleBuffer(_ sampleBuffer: CMSampleBuffer) {
-        guard let layer = displayLayer else { return }
+        guard var layer = displayLayer else { return }
         if layer.status == .failed {
-            layer.flush()
+            setupDisplayLayer()
+            guard let newLayer = displayLayer else { return }
+            layer = newLayer
         }
         layer.enqueue(sampleBuffer)
     }

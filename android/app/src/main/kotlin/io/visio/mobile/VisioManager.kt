@@ -155,6 +155,13 @@ object VisioManager : VisioEventListener {
 
     // Test deep link: connect directly with LiveKit URL + token (debug builds only)
     var pendingTestConnect: Triple<String, String, String?>? = null // (livekitUrl, token, mediaFile?)
+
+    // Audio device preferences from lobby (applied by CallScreen after connection)
+    var pendingOutputDevice: AudioDeviceInfo? = null
+    var pendingInputDevice: AudioDeviceInfo? = null
+
+    // Flag to prevent CallScreen from re-initializing after permission dialogs
+    var callScreenInitialized = false
     var isTestConnection: Boolean = false
 
     // Media file capture for E2E testing (replaces synthetic audio/camera)
@@ -343,7 +350,6 @@ object VisioManager : VisioEventListener {
                     client.logout("https://$instance")
                 }
             } catch (_: Exception) {
-                // No-op: logout failure is non-fatal, clear local session regardless
             }
             authManager.clearCookie()
             withContext(Dispatchers.Main) {
@@ -831,7 +837,6 @@ object VisioManager : VisioEventListener {
                 val accesses = client.listAccesses(roomId)
                 _roomAccesses.value = accesses
             } catch (_: Exception) {
-                // No-op: access list refresh failure is non-fatal
             }
         }
     }
@@ -846,7 +851,6 @@ object VisioManager : VisioEventListener {
                 client.addAccess(userId, roomId)
                 refreshAccesses()
             } catch (_: Exception) {
-                // No-op: access member add failure is non-fatal
             }
             withContext(Dispatchers.Main) { onDone() }
         }
@@ -858,7 +862,6 @@ object VisioManager : VisioEventListener {
                 client.removeAccess(accessId)
                 refreshAccesses()
             } catch (_: Exception) {
-                // No-op: access member remove failure is non-fatal
             }
         }
     }
@@ -950,6 +953,7 @@ object VisioManager : VisioEventListener {
      * Full teardown: stop captures, playout, cancel pending coroutines, disconnect.
      */
     fun disconnect() {
+        callScreenInitialized = false
         stopAudioFocusMonitoring()
         contextDetector?.stop()
         contextDetector = null
@@ -984,11 +988,11 @@ object VisioManager : VisioEventListener {
      * but keep audio active (wake lock protects CPU).
      */
     fun onAppBackgrounded() {
-        if (connectionState.value is ConnectionState.Connected ||
-            connectionState.value is ConnectionState.Reconnecting
-        ) {
-            stopCameraCapture()
-        }
+        // Don't stop camera here — permission dialogs and system overlays
+        // trigger onStop while the call is still active. The camera will be
+        // properly stopped when the user disconnects (via disconnect()).
+        // This also allows the camera to keep sending frames during brief
+        // background transitions (e.g. notification shade pull-down).
     }
 
     /**
@@ -1011,9 +1015,7 @@ object VisioManager : VisioEventListener {
                         Log.e("VISIO", "Foreground reconnection failed: ${e.message}")
                     }
                 }
-                else -> {
-                    // No-op: other states (Connecting, Reconnecting) don't need foreground handling
-                }
+                else -> {}
             }
         }
     }

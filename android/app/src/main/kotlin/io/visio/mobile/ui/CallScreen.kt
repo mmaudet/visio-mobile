@@ -107,18 +107,6 @@ private const val TAG = "CallScreen"
 
 data class FocusItem(val participantSid: String, val source: String)
 
-data class ControlBarState(
-    val micEnabled: Boolean,
-    val cameraEnabled: Boolean,
-    val isHandRaised: Boolean,
-    val unreadCount: Int,
-    val participantCount: Int,
-    val showReactionPicker: Boolean,
-    val adaptiveMode: AdaptiveMode,
-    val isAdaptiveModeEnabled: Boolean,
-    val lang: String,
-)
-
 data class DisplayItem(
     val key: String,
     val participant: ParticipantInfo,
@@ -214,7 +202,6 @@ private suspend fun handleTestConnect(
     try {
         VisioManager.startAudioCapture()
     } catch (_: Exception) {
-        // No-op: audio capture failure is non-fatal, call continues without mic
     }
 
     val hasMediaFile = !mediaFile.isNullOrBlank() && java.io.File(mediaFile).exists()
@@ -247,31 +234,26 @@ private fun launchTestChatMessages(coroutineScope: CoroutineScope) {
         try {
             VisioManager.client.sendChatMessage("Android joined the room!")
         } catch (_: Exception) {
-            // No-op: test chat message failure is non-fatal
         }
         delay(47000)
         try {
             VisioManager.client.sendChatMessage("Android: my turn to speak!")
         } catch (_: Exception) {
-            // No-op: test chat message failure is non-fatal
         }
         delay(15000)
         try {
             VisioManager.client.sendChatMessage("Android: mid-turn check-in")
         } catch (_: Exception) {
-            // No-op: test chat message failure is non-fatal
         }
         delay(10000)
         try {
             VisioManager.client.sendChatMessage("Android: muted — iOS's turn")
         } catch (_: Exception) {
-            // No-op: test chat message failure is non-fatal
         }
         delay(25000)
         try {
             VisioManager.client.sendChatMessage("Android: everyone speaking together!")
         } catch (_: Exception) {
-            // No-op: test chat message failure is non-fatal
         }
     }
 }
@@ -288,12 +270,10 @@ private fun launchTestTurnSequence(
             stopMediaCapture()
             VisioManager.client.setMicrophoneEnabled(false)
         } catch (_: Exception) {
-            // No-op: test turn sequence failure is non-fatal
         }
         try {
             VisioManager.client.setCameraEnabled(false)
         } catch (_: Exception) {
-            // No-op: test turn sequence failure is non-fatal
         }
 
         delay(45000)
@@ -302,12 +282,10 @@ private fun launchTestTurnSequence(
             VisioManager.client.setMicrophoneEnabled(true)
             VisioManager.client.setCameraEnabled(true)
         } catch (_: Exception) {
-            // No-op: test turn sequence failure is non-fatal
         }
         try {
             startMediaCapture()
         } catch (_: Exception) {
-            // No-op: test turn sequence failure is non-fatal
         }
 
         delay(25000)
@@ -316,12 +294,10 @@ private fun launchTestTurnSequence(
             stopMediaCapture()
             VisioManager.client.setMicrophoneEnabled(false)
         } catch (_: Exception) {
-            // No-op: test turn sequence failure is non-fatal
         }
         try {
             VisioManager.client.setCameraEnabled(false)
         } catch (_: Exception) {
-            // No-op: test turn sequence failure is non-fatal
         }
 
         delay(25000)
@@ -330,12 +306,10 @@ private fun launchTestTurnSequence(
             VisioManager.client.setMicrophoneEnabled(true)
             VisioManager.client.setCameraEnabled(true)
         } catch (_: Exception) {
-            // No-op: test turn sequence failure is non-fatal
         }
         try {
             startMediaCapture()
         } catch (_: Exception) {
-            // No-op: test turn sequence failure is non-fatal
         }
     }
 }
@@ -600,10 +574,15 @@ fun CallScreen(
         }
     }
 
+    var lastMode by remember { mutableStateOf(adaptiveMode) }
+
     LaunchedEffect(adaptiveMode) {
-        // Sync local cameraEnabled with actual Rust state on each adaptive mode change
-        val camState = withContext(Dispatchers.IO) { VisioManager.client.isCameraEnabled() }
-        cameraEnabled = camState
+        if (adaptiveMode != lastMode) {
+            lastMode = adaptiveMode
+            // Sync local cameraEnabled with actual Rust state (FFI call off main thread)
+            val camState = withContext(Dispatchers.IO) { VisioManager.client.isCameraEnabled() }
+            cameraEnabled = camState
+        }
     }
 
     val coroutineScope = rememberCoroutineScope()
@@ -687,6 +666,9 @@ fun CallScreen(
         }
     }
 
+    // Debug: log every composition
+    Log.d(TAG, "CallScreen composed, connectionState=$connectionState, cam=$cameraEnabled")
+
     // WaitingForHost: show waiting screen instead of call UI
     if (connectionState is ConnectionState.WaitingForHost) {
         WaitingScreen(
@@ -699,22 +681,17 @@ fun CallScreen(
         return
     }
 
-    // Connect on first composition
+    // Initialize call state. When coming from PreJoinScreen, media is already
+    // enabled — just read the current state. For test deep links, do full setup.
     LaunchedEffect(Unit) {
         withContext(Dispatchers.IO) {
             val state = VisioManager.connectionState.value
+            Log.i(TAG, "CallScreen init: connectionState=$state")
             if (state is ConnectionState.Connected || state is ConnectionState.Connecting) {
-                val s =
-                    try {
-                        VisioManager.client.getSettings()
-                    } catch (_: Exception) {
-                        null
-                    }
-                // Apply mic/camera on join so Rust-side capture is started
-                applyMicOnJoin(context, s?.micEnabledOnJoin ?: false)
+                // PreJoinScreen already started audio/mic/camera — just sync UI state
                 micEnabled = VisioManager.client.isMicrophoneEnabled()
-                applyCameraOnJoin(context, s?.cameraEnabledOnJoin ?: false)
                 cameraEnabled = VisioManager.client.isCameraEnabled()
+                Log.i(TAG, "CallScreen: inherited mic=$micEnabled, cam=$cameraEnabled")
                 return@withContext
             }
 
@@ -741,18 +718,8 @@ fun CallScreen(
         }
     }
 
-    // Request BLUETOOTH_CONNECT permission on Android 12+ for car kit detection
-    LaunchedEffect(Unit) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            val hasBtPerm =
-                ContextCompat.checkSelfPermission(
-                    context, Manifest.permission.BLUETOOTH_CONNECT,
-                ) == PackageManager.PERMISSION_GRANTED
-            if (!hasBtPerm) {
-                bluetoothPermissionLauncher.launch(Manifest.permission.BLUETOOTH_CONNECT)
-            }
-        }
-    }
+    // BLUETOOTH_CONNECT permission is now requested in PreJoinScreen
+    // so it doesn't interrupt the active call with a system dialog.
 
     // Notify backend when navigating to chat
     val onChatOpen = {
@@ -881,18 +848,15 @@ fun CallScreen(
                 Spacer(modifier = Modifier.height(8.dp))
 
                 ControlBar(
-                    state =
-                        ControlBarState(
-                            micEnabled = micEnabled,
-                            cameraEnabled = cameraEnabled,
-                            isHandRaised = isHandRaised,
-                            unreadCount = unreadCount,
-                            participantCount = participants.size,
-                            showReactionPicker = showReactionPicker,
-                            adaptiveMode = effectiveAdaptiveMode,
-                            isAdaptiveModeEnabled = isAdaptiveModeEnabled,
-                            lang = lang,
-                        ),
+                    micEnabled = micEnabled,
+                    cameraEnabled = cameraEnabled,
+                    isHandRaised = isHandRaised,
+                    unreadCount = unreadCount,
+                    participantCount = participants.size,
+                    showReactionPicker = showReactionPicker,
+                    adaptiveMode = effectiveAdaptiveMode,
+                    isAdaptiveModeEnabled = isAdaptiveModeEnabled,
+                    lang = lang,
                     onToggleMic = {
                         toggleMic(micEnabled, context, coroutineScope, micPermissionLauncher) {
                             micEnabled = it
@@ -1482,7 +1446,15 @@ private fun AdaptiveModeIndicator(
 
 @Composable
 private fun ControlBar(
-    state: ControlBarState,
+    micEnabled: Boolean,
+    cameraEnabled: Boolean,
+    isHandRaised: Boolean,
+    unreadCount: Int,
+    participantCount: Int,
+    showReactionPicker: Boolean,
+    adaptiveMode: AdaptiveMode,
+    isAdaptiveModeEnabled: Boolean,
+    lang: String,
     onToggleMic: () -> Unit,
     onAudioPicker: () -> Unit,
     onToggleCamera: () -> Unit,
@@ -1501,15 +1473,15 @@ private fun ControlBar(
     Column(
         modifier = Modifier.fillMaxWidth(),
     ) {
-        if (state.showReactionPicker) {
+        if (showReactionPicker) {
             ReactionPickerRow(onReaction = onReaction)
         }
 
         if (showOverflow) {
             OverflowMenu(
-                isHandRaised = state.isHandRaised,
-                lang = state.lang,
-                isAdaptiveModeEnabled = state.isAdaptiveModeEnabled,
+                isHandRaised = isHandRaised,
+                lang = lang,
+                isAdaptiveModeEnabled = isAdaptiveModeEnabled,
                 adaptiveModeOverride = adaptiveModeOverride,
                 onToggleHandRaise = {
                     onToggleHandRaise()
@@ -1531,14 +1503,14 @@ private fun ControlBar(
         }
 
         ControlBarButtons(
-            micEnabled = state.micEnabled,
-            cameraEnabled = state.cameraEnabled,
-            unreadCount = state.unreadCount,
-            participantCount = state.participantCount,
-            adaptiveMode = state.adaptiveMode,
-            isAdaptiveModeEnabled = state.isAdaptiveModeEnabled,
+            micEnabled = micEnabled,
+            cameraEnabled = cameraEnabled,
+            unreadCount = unreadCount,
+            participantCount = participantCount,
+            adaptiveMode = adaptiveMode,
+            isAdaptiveModeEnabled = isAdaptiveModeEnabled,
             showOverflow = showOverflow,
-            lang = state.lang,
+            lang = lang,
             onToggleMic = onToggleMic,
             onAudioPicker = onAudioPicker,
             onToggleCamera = onToggleCamera,

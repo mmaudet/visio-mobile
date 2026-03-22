@@ -235,7 +235,6 @@ private fun HomeScreenEffects(
         try {
             onHasCalendarUrlChange(VisioManager.client.getCalendarUrl() != null)
         } catch (_: Exception) {
-            // No-op: calendar URL check failure is non-fatal
         }
         onPauseOrDispose {}
     }
@@ -535,7 +534,7 @@ private fun ColumnScope.HomeTabContent(
                 isDark = isDark,
                 lang = lang,
                 onSettings = onSettings,
-                onJoinMeeting = { meetingRoomUrl ->
+                onJoinMeeting = { meetingRoomUrl, _ ->
                     onJoin(meetingRoomUrl, username.trim())
                 },
             )
@@ -1289,7 +1288,6 @@ private fun CreateRoomDialog(
                                         try {
                                             VisioManager.client.addAccess(user.id, result.id)
                                         } catch (_: Exception) {
-                                            // No-op: individual access grant failure is non-fatal
                                         }
                                     }
                                 }

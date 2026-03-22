@@ -66,7 +66,7 @@ private fun computeScreenShareLayout(
     previousState: LayoutState,
 ): Pair<LayoutDecision, LayoutState> {
     val main = findDisplayItem(displayItems, screenShare.participantSid, screenShare.source)
-    val secondary = displayItems.filter { main == null || it.key != main.key }
+    val secondary = displayItems.filter { it.key != main?.key }
     return Pair(
         LayoutDecision(LayoutMode.FOCUS, main, secondary, activeSpeakers.firstOrNull(), pinnedItem?.participantSid),
         previousState.copy(currentFocus = screenShare),
@@ -80,7 +80,7 @@ private fun computePinnedLayout(
     previousState: LayoutState,
 ): Pair<LayoutDecision, LayoutState> {
     val main = findDisplayItem(displayItems, pinnedItem.participantSid, pinnedItem.source)
-    val secondary = displayItems.filter { main == null || it.key != main.key }
+    val secondary = displayItems.filter { it.key != main?.key }
     return Pair(
         LayoutDecision(LayoutMode.FOCUS, main, secondary, activeSpeakers.firstOrNull(), pinnedItem.participantSid),
         previousState.copy(currentFocus = pinnedItem),
@@ -108,7 +108,7 @@ private fun computeSpeakerLayout(
 
     return if (shouldSwitch) {
         val main = findDisplayItem(displayItems, targetSid, "camera")
-        val secondary = displayItems.filter { main == null || it.key != main.key }
+        val secondary = displayItems.filter { it.key != main?.key }
         Pair(
             LayoutDecision(LayoutMode.FOCUS, main, secondary, currentSpeakerSid, null),
             LayoutState(targetFocus, nowMs, newLastRemote),
@@ -118,7 +118,7 @@ private fun computeSpeakerLayout(
             previousState.currentFocus?.let {
                 findDisplayItem(displayItems, it.participantSid, it.source)
             }
-        val secondary = displayItems.filter { currentMain == null || it.key != currentMain.key }
+        val secondary = displayItems.filter { it.key != currentMain?.key }
         Pair(
             LayoutDecision(LayoutMode.FOCUS, currentMain, secondary, currentSpeakerSid, null),
             previousState.copy(lastRemoteSpeakerSid = newLastRemote),
