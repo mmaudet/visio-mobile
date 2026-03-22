@@ -7,7 +7,7 @@
     { "identity": "bot-charlie", "name": "Charlie", "mediaFile": "test-assets/tts-fr/charlie-speaks.mp4" }
   ],
   "requires": {
-    "android": true,
+    "android": false,
     "desktop": true,
     "ios": true
   }

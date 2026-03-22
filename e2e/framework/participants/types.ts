@@ -36,9 +36,9 @@ export interface IosSimParticipant extends Participant {
 
 export interface ScenarioContext {
   bot(identity: string): BotParticipant;
-  android(): AndroidParticipant;
-  desktop(): DesktopParticipant;
-  ios(): IosSimParticipant;
+  android(): AndroidParticipant | null;
+  desktop(): DesktopParticipant | null;
+  ios(): IosSimParticipant | null;
   sleep(ms: number): Promise<void>;
   log(message: string): void;
   sidMap: ReadonlyMap<string, string>;

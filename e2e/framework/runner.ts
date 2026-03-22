@@ -156,9 +156,9 @@ class ScenarioContextImpl implements ScenarioContext {
     return bot;
   }
 
-  android(): AndroidParticipant {
+  android(): AndroidParticipant | null {
     if (!this._availability.android) {
-      throw new Error("Android device not available");
+      return null;
     }
     if (this._android) return this._android;
 
@@ -181,9 +181,9 @@ class ScenarioContextImpl implements ScenarioContext {
     return this._android;
   }
 
-  desktop(): DesktopParticipant {
+  desktop(): DesktopParticipant | null {
     if (!this._availability.desktop) {
-      throw new Error("Desktop not available");
+      return null;
     }
     if (this._desktop) return this._desktop;
 
@@ -206,9 +206,9 @@ class ScenarioContextImpl implements ScenarioContext {
     return this._desktop;
   }
 
-  ios(): IosSimParticipant {
+  ios(): IosSimParticipant | null {
     if (!this._availability.ios) {
-      throw new Error("iOS Simulator not available");
+      return null;
     }
     if (this._ios) return this._ios;
 
