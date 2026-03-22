@@ -333,319 +333,58 @@ fun HomeScreen(
         Spacer(modifier = Modifier.height(24.dp))
 
         // Tab strip (Rejoindre / Réunions planifiées)
-        run {
-            TabRow(
-                selectedTabIndex = selectedTab,
-                containerColor = MaterialTheme.colorScheme.surface,
-                contentColor = MaterialTheme.colorScheme.onSurface,
-                indicator = { tabPositions ->
-                    TabRowDefaults.SecondaryIndicator(
-                        modifier = Modifier.tabIndicatorOffset(tabPositions[selectedTab]),
-                        color = VisioColors.Primary500,
-                    )
-                },
-            ) {
-                Tab(
-                    selected = selectedTab == 0,
-                    onClick = { selectedTab = 0 },
-                    text = {
-                        Text(
-                            Strings.t("home.tab.join", lang),
-                            color =
-                                if (selectedTab == 0) {
-                                    VisioColors.Primary500
-                                } else {
-                                    if (isDark) VisioColors.Greyscale400 else VisioColors.LightTextSecondary
-                                },
-                        )
-                    },
-                )
-                Tab(
-                    selected = selectedTab == 1,
-                    onClick = { selectedTab = 1 },
-                    text = {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Text(
-                                Strings.t("home.tab.meetings", lang),
-                                color =
-                                    if (selectedTab == 1) {
-                                        VisioColors.Primary500
-                                    } else {
-                                        if (isDark) VisioColors.Greyscale400 else VisioColors.LightTextSecondary
-                                    },
-                            )
-                            if (calendarLoading && upcomingMeetings.isEmpty()) {
-                                Spacer(modifier = Modifier.width(6.dp))
-                                CircularProgressIndicator(
-                                    modifier = Modifier.size(14.dp),
-                                    strokeWidth = 2.dp,
-                                    color = VisioColors.Primary500,
-                                )
-                            } else if (upcomingMeetings.isNotEmpty() || hasImminentMeeting) {
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Badge(
-                                    containerColor =
-                                        if (hasImminentMeeting) Color(0xFFE1000F) else VisioColors.Primary500,
-                                ) {
-                                    if (upcomingMeetings.isNotEmpty()) {
-                                        Text(
-                                            upcomingMeetings.size.toString(),
-                                            color = VisioColors.White,
-                                        )
+        HomeTabStrip(
+            selectedTab = selectedTab,
+            onSelectTab = { selectedTab = it },
+            isDark = isDark,
+            lang = lang,
+            calendarLoading = calendarLoading,
+            meetingCount = upcomingMeetings.size,
+            hasImminentMeeting = hasImminentMeeting,
+        )
+
+        // Tab content
+        Box(modifier = Modifier.weight(1f)) {
+            if (selectedTab == 0) {
+                JoinTab(
+                    roomUrl = roomUrl,
+                    onRoomUrlChange = { roomUrl = it },
+                    username = username,
+                    onUsernameChange = { username = it },
+                    roomStatus = roomStatus,
+                    resolvedRoomUrl = resolvedRoomUrl,
+                    isDark = isDark,
+                    lang = lang,
+                    isAuthenticated = VisioManager.isAuthenticated,
+                    roomHistory = roomHistory,
+                    historyJoining = historyJoining,
+                    onJoin = onJoin,
+                    onShowCreateRoom = { showCreateRoom = true },
+                    onHistoryClick = { url ->
+                        roomUrl = url
+                        historyJoining = url
+                        coroutineScope.launch {
+                            try {
+                                val uname = username.trim().ifEmpty { null }
+                                val result =
+                                    withContext(Dispatchers.IO) {
+                                        VisioManager.client.validateRoom(url, uname)
                                     }
+                                if (result is RoomValidationResult.Valid) {
+                                    historyJoining = null
+                                    onJoin(url, username.trim())
+                                } else {
+                                    historyJoining = null
                                 }
+                            } catch (e: Exception) {
+                                Log.e(TAG, "Failed to join from history", e)
+                                historyJoining = null
                             }
                         }
                     },
                 )
             }
-        }
 
-        // Tab content
-        Box(modifier = Modifier.weight(1f)) {
-            if (selectedTab == 0) {
-                // Join tab content (scrollable)
-                Column(
-                    modifier =
-                        Modifier
-                            .fillMaxSize()
-                            .verticalScroll(rememberScrollState())
-                            .padding(horizontal = 32.dp)
-                            .padding(bottom = 32.dp),
-                    verticalArrangement = Arrangement.Top,
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                ) {
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    Text(
-                        text = Strings.t("home.meetUrl", lang),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = if (isDark) VisioColors.Greyscale400 else VisioColors.LightTextSecondary,
-                        modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp),
-                    )
-                    TextField(
-                        value = roomUrl,
-                        onValueChange = { roomUrl = it },
-                        placeholder = {
-                            Text(
-                                "abc-defg-hij",
-                                color = if (isDark) VisioColors.Greyscale400 else VisioColors.LightTextSecondary,
-                            )
-                        },
-                        singleLine = true,
-                        keyboardOptions =
-                            KeyboardOptions(
-                                keyboardType = KeyboardType.Uri,
-                                autoCorrectEnabled = false,
-                                capitalization = KeyboardCapitalization.None,
-                            ),
-                        modifier = Modifier.fillMaxWidth().testTag("home_room_url_input"),
-                        colors =
-                            TextFieldDefaults.colors(
-                                focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
-                                unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
-                                cursorColor = VisioColors.Primary500,
-                                focusedTextColor = MaterialTheme.colorScheme.onSurface,
-                                unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
-                                focusedLabelColor = VisioColors.Primary500,
-                                unfocusedLabelColor = if (isDark) VisioColors.Greyscale400 else VisioColors.LightTextSecondary,
-                                focusedIndicatorColor = Color.Transparent,
-                                unfocusedIndicatorColor = Color.Transparent,
-                            ),
-                        shape = RoundedCornerShape(12.dp),
-                    )
-
-                    when (roomStatus) {
-                        "checking" ->
-                            Text(
-                                Strings.t("home.room.checking", lang),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = VisioColors.Greyscale400,
-                                modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
-                                textAlign = androidx.compose.ui.text.style.TextAlign.End,
-                            )
-                        "valid" ->
-                            Text(
-                                Strings.t("home.room.valid", lang),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = Color(0xFF18753C),
-                                modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
-                                textAlign = androidx.compose.ui.text.style.TextAlign.End,
-                            )
-                        "not_found" ->
-                            Text(
-                                Strings.t("home.room.notFound", lang),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = Color(0xFFE1000F),
-                                modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
-                                textAlign = androidx.compose.ui.text.style.TextAlign.End,
-                            )
-                    }
-
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    TextField(
-                        value = username,
-                        onValueChange = { username = it },
-                        label = {
-                            Text(
-                                Strings.t("home.displayName", lang),
-                                color = if (isDark) VisioColors.Greyscale400 else VisioColors.LightTextSecondary,
-                            )
-                        },
-                        placeholder = {
-                            Text(
-                                Strings.t("home.displayName.placeholder", lang),
-                                color = if (isDark) VisioColors.Greyscale400 else VisioColors.LightTextSecondary,
-                            )
-                        },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth().testTag("home_display_name_input"),
-                        colors =
-                            TextFieldDefaults.colors(
-                                focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
-                                unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
-                                cursorColor = VisioColors.Primary500,
-                                focusedTextColor = MaterialTheme.colorScheme.onSurface,
-                                unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
-                                focusedLabelColor = VisioColors.Primary500,
-                                unfocusedLabelColor = if (isDark) VisioColors.Greyscale400 else VisioColors.LightTextSecondary,
-                                focusedIndicatorColor = Color.Transparent,
-                                unfocusedIndicatorColor = Color.Transparent,
-                            ),
-                        shape = RoundedCornerShape(12.dp),
-                    )
-
-                    Spacer(modifier = Modifier.height(24.dp))
-
-                    Button(
-                        onClick = { onJoin(resolvedRoomUrl, username.trim()) },
-                        enabled = roomStatus == "valid",
-                        modifier = Modifier.fillMaxWidth().testTag("home_join_button"),
-                        colors =
-                            ButtonDefaults.buttonColors(
-                                containerColor = VisioColors.Primary500,
-                                contentColor = VisioColors.White,
-                                disabledContainerColor = VisioColors.PrimaryDark300,
-                                disabledContentColor = VisioColors.Greyscale400,
-                            ),
-                        shape = RoundedCornerShape(12.dp),
-                    ) {
-                        Text(
-                            Strings.t("home.join", lang),
-                            fontSize = 16.sp,
-                            modifier = Modifier.padding(vertical = 4.dp),
-                        )
-                    }
-
-                    if (VisioManager.isAuthenticated) {
-                        Spacer(modifier = Modifier.height(12.dp))
-                        OutlinedButton(
-                            onClick = { showCreateRoom = true },
-                            modifier = Modifier.fillMaxWidth().testTag("home_create_room_button"),
-                            shape = RoundedCornerShape(12.dp),
-                        ) {
-                            Text(
-                                Strings.t("home.createRoom", lang),
-                                fontSize = 16.sp,
-                                modifier = Modifier.padding(vertical = 4.dp),
-                            )
-                        }
-                    }
-
-                    // Room history
-                    if (roomHistory.isNotEmpty()) {
-                        Spacer(modifier = Modifier.height(24.dp))
-                        Text(
-                            text = Strings.t("home.recentRooms", lang),
-                            style = MaterialTheme.typography.titleSmall,
-                            color = if (isDark) VisioColors.Greyscale400 else VisioColors.LightTextSecondary,
-                            modifier = Modifier.fillMaxWidth(),
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        roomHistory.forEachIndexed { index, url ->
-                            val slug = if ('/' in url) url.substringAfterLast('/') else url
-                            val host =
-                                try {
-                                    java.net.URI(url).host ?: ""
-                                } catch (_: Exception) {
-                                    ""
-                                }
-                            Row(
-                                modifier =
-                                    Modifier
-                                        .fillMaxWidth()
-                                        .testTag("home_room_history_item_$index")
-                                        .clickable(enabled = historyJoining == null) {
-                                            roomUrl = url
-                                            historyJoining = url
-                                            coroutineScope.launch {
-                                                try {
-                                                    val uname = username.trim().ifEmpty { null }
-                                                    val result =
-                                                        withContext(Dispatchers.IO) {
-                                                            VisioManager.client.validateRoom(url, uname)
-                                                        }
-                                                    if (result is RoomValidationResult.Valid) {
-                                                        historyJoining = null
-                                                        onJoin(url, username.trim())
-                                                    } else {
-                                                        // Validation failed — fall back to filling the URL field
-                                                        historyJoining = null
-                                                    }
-                                                } catch (e: Exception) {
-                                                    Log.e(TAG, "Failed to join from history", e)
-                                                    historyJoining = null
-                                                }
-                                            }
-                                        }
-                                        .background(
-                                            VisioColors.Primary500.copy(alpha = if (isDark) 0.12f else 0.08f),
-                                            RoundedCornerShape(8.dp),
-                                        )
-                                        .padding(horizontal = 12.dp, vertical = 10.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            ) {
-                                if (historyJoining == url) {
-                                    androidx.compose.material3.CircularProgressIndicator(
-                                        modifier = Modifier.size(18.dp),
-                                        strokeWidth = 2.dp,
-                                        color = VisioColors.Primary500,
-                                    )
-                                } else {
-                                    Icon(
-                                        imageVector = Icons.Default.Public,
-                                        contentDescription = null,
-                                        tint = VisioColors.Primary500,
-                                        modifier = Modifier.size(18.dp),
-                                    )
-                                }
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(
-                                        text = slug,
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        fontWeight = FontWeight.Medium,
-                                        color = MaterialTheme.colorScheme.onSurface,
-                                    )
-                                    if (host.isNotEmpty()) {
-                                        Text(
-                                            text = host,
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = if (isDark) VisioColors.Greyscale400 else VisioColors.LightTextSecondary,
-                                        )
-                                    }
-                                }
-                            }
-                            Spacer(modifier = Modifier.height(6.dp))
-                        }
-                    } // end if roomHistory
-                } // end join tab scrollable column
-            } // end if tab 0
-
-            // Réunions tab
             if (selectedTab == 1) {
                 MeetingsTab(
                     meetings = upcomingMeetings,
@@ -659,7 +398,7 @@ fun HomeScreen(
                     },
                 )
             }
-        } // end Box
+        }
     } // end outer Column
 
     if (showCreateRoom) {
@@ -672,6 +411,343 @@ fun HomeScreen(
             },
             onDismiss = { showCreateRoom = false },
         )
+    }
+}
+
+@Composable
+private fun HomeTabStrip(
+    selectedTab: Int,
+    onSelectTab: (Int) -> Unit,
+    isDark: Boolean,
+    lang: String,
+    calendarLoading: Boolean,
+    meetingCount: Int,
+    hasImminentMeeting: Boolean,
+) {
+    TabRow(
+        selectedTabIndex = selectedTab,
+        containerColor = MaterialTheme.colorScheme.surface,
+        contentColor = MaterialTheme.colorScheme.onSurface,
+        indicator = { tabPositions ->
+            TabRowDefaults.SecondaryIndicator(
+                modifier = Modifier.tabIndicatorOffset(tabPositions[selectedTab]),
+                color = VisioColors.Primary500,
+            )
+        },
+    ) {
+        Tab(
+            selected = selectedTab == 0,
+            onClick = { onSelectTab(0) },
+            text = {
+                Text(
+                    Strings.t("home.tab.join", lang),
+                    color =
+                        if (selectedTab == 0) {
+                            VisioColors.Primary500
+                        } else {
+                            if (isDark) VisioColors.Greyscale400 else VisioColors.LightTextSecondary
+                        },
+                )
+            },
+        )
+        Tab(
+            selected = selectedTab == 1,
+            onClick = { onSelectTab(1) },
+            text = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        Strings.t("home.tab.meetings", lang),
+                        color =
+                            if (selectedTab == 1) {
+                                VisioColors.Primary500
+                            } else {
+                                if (isDark) VisioColors.Greyscale400 else VisioColors.LightTextSecondary
+                            },
+                    )
+                    if (calendarLoading && meetingCount == 0) {
+                        Spacer(modifier = Modifier.width(6.dp))
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(14.dp),
+                            strokeWidth = 2.dp,
+                            color = VisioColors.Primary500,
+                        )
+                    } else if (meetingCount > 0 || hasImminentMeeting) {
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Badge(
+                            containerColor =
+                                if (hasImminentMeeting) Color(0xFFE1000F) else VisioColors.Primary500,
+                        ) {
+                            if (meetingCount > 0) {
+                                Text(
+                                    meetingCount.toString(),
+                                    color = VisioColors.White,
+                                )
+                            }
+                        }
+                    }
+                }
+            },
+        )
+    }
+}
+
+@Composable
+private fun JoinTab(
+    roomUrl: String,
+    onRoomUrlChange: (String) -> Unit,
+    username: String,
+    onUsernameChange: (String) -> Unit,
+    roomStatus: String,
+    resolvedRoomUrl: String,
+    isDark: Boolean,
+    lang: String,
+    isAuthenticated: Boolean,
+    roomHistory: List<String>,
+    historyJoining: String?,
+    onJoin: (roomUrl: String, username: String) -> Unit,
+    onShowCreateRoom: () -> Unit,
+    onHistoryClick: (String) -> Unit,
+) {
+    Column(
+        modifier =
+            Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 32.dp)
+                .padding(bottom = 32.dp),
+        verticalArrangement = Arrangement.Top,
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Spacer(modifier = Modifier.height(16.dp))
+
+        Text(
+            text = Strings.t("home.meetUrl", lang),
+            style = MaterialTheme.typography.bodySmall,
+            color = if (isDark) VisioColors.Greyscale400 else VisioColors.LightTextSecondary,
+            modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp),
+        )
+        TextField(
+            value = roomUrl,
+            onValueChange = onRoomUrlChange,
+            placeholder = {
+                Text(
+                    "abc-defg-hij",
+                    color = if (isDark) VisioColors.Greyscale400 else VisioColors.LightTextSecondary,
+                )
+            },
+            singleLine = true,
+            keyboardOptions =
+                KeyboardOptions(
+                    keyboardType = KeyboardType.Uri,
+                    autoCorrectEnabled = false,
+                    capitalization = KeyboardCapitalization.None,
+                ),
+            modifier = Modifier.fillMaxWidth().testTag("home_room_url_input"),
+            colors =
+                TextFieldDefaults.colors(
+                    focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                    unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                    cursorColor = VisioColors.Primary500,
+                    focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                    unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+                    focusedLabelColor = VisioColors.Primary500,
+                    unfocusedLabelColor = if (isDark) VisioColors.Greyscale400 else VisioColors.LightTextSecondary,
+                    focusedIndicatorColor = Color.Transparent,
+                    unfocusedIndicatorColor = Color.Transparent,
+                ),
+            shape = RoundedCornerShape(12.dp),
+        )
+
+        RoomStatusIndicator(roomStatus = roomStatus, lang = lang)
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        TextField(
+            value = username,
+            onValueChange = onUsernameChange,
+            label = {
+                Text(
+                    Strings.t("home.displayName", lang),
+                    color = if (isDark) VisioColors.Greyscale400 else VisioColors.LightTextSecondary,
+                )
+            },
+            placeholder = {
+                Text(
+                    Strings.t("home.displayName.placeholder", lang),
+                    color = if (isDark) VisioColors.Greyscale400 else VisioColors.LightTextSecondary,
+                )
+            },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth().testTag("home_display_name_input"),
+            colors =
+                TextFieldDefaults.colors(
+                    focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                    unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                    cursorColor = VisioColors.Primary500,
+                    focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                    unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+                    focusedLabelColor = VisioColors.Primary500,
+                    unfocusedLabelColor = if (isDark) VisioColors.Greyscale400 else VisioColors.LightTextSecondary,
+                    focusedIndicatorColor = Color.Transparent,
+                    unfocusedIndicatorColor = Color.Transparent,
+                ),
+            shape = RoundedCornerShape(12.dp),
+        )
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        Button(
+            onClick = { onJoin(resolvedRoomUrl, username.trim()) },
+            enabled = roomStatus == "valid",
+            modifier = Modifier.fillMaxWidth().testTag("home_join_button"),
+            colors =
+                ButtonDefaults.buttonColors(
+                    containerColor = VisioColors.Primary500,
+                    contentColor = VisioColors.White,
+                    disabledContainerColor = VisioColors.PrimaryDark300,
+                    disabledContentColor = VisioColors.Greyscale400,
+                ),
+            shape = RoundedCornerShape(12.dp),
+        ) {
+            Text(
+                Strings.t("home.join", lang),
+                fontSize = 16.sp,
+                modifier = Modifier.padding(vertical = 4.dp),
+            )
+        }
+
+        if (isAuthenticated) {
+            Spacer(modifier = Modifier.height(12.dp))
+            OutlinedButton(
+                onClick = onShowCreateRoom,
+                modifier = Modifier.fillMaxWidth().testTag("home_create_room_button"),
+                shape = RoundedCornerShape(12.dp),
+            ) {
+                Text(
+                    Strings.t("home.createRoom", lang),
+                    fontSize = 16.sp,
+                    modifier = Modifier.padding(vertical = 4.dp),
+                )
+            }
+        }
+
+        // Room history
+        if (roomHistory.isNotEmpty()) {
+            RoomHistoryList(
+                roomHistory = roomHistory,
+                historyJoining = historyJoining,
+                isDark = isDark,
+                lang = lang,
+                onHistoryClick = onHistoryClick,
+            )
+        }
+    }
+}
+
+@Composable
+private fun RoomStatusIndicator(
+    roomStatus: String,
+    lang: String,
+) {
+    when (roomStatus) {
+        "checking" ->
+            Text(
+                Strings.t("home.room.checking", lang),
+                style = MaterialTheme.typography.bodySmall,
+                color = VisioColors.Greyscale400,
+                modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+                textAlign = androidx.compose.ui.text.style.TextAlign.End,
+            )
+        "valid" ->
+            Text(
+                Strings.t("home.room.valid", lang),
+                style = MaterialTheme.typography.bodySmall,
+                color = Color(0xFF18753C),
+                modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+                textAlign = androidx.compose.ui.text.style.TextAlign.End,
+            )
+        "not_found" ->
+            Text(
+                Strings.t("home.room.notFound", lang),
+                style = MaterialTheme.typography.bodySmall,
+                color = Color(0xFFE1000F),
+                modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+                textAlign = androidx.compose.ui.text.style.TextAlign.End,
+            )
+    }
+}
+
+@Composable
+private fun RoomHistoryList(
+    roomHistory: List<String>,
+    historyJoining: String?,
+    isDark: Boolean,
+    lang: String,
+    onHistoryClick: (String) -> Unit,
+) {
+    Spacer(modifier = Modifier.height(24.dp))
+    Text(
+        text = Strings.t("home.recentRooms", lang),
+        style = MaterialTheme.typography.titleSmall,
+        color = if (isDark) VisioColors.Greyscale400 else VisioColors.LightTextSecondary,
+        modifier = Modifier.fillMaxWidth(),
+    )
+    Spacer(modifier = Modifier.height(8.dp))
+    roomHistory.forEachIndexed { index, url ->
+        val slug = if ('/' in url) url.substringAfterLast('/') else url
+        val host =
+            try {
+                java.net.URI(url).host ?: ""
+            } catch (_: Exception) {
+                ""
+            }
+        Row(
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .testTag("home_room_history_item_$index")
+                    .clickable(enabled = historyJoining == null) {
+                        onHistoryClick(url)
+                    }
+                    .background(
+                        VisioColors.Primary500.copy(alpha = if (isDark) 0.12f else 0.08f),
+                        RoundedCornerShape(8.dp),
+                    )
+                    .padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            if (historyJoining == url) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(18.dp),
+                    strokeWidth = 2.dp,
+                    color = VisioColors.Primary500,
+                )
+            } else {
+                Icon(
+                    imageVector = Icons.Default.Public,
+                    contentDescription = null,
+                    tint = VisioColors.Primary500,
+                    modifier = Modifier.size(18.dp),
+                )
+            }
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = slug,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+                if (host.isNotEmpty()) {
+                    Text(
+                        text = host,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = if (isDark) VisioColors.Greyscale400 else VisioColors.LightTextSecondary,
+                    )
+                }
+            }
+        }
+        Spacer(modifier = Modifier.height(6.dp))
     }
 }
 

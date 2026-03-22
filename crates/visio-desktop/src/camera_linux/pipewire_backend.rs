@@ -4,8 +4,8 @@
 //! then opens a PipeWire stream to receive video frames. This enables
 //! proper Flatpak sandboxing without --device=all.
 
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::thread::{self, JoinHandle};
 
 use livekit::webrtc::prelude::*;
@@ -99,13 +99,12 @@ fn pipewire_capture_loop(
     source: NativeVideoSource,
     running: Arc<AtomicBool>,
 ) -> Result<(), String> {
-    use pipewire::main_loop::MainLoopBox;
     use pipewire::context::ContextBox;
+    use pipewire::main_loop::MainLoopBox;
 
-    let mainloop = MainLoopBox::new(None)
-        .map_err(|e| format!("MainLoopBox::new: {e}"))?;
-    let context = ContextBox::new(&mainloop.loop_(), None)
-        .map_err(|e| format!("ContextBox::new: {e}"))?;
+    let mainloop = MainLoopBox::new(None).map_err(|e| format!("MainLoopBox::new: {e}"))?;
+    let context =
+        ContextBox::new(&mainloop.loop_(), None).map_err(|e| format!("ContextBox::new: {e}"))?;
 
     let core = context
         .connect_fd(pw_fd, None)
@@ -170,7 +169,11 @@ fn pipewire_capture_loop(
                     if let Some(data) = buf.data() {
                         let mut i420 = I420Buffer::new(width, height);
                         let converted = convert_spa_frame(
-                            data, format, width as usize, height as usize, &mut i420,
+                            data,
+                            format,
+                            width as usize,
+                            height as usize,
+                            &mut i420,
                         );
 
                         if converted {
@@ -179,9 +182,14 @@ fn pipewire_capture_loop(
                                 let strides = i420.strides();
                                 let (y, u, v) = i420.data_mut();
                                 visio_ffi::blur::BlurProcessor::process_i420(
-                                    y, u, v,
-                                    width as usize, height as usize,
-                                    strides.0 as usize, strides.1 as usize, strides.2 as usize,
+                                    y,
+                                    u,
+                                    v,
+                                    width as usize,
+                                    height as usize,
+                                    strides.0 as usize,
+                                    strides.1 as usize,
+                                    strides.2 as usize,
                                     0,
                                 );
                             }
@@ -195,10 +203,7 @@ fn pipewire_capture_loop(
 
                             let count = frame_count_cb.fetch_add(1, Ordering::Relaxed);
                             if count % 3 == 0 {
-                                visio_video::render_local_i420(
-                                    &video_frame.buffer,
-                                    "local-camera",
-                                );
+                                visio_video::render_local_i420(&video_frame.buffer, "local-camera");
                             }
                             if count == 0 {
                                 tracing::info!("First PipeWire camera frame captured");
@@ -216,8 +221,7 @@ fn pipewire_capture_loop(
         .connect(
             pipewire::spa::utils::Direction::Input,
             None,
-            pipewire::stream::StreamFlags::AUTOCONNECT
-                | pipewire::stream::StreamFlags::MAP_BUFFERS,
+            pipewire::stream::StreamFlags::AUTOCONNECT | pipewire::stream::StreamFlags::MAP_BUFFERS,
             &mut [],
         )
         .map_err(|e| format!("stream connect: {e}"))?;
@@ -226,7 +230,9 @@ fn pipewire_capture_loop(
     // Run the main loop, checking the running flag periodically
     while running.load(Ordering::Relaxed) {
         // Iterate the main loop with a short timeout (10ms) to check running flag
-        mainloop.loop_().iterate(std::time::Duration::from_millis(10));
+        mainloop
+            .loop_()
+            .iterate(std::time::Duration::from_millis(10));
     }
     tracing::info!("PipeWire main loop exited");
 
@@ -245,7 +251,8 @@ fn parse_video_format_pod(pod: &pipewire::spa::pod::Pod) -> Option<(u32, u32, u3
     //   - framerate (fraction)
     use pipewire::spa::pod::deserialize::PodDeserializer;
     // Attempt structured parsing; fall back gracefully
-    let deserializer = PodDeserializer::deserialize_from::<pipewire::spa::pod::Value>(pod.as_bytes());
+    let deserializer =
+        PodDeserializer::deserialize_from::<pipewire::spa::pod::Value>(pod.as_bytes());
     match deserializer {
         Ok((_, pipewire::spa::pod::Value::Object(obj))) => {
             let mut format: Option<u32> = None;
@@ -300,22 +307,43 @@ fn convert_spa_frame(
 
     if format == SPA_VIDEO_FORMAT_NV12 {
         convert::nv12_to_i420(
-            data, width, height,
-            y, strides.0 as usize, u, strides.1 as usize, v, strides.2 as usize,
+            data,
+            width,
+            height,
+            y,
+            strides.0 as usize,
+            u,
+            strides.1 as usize,
+            v,
+            strides.2 as usize,
         );
         true
     } else if format == SPA_VIDEO_FORMAT_YUY2 {
         convert::yuyv_to_i420(
-            data, width, height,
-            y, strides.0 as usize, u, strides.1 as usize, v, strides.2 as usize,
+            data,
+            width,
+            height,
+            y,
+            strides.0 as usize,
+            u,
+            strides.1 as usize,
+            v,
+            strides.2 as usize,
         );
         true
     } else if format == SPA_VIDEO_FORMAT_MJPG {
         match convert::decode_mjpeg(data) {
             Ok(rgb) => {
                 convert::rgb_to_i420(
-                    &rgb, width, height,
-                    y, strides.0 as usize, u, strides.1 as usize, v, strides.2 as usize,
+                    &rgb,
+                    width,
+                    height,
+                    y,
+                    strides.0 as usize,
+                    u,
+                    strides.1 as usize,
+                    v,
+                    strides.2 as usize,
                 );
                 true
             }
@@ -326,8 +354,15 @@ fn convert_spa_frame(
         }
     } else if format == SPA_VIDEO_FORMAT_RGB {
         convert::rgb_to_i420(
-            data, width, height,
-            y, strides.0 as usize, u, strides.1 as usize, v, strides.2 as usize,
+            data,
+            width,
+            height,
+            y,
+            strides.0 as usize,
+            u,
+            strides.1 as usize,
+            v,
+            strides.2 as usize,
         );
         true
     } else {

@@ -8,6 +8,10 @@ and this project adheres to
 
 ## [Unreleased]
 
+### Changed
+
+- Reduce cognitive complexity across Android, Rust, and Desktop codebases (SonarCloud S3776, S2004, S1186, S1192)
+
 ### Fixed
 
 - Fix 12 SonarCloud reliability issues in desktop frontend (#92)

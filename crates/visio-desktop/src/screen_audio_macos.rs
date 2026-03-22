@@ -12,9 +12,9 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use livekit::webrtc::audio_frame::AudioFrame;
 use livekit::webrtc::audio_source::native::NativeAudioSource;
 
+use objc2::msg_send;
 use objc2::rc::Retained;
 use objc2::runtime::{AnyClass, AnyObject, Bool};
-use objc2::msg_send;
 
 use super::audio_engine::{LK_CHANNELS, LK_SAMPLE_RATE};
 
@@ -55,12 +55,11 @@ impl ScreenAudioCapture {
         // Check ScreenCaptureKit availability (macOS 13+)
         let sc_shareable_cls = AnyClass::get(c"SCShareableContent")
             .ok_or("SCShareableContent not available (requires macOS 13+)")?;
-        let sc_stream_cls = AnyClass::get(c"SCStream")
-            .ok_or("SCStream not available")?;
-        let sc_config_cls = AnyClass::get(c"SCStreamConfiguration")
-            .ok_or("SCStreamConfiguration not available")?;
-        let sc_filter_cls = AnyClass::get(c"SCContentFilter")
-            .ok_or("SCContentFilter not available")?;
+        let sc_stream_cls = AnyClass::get(c"SCStream").ok_or("SCStream not available")?;
+        let sc_config_cls =
+            AnyClass::get(c"SCStreamConfiguration").ok_or("SCStreamConfiguration not available")?;
+        let sc_filter_cls =
+            AnyClass::get(c"SCContentFilter").ok_or("SCContentFilter not available")?;
 
         let content = unsafe { Self::get_shareable_content_sync(sc_shareable_cls) }?;
 
@@ -113,14 +112,13 @@ impl ScreenAudioCapture {
 
         // Add stream output for audio
         // SCStreamOutputType.audio = 1
-        let queue = unsafe { dispatch_queue_create(
-            c"io.visio.screen-audio".as_ptr(),
-            std::ptr::null(),
-        ) };
+        let queue =
+            unsafe { dispatch_queue_create(c"io.visio.screen-audio".as_ptr(), std::ptr::null()) };
         if queue.is_null() {
             return Err("failed to create dispatch queue".into());
         }
-        let dispatch_queue: Retained<AnyObject> = unsafe { Retained::retain(queue as *mut AnyObject) }.unwrap();
+        let dispatch_queue: Retained<AnyObject> =
+            unsafe { Retained::retain(queue as *mut AnyObject) }.unwrap();
 
         let result: Bool = msg_send![
             &*stream,
@@ -148,9 +146,7 @@ impl ScreenAudioCapture {
     }
 
     /// Get SCShareableContent synchronously by blocking on the async callback.
-    unsafe fn get_shareable_content_sync(
-        cls: &AnyClass,
-    ) -> Result<Retained<AnyObject>, String> {
+    unsafe fn get_shareable_content_sync(cls: &AnyClass) -> Result<Retained<AnyObject>, String> {
         use std::sync::{Condvar, Mutex};
 
         let result: Arc<Mutex<Option<Retained<AnyObject>>>> = Arc::new(Mutex::new(None));
@@ -162,22 +158,22 @@ impl ScreenAudioCapture {
         let done_clone = done.clone();
 
         // Build an Objective-C block for the completion handler
-        let block = block2::StackBlock::new(
-            move |content: *mut AnyObject, err: *mut AnyObject| {
-                if !err.is_null() {
-                    let desc: *const AnyObject = msg_send![err, localizedDescription];
-                    let cstr: *const std::ffi::c_char = msg_send![desc, UTF8String];
-                    let msg = unsafe { std::ffi::CStr::from_ptr(cstr) }.to_string_lossy().to_string();
-                    *error_clone.lock().unwrap() = Some(msg);
-                } else if !content.is_null() {
-                    let retained: Retained<AnyObject> = unsafe { Retained::retain(content) }.unwrap();
-                    *result_clone.lock().unwrap() = Some(retained);
-                }
-                let (lock, cvar) = &*done_clone;
-                *lock.lock().unwrap() = true;
-                cvar.notify_one();
-            },
-        );
+        let block = block2::StackBlock::new(move |content: *mut AnyObject, err: *mut AnyObject| {
+            if !err.is_null() {
+                let desc: *const AnyObject = msg_send![err, localizedDescription];
+                let cstr: *const std::ffi::c_char = msg_send![desc, UTF8String];
+                let msg = unsafe { std::ffi::CStr::from_ptr(cstr) }
+                    .to_string_lossy()
+                    .to_string();
+                *error_clone.lock().unwrap() = Some(msg);
+            } else if !content.is_null() {
+                let retained: Retained<AnyObject> = unsafe { Retained::retain(content) }.unwrap();
+                *result_clone.lock().unwrap() = Some(retained);
+            }
+            let (lock, cvar) = &*done_clone;
+            *lock.lock().unwrap() = true;
+            cvar.notify_one();
+        });
 
         let _: () = msg_send![
             cls,
@@ -234,17 +230,15 @@ impl ScreenAudioDelegate {
         AUDIO_PROXY.lock().unwrap().replace(proxy);
 
         unsafe {
-            let cls = AnyClass::get(c"ScreenAudioOutputDelegate").unwrap_or_else(|| {
-                register_delegate_class()
-            });
+            let cls = AnyClass::get(c"ScreenAudioOutputDelegate")
+                .unwrap_or_else(|| register_delegate_class());
             let obj: Retained<AnyObject> = msg_send![cls, new];
             Self(obj)
         }
     }
 }
 
-static AUDIO_PROXY: std::sync::Mutex<Option<AudioCallbackProxy>> =
-    std::sync::Mutex::new(None);
+static AUDIO_PROXY: std::sync::Mutex<Option<AudioCallbackProxy>> = std::sync::Mutex::new(None);
 
 struct AudioCallbackProxy {
     audio_source: NativeAudioSource,
@@ -370,11 +364,19 @@ unsafe fn register_delegate_class() -> &'static AnyClass {
         }
     }
 
-    unsafe { builder.add_method(
-        Sel::register(c"stream:didOutputSampleBuffer:ofType:"),
-        did_output_sample_buffer
-            as unsafe extern "C" fn(*mut AnyObject, Sel, *const AnyObject, *const AnyObject, i64),
-    ) };
+    unsafe {
+        builder.add_method(
+            Sel::register(c"stream:didOutputSampleBuffer:ofType:"),
+            did_output_sample_buffer
+                as unsafe extern "C" fn(
+                    *mut AnyObject,
+                    Sel,
+                    *const AnyObject,
+                    *const AnyObject,
+                    i64,
+                ),
+        )
+    };
 
     builder.register()
 }

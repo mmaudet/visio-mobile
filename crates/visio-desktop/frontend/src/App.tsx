@@ -3593,6 +3593,51 @@ function SettingsModal({
 // ---------------------------------------------------------------------------
 
 /**
+ * Returns a fallback device name when the currently selected device disappears.
+ * If the current selection is still present, returns it unchanged.
+ */
+function resolveAudioFallback(
+  prev: string,
+  devices: NativeAudioDevice[],
+  selectCommand: string
+): string {
+  if (!prev || devices.some((d) => d.name === prev)) return prev
+  const def = devices.find((d) => d.is_default)
+  const fallback = def ? def.name : (devices[0]?.name ?? '')
+  invoke(selectCommand, { deviceName: fallback }).catch(() => {})
+  return fallback
+}
+
+/**
+ * Handles the audio-devices-changed event by re-enumerating devices
+ * and falling back to defaults when the selected device disappears.
+ */
+async function handleAudioDevicesChanged(
+  setInputs: (devices: NativeAudioDevice[]) => void,
+  setOutputs: (devices: NativeAudioDevice[]) => void,
+  setSelectedInput: (updater: (prev: string) => string) => void,
+  setSelectedOutput: (updater: (prev: string) => string) => void,
+  onInputFallback?: () => void
+) {
+  const [inputs, outputs] = await Promise.all([
+    invoke<NativeAudioDevice[]>('list_audio_input_devices'),
+    invoke<NativeAudioDevice[]>('list_audio_output_devices'),
+  ])
+  setInputs(inputs)
+  setOutputs(outputs)
+
+  setSelectedInput((prev) => {
+    const result = resolveAudioFallback(prev, inputs, 'select_audio_input')
+    if (result !== prev) onInputFallback?.()
+    return result
+  })
+
+  setSelectedOutput((prev) =>
+    resolveAudioFallback(prev, outputs, 'select_audio_output')
+  )
+}
+
+/**
  * Subscribes to the `audio-devices-changed` Tauri event and:
  *  1. Re-enumerates input/output audio devices.
  *  2. Falls back to the default device if the currently selected one disappears.
@@ -3618,36 +3663,16 @@ function useAudioDeviceFallback({
 }) {
   useEffect(() => {
     let unlistenFn: (() => void) | null = null
-    listen('audio-devices-changed', async () => {
-      try {
-        const [inputs, outputs] = await Promise.all([
-          invoke<NativeAudioDevice[]>('list_audio_input_devices'),
-          invoke<NativeAudioDevice[]>('list_audio_output_devices'),
-        ])
-        setInputs(inputs)
-        setOutputs(outputs)
-
-        setSelectedInput((prev) => {
-          if (!prev || inputs.some((d) => d.name === prev)) return prev
-          const def = inputs.find((d) => d.is_default)
-          const fallback = def ? def.name : (inputs[0]?.name ?? '')
-          invoke('select_audio_input', { deviceName: fallback }).catch(() => {})
-          onInputFallback?.()
-          return fallback
-        })
-
-        setSelectedOutput((prev) => {
-          if (!prev || outputs.some((d) => d.name === prev)) return prev
-          const def = outputs.find((d) => d.is_default)
-          const fallback = def ? def.name : (outputs[0]?.name ?? '')
-          invoke('select_audio_output', { deviceName: fallback }).catch(
-            () => {}
-          )
-          return fallback
-        })
-      } catch (e) {
+    listen('audio-devices-changed', () => {
+      handleAudioDevicesChanged(
+        setInputs,
+        setOutputs,
+        setSelectedInput,
+        setSelectedOutput,
+        onInputFallback
+      ).catch((e) => {
         console.warn('Failed to re-enumerate audio devices after change:', e)
-      }
+      })
     }).then((fn) => {
       unlistenFn = fn
     })

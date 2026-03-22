@@ -767,70 +767,85 @@ struct BridgeListener {
 
 impl visio_core::VisioEventListener for BridgeListener {
     fn on_event(&self, event: CoreVisioEvent) {
-        // Clean up pending surfaces when a track is unsubscribed (Android only).
         #[cfg(target_os = "android")]
-        if let CoreVisioEvent::TrackUnsubscribed(ref track_sid) = event {
-            pending::remove(track_sid);
-        }
+        handle_android_surface_events(&event);
 
-        // Check for pending surfaces when a video track is subscribed (Android only).
-        // Spawn on the runtime to avoid block_on inside a tokio context.
-        #[cfg(target_os = "android")]
-        if let CoreVisioEvent::TrackSubscribed(ref info) = event {
-            if info.kind == visio_core::events::TrackKind::Video {
-                if let Some(surface_ptr) = pending::take(&info.sid) {
-                    visio_log(&format!(
-                        "VISIO JNI: attaching pending surface for track {}",
-                        info.sid
-                    ));
-                    let client_addr = *CLIENT_FOR_VIDEO.lock().unwrap();
-                    if client_addr != 0 {
-                        let client = unsafe { &*(client_addr as *const VisioClient) };
-                        let sid = info.sid.clone();
-                        let is_screencast =
-                            info.source == visio_core::events::TrackSource::ScreenShare;
-                        let rt_handle = client.rt.handle().clone();
-                        // Wrap raw pointers in Send-able newtypes for the async block.
-                        let send_client = SendClientPtr(client_addr);
-                        let send_surface = SendSurfacePtr(surface_ptr as usize);
-                        rt_handle.spawn(async move {
-                            // SAFETY: client_addr is valid while connected (cleared on disconnect).
-                            let client = send_client.as_client();
-                            let track = client.room_manager.get_video_track(&sid).await;
-                            if let Some(video_track) = track {
-                                visio_video::start_track_renderer(
-                                    sid.clone(),
-                                    video_track,
-                                    send_surface.as_ptr(),
-                                    Some(client.rt.handle().clone()),
-                                    is_screencast,
-                                );
-                                visio_log(&format!(
-                                    "VISIO JNI: pending surface attached for track {sid}"
-                                ));
-                            }
-                        });
-                    }
-                }
-            }
-        }
-
-        // Record room in history on successful connection (covers lobby acceptance path
-        // which bypasses VisioClient::connect's return-value path at line 805).
         if let CoreVisioEvent::ConnectionStateChanged(visio_core::ConnectionState::Connected) =
             &event
         {
-            let rm = self.room_manager.clone();
-            let settings = self.settings.clone();
-            tokio::spawn(async move {
-                if let Some((url, _)) = rm.last_connection_info().await {
-                    settings.add_room_to_history(url);
-                }
-            });
+            self.record_room_in_history();
         }
 
         self.ffi_listener.on_event(event.into());
     }
+}
+
+impl BridgeListener {
+    fn record_room_in_history(&self) {
+        let rm = self.room_manager.clone();
+        let settings = self.settings.clone();
+        tokio::spawn(async move {
+            if let Some((url, _)) = rm.last_connection_info().await {
+                settings.add_room_to_history(url);
+            }
+        });
+    }
+}
+
+/// Handle pending Android surface attach/detach on track subscribe/unsubscribe.
+#[cfg(target_os = "android")]
+fn handle_android_surface_events(event: &CoreVisioEvent) {
+    if let CoreVisioEvent::TrackUnsubscribed(ref track_sid) = event {
+        pending::remove(track_sid);
+    }
+
+    if let CoreVisioEvent::TrackSubscribed(ref info) = event {
+        if info.kind == visio_core::events::TrackKind::Video {
+            try_attach_pending_surface(info);
+        }
+    }
+}
+
+/// Try to attach a pending surface for a newly subscribed video track.
+#[cfg(target_os = "android")]
+fn try_attach_pending_surface(info: &visio_core::events::TrackInfo) {
+    let Some(surface_ptr) = pending::take(&info.sid) else {
+        return;
+    };
+
+    visio_log(&format!(
+        "VISIO JNI: attaching pending surface for track {}",
+        info.sid
+    ));
+
+    let client_addr = *CLIENT_FOR_VIDEO.lock().unwrap();
+    if client_addr == 0 {
+        return;
+    }
+
+    let client = unsafe { &*(client_addr as *const VisioClient) };
+    let sid = info.sid.clone();
+    let is_screencast = info.source == visio_core::events::TrackSource::ScreenShare;
+    let rt_handle = client.rt.handle().clone();
+    let send_client = SendClientPtr(client_addr);
+    let send_surface = SendSurfacePtr(surface_ptr as usize);
+    rt_handle.spawn(async move {
+        // SAFETY: client_addr is valid while connected (cleared on disconnect).
+        let client = send_client.as_client();
+        let track = client.room_manager.get_video_track(&sid).await;
+        if let Some(video_track) = track {
+            visio_video::start_track_renderer(
+                sid.clone(),
+                video_track,
+                send_surface.as_ptr(),
+                Some(client.rt.handle().clone()),
+                is_screencast,
+            );
+            visio_log(&format!(
+                "VISIO JNI: pending surface attached for track {sid}"
+            ));
+        }
+    });
 }
 
 // ── VisioClient: main FFI object ──────────────────────────────────────

@@ -45,8 +45,7 @@ fn capture_thumbnail(img: xcap::XCapResult<image::RgbaImage>) -> String {
     // Encode as JPEG
     let rgb = thumb.to_rgb8();
     let mut buf = Cursor::new(Vec::new());
-    let encoder =
-        image::codecs::jpeg::JpegEncoder::new_with_quality(&mut buf, THUMBNAIL_QUALITY);
+    let encoder = image::codecs::jpeg::JpegEncoder::new_with_quality(&mut buf, THUMBNAIL_QUALITY);
     if rgb.write_with_encoder(encoder).is_err() {
         return String::new();
     }
@@ -152,7 +151,10 @@ pub fn list_sources() -> Vec<ScreenSource> {
     tracing::info!(
         "list_sources: returning {} sources ({} monitors + {} windows)",
         sources.len(),
-        sources.iter().filter(|s| s.source_type == "monitor").count(),
+        sources
+            .iter()
+            .filter(|s| s.source_type == "monitor")
+            .count(),
         sources.iter().filter(|s| s.source_type == "window").count(),
     );
     sources

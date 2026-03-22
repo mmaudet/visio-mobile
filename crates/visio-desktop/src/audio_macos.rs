@@ -10,7 +10,9 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use livekit::webrtc::audio_source::native::NativeAudioSource;
 use visio_core::{AudioCaptureBuffer, AudioPlayoutBuffer, CapturedFrame};
 
-use super::audio_engine::{self, DeviceChangeCallback, LK_CHANNELS, LK_SAMPLE_RATE, VoiceAudioEngine};
+use super::audio_engine::{
+    self, DeviceChangeCallback, LK_CHANNELS, LK_SAMPLE_RATE, VoiceAudioEngine,
+};
 
 // ---------------------------------------------------------------------------
 // AudioToolbox FFI
@@ -141,14 +143,24 @@ unsafe extern "C" {
     fn AudioObjectAddPropertyListener(
         object_id: u32,
         address: *const AudioObjectPropertyAddress,
-        listener: unsafe extern "C" fn(u32, u32, *const AudioObjectPropertyAddress, *mut c_void) -> OSStatus,
+        listener: unsafe extern "C" fn(
+            u32,
+            u32,
+            *const AudioObjectPropertyAddress,
+            *mut c_void,
+        ) -> OSStatus,
         client_data: *mut c_void,
     ) -> OSStatus;
 
     fn AudioObjectRemovePropertyListener(
         object_id: u32,
         address: *const AudioObjectPropertyAddress,
-        listener: unsafe extern "C" fn(u32, u32, *const AudioObjectPropertyAddress, *mut c_void) -> OSStatus,
+        listener: unsafe extern "C" fn(
+            u32,
+            u32,
+            *const AudioObjectPropertyAddress,
+            *mut c_void,
+        ) -> OSStatus,
         client_data: *mut c_void,
     ) -> OSStatus;
 
@@ -276,8 +288,7 @@ fn resolve_device_id_by_name(name: &str, output: bool) -> Option<u32> {
             if !ok {
                 continue;
             }
-            let device_name = std::ffi::CStr::from_ptr(buf.as_ptr() as *const i8)
-                .to_string_lossy();
+            let device_name = std::ffi::CStr::from_ptr(buf.as_ptr() as *const i8).to_string_lossy();
             if device_name == name {
                 return Some(device_id);
             }
@@ -484,9 +495,13 @@ impl MacAudioEngine {
                 if let Some(device_id) = resolve_device_id_by_name(device_name, false) {
                     let status = set_system_default_device(device_id, false);
                     if status != 0 {
-                        tracing::warn!("failed to set system default input to {device_name:?} (id={device_id}): {status}");
+                        tracing::warn!(
+                            "failed to set system default input to {device_name:?} (id={device_id}): {status}"
+                        );
                     } else {
-                        tracing::info!("system default input device set to {device_name:?} (id={device_id})");
+                        tracing::info!(
+                            "system default input device set to {device_name:?} (id={device_id})"
+                        );
                     }
                 } else {
                     tracing::warn!("input device {device_name:?} not found, using default");
@@ -497,9 +512,13 @@ impl MacAudioEngine {
                 if let Some(device_id) = resolve_device_id_by_name(device_name, true) {
                     let status = set_system_default_device(device_id, true);
                     if status != 0 {
-                        tracing::warn!("failed to set system default output to {device_name:?} (id={device_id}): {status}");
+                        tracing::warn!(
+                            "failed to set system default output to {device_name:?} (id={device_id}): {status}"
+                        );
                     } else {
-                        tracing::info!("system default output device set to {device_name:?} (id={device_id})");
+                        tracing::info!(
+                            "system default output device set to {device_name:?} (id={device_id})"
+                        );
                     }
                 } else {
                     tracing::warn!("output device {device_name:?} not found, using default");
@@ -642,8 +661,14 @@ impl VoiceAudioEngine for MacAudioEngine {
         Ok(())
     }
 
-    fn start_capture(&mut self, source: NativeAudioSource, noise_reduction: bool) -> Result<(), String> {
-        let unit = self.audio_unit.ok_or("playout must be started before capture")?;
+    fn start_capture(
+        &mut self,
+        source: NativeAudioSource,
+        noise_reduction: bool,
+    ) -> Result<(), String> {
+        let unit = self
+            .audio_unit
+            .ok_or("playout must be started before capture")?;
         let state = self.callback_state.clone().ok_or("no callback state")?;
 
         // Set input callback (capture)
@@ -672,7 +697,8 @@ impl VoiceAudioEngine for MacAudioEngine {
         }
 
         // Start drain thread
-        let drain_running = audio_engine::start_drain_thread(state.capture_buffer.clone(), source, noise_reduction);
+        let drain_running =
+            audio_engine::start_drain_thread(state.capture_buffer.clone(), source, noise_reduction);
 
         self.input_wrapper = Some(wrapper);
         self.drain_running = Some(drain_running);

@@ -607,24 +607,10 @@ fun CallScreen(
 
     // PiP mode: show only active speaker, no controls
     if (isInPiP) {
-        Box(
-            modifier =
-                Modifier
-                    .fillMaxSize()
-                    .background(VisioColors.PrimaryDark50),
-            contentAlignment = Alignment.Center,
-        ) {
-            val activeSpeakerSid = activeSpeakers.firstOrNull()
-            val speaker = participants.find { it.sid == activeSpeakerSid } ?: participants.firstOrNull()
-            if (speaker != null) {
-                ParticipantTile(
-                    participant = speaker,
-                    isActiveSpeaker = false,
-                    handRaisePosition = 0,
-                    onClick = {},
-                )
-            }
-        }
+        CallPiPView(
+            participants = participants,
+            activeSpeakers = activeSpeakers,
+        )
         return
     }
 
@@ -697,311 +683,61 @@ fun CallScreen(
             ) {
                 when (effectiveAdaptiveMode) {
                     AdaptiveMode.CAR -> {
-                        // Car mode: audio-only view with speaker from layout decision
                         val speaker =
                             layoutDecision.mainTile?.participant
                                 ?: participants.firstOrNull()
-                        val speakerName = speaker?.name ?: speaker?.identity ?: ""
-
-                        Box(
-                            modifier = Modifier.fillMaxSize(),
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            Column(
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                verticalArrangement = Arrangement.Center,
-                            ) {
-                                Icon(
-                                    painter = painterResource(R.drawable.ri_mic_line),
-                                    contentDescription = null,
-                                    tint = VisioColors.Primary500,
-                                    modifier = Modifier.size(64.dp),
-                                )
-                                Spacer(modifier = Modifier.height(24.dp))
-                                Text(
-                                    text = speakerName,
-                                    color = Color.White,
-                                    fontSize = 32.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    textAlign = TextAlign.Center,
-                                    maxLines = 2,
-                                    overflow = TextOverflow.Ellipsis,
-                                    modifier = Modifier.fillMaxWidth().padding(horizontal = 32.dp),
-                                )
-                                Spacer(modifier = Modifier.height(12.dp))
-                                Text(
-                                    text = Strings.t("adaptive.audioOnly", lang),
-                                    color = Color.White.copy(alpha = 0.6f),
-                                    fontSize = 16.sp,
-                                )
-                            }
-                        }
+                        CarModeView(
+                            speakerName = speaker?.name ?: speaker?.identity ?: "",
+                            lang = lang,
+                        )
                     }
 
                     AdaptiveMode.PEDESTRIAN -> {
-                        // Pedestrian mode: single tile from layout decision
-                        val mainItem = layoutDecision.mainTile
-                        val mainParticipant = mainItem?.participant ?: participants.firstOrNull()
-
-                        Box(
-                            modifier =
-                                Modifier
-                                    .fillMaxSize()
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .testTag("main-tile:${mainParticipant?.sid ?: ""}"),
-                        ) {
-                            if (mainParticipant != null) {
-                                ParticipantTile(
-                                    participant = mainParticipant,
-                                    isActiveSpeaker = layoutDecision.speakerIndicatorSid == mainParticipant.sid,
-                                    handRaisePosition = handRaisedMap[mainParticipant.sid] ?: 0,
-                                    onClick = {},
-                                )
-                            }
-                        }
+                        val mainParticipant = layoutDecision.mainTile?.participant ?: participants.firstOrNull()
+                        PedestrianModeView(
+                            participant = mainParticipant,
+                            speakerIndicatorSid = layoutDecision.speakerIndicatorSid,
+                            handRaisedMap = handRaisedMap,
+                        )
                     }
 
                     AdaptiveMode.OFFICE -> {
-                        // Office mode: use layout decision for grid vs focus
                         val displayItems = buildDisplayItems(participants)
 
                         if (layoutDecision.mode == LayoutMode.FOCUS && layoutDecision.mainTile != null) {
-                            val focusedDisplayItem = layoutDecision.mainTile
-                            // Focus layout: main item + thumbnail bar
-                            Column(modifier = Modifier.fillMaxSize()) {
-                                // Main focused item
-                                Box(
-                                    modifier =
-                                        Modifier
-                                            .weight(1f)
-                                            .fillMaxWidth()
-                                            .clip(RoundedCornerShape(8.dp))
-                                            .testTag("main-tile:${focusedDisplayItem.participant.sid}")
-                                            .background(VisioColors.PrimaryDark50)
-                                            .clickable { controlsVisible = !controlsVisible },
-                                ) {
-                                    val hasTrack =
-                                        focusedDisplayItem.trackSid != null &&
-                                            if (focusedDisplayItem.isScreenShare) {
-                                                focusedDisplayItem.participant.hasScreenShare
-                                            } else {
-                                                focusedDisplayItem.participant.hasVideo
-                                            }
-                                    if (hasTrack) {
-                                        AndroidView(
-                                            factory = { ctx -> VideoSurfaceView(ctx, focusedDisplayItem.trackSid!!) },
-                                            update = { view -> view.requestLayout() },
-                                            modifier = Modifier.fillMaxSize(),
-                                        )
-                                    } else {
-                                        ParticipantTile(
-                                            participant = focusedDisplayItem.participant,
-                                            isActiveSpeaker = layoutDecision.speakerIndicatorSid == focusedDisplayItem.participant.sid,
-                                            handRaisePosition = handRaisedMap[focusedDisplayItem.participant.sid] ?: 0,
-                                            isPinned = layoutDecision.pinnedIndicatorSid == focusedDisplayItem.participant.sid,
-                                            onClick = { controlsVisible = !controlsVisible },
-                                        )
-                                    }
-                                    // Overlay: name + screen share icon
-                                    Row(
-                                        modifier =
-                                            Modifier
-                                                .align(Alignment.BottomStart)
-                                                .padding(12.dp)
-                                                .background(Color.Black.copy(alpha = 0.5f), RoundedCornerShape(8.dp))
-                                                .padding(horizontal = 8.dp, vertical = 4.dp),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(4.dp),
-                                    ) {
-                                        if (focusedDisplayItem.isScreenShare) {
-                                            Icon(
-                                                painter = painterResource(R.drawable.ic_screen_share),
-                                                contentDescription = null,
-                                                tint = Color(0xFF4FC3F7),
-                                                modifier = Modifier.size(16.dp),
-                                            )
-                                        }
-                                        Text(
-                                            text = focusedDisplayItem.label,
-                                            color = Color.White,
-                                            fontSize = 14.sp,
-                                        )
-                                    }
-
-                                    // Pin indicator (top-left, next to close button)
-                                    if (layoutDecision.pinnedIndicatorSid == focusedDisplayItem.participant.sid) {
-                                        Box(
-                                            modifier =
-                                                Modifier
-                                                    .align(Alignment.TopStart)
-                                                    .padding(8.dp)
-                                                    .size(28.dp)
-                                                    .background(Color.Black.copy(alpha = 0.6f), CircleShape)
-                                                    .padding(4.dp),
-                                        ) {
-                                            Text(
-                                                text = "\uD83D\uDCCC",
-                                                fontSize = 12.sp,
-                                                modifier = Modifier.align(Alignment.Center),
-                                            )
-                                        }
-                                    }
-
-                                    // Close/exit focus button (top-right)
-                                    IconButton(
-                                        onClick = {
-                                            focusedItem = null
-                                            userPinnedItem = null
-                                        },
-                                        modifier =
-                                            Modifier
-                                                .align(Alignment.TopEnd)
-                                                .padding(8.dp)
-                                                .size(36.dp)
-                                                .background(
-                                                    Color.Black.copy(alpha = 0.5f),
-                                                    CircleShape,
-                                                ),
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Outlined.Close,
-                                            contentDescription = "Exit focus",
-                                            tint = Color.White,
-                                            modifier = Modifier.size(22.dp),
-                                        )
-                                    }
-                                }
-
-                                // Thumbnail bar — hidden in fullscreen focus mode
-                                if (controlsVisible) {
-                                    val thumbnailItems = layoutDecision.secondaryTiles
-                                    if (thumbnailItems.isNotEmpty()) {
-                                        Spacer(modifier = Modifier.height(8.dp))
-                                        Row(
-                                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                            modifier =
-                                                Modifier
-                                                    .fillMaxWidth()
-                                                    .height(100.dp),
-                                        ) {
-                                            thumbnailItems.forEachIndexed { index, item ->
-                                                Box(
-                                                    modifier =
-                                                        Modifier
-                                                            .weight(1f)
-                                                            .fillMaxHeight()
-                                                            .clip(RoundedCornerShape(8.dp))
-                                                            .testTag("secondary-tile-$index:${item.participant.sid}"),
-                                                ) {
-                                                    ParticipantTile(
-                                                        participant = item.participant,
-                                                        isActiveSpeaker = layoutDecision.speakerIndicatorSid == item.participant.sid,
-                                                        handRaisePosition = handRaisedMap[item.participant.sid] ?: 0,
-                                                        isScreenShare = item.isScreenShare,
-                                                        isPinned = layoutDecision.pinnedIndicatorSid == item.participant.sid,
-                                                        onClick = {
-                                                            val fi = FocusItem(item.participant.sid, item.source)
-                                                            focusedItem = fi
-                                                            userPinnedItem = fi
-                                                        },
-                                                        onLongPress = {
-                                                            val fi = FocusItem(item.participant.sid, item.source)
-                                                            userPinnedItem = if (userPinnedItem == fi) null else fi
-                                                        },
-                                                    )
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
+                            OfficeFocusLayout(
+                                focusedDisplayItem = layoutDecision.mainTile,
+                                secondaryTiles = layoutDecision.secondaryTiles,
+                                speakerIndicatorSid = layoutDecision.speakerIndicatorSid,
+                                pinnedIndicatorSid = layoutDecision.pinnedIndicatorSid,
+                                handRaisedMap = handRaisedMap,
+                                controlsVisible = controlsVisible,
+                                onToggleControls = { controlsVisible = !controlsVisible },
+                                onExitFocus = {
+                                    focusedItem = null
+                                    userPinnedItem = null
+                                },
+                                onFocusItem = { fi ->
+                                    focusedItem = fi
+                                    userPinnedItem = fi
+                                },
+                                onTogglePin = { fi ->
+                                    userPinnedItem = if (userPinnedItem == fi) null else fi
+                                },
+                            )
                         } else {
-                            // Grid mode — space-filling tiles using DisplayItems
-                            val count = displayItems.size
-                            if (count > 0) {
-                                BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
-                                    val isLandscape = maxWidth > maxHeight
-                                    val columnCount =
-                                        when {
-                                            count == 1 -> 1
-                                            isLandscape -> minOf(count, 3)
-                                            count <= 2 -> 1
-                                            else -> 2
-                                        }
-                                    val rowCount = maxOf(1, (count + columnCount - 1) / columnCount)
-                                    val tileHeight = (maxHeight - 8.dp * (rowCount - 1)) / rowCount
-
-                                    Column(
-                                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                                        modifier = Modifier.fillMaxSize(),
-                                    ) {
-                                        for (rowStart in 0 until count step columnCount) {
-                                            val rowEnd = minOf(rowStart + columnCount, count)
-                                            Row(
-                                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                                modifier =
-                                                    Modifier
-                                                        .fillMaxWidth()
-                                                        .height(tileHeight),
-                                            ) {
-                                                for (idx in rowStart until rowEnd) {
-                                                    val item = displayItems[idx]
-                                                    Box(
-                                                        modifier =
-                                                            Modifier
-                                                                .weight(1f)
-                                                                .fillMaxHeight()
-                                                                .clip(RoundedCornerShape(8.dp))
-                                                                .testTag("grid-tile-$idx:${item.participant.sid}"),
-                                                    ) {
-                                                        ParticipantTile(
-                                                            participant = item.participant,
-                                                            isActiveSpeaker = layoutDecision.speakerIndicatorSid == item.participant.sid,
-                                                            handRaisePosition = handRaisedMap[item.participant.sid] ?: 0,
-                                                            isScreenShare = item.isScreenShare,
-                                                            onClick = {
-                                                                val fi = FocusItem(item.participant.sid, item.source)
-                                                                focusedItem = fi
-                                                                userPinnedItem = fi
-                                                            },
-                                                            onLongPress = {
-                                                                val fi = FocusItem(item.participant.sid, item.source)
-                                                                userPinnedItem = if (userPinnedItem == fi) null else fi
-                                                            },
-                                                        )
-                                                        // Fullscreen icon overlay for screen share tiles
-                                                        if (item.isScreenShare) {
-                                                            IconButton(
-                                                                onClick = {
-                                                                    val fi = FocusItem(item.participant.sid, item.source)
-                                                                    focusedItem = fi
-                                                                    userPinnedItem = fi
-                                                                },
-                                                                modifier =
-                                                                    Modifier
-                                                                        .align(Alignment.TopEnd)
-                                                                        .padding(4.dp)
-                                                                        .size(32.dp)
-                                                                        .background(
-                                                                            Color.Black.copy(alpha = 0.5f),
-                                                                            CircleShape,
-                                                                        ),
-                                                            ) {
-                                                                Icon(
-                                                                    imageVector = Icons.Outlined.Fullscreen,
-                                                                    contentDescription = "Fullscreen",
-                                                                    tint = Color.White,
-                                                                    modifier = Modifier.size(20.dp),
-                                                                )
-                                                            }
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
+                            OfficeGridLayout(
+                                displayItems = displayItems,
+                                speakerIndicatorSid = layoutDecision.speakerIndicatorSid,
+                                handRaisedMap = handRaisedMap,
+                                onFocusItem = { fi ->
+                                    focusedItem = fi
+                                    userPinnedItem = fi
+                                },
+                                onTogglePin = { fi ->
+                                    userPinnedItem = if (userPinnedItem == fi) null else fi
+                                },
+                            )
                         }
                     }
                 }
@@ -1009,31 +745,13 @@ fun CallScreen(
                 // Reaction overlay on top of video grid
                 ReactionOverlay(reactions = reactions)
 
-                // Persistent adaptive mode indicator (on top of everything) — hidden when disabled or in fullscreen focus
+                // Persistent adaptive mode indicator (on top of everything)
                 if (isAdaptiveModeEnabled && !isFullscreenFocus) {
-                    Row(
-                        modifier =
-                            Modifier
-                                .align(Alignment.TopEnd)
-                                .padding(8.dp)
-                                .background(Color.Black.copy(alpha = 0.6f), RoundedCornerShape(12.dp))
-                                .padding(horizontal = 8.dp, vertical = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp),
-                    ) {
-                        val (modeIcon, modeKey) =
-                            when (adaptiveMode) {
-                                uniffi.visio.AdaptiveMode.OFFICE -> "🏢" to "adaptive.office"
-                                uniffi.visio.AdaptiveMode.PEDESTRIAN -> "🚶" to "adaptive.pedestrian"
-                                uniffi.visio.AdaptiveMode.CAR -> "🚗" to "adaptive.car"
-                            }
-                        Text(text = modeIcon, fontSize = 12.sp)
-                        Text(
-                            text = Strings.t(modeKey, lang),
-                            color = Color.White,
-                            fontSize = 11.sp,
-                        )
-                    }
+                    AdaptiveModeIndicator(
+                        adaptiveMode = adaptiveMode,
+                        lang = lang,
+                        modifier = Modifier.align(Alignment.TopEnd),
+                    )
                 }
             }
 
@@ -1249,6 +967,368 @@ private fun LobbyWaitingBanner(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun CallPiPView(
+    participants: List<ParticipantInfo>,
+    activeSpeakers: List<String>,
+) {
+    Box(
+        modifier =
+            Modifier
+                .fillMaxSize()
+                .background(VisioColors.PrimaryDark50),
+        contentAlignment = Alignment.Center,
+    ) {
+        val activeSpeakerSid = activeSpeakers.firstOrNull()
+        val speaker = participants.find { it.sid == activeSpeakerSid } ?: participants.firstOrNull()
+        if (speaker != null) {
+            ParticipantTile(
+                participant = speaker,
+                isActiveSpeaker = false,
+                handRaisePosition = 0,
+                onClick = {},
+            )
+        }
+    }
+}
+
+@Composable
+private fun CarModeView(
+    speakerName: String,
+    lang: String,
+) {
+    Box(
+        modifier = Modifier.fillMaxSize(),
+        contentAlignment = Alignment.Center,
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center,
+        ) {
+            Icon(
+                painter = painterResource(R.drawable.ri_mic_line),
+                contentDescription = null,
+                tint = VisioColors.Primary500,
+                modifier = Modifier.size(64.dp),
+            )
+            Spacer(modifier = Modifier.height(24.dp))
+            Text(
+                text = speakerName,
+                color = Color.White,
+                fontSize = 32.sp,
+                fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.Center,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 32.dp),
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+            Text(
+                text = Strings.t("adaptive.audioOnly", lang),
+                color = Color.White.copy(alpha = 0.6f),
+                fontSize = 16.sp,
+            )
+        }
+    }
+}
+
+@Composable
+private fun PedestrianModeView(
+    participant: ParticipantInfo?,
+    speakerIndicatorSid: String?,
+    handRaisedMap: Map<String, Int>,
+) {
+    Box(
+        modifier =
+            Modifier
+                .fillMaxSize()
+                .clip(RoundedCornerShape(8.dp))
+                .testTag("main-tile:${participant?.sid ?: ""}"),
+    ) {
+        if (participant != null) {
+            ParticipantTile(
+                participant = participant,
+                isActiveSpeaker = speakerIndicatorSid == participant.sid,
+                handRaisePosition = handRaisedMap[participant.sid] ?: 0,
+                onClick = {},
+            )
+        }
+    }
+}
+
+@Composable
+private fun OfficeFocusLayout(
+    focusedDisplayItem: DisplayItem,
+    secondaryTiles: List<DisplayItem>,
+    speakerIndicatorSid: String?,
+    pinnedIndicatorSid: String?,
+    handRaisedMap: Map<String, Int>,
+    controlsVisible: Boolean,
+    onToggleControls: () -> Unit,
+    onExitFocus: () -> Unit,
+    onFocusItem: (FocusItem) -> Unit,
+    onTogglePin: (FocusItem) -> Unit,
+) {
+    Column(modifier = Modifier.fillMaxSize()) {
+        // Main focused item
+        Box(
+            modifier =
+                Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(8.dp))
+                    .testTag("main-tile:${focusedDisplayItem.participant.sid}")
+                    .background(VisioColors.PrimaryDark50)
+                    .clickable { onToggleControls() },
+        ) {
+            val hasTrack =
+                focusedDisplayItem.trackSid != null &&
+                    if (focusedDisplayItem.isScreenShare) {
+                        focusedDisplayItem.participant.hasScreenShare
+                    } else {
+                        focusedDisplayItem.participant.hasVideo
+                    }
+            if (hasTrack) {
+                AndroidView(
+                    factory = { ctx -> VideoSurfaceView(ctx, focusedDisplayItem.trackSid!!) },
+                    update = { view -> view.requestLayout() },
+                    modifier = Modifier.fillMaxSize(),
+                )
+            } else {
+                ParticipantTile(
+                    participant = focusedDisplayItem.participant,
+                    isActiveSpeaker = speakerIndicatorSid == focusedDisplayItem.participant.sid,
+                    handRaisePosition = handRaisedMap[focusedDisplayItem.participant.sid] ?: 0,
+                    isPinned = pinnedIndicatorSid == focusedDisplayItem.participant.sid,
+                    onClick = { onToggleControls() },
+                )
+            }
+            // Overlay: name + screen share icon
+            Row(
+                modifier =
+                    Modifier
+                        .align(Alignment.BottomStart)
+                        .padding(12.dp)
+                        .background(Color.Black.copy(alpha = 0.5f), RoundedCornerShape(8.dp))
+                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                if (focusedDisplayItem.isScreenShare) {
+                    Icon(
+                        painter = painterResource(R.drawable.ic_screen_share),
+                        contentDescription = null,
+                        tint = Color(0xFF4FC3F7),
+                        modifier = Modifier.size(16.dp),
+                    )
+                }
+                Text(
+                    text = focusedDisplayItem.label,
+                    color = Color.White,
+                    fontSize = 14.sp,
+                )
+            }
+
+            // Pin indicator (top-left)
+            if (pinnedIndicatorSid == focusedDisplayItem.participant.sid) {
+                Box(
+                    modifier =
+                        Modifier
+                            .align(Alignment.TopStart)
+                            .padding(8.dp)
+                            .size(28.dp)
+                            .background(Color.Black.copy(alpha = 0.6f), CircleShape)
+                            .padding(4.dp),
+                ) {
+                    Text(
+                        text = "\uD83D\uDCCC",
+                        fontSize = 12.sp,
+                        modifier = Modifier.align(Alignment.Center),
+                    )
+                }
+            }
+
+            // Close/exit focus button (top-right)
+            IconButton(
+                onClick = onExitFocus,
+                modifier =
+                    Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(8.dp)
+                        .size(36.dp)
+                        .background(
+                            Color.Black.copy(alpha = 0.5f),
+                            CircleShape,
+                        ),
+            ) {
+                Icon(
+                    imageVector = Icons.Outlined.Close,
+                    contentDescription = "Exit focus",
+                    tint = Color.White,
+                    modifier = Modifier.size(22.dp),
+                )
+            }
+        }
+
+        // Thumbnail bar — hidden in fullscreen focus mode
+        if (controlsVisible && secondaryTiles.isNotEmpty()) {
+            Spacer(modifier = Modifier.height(8.dp))
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .height(100.dp),
+            ) {
+                secondaryTiles.forEachIndexed { index, item ->
+                    Box(
+                        modifier =
+                            Modifier
+                                .weight(1f)
+                                .fillMaxHeight()
+                                .clip(RoundedCornerShape(8.dp))
+                                .testTag("secondary-tile-$index:${item.participant.sid}"),
+                    ) {
+                        ParticipantTile(
+                            participant = item.participant,
+                            isActiveSpeaker = speakerIndicatorSid == item.participant.sid,
+                            handRaisePosition = handRaisedMap[item.participant.sid] ?: 0,
+                            isScreenShare = item.isScreenShare,
+                            isPinned = pinnedIndicatorSid == item.participant.sid,
+                            onClick = {
+                                onFocusItem(FocusItem(item.participant.sid, item.source))
+                            },
+                            onLongPress = {
+                                onTogglePin(FocusItem(item.participant.sid, item.source))
+                            },
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun OfficeGridLayout(
+    displayItems: List<DisplayItem>,
+    speakerIndicatorSid: String?,
+    handRaisedMap: Map<String, Int>,
+    onFocusItem: (FocusItem) -> Unit,
+    onTogglePin: (FocusItem) -> Unit,
+) {
+    val count = displayItems.size
+    if (count > 0) {
+        BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+            val isLandscape = maxWidth > maxHeight
+            val columnCount =
+                when {
+                    count == 1 -> 1
+                    isLandscape -> minOf(count, 3)
+                    count <= 2 -> 1
+                    else -> 2
+                }
+            val rowCount = maxOf(1, (count + columnCount - 1) / columnCount)
+            val tileHeight = (maxHeight - 8.dp * (rowCount - 1)) / rowCount
+
+            Column(
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.fillMaxSize(),
+            ) {
+                for (rowStart in 0 until count step columnCount) {
+                    val rowEnd = minOf(rowStart + columnCount, count)
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier =
+                            Modifier
+                                .fillMaxWidth()
+                                .height(tileHeight),
+                    ) {
+                        for (idx in rowStart until rowEnd) {
+                            val item = displayItems[idx]
+                            Box(
+                                modifier =
+                                    Modifier
+                                        .weight(1f)
+                                        .fillMaxHeight()
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .testTag("grid-tile-$idx:${item.participant.sid}"),
+                            ) {
+                                ParticipantTile(
+                                    participant = item.participant,
+                                    isActiveSpeaker = speakerIndicatorSid == item.participant.sid,
+                                    handRaisePosition = handRaisedMap[item.participant.sid] ?: 0,
+                                    isScreenShare = item.isScreenShare,
+                                    onClick = {
+                                        onFocusItem(FocusItem(item.participant.sid, item.source))
+                                    },
+                                    onLongPress = {
+                                        onTogglePin(FocusItem(item.participant.sid, item.source))
+                                    },
+                                )
+                                // Fullscreen icon overlay for screen share tiles
+                                if (item.isScreenShare) {
+                                    IconButton(
+                                        onClick = {
+                                            onFocusItem(FocusItem(item.participant.sid, item.source))
+                                        },
+                                        modifier =
+                                            Modifier
+                                                .align(Alignment.TopEnd)
+                                                .padding(4.dp)
+                                                .size(32.dp)
+                                                .background(
+                                                    Color.Black.copy(alpha = 0.5f),
+                                                    CircleShape,
+                                                ),
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Outlined.Fullscreen,
+                                            contentDescription = "Fullscreen",
+                                            tint = Color.White,
+                                            modifier = Modifier.size(20.dp),
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun AdaptiveModeIndicator(
+    adaptiveMode: AdaptiveMode,
+    lang: String,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier =
+            modifier
+                .padding(8.dp)
+                .background(Color.Black.copy(alpha = 0.6f), RoundedCornerShape(12.dp))
+                .padding(horizontal = 8.dp, vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        val (modeIcon, modeKey) =
+            when (adaptiveMode) {
+                uniffi.visio.AdaptiveMode.OFFICE -> "🏢" to "adaptive.office"
+                uniffi.visio.AdaptiveMode.PEDESTRIAN -> "🚶" to "adaptive.pedestrian"
+                uniffi.visio.AdaptiveMode.CAR -> "🚗" to "adaptive.car"
+            }
+        Text(text = modeIcon, fontSize = 12.sp)
+        Text(
+            text = Strings.t(modeKey, lang),
+            color = Color.White,
+            fontSize = 11.sp,
+        )
     }
 }
 

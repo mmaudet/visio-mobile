@@ -344,67 +344,56 @@ private fun MicroTab(
 
     // Audio Input section
     SectionHeader(Strings.t("settings.incall.audioInput", lang))
-    inputDevices.forEachIndexed { index, device ->
-        val label = audioDeviceLabel(device, lang)
-        val isActive = isInputActive(device)
-        Row(
-            modifier =
-                Modifier
-                    .fillMaxWidth()
-                    .testTag("incall_audio_input_$index")
-                    .clickable {
-                        onSelectAudioInput(device)
-                        activeInputDeviceId = device.id
-                    }
-                    .padding(vertical = 6.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            RadioButton(
-                selected = isActive,
-                onClick = {
-                    onSelectAudioInput(device)
-                    activeInputDeviceId = device.id
-                },
-                colors =
-                    RadioButtonDefaults.colors(
-                        selectedColor = VisioColors.Primary500,
-                        unselectedColor = VisioColors.White,
-                    ),
-            )
-            Text(
-                text = label,
-                color = VisioColors.White,
-                style = MaterialTheme.typography.bodyMedium,
-                modifier = Modifier.weight(1f),
-            )
-        }
-    }
+    AudioDeviceList(
+        devices = inputDevices,
+        lang = lang,
+        testTagPrefix = "incall_audio_input",
+        isActive = { device -> isInputActive(device) },
+        onSelect = { device ->
+            onSelectAudioInput(device)
+            activeInputDeviceId = device.id
+        },
+    )
 
     Spacer(modifier = Modifier.height(16.dp))
 
     // Audio Output section
     SectionHeader(Strings.t("settings.incall.audioOutput", lang))
-    outputDevices.forEachIndexed { index, device ->
+    AudioDeviceList(
+        devices = outputDevices,
+        lang = lang,
+        testTagPrefix = "incall_audio_output",
+        isActive = { device -> activeOutputDeviceId == device.id },
+        onSelect = { device ->
+            onSelectAudioOutput(device)
+            activeOutputDeviceId = device.id
+        },
+    )
+}
+
+@Composable
+private fun AudioDeviceList(
+    devices: List<AudioDeviceInfo>,
+    lang: String,
+    testTagPrefix: String,
+    isActive: (AudioDeviceInfo) -> Boolean,
+    onSelect: (AudioDeviceInfo) -> Unit,
+) {
+    devices.forEachIndexed { index, device ->
         val label = audioDeviceLabel(device, lang)
-        val isActive = activeOutputDeviceId == device.id
+        val active = isActive(device)
         Row(
             modifier =
                 Modifier
                     .fillMaxWidth()
-                    .testTag("incall_audio_output_$index")
-                    .clickable {
-                        onSelectAudioOutput(device)
-                        activeOutputDeviceId = device.id
-                    }
+                    .testTag("${testTagPrefix}_$index")
+                    .clickable { onSelect(device) }
                     .padding(vertical = 6.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             RadioButton(
-                selected = isActive,
-                onClick = {
-                    onSelectAudioOutput(device)
-                    activeOutputDeviceId = device.id
-                },
+                selected = active,
+                onClick = { onSelect(device) },
                 colors =
                     RadioButtonDefaults.colors(
                         selectedColor = VisioColors.Primary500,

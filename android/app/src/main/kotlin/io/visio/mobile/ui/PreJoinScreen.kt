@@ -112,6 +112,9 @@ import kotlinx.coroutines.withContext
 import uniffi.visio.ConnectionState
 import kotlin.math.sqrt
 
+private const val KEY_DEVICE_MICROPHONE = "device.microphone"
+private const val KEY_SETTINGS_BACKGROUND = "settings.incall.background"
+
 // ── Waiting-room state ────────────────────────────────────────────────────────
 
 sealed interface WaitingState {
@@ -162,7 +165,9 @@ class LocalCameraPreview(
         return true
     }
 
-    override fun onSurfaceTextureUpdated(surface: SurfaceTexture) {}
+    override fun onSurfaceTextureUpdated(surface: SurfaceTexture) {
+        // No-op: frame updates handled by camera capture session
+    }
 
     fun switchCamera(front: Boolean) {
         if (front == useFront) return
@@ -206,7 +211,9 @@ class LocalCameraPreview(
                                 post { updateTransform() }
                             }
 
-                            override fun onConfigureFailed(sess: CameraCaptureSession) {}
+                            override fun onConfigureFailed(sess: CameraCaptureSession) {
+                                // No-op: preview failure is non-fatal, user can still join
+                            }
                         },
                         handler,
                     )
@@ -567,285 +574,63 @@ fun PreJoinScreen(
             )
 
             // ── Camera preview ────────────────────────────────────────────────
-            PreJoinSectionLabel(
-                text = Strings.t("settings.incall.camera", lang),
+            PreJoinCameraSection(
+                cameraEnabled = cameraEnabled,
+                hasCameraPermission = hasCameraPermission,
+                isFrontCamera = isFrontCamera,
                 isDark = isDark,
-            )
-
-            Box(
-                modifier =
-                    Modifier
-                        .fillMaxWidth()
-                        .aspectRatio(4f / 3f)
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(if (isDark) VisioColors.PrimaryDark100 else VisioColors.LightSurfaceVariant),
-                contentAlignment = Alignment.Center,
-            ) {
-                if (cameraEnabled && hasCameraPermission) {
-                    AndroidView(
-                        factory = { ctx ->
-                            LocalCameraPreview(ctx, isFrontCamera).also { preview ->
-                                cameraPreviewRef.value = preview
-                            }
-                        },
-                        update = { preview ->
-                            preview.switchCamera(isFrontCamera)
-                        },
-                        modifier =
-                            Modifier
-                                .fillMaxSize()
-                                .clip(RoundedCornerShape(12.dp)),
-                    )
-                } else {
-                    Icon(
-                        imageVector = Icons.Filled.VideocamOff,
-                        contentDescription = null,
-                        tint = if (isDark) VisioColors.Greyscale400 else VisioColors.LightTextSecondary,
-                        modifier = Modifier.size(48.dp),
-                    )
-                }
-
-                // Camera controls overlay
-                Row(
-                    modifier =
-                        Modifier
-                            .align(Alignment.BottomEnd)
-                            .padding(8.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    // Flip camera
-                    if (cameraEnabled && hasCameraPermission) {
-                        Box(
-                            modifier =
-                                Modifier
-                                    .size(36.dp)
-                                    .background(Color.Black.copy(alpha = 0.4f), CircleShape)
-                                    .clickable { isFrontCamera = !isFrontCamera },
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            Icon(
-                                imageVector = Icons.Filled.Cameraswitch,
-                                contentDescription = Strings.t("call.switchCamera", lang),
-                                tint = VisioColors.White,
-                                modifier = Modifier.size(20.dp),
-                            )
+                lang = lang,
+                cameraPreviewRef = cameraPreviewRef,
+                onToggleCamera = { newEnabled ->
+                    if (newEnabled) {
+                        val hasPerm =
+                            ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) ==
+                                PackageManager.PERMISSION_GRANTED
+                        if (hasPerm) {
+                            cameraEnabled = true
+                        } else {
+                            cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
                         }
+                    } else {
+                        cameraEnabled = false
                     }
-                    // Camera on/off toggle
-                    Box(
-                        modifier =
-                            Modifier
-                                .size(36.dp)
-                                .background(
-                                    if (cameraEnabled) VisioColors.Primary500 else Color.Black.copy(alpha = 0.4f),
-                                    CircleShape,
-                                )
-                                .clickable {
-                                    if (cameraEnabled) {
-                                        cameraEnabled = false
-                                    } else {
-                                        val hasPerm =
-                                            ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) ==
-                                                PackageManager.PERMISSION_GRANTED
-                                        if (hasPerm) {
-                                            cameraEnabled = true
-                                        } else {
-                                            cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
-                                        }
-                                    }
-                                },
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Icon(
-                            imageVector = if (cameraEnabled) Icons.Filled.Videocam else Icons.Filled.VideocamOff,
-                            contentDescription =
-                                if (cameraEnabled) {
-                                    Strings.t("control.camOff", lang)
-                                } else {
-                                    Strings.t("control.camOn", lang)
-                                },
-                            tint = VisioColors.White,
-                            modifier = Modifier.size(20.dp),
-                        )
-                    }
-                }
-            }
+                },
+                onFlipCamera = { isFrontCamera = !isFrontCamera },
+            )
 
             // ── Audio config ──────────────────────────────────────────────────
-            PreJoinSectionLabel(
-                text = Strings.t("settings.incall.micro", lang),
+            PreJoinAudioSection(
+                audioMode = audioMode,
+                onAudioModeChange = { audioMode = it },
+                micEnabled = micEnabled,
+                onMicToggle = { newValue ->
+                    if (newValue) {
+                        val hasPerm =
+                            ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) ==
+                                PackageManager.PERMISSION_GRANTED
+                        if (hasPerm) {
+                            micEnabled = true
+                        } else {
+                            micPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                        }
+                    } else {
+                        micEnabled = false
+                    }
+                },
+                vuLevel = vuLevel,
+                audioInputDevices = audioInputDevices,
+                audioOutputDevices = audioOutputDevices,
+                selectedInputRoute = selectedInputRoute,
+                selectedOutputRoute = selectedOutputRoute,
+                showInputRouteMenu = showInputRouteMenu,
+                showOutputRouteMenu = showOutputRouteMenu,
+                onShowInputRouteMenu = { showInputRouteMenu = it },
+                onShowOutputRouteMenu = { showOutputRouteMenu = it },
+                onSelectInputRoute = { selectedInputRoute = it },
+                onSelectOutputRoute = { selectedOutputRoute = it },
                 isDark = isDark,
+                lang = lang,
             )
-
-            Column(
-                modifier =
-                    Modifier
-                        .fillMaxWidth()
-                        .background(
-                            if (isDark) VisioColors.PrimaryDark100 else VisioColors.LightSurfaceVariant,
-                            RoundedCornerShape(12.dp),
-                        )
-                        .padding(12.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                // Computer audio radio
-                AudioModeRadio(
-                    label = Strings.t("prejoin.computerAudio", lang),
-                    selected = audioMode == "computer_audio",
-                    onClick = { audioMode = "computer_audio" },
-                    isDark = isDark,
-                )
-
-                // Mic + VU meter + speaker test (only visible when computer_audio selected)
-                if (audioMode == "computer_audio") {
-                    // Mic toggle row
-                    Row(
-                        modifier =
-                            Modifier
-                                .fillMaxWidth()
-                                .padding(start = 40.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text(
-                            text = Strings.t("device.microphone", lang),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = if (isDark) VisioColors.White else VisioColors.LightOnBackground,
-                        )
-                        Switch(
-                            checked = micEnabled,
-                            onCheckedChange = { newValue ->
-                                if (newValue) {
-                                    val hasPerm =
-                                        ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) ==
-                                            PackageManager.PERMISSION_GRANTED
-                                    if (hasPerm) {
-                                        micEnabled = true
-                                    } else {
-                                        micPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
-                                    }
-                                } else {
-                                    micEnabled = false
-                                }
-                            },
-                            colors =
-                                SwitchDefaults.colors(
-                                    checkedThumbColor = VisioColors.White,
-                                    checkedTrackColor = VisioColors.Primary500,
-                                    uncheckedThumbColor = VisioColors.Greyscale400,
-                                    uncheckedTrackColor =
-                                        if (isDark) VisioColors.PrimaryDark300 else VisioColors.LightBorder,
-                                ),
-                        )
-                    }
-
-                    // VU meter
-                    if (micEnabled) {
-                        Column(modifier = Modifier.padding(start = 40.dp)) {
-                            Text(
-                                text = "Mic level",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = if (isDark) VisioColors.Greyscale400 else VisioColors.LightTextSecondary,
-                            )
-                            Spacer(modifier = Modifier.height(4.dp))
-                            LinearProgressIndicator(
-                                progress = { vuLevel },
-                                modifier =
-                                    Modifier
-                                        .fillMaxWidth()
-                                        .height(6.dp)
-                                        .clip(RoundedCornerShape(3.dp)),
-                                color = Color(0xFF22C55E),
-                                trackColor = if (isDark) VisioColors.PrimaryDark300 else VisioColors.LightBorder,
-                            )
-                        }
-                    }
-
-                    // Mic input selector
-                    if (audioInputDevices.size > 1) {
-                        Box(modifier = Modifier.padding(start = 40.dp)) {
-                            OutlinedButton(
-                                onClick = { showInputRouteMenu = true },
-                                modifier = Modifier.fillMaxWidth(),
-                                shape = RoundedCornerShape(8.dp),
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Filled.Mic,
-                                    contentDescription = null,
-                                    tint = VisioColors.Primary500,
-                                    modifier = Modifier.size(18.dp),
-                                )
-                                Spacer(modifier = Modifier.size(8.dp))
-                                Text(
-                                    text = selectedInputRoute ?: Strings.t("device.microphone", lang),
-                                    style = MaterialTheme.typography.bodySmall,
-                                    modifier = Modifier.weight(1f),
-                                )
-                            }
-                            DropdownMenu(
-                                expanded = showInputRouteMenu,
-                                onDismissRequest = { showInputRouteMenu = false },
-                            ) {
-                                audioInputDevices.forEach { device ->
-                                    val label = audioDeviceTypeLabel(device.type, lang)
-                                    DropdownMenuItem(
-                                        text = { Text(label) },
-                                        onClick = {
-                                            selectedInputRoute = label
-                                            showInputRouteMenu = false
-                                        },
-                                    )
-                                }
-                            }
-                        }
-                    }
-
-                    // Output route selector
-                    Box(modifier = Modifier.padding(start = 40.dp)) {
-                        OutlinedButton(
-                            onClick = { showOutputRouteMenu = true },
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(8.dp),
-                        ) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.VolumeUp,
-                                contentDescription = null,
-                                tint = VisioColors.Primary500,
-                                modifier = Modifier.size(18.dp),
-                            )
-                            Spacer(modifier = Modifier.size(8.dp))
-                            Text(
-                                text = selectedOutputRoute ?: Strings.t("prejoin.audioRoute", lang),
-                                style = MaterialTheme.typography.bodySmall,
-                                modifier = Modifier.weight(1f),
-                            )
-                        }
-                        DropdownMenu(
-                            expanded = showOutputRouteMenu,
-                            onDismissRequest = { showOutputRouteMenu = false },
-                        ) {
-                            audioOutputDevices.forEach { device ->
-                                val label = audioDeviceTypeLabel(device.type, lang)
-                                DropdownMenuItem(
-                                    text = { Text(label) },
-                                    onClick = {
-                                        selectedOutputRoute = label
-                                        showOutputRouteMenu = false
-                                    },
-                                )
-                            }
-                        }
-                    }
-                }
-
-                // No audio radio
-                AudioModeRadio(
-                    label = Strings.t("prejoin.noAudio", lang),
-                    selected = audioMode == "no_audio",
-                    onClick = { audioMode = "no_audio" },
-                    isDark = isDark,
-                )
-            }
 
             // ── Background filter button ───────────────────────────────────────
             OutlinedButton(
@@ -861,81 +646,20 @@ fun PreJoinScreen(
                             val id = backgroundMode.removePrefix("image:")
                             "Background $id"
                         }
-                        else -> Strings.t("settings.incall.background", lang)
+                        else -> Strings.t(KEY_SETTINGS_BACKGROUND, lang)
                     }
                 Text(
-                    text = "${Strings.t("settings.incall.background", lang)}: $bgLabel",
+                    text = "${Strings.t(KEY_SETTINGS_BACKGROUND, lang)}: $bgLabel",
                     modifier = Modifier.padding(vertical = 4.dp),
                 )
             }
 
             // ── Waiting state banner ──────────────────────────────────────────
-            when (val state = waitingState) {
-                is WaitingState.Waiting -> {
-                    Row(
-                        modifier =
-                            Modifier
-                                .fillMaxWidth()
-                                .background(
-                                    VisioColors.Primary500.copy(alpha = 0.15f),
-                                    RoundedCornerShape(12.dp),
-                                )
-                                .padding(16.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    ) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(20.dp),
-                            strokeWidth = 2.dp,
-                            color = VisioColors.Primary500,
-                        )
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = Strings.t("lobby.waiting", lang),
-                                style = MaterialTheme.typography.bodyMedium,
-                                fontWeight = FontWeight.Medium,
-                                color = if (isDark) VisioColors.White else VisioColors.LightOnBackground,
-                            )
-                            Text(
-                                text = Strings.t("lobby.waitingDesc", lang),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = if (isDark) VisioColors.Greyscale400 else VisioColors.LightTextSecondary,
-                            )
-                        }
-                    }
-                }
-                is WaitingState.Denied -> {
-                    Text(
-                        text = Strings.t("lobby.denied", lang),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = VisioColors.Error500,
-                        modifier =
-                            Modifier
-                                .fillMaxWidth()
-                                .background(
-                                    if (isDark) VisioColors.Error200 else VisioColors.LightErrorBg,
-                                    RoundedCornerShape(12.dp),
-                                )
-                                .padding(16.dp),
-                    )
-                }
-                is WaitingState.Timeout -> {
-                    Text(
-                        text = Strings.t("lobby.timeout", lang),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = VisioColors.Error500,
-                        modifier =
-                            Modifier
-                                .fillMaxWidth()
-                                .background(
-                                    if (isDark) VisioColors.Error200 else VisioColors.LightErrorBg,
-                                    RoundedCornerShape(12.dp),
-                                )
-                                .padding(16.dp),
-                    )
-                }
-                else -> {}
-            }
+            PreJoinWaitingBanner(
+                waitingState = waitingState,
+                isDark = isDark,
+                lang = lang,
+            )
         }
 
         // ── Action buttons ────────────────────────────────────────────────────
@@ -1102,7 +826,7 @@ private fun BackgroundFilterSheet(
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             Text(
-                text = Strings.t("settings.incall.background", lang),
+                text = Strings.t(KEY_SETTINGS_BACKGROUND, lang),
                 style = MaterialTheme.typography.titleMedium,
                 color = if (isDark) VisioColors.White else MaterialTheme.colorScheme.onSurface,
                 fontWeight = FontWeight.SemiBold,
@@ -1217,6 +941,392 @@ private fun BackgroundFilterSheet(
     }
 }
 
+// ── Extracted sub-composables ─────────────────────────────────────────────────
+
+@Composable
+private fun PreJoinCameraSection(
+    cameraEnabled: Boolean,
+    hasCameraPermission: Boolean,
+    isFrontCamera: Boolean,
+    isDark: Boolean,
+    lang: String,
+    cameraPreviewRef: androidx.compose.runtime.MutableState<LocalCameraPreview?>,
+    onToggleCamera: (Boolean) -> Unit,
+    onFlipCamera: () -> Unit,
+) {
+    PreJoinSectionLabel(
+        text = Strings.t("settings.incall.camera", lang),
+        isDark = isDark,
+    )
+
+    Box(
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .aspectRatio(4f / 3f)
+                .clip(RoundedCornerShape(12.dp))
+                .background(if (isDark) VisioColors.PrimaryDark100 else VisioColors.LightSurfaceVariant),
+        contentAlignment = Alignment.Center,
+    ) {
+        if (cameraEnabled && hasCameraPermission) {
+            AndroidView(
+                factory = { ctx ->
+                    LocalCameraPreview(ctx, isFrontCamera).also { preview ->
+                        cameraPreviewRef.value = preview
+                    }
+                },
+                update = { preview ->
+                    preview.switchCamera(isFrontCamera)
+                },
+                modifier =
+                    Modifier
+                        .fillMaxSize()
+                        .clip(RoundedCornerShape(12.dp)),
+            )
+        } else {
+            Icon(
+                imageVector = Icons.Filled.VideocamOff,
+                contentDescription = null,
+                tint = if (isDark) VisioColors.Greyscale400 else VisioColors.LightTextSecondary,
+                modifier = Modifier.size(48.dp),
+            )
+        }
+
+        // Camera controls overlay
+        Row(
+            modifier =
+                Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(8.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            if (cameraEnabled && hasCameraPermission) {
+                Box(
+                    modifier =
+                        Modifier
+                            .size(36.dp)
+                            .background(Color.Black.copy(alpha = 0.4f), CircleShape)
+                            .clickable { onFlipCamera() },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.Cameraswitch,
+                        contentDescription = Strings.t("call.switchCamera", lang),
+                        tint = VisioColors.White,
+                        modifier = Modifier.size(20.dp),
+                    )
+                }
+            }
+            Box(
+                modifier =
+                    Modifier
+                        .size(36.dp)
+                        .background(
+                            if (cameraEnabled) VisioColors.Primary500 else Color.Black.copy(alpha = 0.4f),
+                            CircleShape,
+                        )
+                        .clickable { onToggleCamera(!cameraEnabled) },
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = if (cameraEnabled) Icons.Filled.Videocam else Icons.Filled.VideocamOff,
+                    contentDescription =
+                        if (cameraEnabled) {
+                            Strings.t("control.camOff", lang)
+                        } else {
+                            Strings.t("control.camOn", lang)
+                        },
+                    tint = VisioColors.White,
+                    modifier = Modifier.size(20.dp),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun PreJoinAudioSection(
+    audioMode: String,
+    onAudioModeChange: (String) -> Unit,
+    micEnabled: Boolean,
+    onMicToggle: (Boolean) -> Unit,
+    vuLevel: Float,
+    audioInputDevices: List<AudioDeviceInfo>,
+    audioOutputDevices: List<AudioDeviceInfo>,
+    selectedInputRoute: String?,
+    selectedOutputRoute: String?,
+    showInputRouteMenu: Boolean,
+    showOutputRouteMenu: Boolean,
+    onShowInputRouteMenu: (Boolean) -> Unit,
+    onShowOutputRouteMenu: (Boolean) -> Unit,
+    onSelectInputRoute: (String) -> Unit,
+    onSelectOutputRoute: (String) -> Unit,
+    isDark: Boolean,
+    lang: String,
+) {
+    PreJoinSectionLabel(
+        text = Strings.t("settings.incall.micro", lang),
+        isDark = isDark,
+    )
+
+    Column(
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .background(
+                    if (isDark) VisioColors.PrimaryDark100 else VisioColors.LightSurfaceVariant,
+                    RoundedCornerShape(12.dp),
+                )
+                .padding(12.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        AudioModeRadio(
+            label = Strings.t("prejoin.computerAudio", lang),
+            selected = audioMode == "computer_audio",
+            onClick = { onAudioModeChange("computer_audio") },
+            isDark = isDark,
+        )
+
+        if (audioMode == "computer_audio") {
+            // Mic toggle row
+            Row(
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(start = 40.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = Strings.t(KEY_DEVICE_MICROPHONE, lang),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = if (isDark) VisioColors.White else VisioColors.LightOnBackground,
+                )
+                Switch(
+                    checked = micEnabled,
+                    onCheckedChange = { onMicToggle(it) },
+                    colors =
+                        SwitchDefaults.colors(
+                            checkedThumbColor = VisioColors.White,
+                            checkedTrackColor = VisioColors.Primary500,
+                            uncheckedThumbColor = VisioColors.Greyscale400,
+                            uncheckedTrackColor =
+                                if (isDark) VisioColors.PrimaryDark300 else VisioColors.LightBorder,
+                        ),
+                )
+            }
+
+            // VU meter
+            if (micEnabled) {
+                Column(modifier = Modifier.padding(start = 40.dp)) {
+                    Text(
+                        text = "Mic level",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = if (isDark) VisioColors.Greyscale400 else VisioColors.LightTextSecondary,
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    LinearProgressIndicator(
+                        progress = { vuLevel },
+                        modifier =
+                            Modifier
+                                .fillMaxWidth()
+                                .height(6.dp)
+                                .clip(RoundedCornerShape(3.dp)),
+                        color = Color(0xFF22C55E),
+                        trackColor = if (isDark) VisioColors.PrimaryDark300 else VisioColors.LightBorder,
+                    )
+                }
+            }
+
+            PreJoinAudioRouteSelectors(
+                audioInputDevices = audioInputDevices,
+                audioOutputDevices = audioOutputDevices,
+                selectedInputRoute = selectedInputRoute,
+                selectedOutputRoute = selectedOutputRoute,
+                showInputRouteMenu = showInputRouteMenu,
+                showOutputRouteMenu = showOutputRouteMenu,
+                onShowInputRouteMenu = onShowInputRouteMenu,
+                onShowOutputRouteMenu = onShowOutputRouteMenu,
+                onSelectInputRoute = onSelectInputRoute,
+                onSelectOutputRoute = onSelectOutputRoute,
+                lang = lang,
+            )
+        }
+
+        AudioModeRadio(
+            label = Strings.t("prejoin.noAudio", lang),
+            selected = audioMode == "no_audio",
+            onClick = { onAudioModeChange("no_audio") },
+            isDark = isDark,
+        )
+    }
+}
+
+@Composable
+private fun PreJoinAudioRouteSelectors(
+    audioInputDevices: List<AudioDeviceInfo>,
+    audioOutputDevices: List<AudioDeviceInfo>,
+    selectedInputRoute: String?,
+    selectedOutputRoute: String?,
+    showInputRouteMenu: Boolean,
+    showOutputRouteMenu: Boolean,
+    onShowInputRouteMenu: (Boolean) -> Unit,
+    onShowOutputRouteMenu: (Boolean) -> Unit,
+    onSelectInputRoute: (String) -> Unit,
+    onSelectOutputRoute: (String) -> Unit,
+    lang: String,
+) {
+    // Mic input selector
+    if (audioInputDevices.size > 1) {
+        Box(modifier = Modifier.padding(start = 40.dp)) {
+            OutlinedButton(
+                onClick = { onShowInputRouteMenu(true) },
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(8.dp),
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Mic,
+                    contentDescription = null,
+                    tint = VisioColors.Primary500,
+                    modifier = Modifier.size(18.dp),
+                )
+                Spacer(modifier = Modifier.size(8.dp))
+                Text(
+                    text = selectedInputRoute ?: Strings.t(KEY_DEVICE_MICROPHONE, lang),
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.weight(1f),
+                )
+            }
+            DropdownMenu(
+                expanded = showInputRouteMenu,
+                onDismissRequest = { onShowInputRouteMenu(false) },
+            ) {
+                audioInputDevices.forEach { device ->
+                    val label = audioDeviceTypeLabel(device.type, lang)
+                    DropdownMenuItem(
+                        text = { Text(label) },
+                        onClick = {
+                            onSelectInputRoute(label)
+                            onShowInputRouteMenu(false)
+                        },
+                    )
+                }
+            }
+        }
+    }
+
+    // Output route selector
+    Box(modifier = Modifier.padding(start = 40.dp)) {
+        OutlinedButton(
+            onClick = { onShowOutputRouteMenu(true) },
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(8.dp),
+        ) {
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.VolumeUp,
+                contentDescription = null,
+                tint = VisioColors.Primary500,
+                modifier = Modifier.size(18.dp),
+            )
+            Spacer(modifier = Modifier.size(8.dp))
+            Text(
+                text = selectedOutputRoute ?: Strings.t("prejoin.audioRoute", lang),
+                style = MaterialTheme.typography.bodySmall,
+                modifier = Modifier.weight(1f),
+            )
+        }
+        DropdownMenu(
+            expanded = showOutputRouteMenu,
+            onDismissRequest = { onShowOutputRouteMenu(false) },
+        ) {
+            audioOutputDevices.forEach { device ->
+                val label = audioDeviceTypeLabel(device.type, lang)
+                DropdownMenuItem(
+                    text = { Text(label) },
+                    onClick = {
+                        onSelectOutputRoute(label)
+                        onShowOutputRouteMenu(false)
+                    },
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun PreJoinWaitingBanner(
+    waitingState: WaitingState,
+    isDark: Boolean,
+    lang: String,
+) {
+    when (waitingState) {
+        is WaitingState.Waiting -> {
+            Row(
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .background(
+                            VisioColors.Primary500.copy(alpha = 0.15f),
+                            RoundedCornerShape(12.dp),
+                        )
+                        .padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(20.dp),
+                    strokeWidth = 2.dp,
+                    color = VisioColors.Primary500,
+                )
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = Strings.t("lobby.waiting", lang),
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.Medium,
+                        color = if (isDark) VisioColors.White else VisioColors.LightOnBackground,
+                    )
+                    Text(
+                        text = Strings.t("lobby.waitingDesc", lang),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = if (isDark) VisioColors.Greyscale400 else VisioColors.LightTextSecondary,
+                    )
+                }
+            }
+        }
+        is WaitingState.Denied -> {
+            Text(
+                text = Strings.t("lobby.denied", lang),
+                style = MaterialTheme.typography.bodyMedium,
+                color = VisioColors.Error500,
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .background(
+                            if (isDark) VisioColors.Error200 else VisioColors.LightErrorBg,
+                            RoundedCornerShape(12.dp),
+                        )
+                        .padding(16.dp),
+            )
+        }
+        is WaitingState.Timeout -> {
+            Text(
+                text = Strings.t("lobby.timeout", lang),
+                style = MaterialTheme.typography.bodyMedium,
+                color = VisioColors.Error500,
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .background(
+                            if (isDark) VisioColors.Error200 else VisioColors.LightErrorBg,
+                            RoundedCornerShape(12.dp),
+                        )
+                        .padding(16.dp),
+            )
+        }
+        else -> {}
+    }
+}
+
 // ── Reusable chip for filter selection ────────────────────────────────────────
 
 @Composable
@@ -1310,7 +1420,7 @@ private fun audioDeviceTypeLabel(
     when (type) {
         AudioDeviceInfo.TYPE_BUILTIN_SPEAKER -> Strings.t("audio.speaker", lang)
         AudioDeviceInfo.TYPE_BUILTIN_EARPIECE -> Strings.t("audio.earpiece", lang)
-        AudioDeviceInfo.TYPE_BUILTIN_MIC -> Strings.t("device.microphone", lang)
+        AudioDeviceInfo.TYPE_BUILTIN_MIC -> Strings.t(KEY_DEVICE_MICROPHONE, lang)
         AudioDeviceInfo.TYPE_BLUETOOTH_SCO, AudioDeviceInfo.TYPE_BLUETOOTH_A2DP -> Strings.t("audio.bluetooth", lang)
         AudioDeviceInfo.TYPE_BLE_HEADSET, AudioDeviceInfo.TYPE_BLE_SPEAKER -> Strings.t("audio.bluetooth", lang)
         AudioDeviceInfo.TYPE_HEARING_AID -> Strings.t("audio.hearingAid", lang)

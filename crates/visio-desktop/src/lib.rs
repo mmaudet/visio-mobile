@@ -1498,7 +1498,6 @@ async fn stop_camera_preview() -> Result<(), String> {
     Ok(())
 }
 
-
 // ---------------------------------------------------------------------------
 // Mic level / VU meter commands
 // ---------------------------------------------------------------------------
@@ -1547,11 +1546,9 @@ async fn play_speaker_test(state: tauri::State<'_, VisioState>) -> Result<(), St
         .lock()
         .unwrap_or_else(|e| e.into_inner())
         .clone();
-    tokio::task::spawn_blocking(move || {
-        audio_engine::play_speaker_test(device_name.as_deref())
-    })
-    .await
-    .map_err(|e| e.to_string())?
+    tokio::task::spawn_blocking(move || audio_engine::play_speaker_test(device_name.as_deref()))
+        .await
+        .map_err(|e| e.to_string())?
 }
 
 // ---------------------------------------------------------------------------

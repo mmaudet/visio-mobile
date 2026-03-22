@@ -302,57 +302,16 @@ private fun MeetingCard(
                     .padding(12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                ) {
-                    if (isImminent || isInProgress) {
-                        PulsingDot(color = Color(0xFF4ADE80))
-                    }
-                    Text(
-                        text = meeting.summary,
-                        style = MaterialTheme.typography.bodyLarge,
-                        fontWeight = FontWeight.Bold,
-                        color =
-                            if (isAccent) {
-                                VisioColors.White
-                            } else if (isDark) {
-                                VisioColors.White
-                            } else {
-                                VisioColors.LightOnBackground
-                            },
-                    )
-                }
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = formatMeetingTime(meeting, now, lang),
-                    style = MaterialTheme.typography.bodySmall,
-                    color =
-                        if (isAccent) {
-                            VisioColors.White.copy(alpha = 0.8f)
-                        } else if (isDark) {
-                            VisioColors.Greyscale400
-                        } else {
-                            VisioColors.LightTextSecondary
-                        },
-                )
-                if (meeting.serverName.isNotBlank()) {
-                    Spacer(modifier = Modifier.height(2.dp))
-                    Text(
-                        text = meeting.serverName,
-                        style = MaterialTheme.typography.bodySmall,
-                        color =
-                            if (isAccent) {
-                                VisioColors.White.copy(alpha = 0.8f)
-                            } else if (isDark) {
-                                VisioColors.Greyscale400
-                            } else {
-                                VisioColors.LightTextSecondary
-                            },
-                    )
-                }
-            }
+            MeetingCardDetails(
+                meeting = meeting,
+                isDark = isDark,
+                lang = lang,
+                now = now,
+                isAccent = isAccent,
+                isImminent = isImminent,
+                isInProgress = isInProgress,
+                modifier = Modifier.weight(1f),
+            )
             Spacer(modifier = Modifier.width(8.dp))
             OutlinedButton(
                 onClick = onJoin,
@@ -373,6 +332,67 @@ private fun MeetingCard(
                     fontWeight = FontWeight.SemiBold,
                 )
             }
+        }
+    }
+}
+
+@Composable
+private fun MeetingCardDetails(
+    meeting: Meeting,
+    isDark: Boolean,
+    lang: String,
+    now: Long,
+    isAccent: Boolean,
+    isImminent: Boolean,
+    isInProgress: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    val primaryColor =
+        if (isAccent) {
+            VisioColors.White
+        } else if (isDark) {
+            VisioColors.White
+        } else {
+            VisioColors.LightOnBackground
+        }
+
+    val secondaryColor =
+        if (isAccent) {
+            VisioColors.White.copy(alpha = 0.8f)
+        } else if (isDark) {
+            VisioColors.Greyscale400
+        } else {
+            VisioColors.LightTextSecondary
+        }
+
+    Column(modifier = modifier) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            if (isImminent || isInProgress) {
+                PulsingDot(color = Color(0xFF4ADE80))
+            }
+            Text(
+                text = meeting.summary,
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.Bold,
+                color = primaryColor,
+            )
+        }
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(
+            text = formatMeetingTime(meeting, now, lang),
+            style = MaterialTheme.typography.bodySmall,
+            color = secondaryColor,
+        )
+        if (meeting.serverName.isNotBlank()) {
+            Spacer(modifier = Modifier.height(2.dp))
+            Text(
+                text = meeting.serverName,
+                style = MaterialTheme.typography.bodySmall,
+                color = secondaryColor,
+            )
         }
     }
 }

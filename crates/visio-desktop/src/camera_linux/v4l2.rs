@@ -4,8 +4,8 @@
 //! converts to I420, and feeds them into a LiveKit NativeVideoSource.
 //! Used as fallback when the PipeWire Camera portal is not available.
 
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread::{self, JoinHandle};
 
 use livekit::webrtc::prelude::*;
@@ -30,7 +30,10 @@ pub fn list_cameras() -> Vec<VideoDeviceInfo> {
         let path = format!("/dev/video{}", i);
         if let Ok(dev) = Device::new(i) {
             if let Ok(caps) = dev.query_caps() {
-                if caps.capabilities.contains(v4l::capability::Flags::VIDEO_CAPTURE) {
+                if caps
+                    .capabilities
+                    .contains(v4l::capability::Flags::VIDEO_CAPTURE)
+                {
                     devices.push(VideoDeviceInfo {
                         name: caps.card.clone(),
                         unique_id: path,
@@ -95,8 +98,15 @@ fn capture_loop(
 ) -> Result<(), String> {
     let dev = Device::new(device_index).map_err(|e| format!("Failed to open camera: {e}"))?;
 
-    let format = dev.format().map_err(|e| format!("Failed to get format: {e}"))?;
-    tracing::info!("V4L2 camera format: {}x{} {:?}", format.width, format.height, format.fourcc);
+    let format = dev
+        .format()
+        .map_err(|e| format!("Failed to get format: {e}"))?;
+    tracing::info!(
+        "V4L2 camera format: {}x{} {:?}",
+        format.width,
+        format.height,
+        format.fourcc
+    );
 
     let format = if format.width < 320 || format.height < 240 {
         let mut new_format = format.clone();
@@ -142,19 +152,36 @@ fn capture_loop(
                     let strides = i420.strides();
                     let (y, u, v) = i420.data_mut();
                     convert::rgb_to_i420(
-                        &rgb, width as usize, height as usize,
-                        y, strides.0 as usize, u, strides.1 as usize, v, strides.2 as usize,
+                        &rgb,
+                        width as usize,
+                        height as usize,
+                        y,
+                        strides.0 as usize,
+                        u,
+                        strides.1 as usize,
+                        v,
+                        strides.2 as usize,
                     );
                     true
                 }
-                Err(e) => { tracing::warn!("MJPEG decode error: {e}"); false }
+                Err(e) => {
+                    tracing::warn!("MJPEG decode error: {e}");
+                    false
+                }
             }
         } else if fourcc == FourCC::new(b"YUYV") {
             let strides = i420.strides();
             let (y, u, v) = i420.data_mut();
             convert::yuyv_to_i420(
-                buf, width as usize, height as usize,
-                y, strides.0 as usize, u, strides.1 as usize, v, strides.2 as usize,
+                buf,
+                width as usize,
+                height as usize,
+                y,
+                strides.0 as usize,
+                u,
+                strides.1 as usize,
+                v,
+                strides.2 as usize,
             );
             true
         } else {
@@ -171,9 +198,14 @@ fn capture_loop(
             let strides = i420.strides();
             let (y, u, v) = i420.data_mut();
             visio_ffi::blur::BlurProcessor::process_i420(
-                y, u, v,
-                width as usize, height as usize,
-                strides.0 as usize, strides.1 as usize, strides.2 as usize,
+                y,
+                u,
+                v,
+                width as usize,
+                height as usize,
+                strides.0 as usize,
+                strides.1 as usize,
+                strides.2 as usize,
                 0,
             );
         }

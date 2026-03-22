@@ -49,7 +49,9 @@ fn w(r: windows::core::Result<()>) -> Result<(), String> {
 
 /// Initialize COM on the current thread (each thread needs its own init).
 fn init_com() -> Result<(), String> {
-    unsafe { CoInitializeEx(None, COINIT_MULTITHREADED) }.ok().map_err(|e| format!("{e}"))
+    unsafe { CoInitializeEx(None, COINIT_MULTITHREADED) }
+        .ok()
+        .map_err(|e| format!("{e}"))
 }
 
 /// Get the default audio endpoint for the given data flow.
@@ -129,20 +131,20 @@ impl VoiceAudioEngine for WindowsAudioEngine {
 
                     let padding = unsafe { client.GetCurrentPadding()? } as usize;
                     let available = buffer_size - padding;
-                    if available == 0 { continue; }
+                    if available == 0 {
+                        continue;
+                    }
 
                     // Pull mono i16 samples at LK rate, resample to device rate
-                    let lk_samples = (available as f64 * LK_SAMPLE_RATE as f64
-                        / device_rate as f64) as usize;
+                    let lk_samples =
+                        (available as f64 * LK_SAMPLE_RATE as f64 / device_rate as f64) as usize;
                     let mut mono_i16 = vec![0i16; lk_samples];
                     buffer.pull_samples(&mut mono_i16);
 
                     let resampled = audio_engine::linear_resample(&mono_i16, available);
 
                     // Convert to f32 and expand to device channels
-                    let buf_ptr = unsafe {
-                        render_client.GetBuffer(available as u32)?
-                    };
+                    let buf_ptr = unsafe { render_client.GetBuffer(available as u32)? };
                     let dst = unsafe {
                         std::slice::from_raw_parts_mut(
                             buf_ptr as *mut f32,
@@ -173,12 +175,17 @@ impl VoiceAudioEngine for WindowsAudioEngine {
         Ok(())
     }
 
-    fn start_capture(&mut self, source: NativeAudioSource, noise_reduction: bool) -> Result<(), String> {
+    fn start_capture(
+        &mut self,
+        source: NativeAudioSource,
+        noise_reduction: bool,
+    ) -> Result<(), String> {
         let stop = self.capture_stop.clone();
         stop.store(false, Ordering::Relaxed);
 
         let capture_buffer = Arc::new(AudioCaptureBuffer::new(50));
-        let drain_running = audio_engine::start_drain_thread(capture_buffer.clone(), source, noise_reduction);
+        let drain_running =
+            audio_engine::start_drain_thread(capture_buffer.clone(), source, noise_reduction);
 
         let handle = std::thread::spawn(move || {
             if let Err(e) = init_com() {
@@ -196,7 +203,8 @@ impl VoiceAudioEngine for WindowsAudioEngine {
                     client.Initialize(
                         AUDCLNT_SHAREMODE_SHARED,
                         0, // polling mode
-                        0, 0,
+                        0,
+                        0,
                         mix_format,
                         None,
                     )?;
@@ -240,13 +248,14 @@ impl VoiceAudioEngine for WindowsAudioEngine {
                         let mono = audio_engine::mix_to_mono(src, device_channels);
 
                         // Convert f32 → i16
-                        let mono_i16: Vec<i16> = mono.iter()
+                        let mono_i16: Vec<i16> = mono
+                            .iter()
                             .map(|&s| (s * 32767.0).clamp(-32768.0, 32767.0) as i16)
                             .collect();
 
                         // Resample to 48kHz
-                        let target_len = (mono_i16.len() as f64
-                            * LK_SAMPLE_RATE as f64 / device_rate as f64) as usize;
+                        let target_len = (mono_i16.len() as f64 * LK_SAMPLE_RATE as f64
+                            / device_rate as f64) as usize;
                         let resampled = audio_engine::linear_resample(&mono_i16, target_len);
 
                         let frame = CapturedFrame {
@@ -279,15 +288,21 @@ impl VoiceAudioEngine for WindowsAudioEngine {
 
     fn stop_capture(&mut self) {
         self.capture_stop.store(true, Ordering::Relaxed);
-        if let Some(h) = self.capture_thread.take() { let _ = h.join(); }
-        if let Some(r) = self.drain_running.take() { r.store(false, Ordering::Relaxed); }
+        if let Some(h) = self.capture_thread.take() {
+            let _ = h.join();
+        }
+        if let Some(r) = self.drain_running.take() {
+            r.store(false, Ordering::Relaxed);
+        }
         tracing::info!("Windows audio capture stopped");
     }
 
     fn stop_playout(&mut self) {
         self.stop_capture();
         self.render_stop.store(true, Ordering::Relaxed);
-        if let Some(h) = self.render_thread.take() { let _ = h.join(); }
+        if let Some(h) = self.render_thread.take() {
+            let _ = h.join();
+        }
         tracing::info!("Windows WASAPI stopped");
     }
 

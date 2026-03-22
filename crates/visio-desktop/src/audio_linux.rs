@@ -89,14 +89,14 @@ impl VoiceAudioEngine for LinuxAudioEngine {
             let spec = LinuxAudioEngine::pulse_spec();
 
             let stream = match Simple::new(
-                None,                // default server
-                "Visio",             // app name
+                None,    // default server
+                "Visio", // app name
                 Direction::Playback,
-                None,                // default device
-                "Voice Output",      // stream description
+                None,           // default device
+                "Voice Output", // stream description
                 &spec,
-                None,                // default channel map
-                None,                // default buffering
+                None, // default channel map
+                None, // default buffering
             ) {
                 Ok(s) => s,
                 Err(e) => {
@@ -110,9 +110,7 @@ impl VoiceAudioEngine for LinuxAudioEngine {
                 buffer.pull_samples(&mut samples);
 
                 // Convert i16 to bytes (little-endian)
-                let bytes: Vec<u8> = samples.iter()
-                    .flat_map(|&s| s.to_le_bytes())
-                    .collect();
+                let bytes: Vec<u8> = samples.iter().flat_map(|&s| s.to_le_bytes()).collect();
 
                 if let Err(e) = stream.write(&bytes) {
                     tracing::error!("PulseAudio write failed: {e}");
@@ -126,12 +124,17 @@ impl VoiceAudioEngine for LinuxAudioEngine {
         Ok(())
     }
 
-    fn start_capture(&mut self, source: NativeAudioSource, noise_reduction: bool) -> Result<(), String> {
+    fn start_capture(
+        &mut self,
+        source: NativeAudioSource,
+        noise_reduction: bool,
+    ) -> Result<(), String> {
         let stop = self.record_stop.clone();
         stop.store(false, Ordering::Relaxed);
 
         let capture_buffer = Arc::new(AudioCaptureBuffer::new(50));
-        let drain_running = audio_engine::start_drain_thread(capture_buffer.clone(), source, noise_reduction);
+        let drain_running =
+            audio_engine::start_drain_thread(capture_buffer.clone(), source, noise_reduction);
 
         let handle = std::thread::spawn(move || {
             let spec = LinuxAudioEngine::pulse_spec();
@@ -161,7 +164,8 @@ impl VoiceAudioEngine for LinuxAudioEngine {
                 }
 
                 // Convert bytes to i16 (little-endian)
-                let pcm: Vec<i16> = bytes.chunks_exact(2)
+                let pcm: Vec<i16> = bytes
+                    .chunks_exact(2)
                     .map(|c| i16::from_le_bytes([c[0], c[1]]))
                     .collect();
 
@@ -183,15 +187,21 @@ impl VoiceAudioEngine for LinuxAudioEngine {
 
     fn stop_capture(&mut self) {
         self.record_stop.store(true, Ordering::Relaxed);
-        if let Some(h) = self.record_thread.take() { let _ = h.join(); }
-        if let Some(r) = self.drain_running.take() { r.store(false, Ordering::Relaxed); }
+        if let Some(h) = self.record_thread.take() {
+            let _ = h.join();
+        }
+        if let Some(r) = self.drain_running.take() {
+            r.store(false, Ordering::Relaxed);
+        }
         tracing::info!("Linux audio capture stopped");
     }
 
     fn stop_playout(&mut self) {
         self.stop_capture();
         self.playback_stop.store(true, Ordering::Relaxed);
-        if let Some(h) = self.playback_thread.take() { let _ = h.join(); }
+        if let Some(h) = self.playback_thread.take() {
+            let _ = h.join();
+        }
         tracing::info!("Linux PulseAudio stopped");
     }
 

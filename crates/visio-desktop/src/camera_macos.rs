@@ -373,7 +373,8 @@ pub fn request_camera_permission() -> bool {
         let block = block2::StackBlock::new(move |granted: Bool| {
             let _ = tx.send(granted.as_bool());
         });
-        let _: () = msg_send![cls, requestAccessForMediaType: AVMediaTypeVideo, completionHandler: &*block];
+        let _: () =
+            msg_send![cls, requestAccessForMediaType: AVMediaTypeVideo, completionHandler: &*block];
         rx.recv().unwrap_or(false)
     }
 }
@@ -457,7 +458,8 @@ impl MacCameraCapture {
         let session: Retained<AnyObject> = unsafe { msg_send![session_cls, new] };
 
         // Set session preset
-        let _: () = unsafe { msg_send![&*session, setSessionPreset: AVCaptureSessionPreset1280x720] };
+        let _: () =
+            unsafe { msg_send![&*session, setSessionPreset: AVCaptureSessionPreset1280x720] };
 
         // --- Find camera device by uniqueID ---
         let device_cls =
@@ -556,7 +558,8 @@ impl MacCameraCapture {
         let session: Retained<AnyObject> = unsafe { msg_send![session_cls, new] };
 
         // Set session preset
-        let _: () = unsafe { msg_send![&*session, setSessionPreset: AVCaptureSessionPreset1280x720] };
+        let _: () =
+            unsafe { msg_send![&*session, setSessionPreset: AVCaptureSessionPreset1280x720] };
 
         // --- Find camera device ---
         let device_cls =
