@@ -35,7 +35,7 @@ jobs:
           key: android-arm64
 
       - name: Set up Android NDK
-        uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b2fb8d862bb14710 # v3
+        uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407 # v3
 
       - name: Set up JDK 17
         uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00 # v4

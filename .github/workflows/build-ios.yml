@@ -34,7 +34,7 @@ jobs:
           rm -f target/aarch64-apple-ios/release/*.dylib
 
       - name: Set up Ruby
-        uses: ruby/setup-ruby@a4effe49ee3ee5b8916cc14be7688007e498fa3d # v1
+        uses: ruby/setup-ruby@b8d447ba7506ac7e0c8fbc50762276fb3b7df731 # v1
         with:
           ruby-version: "3.3"
           bundler-cache: true
