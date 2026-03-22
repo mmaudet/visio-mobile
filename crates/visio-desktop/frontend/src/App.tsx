@@ -233,7 +233,7 @@ function detectSystemLang(): string {
 // Logo SVG tricolore
 // ---------------------------------------------------------------------------
 
-function VisioLogo({ size = 64 }: { size?: number }) {
+function VisioLogo({ size = 64 }: Readonly<{ size?: number }>) {
   // Camera body: 64×54 (ratio ~1.19), centered at x=52
   // Wifi arcs: 3 concentric arcs (r=10,17,24) centered at (52,62), pointing up
   // Stripe: same width as camera body (64), centered on same axis
@@ -312,7 +312,7 @@ function VisioLogo({ size = 64 }: { size?: number }) {
 // Screen Share Icon
 // ---------------------------------------------------------------------------
 
-function ScreenShareIcon({ size = 16 }: { size?: number }) {
+function ScreenShareIcon({ size = 16 }: Readonly<{ size?: number }>) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor">
       <path d="M21 3H3c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h7v2H8v2h8v-2h-2v-2h7c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 14H3V5h18v12z" />
@@ -344,14 +344,14 @@ function formatTime(timestampMs: number): string {
 }
 
 /** Render text with URLs auto-linked. */
-function AutoLinkText({ text }: { text: string }) {
+function AutoLinkText({ text }: Readonly<{ text: string }>) {
   const parts = text.split(/(https?:\/\/[^\s<]+)/g)
   return (
     <>
       {parts.map((part, i) =>
         /^https?:\/\//.test(part) ? (
           <a
-            key={i}
+            key={`link-${i}-${part.length}`}
             href={part}
             target="_blank"
             rel="noopener noreferrer"
@@ -360,7 +360,7 @@ function AutoLinkText({ text }: { text: string }) {
             {part}
           </a>
         ) : (
-          <span key={i}>{part}</span>
+          <span key={`text-${i}-${part.length}`}>{part}</span>
         )
       )}
     </>
@@ -371,7 +371,7 @@ function AutoLinkText({ text }: { text: string }) {
 // Components
 // ---------------------------------------------------------------------------
 
-function StatusBadge({ state }: { state: string }) {
+function StatusBadge({ state }: Readonly<{ state: string }>) {
   const t = useT()
   const key = `status.${state}`
   return <span className={`status-badge ${state}`}>{t(key)}</span>
@@ -379,22 +379,22 @@ function StatusBadge({ state }: { state: string }) {
 
 // -- Connection Quality Bars ------------------------------------------------
 
-function ConnectionQualityBars({ quality }: { quality: string }) {
-  const bars =
-    quality === 'Excellent'
-      ? 3
-      : quality === 'Good'
-        ? 2
-        : quality === 'Poor'
-          ? 1
-          : 0
+function qualityToBars(quality: string): number {
+  if (quality === 'Excellent') return 3
+  if (quality === 'Good') return 2
+  if (quality === 'Poor') return 1
+  return 0
+}
+
+function ConnectionQualityBars({ quality }: Readonly<{ quality: string }>) {
+  const bars = qualityToBars(quality)
   return (
     <div className="connection-bars">
-      {[1, 2, 3].map((i) => (
+      {[1, 2, 3].map((n) => (
         <div
-          key={i}
-          className={`bar ${i <= bars ? 'bar-active' : ''}`}
-          style={{ height: `${i * 4 + 2}px` }}
+          key={n}
+          className={`bar ${n <= bars ? 'bar-active' : ''}`}
+          style={{ height: `${n * 4 + 2}px` }}
         />
       ))}
     </div>
@@ -419,17 +419,20 @@ function ParticipantTile({
   handRaisePosition,
   displayItem,
   onExpand,
-}: ParticipantTileProps) {
+}: Readonly<ParticipantTileProps>) {
   const t = useT()
   const isScreenShare = displayItem?.isScreenShare ?? false
   const trackSid = displayItem
     ? displayItem.trackSid
     : participant.video_track_sid
-  const displayName = displayItem
-    ? isScreenShare
-      ? `${displayItem.label} (${t('call.screenShare')})`
-      : displayItem.label
-    : participant.name || participant.identity || t('unknown')
+  let displayName: string
+  if (!displayItem) {
+    displayName = participant.name || participant.identity || t('unknown')
+  } else if (isScreenShare) {
+    displayName = `${displayItem.label} (${t('call.screenShare')})`
+  } else {
+    displayName = displayItem.label
+  }
   const initials = getInitials(displayName)
   const hue = getHue(displayName)
 
@@ -442,18 +445,20 @@ function ParticipantTile({
         ? { 'data-testid': `speaker-border:${participant.sid}` }
         : {})}
     >
-      {videoSrc ? (
+      {videoSrc && (
         <img
           className={`tile-video${isScreenShare ? ' tile-video-screen' : ''}`}
           src={`data:image/jpeg;base64,${videoSrc}`}
           alt=""
         />
-      ) : isScreenShare ? (
+      )}
+      {!videoSrc && isScreenShare && (
         <div className="tile-screen-placeholder">
           <ScreenShareIcon size={48} />
           <span>{t('call.screenShare')}</span>
         </div>
-      ) : (
+      )}
+      {!videoSrc && !isScreenShare && (
         <div className="tile-avatar-no-cam">
           <RiVideoOffLine size={32} />
           <span className="tile-initials-small">{displayName}</span>
@@ -472,19 +477,21 @@ function ParticipantTile({
         </button>
       )}
       <div className="tile-metadata">
-        {isScreenShare ? (
+        {isScreenShare && (
           <span className="tile-screen-icon">
             <ScreenShareIcon size={14} />
           </span>
-        ) : participant.is_muted ? (
+        )}
+        {!isScreenShare && participant.is_muted && (
           <span className="tile-muted-icon">
             <RiMicOffFill size={14} />
           </span>
-        ) : isActiveSpeaker ? (
+        )}
+        {!isScreenShare && !participant.is_muted && isActiveSpeaker && (
           <span className="tile-speaking-icon">
             <RiMicLine size={14} />
           </span>
-        ) : null}
+        )}
         {!isScreenShare &&
           handRaisePosition != null &&
           handRaisePosition > 0 && (
@@ -499,17 +506,114 @@ function ParticipantTile({
   )
 }
 
+// -- Meetings Tab helpers (module-scope to satisfy S2004) -------------------
+
+function isMeetingImminent(m: Meeting): boolean {
+  const nowSec = Date.now() / 1000
+  const minutesUntil = (m.start_time - nowSec) / 60
+  return minutesUntil >= 0 && minutesUntil < 15
+}
+
+function isMeetingOngoing(m: Meeting): boolean {
+  const now = Date.now() / 1000
+  return m.start_time <= now && now <= m.end_time
+}
+
+function formatMeetingRelativeTime(m: Meeting, t: TFunction): string {
+  const nowSec = Date.now() / 1000
+  const minutesUntil = Math.round((m.start_time - nowSec) / 60)
+  const start = new Date(m.start_time * 1000)
+  const now = new Date()
+  const isToday =
+    start.getDate() === now.getDate() &&
+    start.getMonth() === now.getMonth() &&
+    start.getFullYear() === now.getFullYear()
+
+  if (isMeetingOngoing(m)) {
+    const end = new Date(m.end_time * 1000)
+    return t('meetings.time.until').replace(
+      '{time}',
+      end.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    )
+  }
+  if (minutesUntil < 60) {
+    return t('meetings.time.inMinutes').replace(
+      '{minutes}',
+      String(minutesUntil)
+    )
+  }
+  if (minutesUntil < 240) {
+    const hours = Math.floor(minutesUntil / 60)
+    const mins = minutesUntil % 60
+    return mins > 0
+      ? t('meetings.time.inHoursMinutes')
+          .replace('{hours}', String(hours))
+          .replace('{minutes}', mins.toString().padStart(2, '0'))
+      : t('meetings.time.inHours').replace('{hours}', String(hours))
+  }
+  if (isToday) {
+    return start.toLocaleTimeString([], {
+      hour: '2-digit',
+      minute: '2-digit',
+    })
+  }
+  return (
+    start.toLocaleDateString([], { weekday: 'short' }) +
+    ' ' +
+    start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+  )
+}
+
+function getDayLabel(ts: number, t: TFunction): string {
+  const date = new Date(ts * 1000)
+  const now = new Date()
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  const meetDay = new Date(date.getFullYear(), date.getMonth(), date.getDate())
+  const diffDays = Math.round((meetDay.getTime() - today.getTime()) / 86400000)
+  if (diffDays === 0) return t('meetings.today')
+  if (diffDays === 1) return t('meetings.tomorrow')
+  return date.toLocaleDateString([], {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+  })
+}
+
+function groupMeetingsByDay(
+  list: Meeting[],
+  t: TFunction
+): { label: string; meetings: Meeting[] }[] {
+  const groups: { label: string; meetings: Meeting[] }[] = []
+  for (const m of list) {
+    const label = getDayLabel(m.start_time, t)
+    const last = groups[groups.length - 1]
+    if (last && last.label === label) {
+      last.meetings.push(m)
+    } else {
+      groups.push({ label, meetings: [m] })
+    }
+  }
+  return groups
+}
+
+function formatSyncTime(lastSyncTime: Date, t: TFunction): string {
+  const diffMs = Date.now() - lastSyncTime.getTime()
+  const diffMin = Math.round(diffMs / 60000)
+  if (diffMin < 1) return t('meetings.sync').replace('{time}', '< 1 min')
+  return t('meetings.sync').replace('{time}', `${diffMin} min`)
+}
+
 // -- Meetings Tab -----------------------------------------------------------
 
 function MeetingsTab({
   onJoin,
   displayName,
   onMeetingCountChange,
-}: {
+}: Readonly<{
   onJoin: (meetUrl: string, username: string | null) => void
   displayName: string
   onMeetingCountChange?: (count: number) => void
-}) {
+}>) {
   const t = useT()
   const [status, setStatus] = useState<
     'onboarding' | 'loading' | 'empty' | 'list'
@@ -557,7 +661,7 @@ function MeetingsTab({
       unlisten = fn
     })
     return () => {
-      if (unlisten) unlisten()
+      unlisten?.()
     }
   }, [])
 
@@ -599,105 +703,6 @@ function MeetingsTab({
     }
   }
 
-  const isImminent = (m: Meeting) => {
-    const nowSec = Date.now() / 1000
-    const minutesUntil = (m.start_time - nowSec) / 60
-    return minutesUntil >= 0 && minutesUntil < 15
-  }
-
-  const isOngoing = (m: Meeting) => {
-    const now = Date.now() / 1000
-    return m.start_time <= now && now <= m.end_time
-  }
-
-  const formatRelativeTime = (m: Meeting) => {
-    const nowSec = Date.now() / 1000
-    const minutesUntil = Math.round((m.start_time - nowSec) / 60)
-    const start = new Date(m.start_time * 1000)
-    const now = new Date()
-    const isToday =
-      start.getDate() === now.getDate() &&
-      start.getMonth() === now.getMonth() &&
-      start.getFullYear() === now.getFullYear()
-
-    if (isOngoing(m)) {
-      const end = new Date(m.end_time * 1000)
-      return t('meetings.time.until').replace(
-        '{time}',
-        end.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-      )
-    }
-    if (minutesUntil < 60) {
-      return t('meetings.time.inMinutes').replace(
-        '{minutes}',
-        String(minutesUntil)
-      )
-    }
-    if (minutesUntil < 240) {
-      const hours = Math.floor(minutesUntil / 60)
-      const mins = minutesUntil % 60
-      return mins > 0
-        ? t('meetings.time.inHoursMinutes')
-            .replace('{hours}', String(hours))
-            .replace('{minutes}', mins.toString().padStart(2, '0'))
-        : t('meetings.time.inHours').replace('{hours}', String(hours))
-    }
-    if (isToday) {
-      return start.toLocaleTimeString([], {
-        hour: '2-digit',
-        minute: '2-digit',
-      })
-    }
-    return (
-      start.toLocaleDateString([], { weekday: 'short' }) +
-      ' ' +
-      start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-    )
-  }
-
-  const getDayLabel = (ts: number): string => {
-    const date = new Date(ts * 1000)
-    const now = new Date()
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-    const meetDay = new Date(
-      date.getFullYear(),
-      date.getMonth(),
-      date.getDate()
-    )
-    const diffDays = Math.round(
-      (meetDay.getTime() - today.getTime()) / 86400000
-    )
-    if (diffDays === 0) return t('meetings.today')
-    if (diffDays === 1) return t('meetings.tomorrow')
-    return date.toLocaleDateString([], {
-      weekday: 'long',
-      day: 'numeric',
-      month: 'long',
-    })
-  }
-
-  const groupMeetingsByDay = (list: Meeting[]) => {
-    const groups: { label: string; meetings: Meeting[] }[] = []
-    for (const m of list) {
-      const label = getDayLabel(m.start_time)
-      const last = groups[groups.length - 1]
-      if (last && last.label === label) {
-        last.meetings.push(m)
-      } else {
-        groups.push({ label, meetings: [m] })
-      }
-    }
-    return groups
-  }
-
-  const formatSyncTime = () => {
-    if (!lastSyncTime) return ''
-    const diffMs = Date.now() - lastSyncTime.getTime()
-    const diffMin = Math.round(diffMs / 60000)
-    if (diffMin < 1) return t('meetings.sync').replace('{time}', '< 1 min')
-    return t('meetings.sync').replace('{time}', `${diffMin} min`)
-  }
-
   if (status === 'onboarding') {
     return (
       <div className="meetings-onboarding">
@@ -728,7 +733,7 @@ function MeetingsTab({
     )
   }
 
-  const grouped = groupMeetingsByDay(meetings)
+  const grouped = groupMeetingsByDay(meetings, t)
 
   return (
     <div className="meetings-list">
@@ -748,7 +753,7 @@ function MeetingsTab({
         <div key={group.label} className="meetings-day-group">
           <div className="meetings-day-header">{group.label}</div>
           {group.meetings.map((m) => {
-            const imminent = isImminent(m) || isOngoing(m)
+            const imminent = isMeetingImminent(m) || isMeetingOngoing(m)
             return (
               <div
                 key={m.id}
@@ -759,7 +764,9 @@ function MeetingsTab({
                     {imminent && <span className="meeting-imminent-dot" />}
                     {m.summary || t('meetings.noTitle')}
                   </span>
-                  <span className="meeting-time">{formatRelativeTime(m)}</span>
+                  <span className="meeting-time">
+                    {formatMeetingRelativeTime(m, t)}
+                  </span>
                   <span className="meeting-server">{m.server_name}</span>
                 </div>
                 <button
@@ -775,7 +782,9 @@ function MeetingsTab({
         </div>
       ))}
       {lastSyncTime && (
-        <div className="meetings-sync-footer">{formatSyncTime()}</div>
+        <div className="meetings-sync-footer">
+          {formatSyncTime(lastSyncTime, t)}
+        </div>
       )}
     </div>
   )
@@ -797,7 +806,7 @@ function HomeView({
   onLaunchOidc,
   onLogout,
   meetInstances,
-}: {
+}: Readonly<{
   onJoin: (
     meetUrl: string,
     username: string | null,
@@ -816,7 +825,7 @@ function HomeView({
   onLaunchOidc: (meetInstance: string) => void
   onLogout: () => void
   meetInstances: string[]
-}) {
+}>) {
   const t = useT()
   const [activeTab, setActiveTab] = useState<'join' | 'meetings'>('join')
   const [meetUrl, setMeetUrl] = useState('')
@@ -847,7 +856,7 @@ function HomeView({
       unlisten = fn
     })
     return () => {
-      if (unlisten) unlisten()
+      unlisten?.()
     }
   }, [])
 
@@ -1069,23 +1078,11 @@ function HomeView({
                 {showServerPicker && (
                   <div
                     className="server-picker-overlay"
-                    role="button"
-                    tabIndex={0}
                     onClick={() => setShowServerPicker(false)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' || e.key === ' ')
-                        setShowServerPicker(false)
-                    }}
                   >
                     <div
                       className="server-picker"
-                      role="button"
-                      tabIndex={0}
                       onClick={(e) => e.stopPropagation()}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' || e.key === ' ')
-                          e.stopPropagation()
-                      }}
                     >
                       <h3>{t('home.serverPicker.title')}</h3>
                       <div className="server-list">
@@ -1281,20 +1278,22 @@ function HomeView({
             {roomHistory.length > 0 && (
               <div className="room-history">
                 <h4>{t('home.recentRooms')}</h4>
-                {roomHistory.map((entry, i) => {
+                {roomHistory.map((entry) => {
                   const { url, display_name } = entry
                   const slug = url.includes('/') ? url.split('/').pop() : url
-                  let host = ''
+                  let host: string
                   try {
                     host = new URL(url).host
-                  } catch {}
+                  } catch {
+                    host = url
+                  }
                   const primaryLabel = display_name || slug || url
                   const secondaryLabel = display_name
                     ? `${slug} · ${host}`
                     : host
                   return (
                     <button
-                      key={i}
+                      key={url}
                       className="room-history-item"
                       disabled={joining}
                       onClick={async () => {
@@ -1370,11 +1369,11 @@ function CreateRoomDialog({
   meetInstance,
   onCreated,
   onCancel,
-}: {
+}: Readonly<{
   meetInstance: string
   onCreated: (meetUrl: string, roomId?: string, accessLevel?: string) => void
   onCancel: () => void
-}) {
+}>) {
   const t = useT()
   const [accessLevel, setAccessLevel] = useState<
     'public' | 'trusted' | 'restricted'
@@ -1457,23 +1456,10 @@ function CreateRoomDialog({
   }
 
   return (
-    <div
-      className="modal-overlay"
-      role="button"
-      tabIndex={0}
-      onClick={onCancel}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') onCancel()
-      }}
-    >
+    <div className="modal-overlay" onClick={onCancel}>
       <div
         className="settings-modal create-room-dialog"
-        role="button"
-        tabIndex={0}
         onClick={(e) => e.stopPropagation()}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter' || e.key === ' ') e.stopPropagation()
-        }}
       >
         <div className="settings-header">
           <span>{t('home.createRoom')}</span>
@@ -1580,29 +1566,21 @@ function CreateRoomDialog({
                   {searchResults.length > 0 && (
                     <div className="search-dropdown">
                       {searchResults.map((user: any) => (
-                        <div
+                        <button
                           key={user.id}
+                          type="button"
                           className="search-result"
                           onClick={() => {
                             setInvitedUsers([...invitedUsers, user])
                             setSearchQuery('')
                             setSearchResults([])
                           }}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter' || e.key === ' ') {
-                              setInvitedUsers([...invitedUsers, user])
-                              setSearchQuery('')
-                              setSearchResults([])
-                            }
-                          }}
-                          role="button"
-                          tabIndex={0}
                         >
                           <span className="search-name">
                             {user.full_name || user.email}
                           </span>
                           <span className="search-email">{user.email}</span>
-                        </div>
+                        </button>
                       ))}
                     </div>
                   )}
@@ -1727,13 +1705,13 @@ function InfoSidebar({
   roomId,
   accessLevel,
   roomDisplayName,
-}: {
+}: Readonly<{
   meetUrl: string
   onClose: () => void
   roomId?: string
   accessLevel?: string
   roomDisplayName?: string | null
-}) {
+}>) {
   const t = useT()
   const [copiedHttp, setCopiedHttp] = useState(false)
   const [copiedDeep, setCopiedDeep] = useState(false)
@@ -1816,7 +1794,11 @@ function InfoSidebar({
     <div className="info-sidebar">
       <div className="participants-header">
         <span>{t('info.title')}</span>
-        <button className="chat-close" onClick={onClose}>
+        <button
+          className="chat-close"
+          aria-label={t('action.close')}
+          onClick={onClose}
+        >
           <RiCloseLine size={20} />
         </button>
       </div>
@@ -1880,8 +1862,9 @@ function InfoSidebar({
             {memberResults.length > 0 && (
               <div className="search-dropdown">
                 {memberResults.map((user: any) => (
-                  <div
+                  <button
                     key={user.id}
+                    type="button"
                     className="search-result"
                     onClick={async () => {
                       try {
@@ -1896,32 +1879,12 @@ function InfoSidebar({
                       setMemberSearch('')
                       setMemberResults([])
                     }}
-                    onKeyDown={async (e) => {
-                      if (e.key === 'Enter' || e.key === ' ') {
-                        try {
-                          await invoke('add_access', {
-                            userId: user.id,
-                            roomId,
-                          })
-                          const updated = await invoke<any[]>('list_accesses', {
-                            roomId,
-                          })
-                          setRoomAccesses(updated)
-                        } catch {
-                          /* ignore */
-                        }
-                        setMemberSearch('')
-                        setMemberResults([])
-                      }
-                    }}
-                    role="button"
-                    tabIndex={0}
                   >
                     <span className="search-name">
                       {user.full_name || user.email}
                     </span>
                     <span className="search-email">{user.email}</span>
-                  </div>
+                  </button>
                 ))}
               </div>
             )}
@@ -1961,7 +1924,7 @@ function InfoSidebar({
 
 // -- Tools Sidebar ----------------------------------------------------------
 
-function ToolsSidebar({ onClose }: { onClose: () => void }) {
+function ToolsSidebar({ onClose }: Readonly<{ onClose: () => void }>) {
   const t = useT()
   const [subView, setSubView] = useState<'menu' | 'transcribe'>('menu')
 
@@ -1969,11 +1932,19 @@ function ToolsSidebar({ onClose }: { onClose: () => void }) {
     return (
       <div className="info-sidebar">
         <div className="participants-header">
-          <button className="chat-close" onClick={() => setSubView('menu')}>
+          <button
+            className="chat-close"
+            aria-label={t('action.back')}
+            onClick={() => setSubView('menu')}
+          >
             <RiArrowLeftSLine size={20} />
           </button>
           <span style={{ flex: 1 }}>{t('transcribe.title')}</span>
-          <button className="chat-close" onClick={onClose}>
+          <button
+            className="chat-close"
+            aria-label={t('action.close')}
+            onClick={onClose}
+          >
             <RiCloseLine size={20} />
           </button>
         </div>
@@ -2013,7 +1984,11 @@ function ToolsSidebar({ onClose }: { onClose: () => void }) {
     <div className="info-sidebar">
       <div className="participants-header">
         <span>{t('tools.title')}</span>
-        <button className="chat-close" onClick={onClose}>
+        <button
+          className="chat-close"
+          aria-label={t('action.close')}
+          onClick={onClose}
+        >
           <RiCloseLine size={20} />
         </button>
       </div>
@@ -2049,10 +2024,10 @@ function ToolsSidebar({ onClose }: { onClose: () => void }) {
 function WaitingScreen({
   onCancel,
   t,
-}: {
+}: Readonly<{
   onCancel: () => void
   t: (k: string) => string
-}) {
+}>) {
   return (
     <div className="waiting-screen">
       <div className="waiting-content">
@@ -2073,34 +2048,21 @@ function SourcePickerModal({
   sources,
   onSelect,
   onClose,
-}: {
+}: Readonly<{
   sources: ScreenSource[]
   onSelect: (sourceId: string) => void
   onClose: () => void
-}) {
+}>) {
   const t = useT()
   const monitors = sources.filter((s) => s.source_type === 'monitor')
   const windows = sources.filter((s) => s.source_type === 'window')
 
   return (
-    <div
-      className="modal-overlay"
-      role="button"
-      tabIndex={0}
-      onClick={onClose}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') onClose()
-      }}
-    >
+    <div className="modal-overlay" onClick={onClose}>
       <div
         className="settings-modal source-picker"
         data-testid="screen-share-source-picker"
-        role="button"
-        tabIndex={0}
         onClick={(e) => e.stopPropagation()}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter' || e.key === ' ') e.stopPropagation()
-        }}
       >
         <div className="settings-header">
           <span>{t('call.selectSource')}</span>
@@ -2218,7 +2180,7 @@ function CallView({
   roomId,
   accessLevel,
   roomDisplayName,
-}: {
+}: Readonly<{
   participants: Participant[]
   localParticipant: Participant | null
   micEnabled: boolean
@@ -2263,7 +2225,7 @@ function CallView({
   roomId?: string
   accessLevel?: string
   roomDisplayName?: string | null
-}) {
+}>) {
   const t = useT()
   const [focusedItem, setFocusedItem] = useState<FocusItem>(null)
   const userPinnedRef = useRef(false) // tracks whether user manually pinned a participant
@@ -2305,7 +2267,7 @@ function CallView({
       unlisten = fn
     })
     return () => {
-      if (unlisten) unlisten()
+      unlisten?.()
     }
   }, [])
 
@@ -2486,16 +2448,11 @@ function CallView({
     : []
   // Compute grid layout: choose columns so all tiles are uniform
   const gridCount = displayItems.length
-  const gridCols =
-    gridCount <= 1
-      ? 1
-      : gridCount <= 4
-        ? 2
-        : gridCount <= 9
-          ? 3
-          : gridCount <= 16
-            ? 4
-            : 5
+  let gridCols = 5
+  if (gridCount <= 1) gridCols = 1
+  else if (gridCount <= 4) gridCols = 2
+  else if (gridCount <= 9) gridCols = 3
+  else if (gridCount <= 16) gridCols = 4
   const gridRows = Math.ceil(gridCount / gridCols)
   const gridStyle: React.CSSProperties =
     gridCount > 0
@@ -2616,11 +2573,10 @@ function CallView({
               {showFocusThumbnails && thumbnailItems.length > 0 && (
                 <div className="focus-thumbnails">
                   {thumbnailItems.map((d, index) => (
-                    <div
+                    <button
                       key={d.key}
+                      type="button"
                       className="tile"
-                      role="button"
-                      tabIndex={0}
                       data-testid={`secondary-tile-${index}:${d.participant.sid}`}
                       onClick={() => {
                         userPinnedRef.current = true
@@ -2628,15 +2584,6 @@ function CallView({
                           participantSid: d.participant.sid,
                           source: d.source,
                         })
-                      }}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' || e.key === ' ') {
-                          userPinnedRef.current = true
-                          setFocusedItem({
-                            participantSid: d.participant.sid,
-                            source: d.source,
-                          })
-                        }
                       }}
                     >
                       <ParticipantTile
@@ -2648,7 +2595,7 @@ function CallView({
                         handRaisePosition={handRaisedMap[d.participant.sid]}
                         displayItem={d}
                       />
-                    </div>
+                    </button>
                   ))}
                 </div>
               )}
@@ -2663,10 +2610,9 @@ function CallView({
                 <div className="empty-state">{t('call.noParticipants')}</div>
               ) : (
                 displayItems.map((d, index) => (
-                  <div
+                  <button
                     key={d.key}
-                    role="button"
-                    tabIndex={0}
+                    type="button"
                     data-testid={`grid-tile-${index}:${d.participant.sid}`}
                     onClick={() => {
                       userPinnedRef.current = true
@@ -2674,15 +2620,6 @@ function CallView({
                         participantSid: d.participant.sid,
                         source: d.source,
                       })
-                    }}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' || e.key === ' ') {
-                        userPinnedRef.current = true
-                        setFocusedItem({
-                          participantSid: d.participant.sid,
-                          source: d.source,
-                        })
-                      }
                     }}
                   >
                     <ParticipantTile
@@ -2705,7 +2642,7 @@ function CallView({
                           : undefined
                       }
                     />
-                  </div>
+                  </button>
                 ))
               )}
             </div>
@@ -2719,6 +2656,7 @@ function CallView({
               <span>{t('chat')}</span>
               <button
                 className="chat-close"
+                aria-label={t('action.close')}
                 data-testid="chat-close-button"
                 onClick={onToggleChat}
               >
@@ -2795,7 +2733,11 @@ function CallView({
                   ({allParticipants.length})
                 </span>
               </span>
-              <button className="chat-close" onClick={onToggleParticipants}>
+              <button
+                className="chat-close"
+                aria-label={t('action.close')}
+                onClick={onToggleParticipants}
+              >
                 <RiCloseLine size={20} />
               </button>
             </div>
@@ -2906,13 +2848,7 @@ function CallView({
                           {menuOpen && (
                             <div
                               className="participant-context-menu"
-                              role="button"
-                              tabIndex={0}
                               onClick={() => setParticipantMenu(null)}
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter' || e.key === ' ')
-                                  setParticipantMenu(null)
-                              }}
                             >
                               <button
                                 className="context-menu-item"
@@ -3022,7 +2958,7 @@ function CallView({
             }}
           >
             <RiEmotionLine size={20} />
-            <span>{t('control.reaction') || 'Reaction'}</span>
+            <span>{t('control.reaction') ?? 'Reaction'}</span>
           </button>
           <button
             className={`overflow-item ${showTranscription ? 'overflow-item-active' : ''}`}
@@ -3049,10 +2985,10 @@ function CallView({
             onClick={() => {
               setShowOverflow(false)
             }}
-            title={t('control.settings') || 'Settings'}
+            title={t('control.settings') ?? 'Settings'}
           >
             <RiSettings3Line size={20} />
-            <span>{t('control.settings') || 'Settings'}</span>
+            <span>{t('control.settings') ?? 'Settings'}</span>
           </button>
         </div>
       )}
@@ -3190,7 +3126,7 @@ function CallView({
             setShowOverflow(!showOverflow)
             setShowReactionPicker(false)
           }}
-          title={t('control.more') || 'More'}
+          title={t('control.more') ?? 'More'}
         >
           <RiMore2Fill size={20} />
         </button>
@@ -3331,8 +3267,8 @@ function CallView({
               {[1, 2, 3, 4, 5, 6, 7, 8].map((id) => (
                 <button
                   key={id}
-                  className={`bg-image-thumb ${bgMode === `image:${id}` ? 'bg-image-thumb-active' : ''}`}
-                  onClick={() => handleBgMode(`image:${id}`)}
+                  className={`bg-image-thumb ${bgMode === 'image:' + id ? 'bg-image-thumb-active' : ''}`}
+                  onClick={() => handleBgMode('image:' + id)}
                 >
                   <img
                     src={`/backgrounds/thumbnails/${id}.jpg`}
@@ -3372,13 +3308,13 @@ function SettingsView({
   onThemeChange,
   onDisplayNameChange,
   initialDisplayName,
-}: {
+}: Readonly<{
   onClose: () => void
   onLanguageChange: (lang: string) => void
   onThemeChange: (theme: string) => void
   onDisplayNameChange: (name: string) => void
   initialDisplayName: string
-}) {
+}>) {
   const t = useT()
   const [form, setForm] = useState({
     displayName: initialDisplayName,
@@ -3533,13 +3469,14 @@ function SettingsView({
           <label className="settings-label">
             {t('settings.meetInstances')}
           </label>
-          {meetInstances.map((inst, i) => (
-            <div key={i} className="instance-row">
+          {meetInstances.map((inst) => (
+            <div key={inst} className="instance-row">
               <span>{inst}</span>
               <button
                 className="btn-icon"
+                aria-label={t('action.remove')}
                 onClick={() => {
-                  const next = meetInstances.filter((_, j) => j !== i)
+                  const next = meetInstances.filter((x) => x !== inst)
                   setMeetInstances(next)
                   invoke('set_meet_instances', { instances: next })
                 }}
@@ -3561,6 +3498,7 @@ function SettingsView({
             />
             <button
               className="btn-icon"
+              aria-label={t('action.add')}
               onClick={addInstance}
               disabled={!newInstance.trim()}
             >
@@ -3760,7 +3698,7 @@ function PreJoinScreen({
   isDark,
   onJoin,
   onCancel,
-}: {
+}: Readonly<{
   roomUrl: string
   username: string | null
   roomDisplayName?: string | null
@@ -3768,7 +3706,7 @@ function PreJoinScreen({
   isDark: boolean
   onJoin: (username: string | null) => void
   onCancel: () => void
-}) {
+}>) {
   const t = useCallback(
     (key: string) => translations[lang]?.[key] ?? translations.en[key] ?? key,
     [lang]
@@ -4339,8 +4277,8 @@ function PreJoinScreen({
             {[1, 2, 3, 4, 5, 6, 7, 8].map((n) => (
               <button
                 key={n}
-                className={`prejoin-filter-thumb${backgroundMode === `image:${n}` ? ' active' : ''}`}
-                onClick={() => handleSetBackgroundMode(`image:${n}`)}
+                className={`prejoin-filter-thumb${backgroundMode === 'image:' + n ? ' active' : ''}`}
+                onClick={() => handleSetBackgroundMode('image:' + n)}
               >
                 <img
                   src={`/backgrounds/thumbnails/${n}.jpg`}
@@ -4858,8 +4796,8 @@ export default function App() {
     })
 
     return () => {
-      if (unlistenFrame) unlistenFrame()
-      if (unlistenTrackUnsub) unlistenTrackUnsub()
+      unlistenFrame?.()
+      unlistenTrackUnsub?.()
       if (flushTimer !== null) clearTimeout(flushTimer)
     }
   }, [view])
@@ -4913,10 +4851,10 @@ export default function App() {
     })
 
     return () => {
-      if (unlistenHand) unlistenHand()
-      if (unlistenUnread) unlistenUnread()
-      if (unlistenSpeakers) unlistenSpeakers()
-      if (unlistenBandwidth) unlistenBandwidth()
+      unlistenHand?.()
+      unlistenUnread?.()
+      unlistenSpeakers?.()
+      unlistenBandwidth?.()
     }
   }, [view])
 
@@ -4964,10 +4902,10 @@ export default function App() {
     })
 
     return () => {
-      if (unlistenDenied) unlistenDenied()
-      if (unlistenTimeout) unlistenTimeout()
-      if (unlistenJoined) unlistenJoined()
-      if (unlistenLeft) unlistenLeft()
+      unlistenDenied?.()
+      unlistenTimeout?.()
+      unlistenJoined?.()
+      unlistenLeft?.()
     }
   }, [t])
 

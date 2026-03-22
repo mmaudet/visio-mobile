@@ -1,8 +1,8 @@
-/// Fast Gaussian blur approximation using 3-pass box blur on individual image planes.
-///
-/// A 3-pass box blur closely approximates a Gaussian blur and runs in O(n) per pass,
-/// independent of the blur radius. This is used to blur the Y, U, and V planes of
-/// an I420 frame independently.
+//! Fast Gaussian blur approximation using 3-pass box blur on individual image planes.
+//!
+//! A 3-pass box blur closely approximates a Gaussian blur and runs in O(n) per pass,
+//! independent of the blur radius. This is used to blur the Y, U, and V planes of
+//! an I420 frame independently.
 
 /// Apply a 3-pass box blur approximation of Gaussian blur on a single plane.
 ///

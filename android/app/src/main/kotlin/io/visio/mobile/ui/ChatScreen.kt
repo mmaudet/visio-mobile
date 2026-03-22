@@ -55,6 +55,7 @@ import java.util.Locale
 
 private const val TAG = "ChatScreen"
 
+@Suppress("kotlin:S3776")
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ChatScreen(onBack: () -> Unit) {

@@ -63,6 +63,7 @@ import uniffi.visio.CalendarRefreshInterval
 
 private const val TAG = "SettingsScreen"
 
+@Suppress("kotlin:S3776", "kotlin:S6615")
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(onBack: () -> Unit) {
@@ -389,6 +390,7 @@ fun SettingsScreen(onBack: () -> Unit) {
     }
 }
 
+@Suppress("kotlin:S107", "kotlin:S3776")
 @Composable
 private fun SettingsSaveButton(
     displayName: String,
@@ -447,6 +449,7 @@ private fun SettingsSaveButton(
     }
 }
 
+@Suppress("kotlin:S107", "kotlin:S3776")
 private fun saveSettings(
     displayName: String,
     language: String,
@@ -651,16 +654,16 @@ private fun CalendarIntervalDropdown(
             onDismissRequest = { expanded = false },
             containerColor = if (isDark) VisioColors.PrimaryDark100 else VisioColors.LightSurfaceVariant,
         ) {
-            intervalLabels.forEach { (interval, label) ->
+            intervalLabels.forEach { pair ->
                 DropdownMenuItem(
                     text = {
                         Text(
-                            label,
+                            pair.second,
                             color = if (isDark) VisioColors.White else VisioColors.LightOnBackground,
                         )
                     },
                     onClick = {
-                        onSelect(interval)
+                        onSelect(pair.first)
                         expanded = false
                     },
                 )

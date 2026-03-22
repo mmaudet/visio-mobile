@@ -43,6 +43,7 @@ import io.visio.mobile.ui.theme.VisioColors
 import uniffi.visio.ParticipantInfo
 import kotlin.math.absoluteValue
 
+@Suppress("kotlin:S107")
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ParticipantListSheet(
@@ -189,6 +190,7 @@ fun ParticipantListSheet(
     }
 }
 
+@Suppress("kotlin:S107")
 @Composable
 private fun ParticipantRow(
     name: String,

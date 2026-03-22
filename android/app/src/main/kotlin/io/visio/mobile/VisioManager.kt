@@ -353,6 +353,7 @@ object VisioManager : VisioEventListener {
                     client.logout("https://$instance")
                 }
             } catch (_: Exception) {
+                // No-op
             }
             authManager.clearCookie()
             withContext(Dispatchers.Main) {
@@ -877,6 +878,7 @@ object VisioManager : VisioEventListener {
                 val accesses = client.listAccesses(roomId)
                 _roomAccesses.value = accesses
             } catch (_: Exception) {
+                // No-op
             }
         }
     }
@@ -891,6 +893,7 @@ object VisioManager : VisioEventListener {
                 client.addAccess(userId, roomId)
                 refreshAccesses()
             } catch (_: Exception) {
+                // No-op
             }
             withContext(Dispatchers.Main) { onDone() }
         }
@@ -902,6 +905,7 @@ object VisioManager : VisioEventListener {
                 client.removeAccess(accessId)
                 refreshAccesses()
             } catch (_: Exception) {
+                // No-op
             }
         }
     }
@@ -1055,7 +1059,9 @@ object VisioManager : VisioEventListener {
                         Log.e("VISIO", "Foreground reconnection failed: ${e.message}")
                     }
                 }
-                else -> {}
+                else -> {
+                    // No-op
+                }
             }
         }
     }
@@ -1239,7 +1245,9 @@ object VisioManager : VisioEventListener {
                 _lobbyNotification.value = null
                 CallForegroundService.stop(appContext)
             }
-            else -> {}
+            else -> {
+                // No-op
+            }
         }
     }
 

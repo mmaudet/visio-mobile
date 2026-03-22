@@ -95,10 +95,14 @@ impl LinuxCameraCapture {
         #[cfg(feature = "pipewire-camera")]
         if pipewire_portal_available() {
             let cap = pipewire_backend::PipewireCameraCapture::start(source)?;
-            return Ok(Self { inner: CaptureBackend::Pipewire(cap) });
+            return Ok(Self {
+                inner: CaptureBackend::Pipewire(cap),
+            });
         }
         let cap = v4l2::V4lCameraCapture::start(0, source)?;
-        Ok(Self { inner: CaptureBackend::V4l(cap) })
+        Ok(Self {
+            inner: CaptureBackend::V4l(cap),
+        })
     }
 
     pub fn start_with_unique_id(
@@ -108,7 +112,9 @@ impl LinuxCameraCapture {
         #[cfg(feature = "pipewire-camera")]
         if unique_id == "pipewire:camera" {
             let cap = pipewire_backend::PipewireCameraCapture::start(source)?;
-            return Ok(Self { inner: CaptureBackend::Pipewire(cap) });
+            return Ok(Self {
+                inner: CaptureBackend::Pipewire(cap),
+            });
         }
         // V4L2: parse "/dev/videoN" → index N
         let idx = if unique_id.starts_with("/dev/video") {
@@ -120,7 +126,9 @@ impl LinuxCameraCapture {
             0
         };
         let cap = v4l2::V4lCameraCapture::start(idx, source)?;
-        Ok(Self { inner: CaptureBackend::V4l(cap) })
+        Ok(Self {
+            inner: CaptureBackend::V4l(cap),
+        })
     }
 
     pub fn stop(&mut self) {

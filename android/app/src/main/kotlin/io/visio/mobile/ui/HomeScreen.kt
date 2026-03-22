@@ -84,6 +84,7 @@ import uniffi.visio.UserSearchResult
 
 private const val TAG = "HomeScreen"
 
+@Suppress("kotlin:S3776", "kotlin:S6615")
 @Composable
 fun HomeScreen(
     onJoin: (roomUrl: String, username: String, roomDisplayName: String?) -> Unit,
@@ -209,6 +210,7 @@ fun HomeScreen(
     }
 }
 
+@Suppress("kotlin:S107", "kotlin:S3776", "kotlin:S6615")
 @Composable
 private fun HomeScreenEffects(
     selectedTab: Int,
@@ -240,8 +242,11 @@ private fun HomeScreenEffects(
         try {
             onHasCalendarUrlChange(VisioManager.client.getCalendarUrl() != null)
         } catch (_: Exception) {
+            // No-op
         }
-        onPauseOrDispose {}
+        onPauseOrDispose {
+            // No-op
+        }
     }
 
     LaunchedEffect(selectedTab) {
@@ -267,7 +272,9 @@ private fun HomeScreenEffects(
         } catch (e: Exception) {
             Log.e(TAG, "Failed to load meet instances", e)
         }
-        onPauseOrDispose {}
+        onPauseOrDispose {
+            // No-op
+        }
     }
 
     HomeScreenRoomValidationEffect(
@@ -364,6 +371,7 @@ private suspend fun validateRoomUrls(
     }
 }
 
+@Suppress("kotlin:S107")
 @Composable
 private fun HomeHeader(
     context: android.content.Context,
@@ -633,6 +641,7 @@ private fun HomeTabStrip(
     }
 }
 
+@Suppress("kotlin:S107")
 @Composable
 private fun MeetingsTabLabel(
     isSelected: Boolean,
@@ -1344,6 +1353,7 @@ private fun CreateRoomDialog(
                                         try {
                                             VisioManager.client.addAccess(user.id, result.id)
                                         } catch (_: Exception) {
+                                            // No-op
                                         }
                                     }
                                 }

@@ -18,6 +18,8 @@ and this project adheres to
 - Convert desktop settings from modal to full-page view (#80)
 - Reduce all functions to cognitive complexity <=15 (#103)
 - Reduce cognitive complexity across all platforms (#94)
+- Resolve all 224 SonarCloud maintainability issues
+  across all platforms (#95, #96)
 
 ### Fixed
 

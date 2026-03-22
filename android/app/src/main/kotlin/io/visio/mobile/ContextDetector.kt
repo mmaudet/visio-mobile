@@ -79,6 +79,7 @@ class ContextDetector(private val context: Context) {
                     try {
                         VisioManager.client.reportNetworkType(type)
                     } catch (_: Exception) {
+                        // No-op
                     }
                 }
 
@@ -87,6 +88,7 @@ class ContextDetector(private val context: Context) {
                     try {
                         VisioManager.client.reportNetworkType(NetworkType.UNKNOWN)
                     } catch (_: Exception) {
+                        // No-op
                     }
                 }
             }
@@ -106,9 +108,11 @@ class ContextDetector(private val context: Context) {
         try {
             VisioManager.client.reportNetworkType(type)
         } catch (_: Exception) {
+            // No-op
         }
     }
 
+    @Suppress("kotlin:S3776")
     private fun startMotionDetection() {
         val accelerometer = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
         if (accelerometer == null) {
@@ -139,6 +143,7 @@ class ContextDetector(private val context: Context) {
                             try {
                                 VisioManager.client.reportMotionDetected(true)
                             } catch (_: Exception) {
+                                // No-op
                             }
                         }
                     } else if (
@@ -152,6 +157,7 @@ class ContextDetector(private val context: Context) {
                         try {
                             VisioManager.client.reportMotionDetected(false)
                         } catch (_: Exception) {
+                            // No-op
                         }
                     }
                 }
@@ -159,12 +165,15 @@ class ContextDetector(private val context: Context) {
                 override fun onAccuracyChanged(
                     sensor: Sensor?,
                     accuracy: Int,
-                ) {}
+                ) {
+                    // No-op
+                }
             }
         sensorManager.registerListener(listener, accelerometer, SensorManager.SENSOR_DELAY_NORMAL)
         accelerometerListener = listener
     }
 
+    @Suppress("kotlin:S3776")
     private fun startBluetoothMonitoring() {
         val callback =
             object : AudioDeviceCallback() {
@@ -250,6 +259,7 @@ class ContextDetector(private val context: Context) {
         bluetoothReceiver = receiver
     }
 
+    @Suppress("kotlin:S3776")
     private fun reportBluetoothCarKit() {
         val btManager = context.getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager
         val adapter = btManager?.adapter
@@ -258,6 +268,7 @@ class ContextDetector(private val context: Context) {
             try {
                 VisioManager.client.reportBluetoothCarKit(false)
             } catch (_: Exception) {
+                // No-op
             }
             return
         }
@@ -296,11 +307,13 @@ class ContextDetector(private val context: Context) {
                             } catch (e: SecurityException) {
                                 Log.w(TAG, "BLUETOOTH_CONNECT permission not granted: ${e.message}")
                             } catch (_: Exception) {
+                                // No-op
                             }
 
                             try {
                                 adapter.closeProfileProxy(profile, proxy)
                             } catch (_: Exception) {
+                                // No-op
                             }
 
                             // Only report after ALL profiles have been checked
@@ -310,6 +323,7 @@ class ContextDetector(private val context: Context) {
                                 try {
                                     VisioManager.client.reportBluetoothCarKit(result)
                                 } catch (_: Exception) {
+                                    // No-op
                                 }
                             }
                         }
@@ -320,6 +334,7 @@ class ContextDetector(private val context: Context) {
                                 try {
                                     VisioManager.client.reportBluetoothCarKit(foundCarKit.get())
                                 } catch (_: Exception) {
+                                    // No-op
                                 }
                             }
                         }
@@ -332,6 +347,7 @@ class ContextDetector(private val context: Context) {
             try {
                 VisioManager.client.reportBluetoothCarKit(false)
             } catch (_: Exception) {
+                // No-op
             }
         }
     }

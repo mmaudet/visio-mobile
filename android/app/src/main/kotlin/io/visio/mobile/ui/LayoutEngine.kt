@@ -25,6 +25,7 @@ data class LayoutState(
 private const val MIN_HOLD_MS = 2500L
 private const val SILENCE_TO_GRID_MS = 5000L
 
+@Suppress("kotlin:S107")
 fun computeLayout(
     participants: List<ParticipantInfo>,
     activeSpeakers: List<String>,

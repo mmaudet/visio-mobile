@@ -29,14 +29,14 @@ impl NoiseReducer {
 
         while self.input_buf.len() >= DenoiseState::FRAME_SIZE {
             let mut out_frame = [0.0f32; DenoiseState::FRAME_SIZE];
-            self.state.process_frame(
-                &mut out_frame,
-                &self.input_buf[..DenoiseState::FRAME_SIZE],
-            );
+            self.state
+                .process_frame(&mut out_frame, &self.input_buf[..DenoiseState::FRAME_SIZE]);
 
-            self.output_buf.extend(out_frame.iter().map(|&s| {
-                s.round().clamp(-32768.0, 32767.0) as i16
-            }));
+            self.output_buf.extend(
+                out_frame
+                    .iter()
+                    .map(|&s| s.round().clamp(-32768.0, 32767.0) as i16),
+            );
 
             self.input_buf.drain(..DenoiseState::FRAME_SIZE);
         }
