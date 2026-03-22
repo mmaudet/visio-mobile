@@ -381,18 +381,24 @@ object VisioManager : VisioEventListener {
     /**
      * Start AudioRecord capture. Call after setMicrophoneEnabled(true) succeeds.
      */
-    fun startAudioCapture() {
+    fun startAudioCapture(preferredDevice: AudioDeviceInfo? = null) {
         if (audioCapture != null) return
-        val am = appContext.getSystemService(Context.AUDIO_SERVICE) as AudioManager
-        val btInput =
-            am.getDevices(AudioManager.GET_DEVICES_INPUTS).firstOrNull { device ->
-                device.type == AudioDeviceInfo.TYPE_BLUETOOTH_SCO ||
-                    device.type == AudioDeviceInfo.TYPE_BLE_HEADSET
+        val device =
+            preferredDevice ?: run {
+                val am = appContext.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+                am.getDevices(AudioManager.GET_DEVICES_INPUTS).firstOrNull { d ->
+                    d.type == AudioDeviceInfo.TYPE_BLUETOOTH_SCO ||
+                        d.type == AudioDeviceInfo.TYPE_BLE_HEADSET
+                }
             }
-        if (btInput != null) {
-            Log.i("VisioManager", "Bluetooth input detected at startup: ${btInput.productName}")
+        if (device != null) {
+            Log.i("VisioManager", "Audio capture with device: ${device.productName}")
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                val am = appContext.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+                am.setCommunicationDevice(device)
+            }
         }
-        audioCapture = AudioCapture().also { it.start(btInput) }
+        audioCapture = AudioCapture().also { it.start(device) }
     }
 
     /**

@@ -386,6 +386,8 @@ fun PreJoinScreen(
 
     var selectedOutputRoute by remember { mutableStateOf<String?>(null) }
     var selectedInputRoute by remember { mutableStateOf<String?>(null) }
+    var selectedOutputDeviceRef by remember { mutableStateOf<AudioDeviceInfo?>(null) }
+    var selectedInputDeviceRef by remember { mutableStateOf<AudioDeviceInfo?>(null) }
     var showOutputRouteMenu by remember { mutableStateOf(false) }
     var showInputRouteMenu by remember { mutableStateOf(false) }
 
@@ -626,8 +628,14 @@ fun PreJoinScreen(
                 showOutputRouteMenu = showOutputRouteMenu,
                 onShowInputRouteMenu = { showInputRouteMenu = it },
                 onShowOutputRouteMenu = { showOutputRouteMenu = it },
-                onSelectInputRoute = { selectedInputRoute = it },
-                onSelectOutputRoute = { selectedOutputRoute = it },
+                onSelectInputRoute = { label ->
+                    selectedInputRoute = label
+                    selectedInputDeviceRef = audioInputDevices.firstOrNull { audioDeviceLabel(it, lang) == label }
+                },
+                onSelectOutputRoute = { label ->
+                    selectedOutputRoute = label
+                    selectedOutputDeviceRef = audioOutputDevices.firstOrNull { audioDeviceLabel(it, lang) == label }
+                },
                 isDark = isDark,
                 lang = lang,
             )
@@ -698,11 +706,19 @@ fun PreJoinScreen(
                             VisioManager.client.connect(roomUrl, displayName.trim())
                             VisioManager.startAudioPlayout()
 
+                            // Apply output device from lobby
+                            selectedOutputDeviceRef?.let { device ->
+                                try {
+                                    VisioManager.setAudioOutputDevice(device)
+                                } catch (_: Exception) {
+                                }
+                            }
+
                             // Enable mic/camera based on lobby selections
                             if (micEnabled && audioMode == "computer_audio") {
                                 try {
                                     VisioManager.client.setMicrophoneEnabled(true)
-                                    VisioManager.startAudioCapture()
+                                    VisioManager.startAudioCapture(selectedInputDeviceRef)
                                 } catch (_: Exception) {
                                 }
                             }
@@ -1411,6 +1427,24 @@ private fun PreJoinSectionLabel(
         fontWeight = FontWeight.SemiBold,
         color = if (isDark) VisioColors.White else VisioColors.LightOnBackground,
     )
+}
+
+private val BUILTIN_TYPES =
+    listOf(
+        AudioDeviceInfo.TYPE_BUILTIN_SPEAKER,
+        AudioDeviceInfo.TYPE_BUILTIN_EARPIECE,
+        AudioDeviceInfo.TYPE_BUILTIN_MIC,
+    )
+
+private fun audioDeviceLabel(
+    device: AudioDeviceInfo,
+    lang: String,
+): String {
+    if (device.type !in BUILTIN_TYPES) {
+        val name = device.productName?.toString()?.ifBlank { null }
+        if (name != null) return name
+    }
+    return audioDeviceTypeLabel(device.type, lang)
 }
 
 private fun audioDeviceTypeLabel(
