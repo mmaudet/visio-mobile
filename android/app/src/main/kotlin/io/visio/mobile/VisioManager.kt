@@ -3,6 +3,7 @@ package io.visio.mobile
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.Context
+import android.media.AudioDeviceCallback
 import android.media.AudioDeviceInfo
 import android.media.AudioManager
 import android.os.Build
@@ -141,6 +142,9 @@ object VisioManager : VisioEventListener {
 
     // Track previous audio device to restore after car mode
     private var previousAudioDevice: AudioDeviceInfo? = null
+
+    // Bluetooth device removal callback for mid-session fallback
+    private var bluetoothDeviceCallback: AudioDeviceCallback? = null
 
     // Audio focus monitoring for phone call detection
     private var audioFocusListener: AudioManager.OnAudioFocusChangeListener? = null
@@ -606,9 +610,32 @@ object VisioManager : VisioEventListener {
     /**
      * Start monitoring audio focus changes to detect phone calls.
      * When a phone call starts, Android requests audio focus and we lose ours.
+     * Also registers an AudioDeviceCallback to fall back to default audio when
+     * a Bluetooth device disconnects mid-session.
      */
     private fun startAudioFocusMonitoring() {
         val am = appContext.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+
+        // Register Bluetooth disconnect fallback callback
+        bluetoothDeviceCallback =
+            object : AudioDeviceCallback() {
+                override fun onAudioDevicesRemoved(removedDevices: Array<out AudioDeviceInfo>) {
+                    val btRemoved =
+                        removedDevices.any { device ->
+                            device.type == AudioDeviceInfo.TYPE_BLUETOOTH_SCO ||
+                                device.type == AudioDeviceInfo.TYPE_BLUETOOTH_A2DP ||
+                                device.type == AudioDeviceInfo.TYPE_BLE_HEADSET
+                        }
+                    if (btRemoved && _connectionState.value is ConnectionState.Connected) {
+                        Log.i("VisioManager", "Bluetooth audio device removed mid-session — falling back to system default")
+                        scope.launch(Dispatchers.IO) {
+                            restoreDefaultAudioRoute()
+                        }
+                    }
+                }
+            }
+        am.registerAudioDeviceCallback(bluetoothDeviceCallback, null)
+
         audioFocusListener =
             AudioManager.OnAudioFocusChangeListener { focusChange ->
                 when (focusChange) {
@@ -660,6 +687,11 @@ object VisioManager : VisioEventListener {
      */
     private fun stopAudioFocusMonitoring() {
         val am = appContext.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+
+        // Unregister Bluetooth disconnect fallback callback
+        bluetoothDeviceCallback?.let { am.unregisterAudioDeviceCallback(it) }
+        bluetoothDeviceCallback = null
+
         audioFocusListener?.let { listener ->
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 val request =
@@ -1130,46 +1162,50 @@ object VisioManager : VisioEventListener {
                 _calendarLoading.value = false
             }
             is VisioEvent.AdaptiveModeChanged -> {
-                val previousMode = _adaptiveMode.value
-                _adaptiveMode.value = event.mode
-                Log.d("VISIO", "Adaptive mode changed: $previousMode -> ${event.mode}")
-                if (event.mode == uniffi.visio.AdaptiveMode.CAR) {
-                    scope.launch(Dispatchers.IO) {
-                        // If we just connected, wait for camera-on-join to settle
-                        val elapsed = System.currentTimeMillis() - connectionTimestampMs
-                        if (elapsed < CONNECTION_GRACE_MS) {
-                            val delayMs = CONNECTION_GRACE_MS - elapsed
-                            Log.d("VISIO", "CAR mode: waiting ${delayMs}ms for connection grace period")
-                            kotlinx.coroutines.delay(delayMs)
-                        }
-                        cameraWasEnabledBeforeCar = client.isCameraEnabled()
-                        if (cameraWasEnabledBeforeCar) {
-                            stopCameraCapture()
-                            client.setCameraEnabled(false)
-                        }
-                        // Small delay to let audio session settle after camera state change
-                        kotlinx.coroutines.delay(200)
-                        routeAudioToBluetooth()
-                        // Verify Bluetooth routing was applied
-                        val am = appContext.getSystemService(Context.AUDIO_SERVICE) as AudioManager
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                            val commDevice = am.communicationDevice
-                            Log.i("VisioManager", "CAR mode: communication device after routing = ${commDevice?.productName ?: "none"}")
-                        }
+                handleAdaptiveModeChanged(event.mode)
+            }
+        }
+    }
+
+    private fun handleAdaptiveModeChanged(newMode: uniffi.visio.AdaptiveMode) {
+        val previousMode = _adaptiveMode.value
+        _adaptiveMode.value = newMode
+        Log.d("VISIO", "Adaptive mode changed: $previousMode -> $newMode")
+        if (newMode == uniffi.visio.AdaptiveMode.CAR) {
+            scope.launch(Dispatchers.IO) {
+                // If we just connected, wait for camera-on-join to settle
+                val elapsed = System.currentTimeMillis() - connectionTimestampMs
+                if (elapsed < CONNECTION_GRACE_MS) {
+                    val delayMs = CONNECTION_GRACE_MS - elapsed
+                    Log.d("VISIO", "CAR mode: waiting ${delayMs}ms for connection grace period")
+                    kotlinx.coroutines.delay(delayMs)
+                }
+                cameraWasEnabledBeforeCar = client.isCameraEnabled()
+                if (cameraWasEnabledBeforeCar) {
+                    stopCameraCapture()
+                    client.setCameraEnabled(false)
+                }
+                // Small delay to let audio session settle after camera state change
+                kotlinx.coroutines.delay(200)
+                routeAudioToBluetooth()
+                // Verify Bluetooth routing was applied
+                val am = appContext.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    val commDevice = am.communicationDevice
+                    Log.i("VisioManager", "CAR mode: communication device after routing = ${commDevice?.productName ?: "none"}")
+                }
+            }
+        } else if (previousMode == uniffi.visio.AdaptiveMode.CAR) {
+            scope.launch(Dispatchers.IO) {
+                restoreDefaultAudioRoute()
+                if (cameraWasEnabledBeforeCar) {
+                    try {
+                        client.setCameraEnabled(true)
+                        startCameraCapture()
+                    } catch (e: Exception) {
+                        Log.e("VISIO", "Failed to restore camera after car mode", e)
                     }
-                } else if (previousMode == uniffi.visio.AdaptiveMode.CAR) {
-                    scope.launch(Dispatchers.IO) {
-                        restoreDefaultAudioRoute()
-                        if (cameraWasEnabledBeforeCar) {
-                            try {
-                                client.setCameraEnabled(true)
-                                startCameraCapture()
-                            } catch (e: Exception) {
-                                Log.e("VISIO", "Failed to restore camera after car mode", e)
-                            }
-                            cameraWasEnabledBeforeCar = false
-                        }
-                    }
+                    cameraWasEnabledBeforeCar = false
                 }
             }
         }
