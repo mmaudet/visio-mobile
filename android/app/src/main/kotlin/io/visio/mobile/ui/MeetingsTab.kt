@@ -41,12 +41,12 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.visio.mobile.VisioManager
+import io.visio.mobile.ui.i18n.Strings
 import io.visio.mobile.ui.theme.VisioColors
 import uniffi.visio.Meeting
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
-import io.visio.mobile.ui.i18n.Strings
 import java.util.Locale
 
 @Composable
