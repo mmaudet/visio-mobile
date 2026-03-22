@@ -4679,7 +4679,11 @@ export default function App() {
       const state: string = await invoke('get_connection_state')
       setConnectionState(state)
 
-      if (state === 'disconnected' && viewRef.current !== 'home') {
+      if (
+        state === 'disconnected' &&
+        viewRef.current !== 'home' &&
+        viewRef.current !== 'settings'
+      ) {
         setView('home')
         setMicEnabled(false)
         setCamEnabled(false)
