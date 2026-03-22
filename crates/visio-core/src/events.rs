@@ -137,13 +137,13 @@ pub struct TrackInfo {
     pub source: TrackSource,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TrackKind {
     Audio,
     Video,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TrackSource {
     Microphone,
     Camera,
