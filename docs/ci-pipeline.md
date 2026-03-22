@@ -3,6 +3,15 @@
 Visio Mobile uses GitHub Actions to enforce code quality, security,
 and correctness on every pull request and push to `main`.
 
+> This pipeline is heavily inspired by the CI/CD practices of
+> [La Suite Meet](https://github.com/suitenumerique/meet) by
+> [DINUM](https://www.numerique.gouv.fr/), the French government's
+> open-source video conferencing platform. We share the same
+> commitment to code quality and open-source best practices.
+> See their [contributing guide](https://github.com/suitenumerique/meet/blob/main/docs/developping_locally.md)
+> and [CI workflows](https://github.com/suitenumerique/meet/tree/main/.github/workflows)
+> for reference.
+
 ## Pipeline overview
 
 ```
