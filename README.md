@@ -258,6 +258,7 @@ We love contributions! See [CONTRIBUTING.md](CONTRIBUTING.md) for details.
 
 - Open a PR (see [building locally](#building))
 - Submit a [feature request](https://github.com/mmaudet/visio-mobile/issues/new?labels=enhancement) or [bug report](https://github.com/mmaudet/visio-mobile/issues/new?labels=bug)
+- Read about our [CI/CD pipeline](docs/ci-pipeline.md) (linters, tests, security scans)
 
 ## Philosophy
 

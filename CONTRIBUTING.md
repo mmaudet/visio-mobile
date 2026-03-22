@@ -34,14 +34,19 @@ Types: `feat`, `fix`, `refactor`, `docs`, `style`, `test`, `chore`
 
 ## Code quality
 
-All PRs must pass CI checks before merging:
+All PRs must pass CI checks before merging.
+See [docs/ci-pipeline.md](docs/ci-pipeline.md) for a full
+description of each check.
 
 - **lint-rust** — `cargo clippy` + `cargo fmt`
 - **lint-kotlin** — ktlint
 - **lint-frontend** — ESLint + Prettier
 - **test-rust** — `cargo test -p visio-core`
 - **check-changelog** — CHANGELOG.md must be updated
-- **lint-git** — Commit messages must follow conventions (title <= 72 chars, body required)
+- **lint-git** — Commit messages must follow conventions
+- **SonarCloud** — Code quality and maintainability
+- **GitGuardian** — Secret detection
+- **Trivy** — Dependency vulnerability scanning
 
 Run locally before pushing:
 
