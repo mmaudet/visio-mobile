@@ -1318,7 +1318,7 @@ function HomeView({
                           setJoining(false)
                         }
                       }}
-                      data-testid={`home_room_history_item_${i}`}
+                      data-testid={`home_room_history_item_${url}`}
                     >
                       {joining && meetUrl === url ? (
                         <span className="room-history-spinner" />
