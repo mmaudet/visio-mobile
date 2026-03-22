@@ -11,6 +11,9 @@ and this project adheres to
 ### Fixed
 
 - Auto-fallback to default audio device when Bluetooth disconnects (#83)
+- Migrate all hardcoded UI strings to i18n system (Android, iOS, Desktop) (#89)
+- Fix adaptive mode defaulting to enabled on Desktop (#89)
+- Pre-lobby camera preview, audio routing and device selectors (#87)
 
 ### Added
 

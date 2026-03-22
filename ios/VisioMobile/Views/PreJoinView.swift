@@ -1,5 +1,6 @@
 import SwiftUI
 import AVFoundation
+import AVKit
 
 // MARK: - MicLevelMonitor
 
@@ -10,6 +11,12 @@ class MicLevelMonitor: ObservableObject {
 
     func start() {
         guard engine == nil else { return }
+
+        // Configure audio session for mic monitoring
+        let session = AVAudioSession.sharedInstance()
+        try? session.setCategory(.playAndRecord, mode: .default, options: [.defaultToSpeaker, .allowBluetooth])
+        try? session.setActive(true)
+
         let engine = AVAudioEngine()
         let inputNode = engine.inputNode
         let format = inputNode.outputFormat(forBus: 0)
@@ -23,7 +30,7 @@ class MicLevelMonitor: ObservableObject {
             }
             let rms = sqrt(sumSq / Float(max(frameCount, 1)))
             DispatchQueue.main.async {
-                self?.level = min(rms * 3.0, 1.0)
+                self?.level = min(rms * 25.0, 1.0)
             }
         }
 
@@ -271,7 +278,26 @@ struct PreJoinView: View {
 
                 Spacer()
 
-                Toggle(isOn: $isCameraOn) {
+                Toggle(isOn: Binding(
+                    get: { isCameraOn },
+                    set: { newValue in
+                        if newValue {
+                            let status = AVCaptureDevice.authorizationStatus(for: .video)
+                            switch status {
+                            case .authorized:
+                                isCameraOn = true
+                            case .notDetermined:
+                                AVCaptureDevice.requestAccess(for: .video) { granted in
+                                    DispatchQueue.main.async { isCameraOn = granted }
+                                }
+                            default:
+                                isCameraOn = false
+                            }
+                        } else {
+                            isCameraOn = false
+                        }
+                    }
+                )) {
                     Text(Strings.t("prejoin.camera", lang: lang))
                         .font(.subheadline)
                 }
@@ -322,7 +348,26 @@ struct PreJoinView: View {
                     Text(Strings.t("prejoin.microphone", lang: lang))
                         .font(.subheadline)
                     Spacer()
-                    Toggle("", isOn: $isMicOn)
+                    Toggle("", isOn: Binding(
+                        get: { isMicOn },
+                        set: { newValue in
+                            if newValue {
+                                let status = AVCaptureDevice.authorizationStatus(for: .audio)
+                                switch status {
+                                case .authorized:
+                                    isMicOn = true
+                                case .notDetermined:
+                                    AVCaptureDevice.requestAccess(for: .audio) { granted in
+                                        DispatchQueue.main.async { isMicOn = granted }
+                                    }
+                                default:
+                                    isMicOn = false
+                                }
+                            } else {
+                                isMicOn = false
+                            }
+                        }
+                    ))
                         .toggleStyle(.switch)
                         .tint(VisioColors.primary500)
                         .labelsHidden()
@@ -343,6 +388,20 @@ struct PreJoinView: View {
                     Label(Strings.t("prejoin.testSpeaker", lang: lang), systemImage: "speaker.wave.2")
                         .font(.subheadline)
                         .foregroundStyle(VisioColors.primary500)
+                }
+                .padding(.horizontal, 12)
+
+                // Audio route picker
+                HStack(spacing: 8) {
+                    Image(systemName: "speaker.wave.2")
+                        .foregroundStyle(VisioColors.primary500)
+                        .frame(width: 20)
+                    Text(Strings.t("prejoin.audioRoute", lang: lang))
+                        .font(.subheadline)
+                        .foregroundStyle(VisioColors.onBackground(dark: isDark))
+                    Spacer()
+                    AudioRoutePickerButton(tintColor: UIColor(VisioColors.primary500))
+                        .frame(width: 32, height: 32)
                 }
                 .padding(.horizontal, 12)
             }

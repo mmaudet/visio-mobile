@@ -615,16 +615,24 @@ function MeetingsTab({
 
     if (isOngoing(m)) {
       const end = new Date(m.end_time * 1000)
-      return t('meetings.time.until').replace('{time}', end.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }))
+      return t('meetings.time.until').replace(
+        '{time}',
+        end.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      )
     }
     if (minutesUntil < 60) {
-      return t('meetings.time.inMinutes').replace('{minutes}', String(minutesUntil))
+      return t('meetings.time.inMinutes').replace(
+        '{minutes}',
+        String(minutesUntil)
+      )
     }
     if (minutesUntil < 240) {
       const hours = Math.floor(minutesUntil / 60)
       const mins = minutesUntil % 60
       return mins > 0
-        ? t('meetings.time.inHoursMinutes').replace('{hours}', String(hours)).replace('{minutes}', mins.toString().padStart(2, '0'))
+        ? t('meetings.time.inHoursMinutes')
+            .replace('{hours}', String(hours))
+            .replace('{minutes}', mins.toString().padStart(2, '0'))
         : t('meetings.time.inHours').replace('{hours}', String(hours))
     }
     if (isToday) {
@@ -1931,7 +1939,9 @@ function ToolsSidebar({ onClose }: { onClose: () => void }) {
             </div>
             <div className="transcribe-feature">
               <RiGlobalLine size={16} />
-              <span>{t('transcribe.language')} : {t('transcribe.currentLanguage')}</span>
+              <span>
+                {t('transcribe.language')} : {t('transcribe.currentLanguage')}
+              </span>
             </div>
           </div>
           <label className="transcribe-record-check">

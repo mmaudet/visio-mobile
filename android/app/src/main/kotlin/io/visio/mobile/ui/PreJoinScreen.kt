@@ -5,17 +5,23 @@ import android.annotation.SuppressLint
 import android.content.Context
 import android.content.pm.PackageManager
 import android.graphics.BitmapFactory
+import android.graphics.Matrix
+import android.graphics.SurfaceTexture
 import android.hardware.camera2.CameraCaptureSession
 import android.hardware.camera2.CameraCharacteristics
 import android.hardware.camera2.CameraDevice
 import android.hardware.camera2.CameraManager
+import android.media.AudioDeviceInfo
 import android.media.AudioFormat
+import android.media.AudioManager
 import android.media.AudioRecord
 import android.media.MediaRecorder
 import android.os.Handler
 import android.os.HandlerThread
-import android.view.SurfaceHolder
-import android.view.SurfaceView
+import android.view.Surface
+import android.view.TextureView
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -43,12 +49,16 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.Cameraswitch
+import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material.icons.filled.VideocamOff
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -67,6 +77,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -113,37 +124,45 @@ sealed interface WaitingState {
     data object Timeout : WaitingState
 }
 
-// ── Local camera preview (Camera2, no JNI / NativeVideoSource) ───────────────
+// ── Local camera preview (Camera2, TextureView with center-crop) ─────────────
 
 class LocalCameraPreview(
     context: Context,
     private var useFront: Boolean,
-) : SurfaceView(context),
-    SurfaceHolder.Callback {
+) : TextureView(context),
+    TextureView.SurfaceTextureListener {
     private var session: CameraCaptureSession? = null
     private var camera: CameraDevice? = null
     private val handlerThread = HandlerThread("PreviewCamera").also { it.start() }
     private val handler = Handler(handlerThread.looper)
 
     init {
-        holder.addCallback(this)
+        surfaceTextureListener = this
     }
 
-    override fun surfaceCreated(holder: SurfaceHolder) {
+    override fun onSurfaceTextureAvailable(
+        surface: SurfaceTexture,
+        width: Int,
+        height: Int,
+    ) {
         openCamera()
     }
 
-    override fun surfaceChanged(
-        holder: SurfaceHolder,
-        format: Int,
+    override fun onSurfaceTextureSizeChanged(
+        surface: SurfaceTexture,
         width: Int,
         height: Int,
-    ) {}
+    ) {
+        updateTransform()
+    }
 
-    override fun surfaceDestroyed(holder: SurfaceHolder) {
+    override fun onSurfaceTextureDestroyed(surface: SurfaceTexture): Boolean {
         stopCamera()
         handlerThread.quitSafely()
+        return true
     }
+
+    override fun onSurfaceTextureUpdated(surface: SurfaceTexture) {}
 
     fun switchCamera(front: Boolean) {
         if (front == useFront) return
@@ -154,6 +173,8 @@ class LocalCameraPreview(
 
     @SuppressLint("MissingPermission")
     private fun openCamera() {
+        val texture = surfaceTexture ?: return
+        val surface = Surface(texture)
         val cm = context.getSystemService(Context.CAMERA_SERVICE) as CameraManager
         val cameraId =
             cm.cameraIdList.firstOrNull { id ->
@@ -170,7 +191,6 @@ class LocalCameraPreview(
             object : CameraDevice.StateCallback() {
                 override fun onOpened(dev: CameraDevice) {
                     camera = dev
-                    val surface = holder.surface
                     @Suppress("DEPRECATION")
                     dev.createCaptureSession(
                         listOf(surface),
@@ -183,6 +203,7 @@ class LocalCameraPreview(
                                         .apply { addTarget(surface) }
                                         .build()
                                 sess.setRepeatingRequest(req, null, handler)
+                                post { updateTransform() }
                             }
 
                             override fun onConfigureFailed(sess: CameraCaptureSession) {}
@@ -204,6 +225,46 @@ class LocalCameraPreview(
             },
             handler,
         )
+    }
+
+    private fun updateTransform() {
+        val viewWidth = width.toFloat()
+        val viewHeight = height.toFloat()
+        if (viewWidth == 0f || viewHeight == 0f) return
+
+        val cm = context.getSystemService(Context.CAMERA_SERVICE) as CameraManager
+        val cameraId =
+            cm.cameraIdList.firstOrNull { id ->
+                val facing = cm.getCameraCharacteristics(id).get(CameraCharacteristics.LENS_FACING)
+                if (useFront) {
+                    facing == CameraCharacteristics.LENS_FACING_FRONT
+                } else {
+                    facing == CameraCharacteristics.LENS_FACING_BACK
+                }
+            } ?: return
+
+        val characteristics = cm.getCameraCharacteristics(cameraId)
+        val map = characteristics.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP) ?: return
+        val previewSize =
+            map.getOutputSizes(SurfaceTexture::class.java)
+                ?.maxByOrNull { it.width * it.height } ?: return
+
+        // Camera sensor is rotated 90 degrees relative to the view on most devices
+        val previewWidth = previewSize.height.toFloat()
+        val previewHeight = previewSize.width.toFloat()
+
+        val scaleX = viewWidth / previewWidth
+        val scaleY = viewHeight / previewHeight
+        val scale = maxOf(scaleX, scaleY) // center-crop
+
+        val matrix = Matrix()
+        matrix.setScale(
+            scale * previewWidth / viewWidth,
+            scale * previewHeight / viewHeight,
+            viewWidth / 2f,
+            viewHeight / 2f,
+        )
+        setTransform(matrix)
     }
 
     private fun stopCamera() {
@@ -255,6 +316,105 @@ fun PreJoinScreen(
     var audioMode by remember { mutableStateOf("computer_audio") }
     var vuLevel by remember { mutableFloatStateOf(0f) }
 
+    // ── Permission launchers ──────────────────────────────────────────────────
+    val cameraPermissionLauncher =
+        rememberLauncherForActivityResult(
+            ActivityResultContracts.RequestPermission(),
+        ) { granted -> if (granted) cameraEnabled = true }
+
+    val micPermissionLauncher =
+        rememberLauncherForActivityResult(
+            ActivityResultContracts.RequestPermission(),
+        ) { granted -> if (granted) micEnabled = true }
+
+    // ── Audio device state ────────────────────────────────────────────────────
+    val audioManager = remember { context.getSystemService(Context.AUDIO_SERVICE) as AudioManager }
+    var audioDeviceRefreshKey by remember { mutableStateOf(0) }
+
+    DisposableEffect(Unit) {
+        val listener =
+            object : android.media.AudioDeviceCallback() {
+                override fun onAudioDevicesAdded(addedDevices: Array<out AudioDeviceInfo>) {
+                    audioDeviceRefreshKey++
+                }
+
+                override fun onAudioDevicesRemoved(removedDevices: Array<out AudioDeviceInfo>) {
+                    audioDeviceRefreshKey++
+                }
+            }
+        audioManager.registerAudioDeviceCallback(listener, null)
+        onDispose { audioManager.unregisterAudioDeviceCallback(listener) }
+    }
+
+    val audioOutputDevices =
+        remember(audioDeviceRefreshKey) {
+            audioManager.getDevices(AudioManager.GET_DEVICES_OUTPUTS)
+                .filter {
+                    it.type in
+                        listOf(
+                            AudioDeviceInfo.TYPE_BUILTIN_SPEAKER,
+                            AudioDeviceInfo.TYPE_BLUETOOTH_SCO, AudioDeviceInfo.TYPE_BLUETOOTH_A2DP,
+                            AudioDeviceInfo.TYPE_BLE_HEADSET, AudioDeviceInfo.TYPE_BLE_SPEAKER,
+                            AudioDeviceInfo.TYPE_HEARING_AID,
+                            AudioDeviceInfo.TYPE_WIRED_HEADSET, AudioDeviceInfo.TYPE_WIRED_HEADPHONES,
+                            AudioDeviceInfo.TYPE_USB_HEADSET, AudioDeviceInfo.TYPE_USB_DEVICE,
+                        )
+                }
+                .distinctBy { it.type }
+        }
+
+    val audioInputDevices =
+        remember(audioDeviceRefreshKey) {
+            audioManager.getDevices(AudioManager.GET_DEVICES_INPUTS)
+                .filter {
+                    it.type in
+                        listOf(
+                            AudioDeviceInfo.TYPE_BUILTIN_MIC,
+                            AudioDeviceInfo.TYPE_BLUETOOTH_SCO, AudioDeviceInfo.TYPE_BLE_HEADSET,
+                            AudioDeviceInfo.TYPE_WIRED_HEADSET, AudioDeviceInfo.TYPE_USB_HEADSET,
+                        )
+                }
+                .distinctBy { it.type }
+        }
+
+    var selectedOutputRoute by remember { mutableStateOf<String?>(null) }
+    var selectedInputRoute by remember { mutableStateOf<String?>(null) }
+    var showOutputRouteMenu by remember { mutableStateOf(false) }
+    var showInputRouteMenu by remember { mutableStateOf(false) }
+
+    // Auto-select best device, fallback to speaker on BT disconnect
+    LaunchedEffect(audioDeviceRefreshKey) {
+        val externalOutput =
+            audioOutputDevices.firstOrNull {
+                it.type in
+                    listOf(
+                        AudioDeviceInfo.TYPE_BLUETOOTH_SCO, AudioDeviceInfo.TYPE_BLUETOOTH_A2DP,
+                        AudioDeviceInfo.TYPE_BLE_HEADSET, AudioDeviceInfo.TYPE_BLE_SPEAKER,
+                        AudioDeviceInfo.TYPE_WIRED_HEADSET, AudioDeviceInfo.TYPE_WIRED_HEADPHONES,
+                        AudioDeviceInfo.TYPE_USB_HEADSET, AudioDeviceInfo.TYPE_USB_DEVICE,
+                        AudioDeviceInfo.TYPE_HEARING_AID,
+                    )
+            }
+        selectedOutputRoute =
+            audioDeviceTypeLabel(
+                (externalOutput ?: audioOutputDevices.firstOrNull())?.type ?: AudioDeviceInfo.TYPE_BUILTIN_SPEAKER,
+                lang,
+            )
+        val externalInput =
+            audioInputDevices.firstOrNull {
+                it.type in
+                    listOf(
+                        AudioDeviceInfo.TYPE_BLUETOOTH_SCO, AudioDeviceInfo.TYPE_BLE_HEADSET,
+                        AudioDeviceInfo.TYPE_WIRED_HEADSET, AudioDeviceInfo.TYPE_USB_HEADSET,
+                    )
+            }
+        selectedInputRoute =
+            audioDeviceTypeLabel(
+                (externalInput ?: audioInputDevices.firstOrNull())?.type ?: AudioDeviceInfo.TYPE_BUILTIN_MIC,
+                lang,
+            )
+    }
+
     // ── Background filter sheet ───────────────────────────────────────────────
     var showFilterSheet by remember { mutableStateOf(false) }
     var backgroundMode by remember {
@@ -273,7 +433,10 @@ fun PreJoinScreen(
 
     // ── VU meter via AudioRecord ──────────────────────────────────────────────
     LaunchedEffect(micEnabled, audioMode) {
-        if (!micEnabled || audioMode != "computer_audio" || !hasMicPermission) {
+        val currentHasMic =
+            ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) ==
+                PackageManager.PERMISSION_GRANTED
+        if (!micEnabled || audioMode != "computer_audio" || !currentHasMic) {
             vuLevel = 0f
             return@LaunchedEffect
         }
@@ -303,7 +466,7 @@ fun PreJoinScreen(
                     var sum = 0.0
                     for (i in 0 until read) sum += buf[i].toLong() * buf[i].toLong()
                     val rms = sqrt(sum / read)
-                    val normalized = (rms / 32768.0).toFloat().coerceIn(0f, 1f)
+                    val normalized = ((rms / 32768.0) * 25.0).toFloat().coerceIn(0f, 1f)
                     vuLevel = normalized
                 }
                 delay(50)
@@ -413,7 +576,7 @@ fun PreJoinScreen(
                 modifier =
                     Modifier
                         .fillMaxWidth()
-                        .height(220.dp)
+                        .aspectRatio(4f / 3f)
                         .clip(RoundedCornerShape(12.dp))
                         .background(if (isDark) VisioColors.PrimaryDark100 else VisioColors.LightSurfaceVariant),
                 contentAlignment = Alignment.Center,
@@ -428,7 +591,10 @@ fun PreJoinScreen(
                         update = { preview ->
                             preview.switchCamera(isFrontCamera)
                         },
-                        modifier = Modifier.fillMaxSize(),
+                        modifier =
+                            Modifier
+                                .fillMaxSize()
+                                .clip(RoundedCornerShape(12.dp)),
                     )
                 } else {
                     Icon(
@@ -474,7 +640,20 @@ fun PreJoinScreen(
                                     if (cameraEnabled) VisioColors.Primary500 else Color.Black.copy(alpha = 0.4f),
                                     CircleShape,
                                 )
-                                .clickable { cameraEnabled = !cameraEnabled },
+                                .clickable {
+                                    if (cameraEnabled) {
+                                        cameraEnabled = false
+                                    } else {
+                                        val hasPerm =
+                                            ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) ==
+                                                PackageManager.PERMISSION_GRANTED
+                                        if (hasPerm) {
+                                            cameraEnabled = true
+                                        } else {
+                                            cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+                                        }
+                                    }
+                                },
                         contentAlignment = Alignment.Center,
                     ) {
                         Icon(
@@ -535,7 +714,20 @@ fun PreJoinScreen(
                         )
                         Switch(
                             checked = micEnabled,
-                            onCheckedChange = { micEnabled = it },
+                            onCheckedChange = { newValue ->
+                                if (newValue) {
+                                    val hasPerm =
+                                        ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) ==
+                                            PackageManager.PERMISSION_GRANTED
+                                    if (hasPerm) {
+                                        micEnabled = true
+                                    } else {
+                                        micPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                                    }
+                                } else {
+                                    micEnabled = false
+                                }
+                            },
                             colors =
                                 SwitchDefaults.colors(
                                     checkedThumbColor = VisioColors.White,
@@ -548,7 +740,7 @@ fun PreJoinScreen(
                     }
 
                     // VU meter
-                    if (micEnabled && hasMicPermission) {
+                    if (micEnabled) {
                         Column(modifier = Modifier.padding(start = 40.dp)) {
                             Text(
                                 text = "Mic level",
@@ -566,6 +758,82 @@ fun PreJoinScreen(
                                 color = Color(0xFF22C55E),
                                 trackColor = if (isDark) VisioColors.PrimaryDark300 else VisioColors.LightBorder,
                             )
+                        }
+                    }
+
+                    // Mic input selector
+                    if (audioInputDevices.size > 1) {
+                        Box(modifier = Modifier.padding(start = 40.dp)) {
+                            OutlinedButton(
+                                onClick = { showInputRouteMenu = true },
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(8.dp),
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Filled.Mic,
+                                    contentDescription = null,
+                                    tint = VisioColors.Primary500,
+                                    modifier = Modifier.size(18.dp),
+                                )
+                                Spacer(modifier = Modifier.size(8.dp))
+                                Text(
+                                    text = selectedInputRoute ?: Strings.t("device.microphone", lang),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    modifier = Modifier.weight(1f),
+                                )
+                            }
+                            DropdownMenu(
+                                expanded = showInputRouteMenu,
+                                onDismissRequest = { showInputRouteMenu = false },
+                            ) {
+                                audioInputDevices.forEach { device ->
+                                    val label = audioDeviceTypeLabel(device.type, lang)
+                                    DropdownMenuItem(
+                                        text = { Text(label) },
+                                        onClick = {
+                                            selectedInputRoute = label
+                                            showInputRouteMenu = false
+                                        },
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    // Output route selector
+                    Box(modifier = Modifier.padding(start = 40.dp)) {
+                        OutlinedButton(
+                            onClick = { showOutputRouteMenu = true },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(8.dp),
+                        ) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.VolumeUp,
+                                contentDescription = null,
+                                tint = VisioColors.Primary500,
+                                modifier = Modifier.size(18.dp),
+                            )
+                            Spacer(modifier = Modifier.size(8.dp))
+                            Text(
+                                text = selectedOutputRoute ?: Strings.t("prejoin.audioRoute", lang),
+                                style = MaterialTheme.typography.bodySmall,
+                                modifier = Modifier.weight(1f),
+                            )
+                        }
+                        DropdownMenu(
+                            expanded = showOutputRouteMenu,
+                            onDismissRequest = { showOutputRouteMenu = false },
+                        ) {
+                            audioOutputDevices.forEach { device ->
+                                val label = audioDeviceTypeLabel(device.type, lang)
+                                DropdownMenuItem(
+                                    text = { Text(label) },
+                                    onClick = {
+                                        selectedOutputRoute = label
+                                        showOutputRouteMenu = false
+                                    },
+                                )
+                            }
                         }
                     }
                 }
@@ -1034,3 +1302,19 @@ private fun PreJoinSectionLabel(
         color = if (isDark) VisioColors.White else VisioColors.LightOnBackground,
     )
 }
+
+private fun audioDeviceTypeLabel(
+    type: Int,
+    lang: String,
+): String =
+    when (type) {
+        AudioDeviceInfo.TYPE_BUILTIN_SPEAKER -> Strings.t("audio.speaker", lang)
+        AudioDeviceInfo.TYPE_BUILTIN_EARPIECE -> Strings.t("audio.earpiece", lang)
+        AudioDeviceInfo.TYPE_BUILTIN_MIC -> Strings.t("device.microphone", lang)
+        AudioDeviceInfo.TYPE_BLUETOOTH_SCO, AudioDeviceInfo.TYPE_BLUETOOTH_A2DP -> Strings.t("audio.bluetooth", lang)
+        AudioDeviceInfo.TYPE_BLE_HEADSET, AudioDeviceInfo.TYPE_BLE_SPEAKER -> Strings.t("audio.bluetooth", lang)
+        AudioDeviceInfo.TYPE_HEARING_AID -> Strings.t("audio.hearingAid", lang)
+        AudioDeviceInfo.TYPE_WIRED_HEADSET, AudioDeviceInfo.TYPE_WIRED_HEADPHONES -> Strings.t("audio.wiredHeadset", lang)
+        AudioDeviceInfo.TYPE_USB_HEADSET, AudioDeviceInfo.TYPE_USB_DEVICE -> Strings.t("audio.usbHeadset", lang)
+        else -> "Audio"
+    }
