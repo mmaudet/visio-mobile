@@ -39,16 +39,20 @@ struct HomeView: View {
 
             VStack(spacing: 0) {
                 // Tab segment control (Rejoindre / Réunions)
-                let meetingsLabel = manager.upcomingMeetings.isEmpty
-                    ? (lang == "fr" ? "Réunions planifiées" : "Scheduled meetings")
-                    : (lang == "fr" ? "Réunions planifiées" : "Scheduled meetings") + " (\(manager.upcomingMeetings.count))"
+                let meetingsBase = lang == "fr" ? "Réunions planifiées" : "Scheduled meetings"
+                let meetingsLabel = manager.calendarLoading && manager.upcomingMeetings.isEmpty
+                    ? meetingsBase + " …"
+                    : manager.upcomingMeetings.isEmpty
+                        ? meetingsBase
+                        : meetingsBase + " (\(manager.upcomingMeetings.count))"
                 Picker("", selection: $selectedTab) {
                     Text(lang == "fr" ? "Rejoindre" : "Join").tag(0)
                     Text(meetingsLabel).tag(1)
                 }
                 .pickerStyle(.segmented)
                 .padding(.horizontal, 16)
-                .padding(.vertical, 8)
+                .padding(.top, 8)
+                .padding(.bottom, 16)
                 .onChange(of: selectedTab) { newTab in
                     if newTab == 1 {
                         manager.refreshCalendarNow()
@@ -333,6 +337,14 @@ struct HomeView: View {
             meetInstances = manager.client.getMeetInstances()
             // Load room history
             roomHistory = manager.client.getRoomHistory()
+            // Load cached meetings immediately, then refresh from network
+            let cached = manager.client.getUpcomingMeetings()
+            if !cached.isEmpty {
+                manager.upcomingMeetings = cached
+            }
+            if manager.client.getCalendarUrl() != nil {
+                manager.refreshCalendarNow()
+            }
         }
         .onChange(of: manager.authenticatedDisplayName) { newValue in
             if !newValue.isEmpty && displayName.isEmpty {

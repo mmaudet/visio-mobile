@@ -30,9 +30,9 @@ import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Smartphone
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Badge
-import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -113,6 +113,9 @@ fun HomeScreen(
         try {
             roomHistory = VisioManager.client.getRoomHistory()
             hasCalendarUrl = VisioManager.client.getCalendarUrl() != null
+            if (hasCalendarUrl) {
+                VisioManager.refreshCalendarNow()
+            }
         } catch (e: Exception) {
             Log.e(TAG, "Failed to load room history", e)
         }
@@ -327,7 +330,7 @@ fun HomeScreen(
             }
         } // end header Column
 
-        Spacer(modifier = Modifier.height(12.dp))
+        Spacer(modifier = Modifier.height(24.dp))
 
         // Tab strip (Rejoindre / Réunions planifiées)
         run {
@@ -361,22 +364,8 @@ fun HomeScreen(
                     selected = selectedTab == 1,
                     onClick = { selectedTab = 1 },
                     text = {
-                        BadgedBox(
-                            badge = {
-                                if (upcomingMeetings.isNotEmpty() || hasImminentMeeting) {
-                                    Badge(
-                                        containerColor =
-                                            if (hasImminentMeeting) Color(0xFFE1000F) else VisioColors.Primary500,
-                                    ) {
-                                        if (upcomingMeetings.isNotEmpty()) {
-                                            Text(
-                                                upcomingMeetings.size.toString(),
-                                                color = VisioColors.White,
-                                            )
-                                        }
-                                    }
-                                }
-                            },
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
                         ) {
                             Text(
                                 if (lang == "fr") "Réunions planifiées" else "Scheduled meetings",
@@ -387,6 +376,27 @@ fun HomeScreen(
                                         if (isDark) VisioColors.Greyscale400 else VisioColors.LightTextSecondary
                                     },
                             )
+                            if (calendarLoading && upcomingMeetings.isEmpty()) {
+                                Spacer(modifier = Modifier.width(6.dp))
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(14.dp),
+                                    strokeWidth = 2.dp,
+                                    color = VisioColors.Primary500,
+                                )
+                            } else if (upcomingMeetings.isNotEmpty() || hasImminentMeeting) {
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Badge(
+                                    containerColor =
+                                        if (hasImminentMeeting) Color(0xFFE1000F) else VisioColors.Primary500,
+                                ) {
+                                    if (upcomingMeetings.isNotEmpty()) {
+                                        Text(
+                                            upcomingMeetings.size.toString(),
+                                            color = VisioColors.White,
+                                        )
+                                    }
+                                }
+                            }
                         }
                     },
                 )
@@ -645,8 +655,7 @@ fun HomeScreen(
                     lang = lang,
                     onSettings = onSettings,
                     onJoinMeeting = { meetingRoomUrl, _ ->
-                        roomUrl = meetingRoomUrl
-                        selectedTab = 0
+                        onJoin(meetingRoomUrl, username.trim())
                     },
                 )
             }

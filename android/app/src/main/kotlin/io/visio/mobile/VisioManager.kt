@@ -210,6 +210,15 @@ object VisioManager : VisioEventListener {
         } catch (e: Exception) {
             Log.e("VisioManager", "Failed to load blur model", e)
         }
+        // Load cached meetings immediately so badge shows without waiting for network
+        try {
+            val cached = _client.getUpcomingMeetings()
+            if (cached.isNotEmpty()) {
+                _upcomingMeetings.value = cached
+            }
+        } catch (e: Exception) {
+            Log.e("VisioManager", "Failed to load cached meetings", e)
+        }
         createNotificationChannels()
         initialized = true
     }
