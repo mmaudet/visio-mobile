@@ -1,0 +1,14 @@
+{
+  "name": "full-layout-validation",
+  "description": "Complete unified speaker focus & layout validation (PR #71) — 4 platforms",
+  "bots": [
+    { "identity": "bot-alice", "name": "Alice", "mediaFile": "test-assets/tts-fr/alice-speaks.mp4" },
+    { "identity": "bot-bob", "name": "Bob", "mediaFile": "test-assets/tts-fr/bob-speaks.mp4" },
+    { "identity": "bot-charlie", "name": "Charlie", "mediaFile": "test-assets/tts-fr/charlie-speaks.mp4" }
+  ],
+  "requires": {
+    "android": true,
+    "desktop": true,
+    "ios": true
+  }
+}

@@ -147,6 +147,9 @@ class ScenarioContextImpl implements ScenarioContext {
       livekitUrl: this._config.livekitUrl,
       token,
       projectRoot: this._config.projectRoot,
+      mediaFile: botDef.mediaFile
+        ? resolve(this._config.projectRoot, "e2e", botDef.mediaFile)
+        : undefined,
     });
 
     this.bots.set(identity, bot);

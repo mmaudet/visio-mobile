@@ -14,6 +14,7 @@ interface BotOptions {
   livekitUrl: string;
   token: string;
   projectRoot: string;
+  mediaFile?: string;
 }
 
 /**
@@ -39,6 +40,7 @@ export class BotParticipantImpl implements BotParticipant {
   private readonly _livekitUrl: string;
   private readonly _token: string;
   private readonly _projectRoot: string;
+  private readonly _mediaFile: string | undefined;
   private _child: ChildProcess | null = null;
   private _rl: ReadlineInterface | null = null;
   private _lines: string[] = [];
@@ -57,18 +59,24 @@ export class BotParticipantImpl implements BotParticipant {
     this._livekitUrl = opts.livekitUrl;
     this._token = opts.token;
     this._projectRoot = opts.projectRoot;
+    this._mediaFile = opts.mediaFile;
   }
 
   async connect(): Promise<void> {
     const bin = findBotBinary(this._projectRoot);
 
-    const child = spawn(bin, [
+    const args = [
       "--interactive",
       "--url", this._livekitUrl,
       "--token", this._token,
       "--identity", this.identity,
       "--name", this._name,
-    ], {
+    ];
+    if (this._mediaFile) {
+      args.push("--media-file", this._mediaFile);
+    }
+
+    const child = spawn(bin, args, {
       stdio: ["pipe", "pipe", "pipe"],
     });
 

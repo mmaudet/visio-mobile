@@ -9,6 +9,6 @@
   "requires": {
     "android": true,
     "desktop": true,
-    "ios": false
+    "ios": true
   }
 }

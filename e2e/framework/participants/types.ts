@@ -49,7 +49,7 @@ export type ScenarioFn = (ctx: ScenarioContext) => Promise<void>;
 export interface SuiteConfig {
   name: string;
   description: string;
-  bots: Array<{ identity: string; name: string }>;
+  bots: Array<{ identity: string; name: string; mediaFile?: string }>;
   requires: {
     android?: boolean;
     desktop?: boolean;
