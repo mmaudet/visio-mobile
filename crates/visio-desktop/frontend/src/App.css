@@ -1712,6 +1712,61 @@ main {
   background: #1212ff;
 }
 
+/* -- Settings Full-Page View ---------------------------------------------- */
+
+.settings-page {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--bg);
+}
+
+.settings-page-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+  font-weight: 600;
+  font-size: 1.1rem;
+  color: var(--text);
+  position: sticky;
+  top: 0;
+  background: var(--bg);
+  z-index: 10;
+}
+
+.settings-back-btn {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+}
+
+.settings-back-btn:hover {
+  color: var(--text);
+  background: var(--bg-tertiary);
+}
+
+.settings-page-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 24px 32px;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  gap: 16px;
+}
+
+.settings-page-footer {
+  padding: 16px 32px;
+  border-top: 1px solid var(--border);
+}
+
 .settings-section-col {
   flex-direction: column;
   align-items: stretch;

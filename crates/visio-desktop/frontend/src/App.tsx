@@ -52,7 +52,7 @@ import {
 // Types
 // ---------------------------------------------------------------------------
 
-type View = 'home' | 'lobby' | 'call'
+type View = 'home' | 'lobby' | 'call' | 'settings'
 
 interface Participant {
   sid: string
@@ -228,7 +228,7 @@ function detectSystemLang(): string {
 // Logo SVG tricolore
 // ---------------------------------------------------------------------------
 
-function VisioLogo({ size = 64 }: Readonly<{ size?: number }>) {
+function VisioLogo({ size = 64 }: { size?: number }) {
   // Camera body: 64×54 (ratio ~1.19), centered at x=52
   // Wifi arcs: 3 concentric arcs (r=10,17,24) centered at (52,62), pointing up
   // Stripe: same width as camera body (64), centered on same axis
@@ -307,7 +307,7 @@ function VisioLogo({ size = 64 }: Readonly<{ size?: number }>) {
 // Screen Share Icon
 // ---------------------------------------------------------------------------
 
-function ScreenShareIcon({ size = 16 }: Readonly<{ size?: number }>) {
+function ScreenShareIcon({ size = 16 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor">
       <path d="M21 3H3c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h7v2H8v2h8v-2h-2v-2h7c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 14H3V5h18v12z" />
@@ -339,7 +339,7 @@ function formatTime(timestampMs: number): string {
 }
 
 /** Render text with URLs auto-linked. */
-function AutoLinkText({ text }: Readonly<{ text: string }>) {
+function AutoLinkText({ text }: { text: string }) {
   const parts = text.split(/(https?:\/\/[^\s<]+)/g)
   return (
     <>
@@ -366,7 +366,7 @@ function AutoLinkText({ text }: Readonly<{ text: string }>) {
 // Components
 // ---------------------------------------------------------------------------
 
-function StatusBadge({ state }: Readonly<{ state: string }>) {
+function StatusBadge({ state }: { state: string }) {
   const t = useT()
   const key = `status.${state}`
   return <span className={`status-badge ${state}`}>{t(key)}</span>
@@ -374,7 +374,7 @@ function StatusBadge({ state }: Readonly<{ state: string }>) {
 
 // -- Connection Quality Bars ------------------------------------------------
 
-function ConnectionQualityBars({ quality }: Readonly<{ quality: string }>) {
+function ConnectionQualityBars({ quality }: { quality: string }) {
   const bars =
     quality === 'Excellent'
       ? 3
@@ -398,14 +398,14 @@ function ConnectionQualityBars({ quality }: Readonly<{ quality: string }>) {
 
 // -- Participant Tile -------------------------------------------------------
 
-type ParticipantTileProps = Readonly<{
+interface ParticipantTileProps {
   participant: Participant
   videoFrames: Map<string, string>
   isActiveSpeaker?: boolean
   handRaisePosition?: number
   displayItem?: DisplayItem
   onExpand?: () => void
-}>
+}
 
 function ParticipantTile({
   participant,
@@ -510,6 +510,7 @@ function MeetingsTab({
     'onboarding' | 'loading' | 'empty' | 'list'
   >('onboarding')
   const [meetings, setMeetings] = useState<Meeting[]>([])
+  const [calendarUrl, setCalendarUrl] = useState<string | null>(null)
   const [joining, setJoining] = useState<string | null>(null)
   const [loadingMessage, setLoadingMessage] = useState<string>('')
   const [lastSyncTime, setLastSyncTime] = useState<Date | null>(null)
@@ -523,6 +524,7 @@ function MeetingsTab({
   useEffect(() => {
     invoke<string | null>('get_calendar_url')
       .then((url) => {
+        setCalendarUrl(url ?? null)
         if (!url) {
           setStatus('onboarding')
           return
@@ -674,7 +676,7 @@ function MeetingsTab({
     for (const m of list) {
       const label = getDayLabel(m.start_time)
       const last = groups[groups.length - 1]
-      if (last?.label === label) {
+      if (last && last.label === label) {
         last.meetings.push(m)
       } else {
         groups.push({ label, meetings: [m] })
@@ -1054,16 +1056,25 @@ function HomeView({
                   <RiAccountCircleLine size={18} /> {t('home.connect')}
                 </button>
                 {showServerPicker && (
-                  <button
+                  <div
                     className="server-picker-overlay"
-                    aria-label={t('home.serverPicker.close')}
+                    role="button"
+                    tabIndex={0}
                     onClick={() => setShowServerPicker(false)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ')
+                        setShowServerPicker(false)
+                    }}
                   >
                     <div
                       className="server-picker"
-                      role="presentation"
+                      role="button"
+                      tabIndex={0}
                       onClick={(e) => e.stopPropagation()}
-                      onKeyDown={(e) => e.stopPropagation()}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ')
+                          e.stopPropagation()
+                      }}
                     >
                       <h3>{t('home.serverPicker.title')}</h3>
                       <div className="server-list">
@@ -1113,7 +1124,7 @@ function HomeView({
                         {t('home.serverPicker.cancel')}
                       </button>
                     </div>
-                  </button>
+                  </div>
                 )}
               </div>
             )}
@@ -1411,20 +1422,27 @@ function CreateRoomDialog({
   }
 
   return (
-    <button
+    <div
       className="modal-overlay"
-      aria-label={t('home.createRoom.close')}
+      role="button"
+      tabIndex={0}
       onClick={onCancel}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') onCancel()
+      }}
     >
       <div
         className="settings-modal create-room-dialog"
-        role="presentation"
+        role="button"
+        tabIndex={0}
         onClick={(e) => e.stopPropagation()}
-        onKeyDown={(e) => e.stopPropagation()}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') e.stopPropagation()
+        }}
       >
         <div className="settings-header">
           <span>{t('home.createRoom')}</span>
-          <button onClick={onCancel} aria-label={t('home.createRoom.close')}>
+          <button onClick={onCancel}>
             <RiCloseLine size={20} />
           </button>
         </div>
@@ -1527,7 +1545,7 @@ function CreateRoomDialog({
                   {searchResults.length > 0 && (
                     <div className="search-dropdown">
                       {searchResults.map((user: any) => (
-                        <button
+                        <div
                           key={user.id}
                           className="search-result"
                           onClick={() => {
@@ -1535,12 +1553,21 @@ function CreateRoomDialog({
                             setSearchQuery('')
                             setSearchResults([])
                           }}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' || e.key === ' ') {
+                              setInvitedUsers([...invitedUsers, user])
+                              setSearchQuery('')
+                              setSearchResults([])
+                            }
+                          }}
+                          role="button"
+                          tabIndex={0}
                         >
                           <span className="search-name">
                             {user.full_name || user.email}
                           </span>
                           <span className="search-email">{user.email}</span>
-                        </button>
+                        </div>
                       ))}
                     </div>
                   )}
@@ -1653,7 +1680,7 @@ function CreateRoomDialog({
           )}
         </div>
       </div>
-    </button>
+    </div>
   )
 }
 
@@ -1806,7 +1833,7 @@ function InfoSidebar({
             {memberResults.length > 0 && (
               <div className="search-dropdown">
                 {memberResults.map((user: any) => (
-                  <button
+                  <div
                     key={user.id}
                     className="search-result"
                     onClick={async () => {
@@ -1822,12 +1849,32 @@ function InfoSidebar({
                       setMemberSearch('')
                       setMemberResults([])
                     }}
+                    onKeyDown={async (e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        try {
+                          await invoke('add_access', {
+                            userId: user.id,
+                            roomId,
+                          })
+                          const updated = await invoke<any[]>('list_accesses', {
+                            roomId,
+                          })
+                          setRoomAccesses(updated)
+                        } catch {
+                          /* ignore */
+                        }
+                        setMemberSearch('')
+                        setMemberResults([])
+                      }
+                    }}
+                    role="button"
+                    tabIndex={0}
                   >
                     <span className="search-name">
                       {user.full_name || user.email}
                     </span>
                     <span className="search-email">{user.email}</span>
-                  </button>
+                  </div>
                 ))}
               </div>
             )}
@@ -1867,7 +1914,7 @@ function InfoSidebar({
 
 // -- Tools Sidebar ----------------------------------------------------------
 
-function ToolsSidebar({ onClose }: Readonly<{ onClose: () => void }>) {
+function ToolsSidebar({ onClose }: { onClose: () => void }) {
   const t = useT()
   const [subView, setSubView] = useState<'menu' | 'transcribe'>('menu')
 
@@ -1989,21 +2036,28 @@ function SourcePickerModal({
   const windows = sources.filter((s) => s.source_type === 'window')
 
   return (
-    <button
+    <div
       className="modal-overlay"
-      aria-label={t('call.selectSource.close')}
+      role="button"
+      tabIndex={0}
       onClick={onClose}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') onClose()
+      }}
     >
       <div
         className="settings-modal source-picker"
         data-testid="screen-share-source-picker"
-        role="presentation"
+        role="button"
+        tabIndex={0}
         onClick={(e) => e.stopPropagation()}
-        onKeyDown={(e) => e.stopPropagation()}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') e.stopPropagation()
+        }}
       >
         <div className="settings-header">
           <span>{t('call.selectSource')}</span>
-          <button onClick={onClose} aria-label={t('call.selectSource.close')}>
+          <button onClick={onClose}>
             <RiCloseLine size={20} />
           </button>
         </div>
@@ -2068,7 +2122,7 @@ function SourcePickerModal({
           )}
         </div>
       </div>
-    </button>
+    </div>
   )
 }
 
@@ -2513,10 +2567,11 @@ function CallView({
               {showFocusThumbnails && thumbnailItems.length > 0 && (
                 <div className="focus-thumbnails">
                   {thumbnailItems.map((d, index) => (
-                    <button
+                    <div
                       key={d.key}
                       className="tile"
-                      aria-label={d.label}
+                      role="button"
+                      tabIndex={0}
                       data-testid={`secondary-tile-${index}:${d.participant.sid}`}
                       onClick={() => {
                         userPinnedRef.current = true
@@ -2524,6 +2579,15 @@ function CallView({
                           participantSid: d.participant.sid,
                           source: d.source,
                         })
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          userPinnedRef.current = true
+                          setFocusedItem({
+                            participantSid: d.participant.sid,
+                            source: d.source,
+                          })
+                        }
                       }}
                     >
                       <ParticipantTile
@@ -2535,7 +2599,7 @@ function CallView({
                         handRaisePosition={handRaisedMap[d.participant.sid]}
                         displayItem={d}
                       />
-                    </button>
+                    </div>
                   ))}
                 </div>
               )}
@@ -2550,9 +2614,10 @@ function CallView({
                 <div className="empty-state">{t('call.noParticipants')}</div>
               ) : (
                 displayItems.map((d, index) => (
-                  <button
+                  <div
                     key={d.key}
-                    aria-label={d.label}
+                    role="button"
+                    tabIndex={0}
                     data-testid={`grid-tile-${index}:${d.participant.sid}`}
                     onClick={() => {
                       userPinnedRef.current = true
@@ -2560,6 +2625,15 @@ function CallView({
                         participantSid: d.participant.sid,
                         source: d.source,
                       })
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        userPinnedRef.current = true
+                        setFocusedItem({
+                          participantSid: d.participant.sid,
+                          source: d.source,
+                        })
+                      }
                     }}
                   >
                     <ParticipantTile
@@ -2582,7 +2656,7 @@ function CallView({
                           : undefined
                       }
                     />
-                  </button>
+                  </div>
                 ))
               )}
             </div>
@@ -2783,11 +2857,12 @@ function CallView({
                           {menuOpen && (
                             <div
                               className="participant-context-menu"
-                              role="menu"
-                              tabIndex={-1}
+                              role="button"
+                              tabIndex={0}
                               onClick={() => setParticipantMenu(null)}
                               onKeyDown={(e) => {
-                                if (e.key === 'Escape') setParticipantMenu(null)
+                                if (e.key === 'Enter' || e.key === ' ')
+                                  setParticipantMenu(null)
                               }}
                             >
                               <button
@@ -3239,9 +3314,9 @@ function CallView({
   )
 }
 
-// -- Settings Modal ---------------------------------------------------------
+// -- Settings View ----------------------------------------------------------
 
-function SettingsModal({
+function SettingsView({
   onClose,
   onLanguageChange,
   onThemeChange,
@@ -3321,192 +3396,169 @@ function SettingsModal({
   }
 
   return (
-    <button
-      className="modal-overlay"
-      aria-label={t('settings.close')}
-      onClick={onClose}
-    >
-      <div
-        className="settings-modal"
-        role="presentation"
-        onClick={(e) => e.stopPropagation()}
-        onKeyDown={(e) => e.stopPropagation()}
-      >
-        <div className="settings-header">
-          <span>{t('settings')}</span>
-          <button
-            onClick={onClose}
-            data-testid="settings-close-button"
-            aria-label={t('settings.close')}
-          >
-            <RiCloseLine size={20} />
-          </button>
+    <div className="settings-page">
+      <div className="settings-page-header">
+        <button className="settings-back-btn" onClick={onClose}>
+          <RiArrowLeftSLine size={22} />
+        </button>
+        <span>{t('settings')}</span>
+      </div>
+      <div className="settings-page-body">
+        <div className="settings-section">
+          <label className="settings-label">{t('settings.displayName')}</label>
+          <input
+            className="settings-input"
+            data-testid="settings-display-name-input"
+            value={form.displayName}
+            onChange={(e) => setForm({ ...form, displayName: e.target.value })}
+          />
         </div>
-        <div className="settings-body">
-          <div className="settings-section">
-            <label className="settings-label">
-              {t('settings.displayName')}
-            </label>
-            <input
-              className="settings-input"
-              data-testid="settings-display-name-input"
-              value={form.displayName}
-              onChange={(e) =>
-                setForm({ ...form, displayName: e.target.value })
-              }
-            />
-          </div>
-          <div className="settings-section">
-            <label className="settings-label">{t('settings.language')}</label>
-            <select
-              value={form.language}
-              data-testid="settings-language-select"
-              onChange={(e) => {
-                const lang = e.target.value
-                setForm({ ...form, language: lang })
-                invoke('set_language', { lang: lang || null })
-                onLanguageChange(lang)
-              }}
-            >
-              {SUPPORTED_LANGS.map((code) => (
-                <option
-                  key={code}
-                  value={code}
-                  data-testid={`settings-language-${code}`}
-                >
-                  {translations[code]['lang.' + code]}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="settings-section">
-            <label className="settings-label">{t('settings.theme')}</label>
-            <select
-              value={form.theme}
-              onChange={(e) => {
-                const theme = e.target.value
-                setForm({ ...form, theme })
-                invoke('set_theme', { theme })
-                onThemeChange(theme)
-              }}
-            >
-              <option value="light">{t('settings.theme.light')}</option>
-              <option value="dark">{t('settings.theme.dark')}</option>
-            </select>
-          </div>
-          <div className="settings-section">
-            <label className="settings-label">{t('settings.micOnJoin')}</label>
-            <input
-              type="checkbox"
-              checked={form.micOnJoin}
-              onChange={(e) =>
-                setForm({ ...form, micOnJoin: e.target.checked })
-              }
-            />
-          </div>
-          <div className="settings-section">
-            <label className="settings-label">{t('settings.camOnJoin')}</label>
-            <input
-              type="checkbox"
-              checked={form.cameraOnJoin}
-              onChange={(e) =>
-                setForm({ ...form, cameraOnJoin: e.target.checked })
-              }
-            />
-          </div>
-          <div className="settings-section">
-            <label className="settings-label">
-              {t('settings.adaptiveMode')}
-            </label>
-            <input
-              type="checkbox"
-              checked={form.adaptiveModeEnabled}
-              onChange={(e) =>
-                setForm({ ...form, adaptiveModeEnabled: e.target.checked })
-              }
-            />
-          </div>
-          <div className="settings-section settings-section-col">
-            <label className="settings-label">
-              {t('settings.meetInstances')}
-            </label>
-            {meetInstances.map((inst, i) => (
-              <div key={inst} className="instance-row">
-                <span>{inst}</span>
-                <button
-                  className="btn-icon"
-                  onClick={() => {
-                    const next = meetInstances.filter((_, j) => j !== i)
-                    setMeetInstances(next)
-                    invoke('set_meet_instances', { instances: next })
-                  }}
-                >
-                  <RiCloseLine size={16} />
-                </button>
-              </div>
+        <div className="settings-section">
+          <label className="settings-label">{t('settings.language')}</label>
+          <select
+            value={form.language}
+            data-testid="settings-language-select"
+            onChange={(e) => {
+              const lang = e.target.value
+              setForm({ ...form, language: lang })
+              invoke('set_language', { lang: lang || null })
+              onLanguageChange(lang)
+            }}
+          >
+            {SUPPORTED_LANGS.map((code) => (
+              <option
+                key={code}
+                value={code}
+                data-testid={`settings-language-${code}`}
+              >
+                {translations[code]['lang.' + code]}
+              </option>
             ))}
-            <div className="instance-add-row">
-              <input
-                id="newInstance"
-                type="text"
-                placeholder={t('settings.instancePlaceholder')}
-                value={newInstance}
-                onChange={(e) => setNewInstance(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') addInstance()
-                }}
-              />
+          </select>
+        </div>
+        <div className="settings-section">
+          <label className="settings-label">{t('settings.theme')}</label>
+          <select
+            value={form.theme}
+            onChange={(e) => {
+              const theme = e.target.value
+              setForm({ ...form, theme })
+              invoke('set_theme', { theme })
+              onThemeChange(theme)
+            }}
+          >
+            <option value="light">{t('settings.theme.light')}</option>
+            <option value="dark">{t('settings.theme.dark')}</option>
+          </select>
+        </div>
+        <div className="settings-section">
+          <label className="settings-label">{t('settings.micOnJoin')}</label>
+          <input
+            type="checkbox"
+            checked={form.micOnJoin}
+            onChange={(e) => setForm({ ...form, micOnJoin: e.target.checked })}
+          />
+        </div>
+        <div className="settings-section">
+          <label className="settings-label">{t('settings.camOnJoin')}</label>
+          <input
+            type="checkbox"
+            checked={form.cameraOnJoin}
+            onChange={(e) =>
+              setForm({ ...form, cameraOnJoin: e.target.checked })
+            }
+          />
+        </div>
+        <div className="settings-section">
+          <label className="settings-label">{t('settings.adaptiveMode')}</label>
+          <input
+            type="checkbox"
+            checked={form.adaptiveModeEnabled}
+            onChange={(e) =>
+              setForm({ ...form, adaptiveModeEnabled: e.target.checked })
+            }
+          />
+        </div>
+        <div className="settings-section settings-section-col">
+          <label className="settings-label">
+            {t('settings.meetInstances')}
+          </label>
+          {meetInstances.map((inst, i) => (
+            <div key={i} className="instance-row">
+              <span>{inst}</span>
               <button
                 className="btn-icon"
-                onClick={addInstance}
-                disabled={!newInstance.trim()}
+                onClick={() => {
+                  const next = meetInstances.filter((_, j) => j !== i)
+                  setMeetInstances(next)
+                  invoke('set_meet_instances', { instances: next })
+                }}
               >
-                <RiAddLine size={16} />
+                <RiCloseLine size={16} />
               </button>
             </div>
-          </div>
-          <div className="settings-section settings-section-col">
-            <label className="settings-label">
-              {t('settings.calendarUrl')}
-            </label>
+          ))}
+          <div className="instance-add-row">
             <input
-              className="settings-input"
-              type="url"
-              placeholder="https://cal.example.com/feed.ics"
-              value={calendarUrl}
-              onChange={(e) => setCalendarUrl(e.target.value)}
+              id="newInstance"
+              type="text"
+              placeholder={t('settings.instancePlaceholder')}
+              value={newInstance}
+              onChange={(e) => setNewInstance(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') addInstance()
+              }}
             />
-            <span className="settings-hint">
-              {t('settings.calendarUrl.hint')}
-            </span>
-          </div>
-          <div className="settings-section">
-            <label className="settings-label">
-              {t('settings.calendarRefresh')}
-            </label>
-            <select
-              value={calendarRefreshInterval}
-              onChange={(e) => setCalendarRefreshInterval(e.target.value)}
+            <button
+              className="btn-icon"
+              onClick={addInstance}
+              disabled={!newInstance.trim()}
             >
-              <option value="Minutes5">
-                {t('settings.calendarRefresh.5min')}
-              </option>
-              <option value="Minutes15">
-                {t('settings.calendarRefresh.15min')}
-              </option>
-              <option value="Hour1">{t('settings.calendarRefresh.1h')}</option>
-              <option value="Hours4">{t('settings.calendarRefresh.4h')}</option>
-              <option value="Manual">
-                {t('settings.calendarRefresh.manual')}
-              </option>
-            </select>
+              <RiAddLine size={16} />
+            </button>
           </div>
         </div>
+        <div className="settings-section settings-section-col">
+          <label className="settings-label">{t('settings.calendarUrl')}</label>
+          <input
+            className="settings-input"
+            type="url"
+            placeholder="https://cal.example.com/feed.ics"
+            value={calendarUrl}
+            onChange={(e) => setCalendarUrl(e.target.value)}
+          />
+          <span className="settings-hint">
+            {t('settings.calendarUrl.hint')}
+          </span>
+        </div>
+        <div className="settings-section">
+          <label className="settings-label">
+            {t('settings.calendarRefresh')}
+          </label>
+          <select
+            value={calendarRefreshInterval}
+            onChange={(e) => setCalendarRefreshInterval(e.target.value)}
+          >
+            <option value="Minutes5">
+              {t('settings.calendarRefresh.5min')}
+            </option>
+            <option value="Minutes15">
+              {t('settings.calendarRefresh.15min')}
+            </option>
+            <option value="Hour1">{t('settings.calendarRefresh.1h')}</option>
+            <option value="Hours4">{t('settings.calendarRefresh.4h')}</option>
+            <option value="Manual">
+              {t('settings.calendarRefresh.manual')}
+            </option>
+          </select>
+        </div>
+      </div>
+      <div className="settings-page-footer">
         <button className="settings-save" onClick={save}>
           {t('settings.save')}
         </button>
       </div>
-    </button>
+    </div>
   )
 }
 
@@ -4222,29 +4274,26 @@ function PreJoinScreen({
               <span>{t('prejoin.bgBlurLight')}</span>
             </button>
             {/* Background images 1-8 */}
-            {[1, 2, 3, 4, 5, 6, 7, 8].map((n) => {
-              const imgKey = `image:${n}`
-              return (
-                <button
-                  key={n}
-                  className={`prejoin-filter-thumb${backgroundMode === imgKey ? ' active' : ''}`}
-                  onClick={() => handleSetBackgroundMode(imgKey)}
-                >
-                  <img
-                    src={`/backgrounds/thumbnails/${n}.jpg`}
-                    alt={`Background ${n}`}
-                    draggable={false}
-                    style={{
-                      width: '100%',
-                      height: '100%',
-                      objectFit: 'cover',
-                      borderRadius: 6,
-                    }}
-                  />
-                  <span>{n}</span>
-                </button>
-              )
-            })}
+            {[1, 2, 3, 4, 5, 6, 7, 8].map((n) => (
+              <button
+                key={n}
+                className={`prejoin-filter-thumb${backgroundMode === `image:${n}` ? ' active' : ''}`}
+                onClick={() => handleSetBackgroundMode(`image:${n}`)}
+              >
+                <img
+                  src={`/backgrounds/thumbnails/${n}.jpg`}
+                  alt={`Background ${n}`}
+                  draggable={false}
+                  style={{
+                    width: '100%',
+                    height: '100%',
+                    objectFit: 'cover',
+                    borderRadius: 6,
+                  }}
+                />
+                <span>{n}</span>
+              </button>
+            ))}
           </div>
         </div>
       )}
@@ -4283,8 +4332,6 @@ export default function App() {
   const [showTranscription, setShowTranscription] = useState(false)
   const [showMicPicker, setShowMicPicker] = useState(false)
   const [showCamPicker, setShowCamPicker] = useState(false)
-  const [showSettings, setShowSettings] = useState(false)
-
   // Lobby / waiting room
   const [waitingParticipants, setWaitingParticipants] = useState<
     Array<{ id: string; username: string }>
@@ -4556,7 +4603,7 @@ export default function App() {
 
   useEffect(() => {
     if (
-      (!showSettings && !showMicPicker && !showCamPicker) ||
+      (view !== 'settings' && !showMicPicker && !showCamPicker) ||
       devicesEnumerated
     )
       return
@@ -4612,7 +4659,7 @@ export default function App() {
     return () => {
       unlistenFn?.()
     }
-  }, [showSettings, showMicPicker, showCamPicker, devicesEnumerated])
+  }, [view, showMicPicker, showCamPicker, devicesEnumerated])
 
   // ---- Click outside to close device pickers ------------------------------
   useEffect(() => {
@@ -4632,7 +4679,11 @@ export default function App() {
       const state: string = await invoke('get_connection_state')
       setConnectionState(state)
 
-      if (state === 'disconnected' && viewRef.current !== 'home') {
+      if (
+        state === 'disconnected' &&
+        viewRef.current !== 'home' &&
+        viewRef.current !== 'settings'
+      ) {
         setView('home')
         setMicEnabled(false)
         setCamEnabled(false)
@@ -5029,7 +5080,7 @@ export default function App() {
           <>
             <HomeView
               onJoin={handleJoin}
-              onOpenSettings={() => setShowSettings(true)}
+              onOpenSettings={() => setView('settings')}
               displayName={displayName}
               onDisplayNameChange={setDisplayName}
               deepLinkUrl={deepLinkUrl}
@@ -5160,22 +5211,21 @@ export default function App() {
             }}
           />
         )}
+        {view === 'settings' && (
+          <SettingsView
+            onClose={() => {
+              setView('home')
+              invoke<string[]>('get_meet_instances')
+                .then(setMeetInstances)
+                .catch(() => {})
+            }}
+            onLanguageChange={(l) => setLang(l)}
+            onThemeChange={(t) => setTheme(t)}
+            onDisplayNameChange={setDisplayName}
+            initialDisplayName={displayName}
+          />
+        )}
       </main>
-      {showSettings && (
-        <SettingsModal
-          onClose={() => {
-            setShowSettings(false)
-            // Reload meet instances in case they were modified in settings
-            invoke<string[]>('get_meet_instances')
-              .then(setMeetInstances)
-              .catch(() => {})
-          }}
-          onLanguageChange={(l) => setLang(l)}
-          onThemeChange={(t) => setTheme(t)}
-          onDisplayNameChange={setDisplayName}
-          initialDisplayName={displayName}
-        />
-      )}
     </I18nContext.Provider>
   )
 }
