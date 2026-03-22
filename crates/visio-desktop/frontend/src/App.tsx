@@ -2784,6 +2784,7 @@ function CallView({
                             <div
                               className="participant-context-menu"
                               role="menu"
+                              tabIndex={-1}
                               onClick={() => setParticipantMenu(null)}
                               onKeyDown={(e) => {
                                 if (e.key === 'Escape') setParticipantMenu(null)

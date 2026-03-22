@@ -87,6 +87,7 @@ object NativeVideo {
     )
 
     @Suppress("LongParameterList")
+    @SuppressWarnings("kotlin:S107")
     private external fun nativeProcessPreviewFrameRaw(
         yBuf: ByteBuffer,
         uBuf: ByteBuffer,
