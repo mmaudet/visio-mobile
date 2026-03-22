@@ -3579,12 +3579,8 @@ function useAudioDeviceFallback({
 }: {
   setInputs: (devices: NativeAudioDevice[]) => void
   setOutputs: (devices: NativeAudioDevice[]) => void
-  setSelectedInput: (
-    updater: (prev: string) => string
-  ) => void
-  setSelectedOutput: (
-    updater: (prev: string) => string
-  ) => void
+  setSelectedInput: (updater: (prev: string) => string) => void
+  setSelectedOutput: (updater: (prev: string) => string) => void
   onInputFallback?: () => void
 }) {
   useEffect(() => {
