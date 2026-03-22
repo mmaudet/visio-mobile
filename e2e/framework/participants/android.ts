@@ -6,7 +6,7 @@ import { captureAndroid } from "../evidence/screenshot.js";
 import type { AndroidParticipant } from "./types.js";
 
 const DEFAULT_TIMEOUT = 5_000;
-const LAUNCH_SETTLE_MS = 3_000;
+const LAUNCH_SETTLE_MS = 6_000;
 
 interface AndroidOptions {
   identity: string;
@@ -40,6 +40,10 @@ export class AndroidParticipantImpl implements AndroidParticipant {
   }
 
   async connect(): Promise<void> {
+    // Force-stop any existing instance so the deep link triggers a fresh launch
+    adb.forceStop();
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+
     // Replace localhost with local IP so Android device can reach the host
     let androidUrl = this._livekitUrl;
     if (androidUrl.includes("localhost") || androidUrl.includes("127.0.0.1")) {
