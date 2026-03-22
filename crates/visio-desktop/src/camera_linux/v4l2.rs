@@ -4,8 +4,8 @@
 //! converts to I420, and feeds them into a LiveKit NativeVideoSource.
 //! Used as fallback when the PipeWire Camera portal is not available.
 
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread::{self, JoinHandle};
 
 use livekit::webrtc::prelude::*;
@@ -30,7 +30,10 @@ pub fn list_cameras() -> Vec<VideoDeviceInfo> {
         let path = format!("/dev/video{}", i);
         if let Ok(dev) = Device::new(i) {
             if let Ok(caps) = dev.query_caps() {
-                if caps.capabilities.contains(v4l::capability::Flags::VIDEO_CAPTURE) {
+                if caps
+                    .capabilities
+                    .contains(v4l::capability::Flags::VIDEO_CAPTURE)
+                {
                     devices.push(VideoDeviceInfo {
                         name: caps.card.clone(),
                         unique_id: path,
@@ -88,34 +91,89 @@ impl Drop for V4lCameraCapture {
     }
 }
 
+/// Negotiate V4L2 format: ensure minimum 320x240, upgrade to 640x480 if needed.
+fn negotiate_v4l2_format(dev: &Device) -> Result<v4l::format::Format, String> {
+    let format = dev
+        .format()
+        .map_err(|e| format!("Failed to get format: {e}"))?;
+    tracing::info!(
+        "V4L2 camera format: {}x{} {:?}",
+        format.width,
+        format.height,
+        format.fourcc
+    );
+
+    if format.width >= 320 && format.height >= 240 {
+        return Ok(format);
+    }
+
+    let mut new_format = format.clone();
+    new_format.width = 640;
+    new_format.height = 480;
+    match dev.set_format(&new_format) {
+        Ok(f) => {
+            tracing::info!("V4L2 format updated to: {}x{}", f.width, f.height);
+            Ok(f)
+        }
+        Err(e) => {
+            tracing::warn!("Could not update V4L2 format: {e}, using current");
+            Ok(format)
+        }
+    }
+}
+
+/// Convert a raw V4L2 buffer to I420. Returns `None` on unsupported format.
+fn process_v4l2_frame(buf: &[u8], fourcc: FourCC, width: u32, height: u32) -> Option<I420Buffer> {
+    let mut i420 = I420Buffer::new(width, height);
+    let strides = i420.strides();
+    let (y, u, v) = i420.data_mut();
+
+    if fourcc == FourCC::new(b"MJPG") {
+        match convert::decode_mjpeg(buf) {
+            Ok(rgb) => {
+                convert::rgb_to_i420(
+                    &rgb,
+                    width as usize,
+                    height as usize,
+                    y,
+                    strides.0 as usize,
+                    u,
+                    strides.1 as usize,
+                    v,
+                    strides.2 as usize,
+                );
+            }
+            Err(e) => {
+                tracing::warn!("MJPEG decode error: {e}");
+                return None;
+            }
+        }
+    } else if fourcc == FourCC::new(b"YUYV") {
+        convert::yuyv_to_i420(
+            buf,
+            width as usize,
+            height as usize,
+            y,
+            strides.0 as usize,
+            u,
+            strides.1 as usize,
+            v,
+            strides.2 as usize,
+        );
+    } else {
+        tracing::warn!("Unsupported V4L2 format: {:?}", fourcc);
+        return None;
+    }
+    Some(i420)
+}
+
 fn capture_loop(
     device_index: usize,
     source: NativeVideoSource,
     running: Arc<AtomicBool>,
 ) -> Result<(), String> {
     let dev = Device::new(device_index).map_err(|e| format!("Failed to open camera: {e}"))?;
-
-    let format = dev.format().map_err(|e| format!("Failed to get format: {e}"))?;
-    tracing::info!("V4L2 camera format: {}x{} {:?}", format.width, format.height, format.fourcc);
-
-    let format = if format.width < 320 || format.height < 240 {
-        let mut new_format = format.clone();
-        new_format.width = 640;
-        new_format.height = 480;
-        match dev.set_format(&new_format) {
-            Ok(f) => {
-                tracing::info!("V4L2 format updated to: {}x{}", f.width, f.height);
-                f
-            }
-            Err(e) => {
-                tracing::warn!("Could not update V4L2 format: {e}, using current");
-                format
-            }
-        }
-    } else {
-        format
-    };
-
+    let format = negotiate_v4l2_format(&dev)?;
     let width = format.width;
     let height = format.height;
     let fourcc = format.fourcc;
@@ -134,46 +192,23 @@ fn capture_loop(
             }
         };
 
-        let mut i420 = I420Buffer::new(width, height);
-
-        let converted = if fourcc == FourCC::new(b"MJPG") {
-            match convert::decode_mjpeg(buf) {
-                Ok(rgb) => {
-                    let strides = i420.strides();
-                    let (y, u, v) = i420.data_mut();
-                    convert::rgb_to_i420(
-                        &rgb, width as usize, height as usize,
-                        y, strides.0 as usize, u, strides.1 as usize, v, strides.2 as usize,
-                    );
-                    true
-                }
-                Err(e) => { tracing::warn!("MJPEG decode error: {e}"); false }
-            }
-        } else if fourcc == FourCC::new(b"YUYV") {
-            let strides = i420.strides();
-            let (y, u, v) = i420.data_mut();
-            convert::yuyv_to_i420(
-                buf, width as usize, height as usize,
-                y, strides.0 as usize, u, strides.1 as usize, v, strides.2 as usize,
-            );
-            true
-        } else {
-            tracing::warn!("Unsupported V4L2 format: {:?}", fourcc);
-            false
-        };
-
-        if !converted {
+        let Some(mut i420) = process_v4l2_frame(buf, fourcc, width, height) else {
             continue;
-        }
+        };
 
         // Apply background blur
         {
             let strides = i420.strides();
             let (y, u, v) = i420.data_mut();
             visio_ffi::blur::BlurProcessor::process_i420(
-                y, u, v,
-                width as usize, height as usize,
-                strides.0 as usize, strides.1 as usize, strides.2 as usize,
+                y,
+                u,
+                v,
+                width as usize,
+                height as usize,
+                strides.0 as usize,
+                strides.1 as usize,
+                strides.2 as usize,
                 0,
             );
         }
@@ -186,7 +221,7 @@ fn capture_loop(
         source.capture_frame(&video_frame);
 
         frame_count += 1;
-        if frame_count % 3 == 0 {
+        if frame_count.is_multiple_of(3) {
             visio_video::render_local_i420(&video_frame.buffer, "local-camera");
         }
         if frame_count == 1 {

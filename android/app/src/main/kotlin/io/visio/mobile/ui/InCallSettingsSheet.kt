@@ -83,6 +83,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import uniffi.visio.UserSearchResult
 
+@Suppress("kotlin:S3776", "kotlin:S6615", "kotlin:S6619", "kotlin:S1125")
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun InCallSettingsSheet(
@@ -411,6 +412,7 @@ private fun AudioDeviceList(
     }
 }
 
+@Suppress("kotlin:S3776")
 @Composable
 private fun CameraTab(
     lang: String,

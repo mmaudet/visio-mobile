@@ -214,6 +214,34 @@ fn handle_meeting_reminder(m: visio_core::events::Meeting) {
     );
 }
 
+fn handle_adaptive_mode_changed(mode: visio_core::adaptive::AdaptiveMode) {
+    let mode_str = match mode {
+        visio_core::adaptive::AdaptiveMode::Office => "office",
+        visio_core::adaptive::AdaptiveMode::Pedestrian => "pedestrian",
+        visio_core::adaptive::AdaptiveMode::Car => "car",
+    };
+    tracing::info!("adaptive mode changed: {mode_str}");
+    emit_event("adaptive-mode-changed", mode_str);
+}
+
+fn handle_bandwidth_mode_changed(mode: visio_core::bandwidth::BandwidthMode) {
+    let mode_str = match mode {
+        visio_core::bandwidth::BandwidthMode::Full => "full",
+        visio_core::bandwidth::BandwidthMode::ReducedVideo => "reduced_video",
+        visio_core::bandwidth::BandwidthMode::AudioOnly => "audio_only",
+    };
+    tracing::info!("bandwidth mode changed: {mode_str}");
+    emit_event("bandwidth-mode-changed", mode_str);
+}
+
+fn handle_lobby_participant_joined(id: String, username: String) {
+    tracing::info!("lobby participant joined: {username} (id={id})");
+    emit_event(
+        "lobby-participant-joined",
+        serde_json::json!({ "id": id, "username": username }),
+    );
+}
+
 impl VisioEventListener for DesktopEventListener {
     fn on_event(&self, event: VisioEvent) {
         match event {
@@ -322,11 +350,7 @@ impl VisioEventListener for DesktopEventListener {
                 );
             }
             VisioEvent::LobbyParticipantJoined { id, username } => {
-                tracing::info!("lobby participant joined: {username} (id={id})");
-                emit_event(
-                    "lobby-participant-joined",
-                    serde_json::json!({ "id": id, "username": username }),
-                );
+                handle_lobby_participant_joined(id, username);
             }
             VisioEvent::LobbyParticipantLeft { id } => {
                 emit_event("lobby-participant-left", id);
@@ -352,22 +376,10 @@ impl VisioEventListener for DesktopEventListener {
                 );
             }
             VisioEvent::AdaptiveModeChanged { mode } => {
-                let mode_str = match mode {
-                    visio_core::adaptive::AdaptiveMode::Office => "office",
-                    visio_core::adaptive::AdaptiveMode::Pedestrian => "pedestrian",
-                    visio_core::adaptive::AdaptiveMode::Car => "car",
-                };
-                tracing::info!("adaptive mode changed: {mode_str}");
-                emit_event("adaptive-mode-changed", mode_str);
+                handle_adaptive_mode_changed(mode);
             }
             VisioEvent::BandwidthModeChanged { mode } => {
-                let mode_str = match mode {
-                    visio_core::bandwidth::BandwidthMode::Full => "full",
-                    visio_core::bandwidth::BandwidthMode::ReducedVideo => "reduced_video",
-                    visio_core::bandwidth::BandwidthMode::AudioOnly => "audio_only",
-                };
-                tracing::info!("bandwidth mode changed: {mode_str}");
-                emit_event("bandwidth-mode-changed", mode_str);
+                handle_bandwidth_mode_changed(mode);
             }
             VisioEvent::ConnectionLost => {
                 handle_connection_lost(&self.room);
@@ -637,18 +649,18 @@ async fn toggle_camera(state: tauri::State<'_, VisioState>, enabled: bool) -> Re
                 .camera_capture
                 .lock()
                 .unwrap_or_else(|e| e.into_inner());
-            if cam.is_none() {
-                if let Some(source) = source {
-                    // Must request permission before starting AVCaptureSession,
-                    // otherwise startRunning silently produces no frames.
-                    if !camera_macos::request_camera_permission() {
-                        return Err("Camera permission denied".into());
-                    }
-                    let capture = camera_macos::MacCameraCapture::start(source)
-                        .map_err(|e| format!("camera capture: {e}"))?;
-                    *cam = Some(capture);
-                    tracing::info!("camera capture (re)started");
+            if cam.is_none()
+                && let Some(source) = source
+            {
+                // Must request permission before starting AVCaptureSession,
+                // otherwise startRunning silently produces no frames.
+                if !camera_macos::request_camera_permission() {
+                    return Err("Camera permission denied".into());
                 }
+                let capture = camera_macos::MacCameraCapture::start(source)
+                    .map_err(|e| format!("camera capture: {e}"))?;
+                *cam = Some(capture);
+                tracing::info!("camera capture (re)started");
             }
         }
 
@@ -659,22 +671,16 @@ async fn toggle_camera(state: tauri::State<'_, VisioState>, enabled: bool) -> Re
                 .camera_capture
                 .lock()
                 .unwrap_or_else(|e| e.into_inner());
-            if cam.is_none() {
-                tracing::info!(
-                    "Linux camera: no existing capture, source={}",
-                    source.is_some()
-                );
-                if let Some(source) = source {
-                    tracing::info!("Linux camera: starting LinuxCameraCapture");
-                    let capture = camera_linux::LinuxCameraCapture::start(source).map_err(|e| {
-                        tracing::error!("Linux camera capture failed: {}", e);
-                        format!("camera capture: {e}")
-                    })?;
-                    *cam = Some(capture);
-                    tracing::info!("Linux camera capture (re)started successfully");
-                }
-            } else {
+            if cam.is_some() {
                 tracing::info!("Linux camera: capture already running");
+            } else if let Some(source) = source {
+                tracing::info!("Linux camera: starting LinuxCameraCapture");
+                let capture = camera_linux::LinuxCameraCapture::start(source).map_err(|e| {
+                    tracing::error!("Linux camera capture failed: {}", e);
+                    format!("camera capture: {e}")
+                })?;
+                *cam = Some(capture);
+                tracing::info!("Linux camera capture (re)started successfully");
             }
         }
     } else {
@@ -863,10 +869,10 @@ fn set_language(
     lang: Option<String>,
 ) -> Result<(), String> {
     let supported = ["en", "fr", "de", "es", "it", "nl"];
-    if let Some(ref l) = lang {
-        if !supported.contains(&l.as_str()) {
-            return Err(format!("unsupported language: {l}"));
-        }
+    if let Some(ref l) = lang
+        && !supported.contains(&l.as_str())
+    {
+        return Err(format!("unsupported language: {l}"));
     }
     state.settings.set_language(lang.clone());
     let _ = app.emit("settings-changed", serde_json::json!({"language": lang}));
@@ -1470,7 +1476,7 @@ async fn start_camera_preview(state: tauri::State<'_, VisioState>) -> Result<(),
         .camera_capture
         .lock()
         .unwrap_or_else(|e| e.into_inner());
-    *cam_guard = Some(capture.map_err(|e| e)?);
+    *cam_guard = Some(capture?);
     Ok(())
 }
 
@@ -2005,7 +2011,7 @@ pub fn run() {
             // Start calendar periodic refresh (Tauri runtime provides the async executor)
             tauri::async_runtime::spawn(async move {
                 calendar_for_setup.refresh().await;
-                calendar_for_setup.start_periodic_refresh().await;
+                let _ = calendar_for_setup.start_periodic_refresh().await;
             });
 
             // Log deep link events on the Rust side

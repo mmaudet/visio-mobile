@@ -200,14 +200,12 @@ class MainActivity : ComponentActivity() {
         // Skip PiP for E2E test connections (UIAutomator can't access PiP windows)
         if (VisioManager.isTestConnection) return
         val state = VisioManager.connectionState.value
-        if (state is ConnectionState.Connected) {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                val params =
-                    PictureInPictureParams.Builder()
-                        .setAspectRatio(Rational(16, 9))
-                        .build()
-                enterPictureInPictureMode(params)
-            }
+        if (state is ConnectionState.Connected && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val params =
+                PictureInPictureParams.Builder()
+                    .setAspectRatio(Rational(16, 9))
+                    .build()
+            enterPictureInPictureMode(params)
         }
     }
 

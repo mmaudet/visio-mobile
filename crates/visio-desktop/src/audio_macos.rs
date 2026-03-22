@@ -10,7 +10,9 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use livekit::webrtc::audio_source::native::NativeAudioSource;
 use visio_core::{AudioCaptureBuffer, AudioPlayoutBuffer, CapturedFrame};
 
-use super::audio_engine::{self, DeviceChangeCallback, LK_CHANNELS, LK_SAMPLE_RATE, VoiceAudioEngine};
+use super::audio_engine::{
+    self, DeviceChangeCallback, LK_CHANNELS, LK_SAMPLE_RATE, VoiceAudioEngine,
+};
 
 // ---------------------------------------------------------------------------
 // AudioToolbox FFI
@@ -33,6 +35,7 @@ const K_OUTPUT_ELEMENT: u32 = 0; // Speaker
 
 // Property IDs
 const K_AUDIO_OUTPUT_UNIT_PROPERTY_ENABLE_IO: u32 = 2003;
+#[allow(dead_code)]
 const K_AUDIO_OUTPUT_UNIT_PROPERTY_CURRENT_DEVICE: u32 = 2002;
 const K_AUDIO_UNIT_PROPERTY_STREAM_FORMAT: u32 = 8;
 const K_AUDIO_UNIT_PROPERTY_SET_RENDER_CALLBACK: u32 = 23;
@@ -141,14 +144,24 @@ unsafe extern "C" {
     fn AudioObjectAddPropertyListener(
         object_id: u32,
         address: *const AudioObjectPropertyAddress,
-        listener: unsafe extern "C" fn(u32, u32, *const AudioObjectPropertyAddress, *mut c_void) -> OSStatus,
+        listener: unsafe extern "C" fn(
+            u32,
+            u32,
+            *const AudioObjectPropertyAddress,
+            *mut c_void,
+        ) -> OSStatus,
         client_data: *mut c_void,
     ) -> OSStatus;
 
     fn AudioObjectRemovePropertyListener(
         object_id: u32,
         address: *const AudioObjectPropertyAddress,
-        listener: unsafe extern "C" fn(u32, u32, *const AudioObjectPropertyAddress, *mut c_void) -> OSStatus,
+        listener: unsafe extern "C" fn(
+            u32,
+            u32,
+            *const AudioObjectPropertyAddress,
+            *mut c_void,
+        ) -> OSStatus,
         client_data: *mut c_void,
     ) -> OSStatus;
 
@@ -276,14 +289,90 @@ fn resolve_device_id_by_name(name: &str, output: bool) -> Option<u32> {
             if !ok {
                 continue;
             }
-            let device_name = std::ffi::CStr::from_ptr(buf.as_ptr() as *const i8)
-                .to_string_lossy();
+            let device_name = std::ffi::CStr::from_ptr(buf.as_ptr() as *const i8).to_string_lossy();
             if device_name == name {
                 return Some(device_id);
             }
         }
         None
     }
+}
+
+/// Attempt to set the system default device to the named device.
+/// Logs a warning if the device is not found or the change fails.
+fn apply_single_device_selection(device_name: &str, output: bool) {
+    if let Some(device_id) = resolve_device_id_by_name(device_name, output) {
+        let status = set_system_default_device(device_id, output);
+        let direction = if output { "output" } else { "input" };
+        if status != 0 {
+            tracing::warn!(
+                "failed to set system default {direction} to {device_name:?} (id={device_id}): {status}"
+            );
+        } else {
+            tracing::info!(
+                "system default {direction} device set to {device_name:?} (id={device_id})"
+            );
+        }
+    } else {
+        let direction = if output { "output" } else { "input" };
+        tracing::warn!("{direction} device {device_name:?} not found, using default");
+    }
+}
+
+/// Build the AudioStreamBasicDescription used for all LK I/O streams.
+fn make_lk_stream_format() -> AudioStreamBasicDescription {
+    AudioStreamBasicDescription {
+        sample_rate: LK_SAMPLE_RATE as f64,
+        format_id: K_AUDIO_FORMAT_LINEAR_PCM,
+        format_flags: K_LINEAR_PCM_FORMAT_FLAG_IS_SIGNED_INTEGER
+            | K_LINEAR_PCM_FORMAT_FLAG_IS_PACKED,
+        bytes_per_packet: 2,
+        frames_per_packet: 1,
+        bytes_per_frame: 2,
+        channels_per_frame: LK_CHANNELS,
+        bits_per_channel: 16,
+        reserved: 0,
+    }
+}
+
+/// Enable or disable I/O on the given scope/element of the AudioUnit.
+unsafe fn enable_microphone_io(unit: AudioUnit) -> Result<(), String> {
+    let enable: u32 = 1;
+    let status = unsafe {
+        AudioUnitSetProperty(
+            unit,
+            K_AUDIO_OUTPUT_UNIT_PROPERTY_ENABLE_IO,
+            K_AUDIO_UNIT_SCOPE_INPUT,
+            K_INPUT_ELEMENT,
+            &enable as *const u32 as *const c_void,
+            4,
+        )
+    };
+    if status != 0 {
+        Err(format!("enable input failed: {status}"))
+    } else {
+        Ok(())
+    }
+}
+
+/// Set the stream format on the given scope/element of the AudioUnit.
+unsafe fn set_stream_format(
+    unit: AudioUnit,
+    scope: u32,
+    element: u32,
+    format: &AudioStreamBasicDescription,
+) -> Result<(), OSStatus> {
+    let status = unsafe {
+        AudioUnitSetProperty(
+            unit,
+            K_AUDIO_UNIT_PROPERTY_STREAM_FORMAT,
+            scope,
+            element,
+            format as *const _ as *const c_void,
+            std::mem::size_of::<AudioStreamBasicDescription>() as u32,
+        )
+    };
+    if status != 0 { Err(status) } else { Ok(()) }
 }
 
 /// Set the system default input or output device by AudioDeviceID.
@@ -457,7 +546,7 @@ impl MacAudioEngine {
     }
 
     fn create_and_configure_unit(&self) -> Result<AudioUnit, String> {
-        unsafe {
+        let unit = unsafe {
             let desc = AudioComponentDescription {
                 component_type: K_AUDIO_UNIT_TYPE_OUTPUT,
                 component_sub_type: K_AUDIO_UNIT_SUBTYPE_VOICE_PROCESSING_IO,
@@ -465,106 +554,51 @@ impl MacAudioEngine {
                 component_flags: 0,
                 component_flags_mask: 0,
             };
-
             let component = AudioComponentFindNext(std::ptr::null_mut(), &desc);
             if component.is_null() {
                 return Err("VoiceProcessingIO AudioComponent not found".into());
             }
-
             let mut unit: AudioUnit = std::ptr::null_mut();
             let status = AudioComponentInstanceNew(component, &mut unit);
             if status != 0 {
                 return Err(format!("AudioComponentInstanceNew failed: {status}"));
             }
+            unit
+        };
 
-            // Change system default devices if specified.
-            // VPIO always uses system defaults — kAudioOutputUnitProperty_CurrentDevice
-            // is not supported on VoiceProcessingIO, so we change the OS-level default.
-            if let Some(ref device_name) = self.input_device {
-                if let Some(device_id) = resolve_device_id_by_name(device_name, false) {
-                    let status = set_system_default_device(device_id, false);
-                    if status != 0 {
-                        tracing::warn!("failed to set system default input to {device_name:?} (id={device_id}): {status}");
-                    } else {
-                        tracing::info!("system default input device set to {device_name:?} (id={device_id})");
-                    }
-                } else {
-                    tracing::warn!("input device {device_name:?} not found, using default");
-                }
-            }
-
-            if let Some(ref device_name) = self.output_device {
-                if let Some(device_id) = resolve_device_id_by_name(device_name, true) {
-                    let status = set_system_default_device(device_id, true);
-                    if status != 0 {
-                        tracing::warn!("failed to set system default output to {device_name:?} (id={device_id}): {status}");
-                    } else {
-                        tracing::info!("system default output device set to {device_name:?} (id={device_id})");
-                    }
-                } else {
-                    tracing::warn!("output device {device_name:?} not found, using default");
-                }
-            }
-
-            // Enable input (microphone)
-            let enable: u32 = 1;
-            let status = AudioUnitSetProperty(
-                unit,
-                K_AUDIO_OUTPUT_UNIT_PROPERTY_ENABLE_IO,
-                K_AUDIO_UNIT_SCOPE_INPUT,
-                K_INPUT_ELEMENT,
-                &enable as *const u32 as *const c_void,
-                4,
-            );
-            if status != 0 {
-                AudioComponentInstanceDispose(unit);
-                return Err(format!("enable input failed: {status}"));
-            }
-
-            // Set stream format: 48kHz, mono, i16
-            let format = AudioStreamBasicDescription {
-                sample_rate: LK_SAMPLE_RATE as f64,
-                format_id: K_AUDIO_FORMAT_LINEAR_PCM,
-                format_flags: K_LINEAR_PCM_FORMAT_FLAG_IS_SIGNED_INTEGER
-                    | K_LINEAR_PCM_FORMAT_FLAG_IS_PACKED,
-                bytes_per_packet: 2,
-                frames_per_packet: 1,
-                bytes_per_frame: 2,
-                channels_per_frame: LK_CHANNELS,
-                bits_per_channel: 16,
-                reserved: 0,
-            };
-
-            // Set format on output scope of input element (what we read from mic)
-            let status = AudioUnitSetProperty(
-                unit,
-                K_AUDIO_UNIT_PROPERTY_STREAM_FORMAT,
-                K_AUDIO_UNIT_SCOPE_OUTPUT,
-                K_INPUT_ELEMENT,
-                &format as *const _ as *const c_void,
-                std::mem::size_of::<AudioStreamBasicDescription>() as u32,
-            );
-            if status != 0 {
-                AudioComponentInstanceDispose(unit);
-                return Err(format!("set input format failed: {status}"));
-            }
-
-            // Set format on input scope of output element (what we write to speaker)
-            let status = AudioUnitSetProperty(
-                unit,
-                K_AUDIO_UNIT_PROPERTY_STREAM_FORMAT,
-                K_AUDIO_UNIT_SCOPE_INPUT,
-                K_OUTPUT_ELEMENT,
-                &format as *const _ as *const c_void,
-                std::mem::size_of::<AudioStreamBasicDescription>() as u32,
-            );
-            if status != 0 {
-                AudioComponentInstanceDispose(unit);
-                return Err(format!("set output format failed: {status}"));
-            }
-
-            Ok(unit)
+        // Change system default devices if specified.
+        // VPIO always uses system defaults — kAudioOutputUnitProperty_CurrentDevice
+        // is not supported on VoiceProcessingIO, so we change the OS-level default.
+        if let Some(ref device_name) = self.input_device {
+            apply_single_device_selection(device_name, false);
         }
+        if let Some(ref device_name) = self.output_device {
+            apply_single_device_selection(device_name, true);
+        }
+
+        // Enable input (microphone) and set stream formats
+        if let Err(e) = unsafe { enable_microphone_io(unit) } {
+            unsafe { AudioComponentInstanceDispose(unit) };
+            return Err(e);
+        }
+
+        let format = make_lk_stream_format();
+        // Set format on output scope of input element (what we read from mic)
+        if let Err(s) =
+            unsafe { set_stream_format(unit, K_AUDIO_UNIT_SCOPE_OUTPUT, K_INPUT_ELEMENT, &format) }
+        {
+            unsafe { AudioComponentInstanceDispose(unit) };
+            return Err(format!("set input format failed: {s}"));
+        }
+        // Set format on input scope of output element (what we write to speaker)
+        if let Err(s) =
+            unsafe { set_stream_format(unit, K_AUDIO_UNIT_SCOPE_INPUT, K_OUTPUT_ELEMENT, &format) }
+        {
+            unsafe { AudioComponentInstanceDispose(unit) };
+            return Err(format!("set output format failed: {s}"));
+        }
+
+        Ok(unit)
     }
 
     /// Remove the CoreAudio device change listener.
@@ -642,8 +676,14 @@ impl VoiceAudioEngine for MacAudioEngine {
         Ok(())
     }
 
-    fn start_capture(&mut self, source: NativeAudioSource, noise_reduction: bool) -> Result<(), String> {
-        let unit = self.audio_unit.ok_or("playout must be started before capture")?;
+    fn start_capture(
+        &mut self,
+        source: NativeAudioSource,
+        noise_reduction: bool,
+    ) -> Result<(), String> {
+        let unit = self
+            .audio_unit
+            .ok_or("playout must be started before capture")?;
         let state = self.callback_state.clone().ok_or("no callback state")?;
 
         // Set input callback (capture)
@@ -672,7 +712,8 @@ impl VoiceAudioEngine for MacAudioEngine {
         }
 
         // Start drain thread
-        let drain_running = audio_engine::start_drain_thread(state.capture_buffer.clone(), source, noise_reduction);
+        let drain_running =
+            audio_engine::start_drain_thread(state.capture_buffer.clone(), source, noise_reduction);
 
         self.input_wrapper = Some(wrapper);
         self.drain_running = Some(drain_running);

@@ -4,8 +4,8 @@
 //! then opens a PipeWire stream to receive video frames. This enables
 //! proper Flatpak sandboxing without --device=all.
 
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::thread::{self, JoinHandle};
 
 use livekit::webrtc::prelude::*;
@@ -99,13 +99,12 @@ fn pipewire_capture_loop(
     source: NativeVideoSource,
     running: Arc<AtomicBool>,
 ) -> Result<(), String> {
-    use pipewire::main_loop::MainLoopBox;
     use pipewire::context::ContextBox;
+    use pipewire::main_loop::MainLoopBox;
 
-    let mainloop = MainLoopBox::new(None)
-        .map_err(|e| format!("MainLoopBox::new: {e}"))?;
-    let context = ContextBox::new(&mainloop.loop_(), None)
-        .map_err(|e| format!("ContextBox::new: {e}"))?;
+    let mainloop = MainLoopBox::new(None).map_err(|e| format!("MainLoopBox::new: {e}"))?;
+    let context =
+        ContextBox::new(&mainloop.loop_(), None).map_err(|e| format!("ContextBox::new: {e}"))?;
 
     let core = context
         .connect_fd(pw_fd, None)
@@ -140,11 +139,8 @@ fn pipewire_capture_loop(
     let _listener = stream
         .add_local_listener()
         .param_changed(move |_stream, _user_data: &mut (), id, param| {
-            // Extract video format from SPA param when negotiated
             let Some(param) = param else { return };
             if id == pipewire::spa::param::ParamType::Format.as_raw() {
-                // Try to parse the format pod to extract width/height/format.
-                // The exact API depends on pipewire-rs version; use raw pod parsing.
                 if let Some((w, h, fmt)) = parse_video_format_pod(param) {
                     vw_cb.store(w as u64, Ordering::SeqCst);
                     vh_cb.store(h as u64, Ordering::SeqCst);
@@ -165,47 +161,44 @@ fn pipewire_capture_loop(
                 return; // Format not yet negotiated
             }
 
-            if let Some(mut buffer) = stream.dequeue_buffer() {
-                if let Some(buf) = buffer.datas_mut().first_mut() {
-                    if let Some(data) = buf.data() {
-                        let mut i420 = I420Buffer::new(width, height);
-                        let converted = convert_spa_frame(
-                            data, format, width as usize, height as usize, &mut i420,
-                        );
+            let Some(data) = dequeue_pipewire_data(stream) else {
+                return;
+            };
+            let mut i420 = I420Buffer::new(width, height);
+            if !convert_spa_frame(&data, format, width as usize, height as usize, &mut i420) {
+                return;
+            }
 
-                        if converted {
-                            // Apply background blur
-                            {
-                                let strides = i420.strides();
-                                let (y, u, v) = i420.data_mut();
-                                visio_ffi::blur::BlurProcessor::process_i420(
-                                    y, u, v,
-                                    width as usize, height as usize,
-                                    strides.0 as usize, strides.1 as usize, strides.2 as usize,
-                                    0,
-                                );
-                            }
+            // Apply background blur
+            {
+                let strides = i420.strides();
+                let (y, u, v) = i420.data_mut();
+                visio_ffi::blur::BlurProcessor::process_i420(
+                    y,
+                    u,
+                    v,
+                    width as usize,
+                    height as usize,
+                    strides.0 as usize,
+                    strides.1 as usize,
+                    strides.2 as usize,
+                    0,
+                );
+            }
 
-                            let video_frame = VideoFrame {
-                                rotation: VideoRotation::VideoRotation0,
-                                timestamp_us: 0,
-                                buffer: i420,
-                            };
-                            source_cb.capture_frame(&video_frame);
+            let video_frame = VideoFrame {
+                rotation: VideoRotation::VideoRotation0,
+                timestamp_us: 0,
+                buffer: i420,
+            };
+            source_cb.capture_frame(&video_frame);
 
-                            let count = frame_count_cb.fetch_add(1, Ordering::Relaxed);
-                            if count % 3 == 0 {
-                                visio_video::render_local_i420(
-                                    &video_frame.buffer,
-                                    "local-camera",
-                                );
-                            }
-                            if count == 0 {
-                                tracing::info!("First PipeWire camera frame captured");
-                            }
-                        }
-                    }
-                }
+            let count = frame_count_cb.fetch_add(1, Ordering::Relaxed);
+            if count.is_multiple_of(3) {
+                visio_video::render_local_i420(&video_frame.buffer, "local-camera");
+            }
+            if count == 0 {
+                tracing::info!("First PipeWire camera frame captured");
             }
         })
         .register()
@@ -216,8 +209,7 @@ fn pipewire_capture_loop(
         .connect(
             pipewire::spa::utils::Direction::Input,
             None,
-            pipewire::stream::StreamFlags::AUTOCONNECT
-                | pipewire::stream::StreamFlags::MAP_BUFFERS,
+            pipewire::stream::StreamFlags::AUTOCONNECT | pipewire::stream::StreamFlags::MAP_BUFFERS,
             &mut [],
         )
         .map_err(|e| format!("stream connect: {e}"))?;
@@ -226,56 +218,67 @@ fn pipewire_capture_loop(
     // Run the main loop, checking the running flag periodically
     while running.load(Ordering::Relaxed) {
         // Iterate the main loop with a short timeout (10ms) to check running flag
-        mainloop.loop_().iterate(std::time::Duration::from_millis(10));
+        mainloop
+            .loop_()
+            .iterate(std::time::Duration::from_millis(10));
     }
     tracing::info!("PipeWire main loop exited");
 
     Ok(())
 }
 
+/// Dequeue a PipeWire buffer and return a copy of its first data chunk.
+/// Returns `None` if no buffer is available or the buffer has no data.
+fn dequeue_pipewire_data(stream: &pipewire::stream::StreamBox) -> Option<Vec<u8>> {
+    let mut buffer = stream.dequeue_buffer()?;
+    let buf = buffer.datas_mut().first_mut()?;
+    let data = buf.data()?;
+    Some(data.to_vec())
+}
+
+/// Extract (format, width, height) from SPA object properties.
+fn extract_video_format_from_props(
+    properties: &[pipewire::spa::pod::Property],
+) -> Option<(u32, u32, u32)> {
+    use pipewire::spa::pod::Value;
+    let mut format: Option<u32> = None;
+    let mut width: Option<u32> = None;
+    let mut height: Option<u32> = None;
+
+    for prop in properties {
+        match prop.key {
+            // SPA_FORMAT_VIDEO_format = 0x20001
+            0x20001 => {
+                if let Value::Id(id) = &prop.value {
+                    format = Some(id.0);
+                }
+            }
+            // SPA_FORMAT_VIDEO_size = 0x20003
+            0x20003 => {
+                if let Value::Rectangle(rect) = &prop.value {
+                    width = Some(rect.width);
+                    height = Some(rect.height);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    match (width, height, format) {
+        (Some(w), Some(h), Some(f)) => Some((w, h, f)),
+        _ => None,
+    }
+}
+
 /// Parse a SPA format pod to extract (width, height, video_format).
 /// Returns None if parsing fails.
 fn parse_video_format_pod(pod: &pipewire::spa::pod::Pod) -> Option<(u32, u32, u32)> {
-    // Use the raw pod parser to extract video format info.
-    // The SPA video format object contains:
-    //   - mediaType (id)
-    //   - mediaSubtype (id)
-    //   - format (id/enum)
-    //   - size (rectangle: width, height)
-    //   - framerate (fraction)
     use pipewire::spa::pod::deserialize::PodDeserializer;
-    // Attempt structured parsing; fall back gracefully
-    let deserializer = PodDeserializer::deserialize_from::<pipewire::spa::pod::Value>(pod.as_bytes());
+    let deserializer =
+        PodDeserializer::deserialize_from::<pipewire::spa::pod::Value>(pod.as_bytes());
     match deserializer {
         Ok((_, pipewire::spa::pod::Value::Object(obj))) => {
-            let mut format: Option<u32> = None;
-            let mut width: Option<u32> = None;
-            let mut height: Option<u32> = None;
-
-            for prop in &obj.properties {
-                use pipewire::spa::pod::Value;
-                match prop.key {
-                    // SPA_FORMAT_VIDEO_format = 0x20001
-                    0x20001 => {
-                        if let Value::Id(id) = &prop.value {
-                            format = Some(id.0);
-                        }
-                    }
-                    // SPA_FORMAT_VIDEO_size = 0x20003
-                    0x20003 => {
-                        if let Value::Rectangle(rect) = &prop.value {
-                            width = Some(rect.width);
-                            height = Some(rect.height);
-                        }
-                    }
-                    _ => {}
-                }
-            }
-
-            match (width, height, format) {
-                (Some(w), Some(h), Some(f)) => Some((w, h, f)),
-                _ => None,
-            }
+            extract_video_format_from_props(&obj.properties)
         }
         _ => None,
     }
@@ -300,22 +303,43 @@ fn convert_spa_frame(
 
     if format == SPA_VIDEO_FORMAT_NV12 {
         convert::nv12_to_i420(
-            data, width, height,
-            y, strides.0 as usize, u, strides.1 as usize, v, strides.2 as usize,
+            data,
+            width,
+            height,
+            y,
+            strides.0 as usize,
+            u,
+            strides.1 as usize,
+            v,
+            strides.2 as usize,
         );
         true
     } else if format == SPA_VIDEO_FORMAT_YUY2 {
         convert::yuyv_to_i420(
-            data, width, height,
-            y, strides.0 as usize, u, strides.1 as usize, v, strides.2 as usize,
+            data,
+            width,
+            height,
+            y,
+            strides.0 as usize,
+            u,
+            strides.1 as usize,
+            v,
+            strides.2 as usize,
         );
         true
     } else if format == SPA_VIDEO_FORMAT_MJPG {
         match convert::decode_mjpeg(data) {
             Ok(rgb) => {
                 convert::rgb_to_i420(
-                    &rgb, width, height,
-                    y, strides.0 as usize, u, strides.1 as usize, v, strides.2 as usize,
+                    &rgb,
+                    width,
+                    height,
+                    y,
+                    strides.0 as usize,
+                    u,
+                    strides.1 as usize,
+                    v,
+                    strides.2 as usize,
                 );
                 true
             }
@@ -326,8 +350,15 @@ fn convert_spa_frame(
         }
     } else if format == SPA_VIDEO_FORMAT_RGB {
         convert::rgb_to_i420(
-            data, width, height,
-            y, strides.0 as usize, u, strides.1 as usize, v, strides.2 as usize,
+            data,
+            width,
+            height,
+            y,
+            strides.0 as usize,
+            u,
+            strides.1 as usize,
+            v,
+            strides.2 as usize,
         );
         true
     } else {

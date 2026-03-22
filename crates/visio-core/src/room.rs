@@ -36,6 +36,147 @@ fn should_not_reconnect(reason: DisconnectReason) -> bool {
     )
 }
 
+/// Connect to the LiveKit room after lobby acceptance and spawn the event loop.
+/// Returns `true` to break the polling loop, `false` to continue (should not happen).
+#[allow(clippy::too_many_arguments)]
+async fn connect_after_lobby_acceptance(
+    livekit_url: String,
+    token: String,
+    emitter: EventEmitter,
+    participants: Arc<Mutex<ParticipantManager>>,
+    connection_state: Arc<Mutex<ConnectionState>>,
+    room: Arc<Mutex<Option<Arc<Room>>>>,
+    subscribed_tracks: Arc<Mutex<HashMap<String, RemoteVideoTrack>>>,
+    messages: MessageStore,
+    playout_buffer: Arc<crate::audio_playout::AudioPlayoutBuffer>,
+    hand_raise: Arc<Mutex<Option<HandRaiseManager>>>,
+    last_meet_url: Arc<Mutex<Option<String>>>,
+    chat_open: Arc<AtomicBool>,
+    unread_count: Arc<AtomicU32>,
+    bandwidth_ctrl: Arc<std::sync::Mutex<bandwidth::BandwidthController>>,
+    high_quality_mode: Arc<AtomicBool>,
+) {
+    *connection_state.lock().await = ConnectionState::Connecting;
+    emitter.emit(VisioEvent::ConnectionStateChanged(
+        ConnectionState::Connecting,
+    ));
+
+    let mut options = RoomOptions::default();
+    options.auto_subscribe = true;
+    options.adaptive_stream = true;
+    options.dynacast = true;
+
+    match Room::connect(&livekit_url, &token, options).await {
+        Ok((lk_room, events)) => {
+            let lk_room = Arc::new(lk_room);
+
+            // Store local participant SID
+            {
+                let local = lk_room.local_participant();
+                let mut pm = participants.lock().await;
+                pm.set_local_sid(local.sid().to_string());
+            }
+
+            // Seed existing remote participants
+            {
+                let mut pm = participants.lock().await;
+                for (_, participant) in lk_room.remote_participants() {
+                    let info = RoomManager::remote_participant_to_info(&participant);
+                    pm.add_participant(info.clone());
+                    emitter.emit(VisioEvent::ParticipantJoined(info));
+                }
+            }
+
+            *room.lock().await = Some(lk_room.clone());
+
+            {
+                let hm = HandRaiseManager::new(lk_room.clone(), emitter.clone());
+                *hand_raise.lock().await = Some(hm);
+            }
+
+            *connection_state.lock().await = ConnectionState::Connected;
+            emitter.emit(VisioEvent::ConnectionStateChanged(
+                ConnectionState::Connected,
+            ));
+
+            tokio::spawn(async move {
+                RoomManager::event_loop(
+                    events,
+                    emitter,
+                    participants,
+                    connection_state,
+                    room,
+                    subscribed_tracks,
+                    messages,
+                    playout_buffer,
+                    hand_raise,
+                    last_meet_url,
+                    chat_open,
+                    unread_count,
+                    bandwidth_ctrl,
+                    high_quality_mode,
+                )
+                .await;
+            });
+        }
+        Err(e) => {
+            tracing::error!("failed to connect after lobby acceptance: {e}");
+            *connection_state.lock().await = ConnectionState::Disconnected;
+            emitter.emit(VisioEvent::ConnectionStateChanged(
+                ConnectionState::Disconnected,
+            ));
+        }
+    }
+}
+
+/// Read a single chat text stream message and emit it as a ChatMessageReceived event.
+#[allow(clippy::too_many_arguments)]
+async fn read_chat_text_stream(
+    reader: livekit::TakeCell<livekit::data_stream::TextStreamReader>,
+    identity: String,
+    messages: MessageStore,
+    emitter: EventEmitter,
+    room_ref: Arc<Mutex<Option<Arc<Room>>>>,
+    chat_open: Arc<AtomicBool>,
+    unread_count: Arc<AtomicU32>,
+) {
+    let reader = match reader.take() {
+        Some(r) => r,
+        None => {
+            tracing::warn!("TextStreamOpened: reader already taken");
+            return;
+        }
+    };
+    let stream_id = reader.info().id.clone();
+    let timestamp_ms = reader.info().timestamp.timestamp_millis() as u64;
+    match reader.read_all().await {
+        Ok(text) => {
+            let sender_name = lookup_participant_name(&room_ref, &identity).await;
+            let msg = crate::events::ChatMessage {
+                id: stream_id,
+                sender_sid: identity,
+                sender_name,
+                text,
+                timestamp_ms,
+            };
+            tracing::info!(
+                "Chat via TextStream: from={} text={}",
+                msg.sender_name,
+                msg.text
+            );
+            messages.lock().await.push(msg.clone());
+            emitter.emit(VisioEvent::ChatMessageReceived(msg));
+            if !chat_open.load(Ordering::Relaxed) {
+                let count = unread_count.fetch_add(1, Ordering::Relaxed) + 1;
+                emitter.emit(VisioEvent::UnreadCountChanged(count));
+            }
+        }
+        Err(e) => {
+            tracing::warn!("Failed to read chat text stream: {e}");
+        }
+    }
+}
+
 /// Manages the lifecycle of a LiveKit room connection.
 #[derive(Clone)]
 pub struct RoomManager {
@@ -788,98 +929,24 @@ impl RoomManager {
                         match LobbyService::poll_entry(&meet_url, &username, &cookie).await {
                             Ok(LobbyPollResult::Accepted { livekit_url, token }) => {
                                 tracing::info!("lobby entry accepted, connecting to room");
-                                *connection_state.lock().await = ConnectionState::Connecting;
-                                emitter.emit(VisioEvent::ConnectionStateChanged(
-                                    ConnectionState::Connecting,
-                                ));
-
-                                let mut options = RoomOptions::default();
-                                options.auto_subscribe = true;
-                                options.adaptive_stream = true;
-                                options.dynacast = true;
-
-                                match Room::connect(&livekit_url, &token, options).await {
-                                    Ok((lk_room, events)) => {
-                                        let lk_room = Arc::new(lk_room);
-
-                                        // Store local participant SID
-                                        {
-                                            let local = lk_room.local_participant();
-                                            let mut pm = participants.lock().await;
-                                            pm.set_local_sid(local.sid().to_string());
-                                        }
-
-                                        // Seed existing remote participants
-                                        {
-                                            let mut pm = participants.lock().await;
-                                            for (_, participant) in lk_room.remote_participants() {
-                                                let info = RoomManager::remote_participant_to_info(&participant);
-                                                pm.add_participant(info.clone());
-                                                emitter.emit(VisioEvent::ParticipantJoined(info));
-                                            }
-                                        }
-
-                                        // Store room reference
-                                        *room.lock().await = Some(lk_room.clone());
-
-                                        // Initialize HandRaiseManager
-                                        {
-                                            let hm = HandRaiseManager::new(
-                                                lk_room.clone(),
-                                                emitter.clone(),
-                                            );
-                                            *hand_raise.lock().await = Some(hm);
-                                        }
-
-                                        // Update state to connected
-                                        *connection_state.lock().await = ConnectionState::Connected;
-                                        emitter.emit(VisioEvent::ConnectionStateChanged(
-                                            ConnectionState::Connected,
-                                        ));
-
-                                        // Spawn event loop
-                                        let ev_emitter = emitter.clone();
-                                        let ev_participants = participants.clone();
-                                        let ev_connection_state = connection_state.clone();
-                                        let ev_room_ref = room.clone();
-                                        let ev_subscribed_tracks = subscribed_tracks.clone();
-                                        let ev_messages = messages.clone();
-                                        let ev_playout_buffer = playout_buffer.clone();
-                                        let ev_hand_raise = hand_raise.clone();
-                                        let ev_last_meet_url = last_meet_url.clone();
-                                        let ev_chat_open = chat_open.clone();
-                                        let ev_unread_count = unread_count.clone();
-                                        let ev_bandwidth_ctrl = bandwidth_ctrl.clone();
-                                        let ev_high_quality_mode = high_quality_mode.clone();
-
-                                        tokio::spawn(async move {
-                                            RoomManager::event_loop(
-                                                events,
-                                                ev_emitter,
-                                                ev_participants,
-                                                ev_connection_state,
-                                                ev_room_ref,
-                                                ev_subscribed_tracks,
-                                                ev_messages,
-                                                ev_playout_buffer,
-                                                ev_hand_raise,
-                                                ev_last_meet_url,
-                                                ev_chat_open,
-                                                ev_unread_count,
-                                                ev_bandwidth_ctrl,
-                                                ev_high_quality_mode,
-                                            )
-                                            .await;
-                                        });
-                                    }
-                                    Err(e) => {
-                                        tracing::error!("failed to connect after lobby acceptance: {e}");
-                                        *connection_state.lock().await = ConnectionState::Disconnected;
-                                        emitter.emit(VisioEvent::ConnectionStateChanged(
-                                            ConnectionState::Disconnected,
-                                        ));
-                                    }
-                                }
+                                connect_after_lobby_acceptance(
+                                    livekit_url,
+                                    token,
+                                    emitter.clone(),
+                                    participants.clone(),
+                                    connection_state.clone(),
+                                    room.clone(),
+                                    subscribed_tracks.clone(),
+                                    messages.clone(),
+                                    playout_buffer.clone(),
+                                    hand_raise.clone(),
+                                    last_meet_url.clone(),
+                                    chat_open.clone(),
+                                    unread_count.clone(),
+                                    bandwidth_ctrl.clone(),
+                                    high_quality_mode.clone(),
+                                )
+                                .await;
                                 break;
                             }
                             Ok(LobbyPollResult::Denied) => {
@@ -1263,50 +1330,7 @@ impl RoomManager {
                     participant_identity,
                 } => {
                     if topic == "lk.chat" {
-                        let messages = ctx.messages.clone();
-                        let emitter = ctx.emitter.clone();
-                        let room_ref = ctx.room_ref.clone();
-                        let identity = participant_identity.to_string();
-                        let chat_open = ctx.chat_open.clone();
-                        let unread_count = ctx.unread_count.clone();
-                        tokio::spawn(async move {
-                            let reader = reader.take();
-                            if reader.is_none() {
-                                tracing::warn!("TextStreamOpened: reader already taken");
-                                return;
-                            }
-                            let reader = reader.unwrap();
-                            let stream_id = reader.info().id.clone();
-                            let timestamp_ms = reader.info().timestamp.timestamp_millis() as u64;
-                            match reader.read_all().await {
-                                Ok(text) => {
-                                    let sender_name =
-                                        lookup_participant_name(&room_ref, &identity).await;
-                                    let msg = ChatMessage {
-                                        id: stream_id,
-                                        sender_sid: identity,
-                                        sender_name,
-                                        text,
-                                        timestamp_ms,
-                                    };
-                                    tracing::info!(
-                                        "Chat via TextStream: from={} text={}",
-                                        msg.sender_name,
-                                        msg.text
-                                    );
-                                    messages.lock().await.push(msg.clone());
-                                    emitter.emit(VisioEvent::ChatMessageReceived(msg));
-                                    if !chat_open.load(Ordering::Relaxed) {
-                                        let count =
-                                            unread_count.fetch_add(1, Ordering::Relaxed) + 1;
-                                        emitter.emit(VisioEvent::UnreadCountChanged(count));
-                                    }
-                                }
-                                Err(e) => {
-                                    tracing::warn!("Failed to read chat text stream: {e}");
-                                }
-                            }
-                        });
+                        ctx.handle_text_stream_opened(reader, participant_identity.to_string());
                     } else {
                         tracing::debug!("TextStreamOpened: topic={topic} (ignored)");
                     }
@@ -1421,6 +1445,31 @@ impl EventLoopContext {
         } else {
             emit_disconnect_reason(&self.emitter, reason);
         }
+    }
+
+    /// Spawn a task to read a single chat text stream message and emit it.
+    fn handle_text_stream_opened(
+        &self,
+        reader: livekit::TakeCell<livekit::data_stream::TextStreamReader>,
+        identity: String,
+    ) {
+        let messages = self.messages.clone();
+        let emitter = self.emitter.clone();
+        let room_ref = self.room_ref.clone();
+        let chat_open = self.chat_open.clone();
+        let unread_count = self.unread_count.clone();
+        tokio::spawn(async move {
+            read_chat_text_stream(
+                reader,
+                identity,
+                messages,
+                emitter,
+                room_ref,
+                chat_open,
+                unread_count,
+            )
+            .await;
+        });
     }
 
     async fn handle_participant_connected(&mut self, participant: &RemoteParticipant) {

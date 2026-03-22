@@ -1,11 +1,12 @@
-/// I420 ↔ RGB conversion utilities for the background blur pipeline.
-///
-/// The segmentation model expects packed RGB input, while camera frames
-/// arrive as I420 (YUV 4:2:0 planar). These functions handle the
-/// bidirectional conversion using BT.601 full-range coefficients.
+//! I420 ↔ RGB conversion utilities for the background blur pipeline.
+//!
+//! The segmentation model expects packed RGB input, while camera frames
+//! arrive as I420 (YUV 4:2:0 planar). These functions handle the
+//! bidirectional conversion using BT.601 full-range coefficients.
 
 /// Convert I420 planes to packed RGB (BT.601 full-range).
 /// Output: `Vec<u8>` of length `width * height * 3`.
+#[allow(clippy::too_many_arguments)]
 pub fn i420_to_rgb(
     y: &[u8],
     u: &[u8],

@@ -49,6 +49,7 @@ pub unsafe extern "C" fn visio_video_set_desktop_callback(
 }
 
 /// Encode I420 planes to JPEG base64 and deliver via the registered callback.
+#[allow(clippy::too_many_arguments)]
 fn encode_and_deliver(
     y_data: &[u8],
     stride_y: u32,
@@ -127,7 +128,12 @@ fn encode_and_deliver(
 }
 
 /// Render a single I420 frame by converting to JPEG and calling the callback.
-pub(crate) fn render_frame(frame: &BoxVideoFrame, _surface: *mut c_void, track_sid: &str, _is_screencast: bool) {
+pub(crate) fn render_frame(
+    frame: &BoxVideoFrame,
+    _surface: *mut c_void,
+    track_sid: &str,
+    _is_screencast: bool,
+) {
     let buffer = &frame.buffer;
     let width = buffer.width();
     let height = buffer.height();

@@ -131,7 +131,17 @@ mod tests {
         let mut y = vec![0u8; width * height];
         let mut u = vec![0u8; (width / 2) * (height / 2)];
         let mut v = vec![0u8; (width / 2) * (height / 2)];
-        rgb_to_i420(&rgb, width, height, &mut y, width, &mut u, width / 2, &mut v, width / 2);
+        rgb_to_i420(
+            &rgb,
+            width,
+            height,
+            &mut y,
+            width,
+            &mut u,
+            width / 2,
+            &mut v,
+            width / 2,
+        );
         assert!(y.iter().all(|&val| val == 255));
         assert!(u.iter().all(|&val| (val as i16 - 128).abs() <= 1));
         assert!(v.iter().all(|&val| (val as i16 - 128).abs() <= 1));
@@ -145,7 +155,17 @@ mod tests {
         let mut y = vec![255u8; width * height];
         let mut u = vec![255u8; (width / 2) * (height / 2)];
         let mut v = vec![255u8; (width / 2) * (height / 2)];
-        rgb_to_i420(&rgb, width, height, &mut y, width, &mut u, width / 2, &mut v, width / 2);
+        rgb_to_i420(
+            &rgb,
+            width,
+            height,
+            &mut y,
+            width,
+            &mut u,
+            width / 2,
+            &mut v,
+            width / 2,
+        );
         assert!(y.iter().all(|&val| val == 0));
         assert!(u.iter().all(|&val| val == 128));
         assert!(v.iter().all(|&val| val == 128));
@@ -157,7 +177,7 @@ mod tests {
         let height = 2;
         let mut yuyv = vec![0u8; width * height * 2];
         for i in 0..(width * height / 2) {
-            yuyv[i * 4] = 100;     // Y0
+            yuyv[i * 4] = 100; // Y0
             yuyv[i * 4 + 1] = 128; // U
             yuyv[i * 4 + 2] = 100; // Y1
             yuyv[i * 4 + 3] = 128; // V
@@ -165,7 +185,17 @@ mod tests {
         let mut y = vec![0u8; width * height];
         let mut u = vec![0u8; (width / 2) * (height / 2)];
         let mut v = vec![0u8; (width / 2) * (height / 2)];
-        yuyv_to_i420(&yuyv, width, height, &mut y, width, &mut u, width / 2, &mut v, width / 2);
+        yuyv_to_i420(
+            &yuyv,
+            width,
+            height,
+            &mut y,
+            width,
+            &mut u,
+            width / 2,
+            &mut v,
+            width / 2,
+        );
         assert!(y.iter().all(|&val| val == 100));
         assert!(u.iter().all(|&val| val == 128));
         assert!(v.iter().all(|&val| val == 128));
@@ -188,7 +218,17 @@ mod tests {
         let mut y_dst = vec![0u8; width * height];
         let mut u_dst = vec![0u8; (width / 2) * (height / 2)];
         let mut v_dst = vec![0u8; (width / 2) * (height / 2)];
-        nv12_to_i420(&nv12, width, height, &mut y_dst, width, &mut u_dst, width / 2, &mut v_dst, width / 2);
+        nv12_to_i420(
+            &nv12,
+            width,
+            height,
+            &mut y_dst,
+            width,
+            &mut u_dst,
+            width / 2,
+            &mut v_dst,
+            width / 2,
+        );
         assert!(y_dst.iter().all(|&val| val == 200));
         assert!(u_dst.iter().all(|&val| val == 50));
         assert!(v_dst.iter().all(|&val| val == 180));

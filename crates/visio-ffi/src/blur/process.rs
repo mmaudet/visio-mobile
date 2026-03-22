@@ -42,6 +42,100 @@ fn lerp_u8(bg: u8, fg: u8, mask: f32) -> u8 {
     (bg as f32 * (1.0 - mask) + fg as f32 * mask + 0.5) as u8
 }
 
+/// Average the mask over a 2x2 luma block for chroma subsampling.
+fn chroma_mask(mask: &[f32], row: usize, col: usize, width: usize) -> f32 {
+    (mask[row * 2 * width + col * 2]
+        + mask[row * 2 * width + col * 2 + 1]
+        + mask[(row * 2 + 1) * width + col * 2]
+        + mask[(row * 2 + 1) * width + col * 2 + 1])
+        * 0.25
+}
+
+/// Composite I420 planes with a blurred background using the given mask.
+#[allow(clippy::too_many_arguments)]
+fn composite_blur_planes(
+    y: &mut [u8],
+    u: &mut [u8],
+    v: &mut [u8],
+    mask: &[f32],
+    width: usize,
+    height: usize,
+    stride_y: usize,
+    stride_u: usize,
+    stride_v: usize,
+    mode: &BackgroundMode,
+) {
+    let uv_w = width / 2;
+    let uv_h = height / 2;
+    let (y_radius, uv_radius) = if *mode == BackgroundMode::BlurLight {
+        (Y_BLUR_RADIUS_LIGHT, UV_BLUR_RADIUS_LIGHT)
+    } else {
+        (Y_BLUR_RADIUS_STRONG, UV_BLUR_RADIUS_STRONG)
+    };
+    let bg_y = gaussian::blur_plane(y, width, height, stride_y, y_radius);
+    let bg_u = gaussian::blur_plane(u, uv_w, uv_h, stride_u, uv_radius);
+    let bg_v = gaussian::blur_plane(v, uv_w, uv_h, stride_v, uv_radius);
+
+    for row in 0..height {
+        for col in 0..width {
+            let m = mask[row * width + col];
+            let src_idx = row * stride_y + col;
+            y[src_idx] = lerp_u8(bg_y[row * width + col], y[src_idx], m);
+        }
+    }
+    for row in 0..uv_h {
+        for col in 0..uv_w {
+            let m = chroma_mask(mask, row, col, width);
+            u[row * stride_u + col] = lerp_u8(bg_u[row * uv_w + col], u[row * stride_u + col], m);
+            v[row * stride_v + col] = lerp_u8(bg_v[row * uv_w + col], v[row * stride_v + col], m);
+        }
+    }
+}
+
+/// Composite I420 planes with a replacement background image using the given mask.
+/// Returns `false` if the cached replacement is not available or mismatched.
+#[allow(clippy::too_many_arguments)]
+fn composite_image_planes(
+    y: &mut [u8],
+    u: &mut [u8],
+    v: &mut [u8],
+    mask: &[f32],
+    width: usize,
+    height: usize,
+    stride_y: usize,
+    stride_u: usize,
+    stride_v: usize,
+    id: u8,
+    rotation: u32,
+) -> bool {
+    BlurProcessor::get_replacement(id, width, height, rotation);
+    let cache = REPLACEMENT_CACHE.lock().unwrap();
+    let replacement = match cache.as_ref() {
+        Some(r) if r.width == width && r.height == height && r.rotation == rotation => r,
+        _ => return false,
+    };
+    let uv_w = width / 2;
+    let uv_h = height / 2;
+
+    for row in 0..height {
+        for col in 0..width {
+            let m = mask[row * width + col];
+            let src_idx = row * stride_y + col;
+            y[src_idx] = lerp_u8(replacement.y[row * width + col], y[src_idx], m);
+        }
+    }
+    for row in 0..uv_h {
+        for col in 0..uv_w {
+            let m = chroma_mask(mask, row, col, width);
+            u[row * stride_u + col] =
+                lerp_u8(replacement.u[row * uv_w + col], u[row * stride_u + col], m);
+            v[row * stride_v + col] =
+                lerp_u8(replacement.v[row * uv_w + col], v[row * stride_v + col], m);
+        }
+    }
+    true
+}
+
 pub struct BlurProcessor;
 
 impl BlurProcessor {
@@ -90,11 +184,10 @@ impl BlurProcessor {
         // Check if cache is already valid
         {
             let cache = REPLACEMENT_CACHE.lock().ok()?;
-            if let Some(ref r) = *cache {
-                if r.id == id && r.width == frame_w && r.height == frame_h && r.rotation == rotation
-                {
-                    return Some(());
-                }
+            if cache.as_ref().is_some_and(|r| {
+                r.id == id && r.width == frame_w && r.height == frame_h && r.rotation == rotation
+            }) {
+                return Some(());
             }
         }
 
@@ -139,6 +232,7 @@ impl BlurProcessor {
     ///
     /// Returns `true` if the frame was modified, `false` if mode is Off or
     /// the model is not loaded.
+    #[allow(clippy::too_many_arguments)]
     pub fn process_i420(
         y: &mut [u8],
         u: &mut [u8],
@@ -170,107 +264,17 @@ impl BlurProcessor {
         // 5. Resize mask to frame dimensions
         let mask = segment::resize_mask(&mask_256, width, height);
 
-        let uv_w = width / 2;
-        let uv_h = height / 2;
-
         match mode {
             BackgroundMode::Blur | BackgroundMode::BlurLight => {
-                let (y_radius, uv_radius) = if mode == BackgroundMode::BlurLight {
-                    (Y_BLUR_RADIUS_LIGHT, UV_BLUR_RADIUS_LIGHT)
-                } else {
-                    (Y_BLUR_RADIUS_STRONG, UV_BLUR_RADIUS_STRONG)
-                };
-                // 6. Blur each I420 plane to get background
-                let bg_y = gaussian::blur_plane(y, width, height, stride_y, y_radius);
-                let bg_u = gaussian::blur_plane(u, uv_w, uv_h, stride_u, uv_radius);
-                let bg_v = gaussian::blur_plane(v, uv_w, uv_h, stride_v, uv_radius);
-
-                // 8. Composite Y plane
-                for row in 0..height {
-                    for col in 0..width {
-                        let m = mask[row * width + col];
-                        let src_idx = row * stride_y + col;
-                        let bg_idx = row * width + col;
-                        y[src_idx] = lerp_u8(bg_y[bg_idx], y[src_idx], m);
-                    }
-                }
-
-                // Composite U plane
-                for row in 0..uv_h {
-                    for col in 0..uv_w {
-                        // Average mask over 2x2 luma block for chroma
-                        let m = (mask[row * 2 * width + col * 2]
-                            + mask[row * 2 * width + col * 2 + 1]
-                            + mask[(row * 2 + 1) * width + col * 2]
-                            + mask[(row * 2 + 1) * width + col * 2 + 1])
-                            * 0.25;
-                        let src_idx = row * stride_u + col;
-                        let bg_idx = row * uv_w + col;
-                        u[src_idx] = lerp_u8(bg_u[bg_idx], u[src_idx], m);
-                    }
-                }
-
-                // Composite V plane
-                for row in 0..uv_h {
-                    for col in 0..uv_w {
-                        let m = (mask[row * 2 * width + col * 2]
-                            + mask[row * 2 * width + col * 2 + 1]
-                            + mask[(row * 2 + 1) * width + col * 2]
-                            + mask[(row * 2 + 1) * width + col * 2 + 1])
-                            * 0.25;
-                        let src_idx = row * stride_v + col;
-                        let bg_idx = row * uv_w + col;
-                        v[src_idx] = lerp_u8(bg_v[bg_idx], v[src_idx], m);
-                    }
-                }
+                composite_blur_planes(
+                    y, u, v, &mask, width, height, stride_y, stride_u, stride_v, &mode,
+                );
             }
             BackgroundMode::Image(id) => {
-                // 7. Get cached replacement I420 planes (regenerated if rotation changed)
-                Self::get_replacement(id, width, height, rotation);
-                let cache = REPLACEMENT_CACHE.lock().unwrap();
-                let replacement = match cache.as_ref() {
-                    Some(r) if r.width == width && r.height == height && r.rotation == rotation => {
-                        r
-                    }
-                    _ => return false,
-                };
-
-                // 8. Composite Y plane
-                for row in 0..height {
-                    for col in 0..width {
-                        let m = mask[row * width + col];
-                        let src_idx = row * stride_y + col;
-                        let bg_idx = row * width + col;
-                        y[src_idx] = lerp_u8(replacement.y[bg_idx], y[src_idx], m);
-                    }
-                }
-
-                // Composite U plane
-                for row in 0..uv_h {
-                    for col in 0..uv_w {
-                        let m = (mask[row * 2 * width + col * 2]
-                            + mask[row * 2 * width + col * 2 + 1]
-                            + mask[(row * 2 + 1) * width + col * 2]
-                            + mask[(row * 2 + 1) * width + col * 2 + 1])
-                            * 0.25;
-                        let src_idx = row * stride_u + col;
-                        let bg_idx = row * uv_w + col;
-                        u[src_idx] = lerp_u8(replacement.u[bg_idx], u[src_idx], m);
-                    }
-                }
-
-                // Composite V plane
-                for row in 0..uv_h {
-                    for col in 0..uv_w {
-                        let m = (mask[row * 2 * width + col * 2]
-                            + mask[row * 2 * width + col * 2 + 1]
-                            + mask[(row * 2 + 1) * width + col * 2]
-                            + mask[(row * 2 + 1) * width + col * 2 + 1])
-                            * 0.25;
-                        let src_idx = row * stride_v + col;
-                        let bg_idx = row * uv_w + col;
-                        v[src_idx] = lerp_u8(replacement.v[bg_idx], v[src_idx], m);
-                    }
+                if !composite_image_planes(
+                    y, u, v, &mask, width, height, stride_y, stride_u, stride_v, id, rotation,
+                ) {
+                    return false;
                 }
             }
             BackgroundMode::Off => unreachable!(),

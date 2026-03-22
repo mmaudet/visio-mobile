@@ -8,7 +8,7 @@ pub fn segment(session: &mut Session, rgb_256: &[u8]) -> Result<Vec<f32>, String
     assert_eq!(rgb_256.len(), 256 * 256 * 3);
 
     // Normalize to [0, 1] and reshape to NCHW: [1, 3, 256, 256]
-    let mut input = vec![0.0f32; 1 * 3 * 256 * 256];
+    let mut input = vec![0.0f32; 3 * 256 * 256];
     for i in 0..(256 * 256) {
         input[i] = rgb_256[i * 3] as f32 / 255.0; // R
         input[256 * 256 + i] = rgb_256[i * 3 + 1] as f32 / 255.0; // G

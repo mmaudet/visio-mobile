@@ -214,6 +214,86 @@ static CAMERA_STATE: Mutex<Option<CameraState>> = Mutex::new(None);
 // Frame processing
 // ---------------------------------------------------------------------------
 
+/// Convert an NV12 pixel buffer (already locked) to an I420 buffer.
+///
+/// # Safety
+/// `pxbuf` must be a valid, locked CVPixelBuffer pointer. The caller is
+/// responsible for unlocking it after this function returns.
+unsafe fn nv12_pixel_buffer_to_i420(pxbuf: *const c_void) -> Option<I420Buffer> {
+    let width = unsafe { CVPixelBufferGetWidth(pxbuf) } as u32;
+    let height = unsafe { CVPixelBufferGetHeight(pxbuf) } as u32;
+    let w = width as usize;
+    let h = height as usize;
+
+    let y_ptr = unsafe { CVPixelBufferGetBaseAddressOfPlane(pxbuf, 0) };
+    let y_stride = unsafe { CVPixelBufferGetBytesPerRowOfPlane(pxbuf, 0) };
+    let uv_ptr = unsafe { CVPixelBufferGetBaseAddressOfPlane(pxbuf, 1) };
+    let uv_stride = unsafe { CVPixelBufferGetBytesPerRowOfPlane(pxbuf, 1) };
+
+    if y_ptr.is_null() || uv_ptr.is_null() {
+        return None;
+    }
+
+    let mut i420 = I420Buffer::new(width, height);
+    let strides = i420.strides();
+    let (y_dst, u_dst, v_dst) = i420.data_mut();
+
+    // Copy Y plane
+    for row in 0..h {
+        let src_slice = unsafe { std::slice::from_raw_parts(y_ptr.add(row * y_stride), w) };
+        let dst_start = row * strides.0 as usize;
+        y_dst[dst_start..dst_start + w].copy_from_slice(src_slice);
+    }
+
+    // Deinterleave UV plane into U and V
+    let chroma_h = h / 2;
+    let chroma_w = w / 2;
+    for row in 0..chroma_h {
+        let src_row =
+            unsafe { std::slice::from_raw_parts(uv_ptr.add(row * uv_stride), chroma_w * 2) };
+        let dst_row_offset = row * strides.1 as usize;
+        for col in 0..chroma_w {
+            u_dst[dst_row_offset + col] = src_row[col * 2];
+            v_dst[dst_row_offset + col] = src_row[col * 2 + 1];
+        }
+    }
+
+    Some(i420)
+}
+
+/// Apply background processing, feed into LiveKit, and emit self-view.
+fn finalize_and_emit_frame(mut i420: I420Buffer, state: &CameraState, count: u64) {
+    let w = i420.width() as usize;
+    let h = i420.height() as usize;
+    let strides = i420.strides();
+    {
+        let (y_data, u_data, v_data) = i420.data_mut();
+        visio_ffi::blur::BlurProcessor::process_i420(
+            y_data,
+            u_data,
+            v_data,
+            w,
+            h,
+            strides.0 as usize,
+            strides.1 as usize,
+            strides.2 as usize,
+            0, // Desktop camera frames have no rotation metadata
+        );
+    }
+
+    let frame = VideoFrame {
+        rotation: VideoRotation::VideoRotation0,
+        timestamp_us: 0,
+        buffer: i420,
+    };
+    if let Some(ref source) = state.video_source {
+        source.capture_frame(&frame);
+    }
+    if count.is_multiple_of(3) {
+        visio_video::render_local_i420(&frame.buffer, "local-camera");
+    }
+}
+
 /// Called from the delegate callback on the dispatch queue thread.
 fn process_camera_frame(sample_buffer: *const c_void) {
     if sample_buffer.is_null() {
@@ -240,86 +320,11 @@ fn process_camera_frame(sample_buffer: *const c_void) {
         return;
     }
 
-    let width = unsafe { CVPixelBufferGetWidth(pxbuf) } as u32;
-    let height = unsafe { CVPixelBufferGetHeight(pxbuf) } as u32;
-
-    // NV12: plane 0 = Y (full res), plane 1 = UV interleaved (half res)
-    let y_ptr = unsafe { CVPixelBufferGetBaseAddressOfPlane(pxbuf, 0) };
-    let y_stride = unsafe { CVPixelBufferGetBytesPerRowOfPlane(pxbuf, 0) };
-    let uv_ptr = unsafe { CVPixelBufferGetBaseAddressOfPlane(pxbuf, 1) };
-    let uv_stride = unsafe { CVPixelBufferGetBytesPerRowOfPlane(pxbuf, 1) };
-
-    if y_ptr.is_null() || uv_ptr.is_null() {
-        unsafe { CVPixelBufferUnlockBaseAddress(pxbuf, 1) };
-        return;
-    }
-
-    let h = height as usize;
-    let w = width as usize;
-
-    // Build I420 buffer from NV12 planes
-    let mut i420 = I420Buffer::new(width, height);
-
-    let strides = i420.strides();
-    let (y_dst, u_dst, v_dst) = i420.data_mut();
-
-    // Copy Y plane
-    for row in 0..h {
-        let src_start = row * y_stride;
-        let dst_start = row * strides.0 as usize;
-        let src_slice = unsafe { std::slice::from_raw_parts(y_ptr.add(src_start), w) };
-        y_dst[dst_start..dst_start + w].copy_from_slice(src_slice);
-    }
-
-    // Deinterleave UV plane into U and V
-    let chroma_h = h / 2;
-    let chroma_w = w / 2;
-    for row in 0..chroma_h {
-        let src_row =
-            unsafe { std::slice::from_raw_parts(uv_ptr.add(row * uv_stride), chroma_w * 2) };
-        let dst_row_offset = row * strides.1 as usize;
-        for col in 0..chroma_w {
-            u_dst[dst_row_offset + col] = src_row[col * 2];
-            v_dst[dst_row_offset + col] = src_row[col * 2 + 1];
-        }
-    }
-
-    // Release mutable borrows before immutable use
-    let _ = y_dst;
-    let _ = u_dst;
-    let _ = v_dst;
-
+    let i420 = unsafe { nv12_pixel_buffer_to_i420(pxbuf) };
     unsafe { CVPixelBufferUnlockBaseAddress(pxbuf, 1) };
 
-    // Apply background processing (blur/replacement) if enabled
-    {
-        let (y_data, u_data, v_data) = i420.data_mut();
-        visio_ffi::blur::BlurProcessor::process_i420(
-            y_data,
-            u_data,
-            v_data,
-            w,
-            h,
-            strides.0 as usize,
-            strides.1 as usize,
-            strides.2 as usize,
-            0, // Desktop camera frames have no rotation metadata
-        );
-    }
-
-    // Feed frame into LiveKit (only if connected — skip in preview mode)
-    let frame = VideoFrame {
-        rotation: VideoRotation::VideoRotation0,
-        timestamp_us: 0,
-        buffer: i420,
-    };
-    if let Some(ref source) = state.video_source {
-        source.capture_frame(&frame);
-    }
-
-    // Self-view: render every 3rd frame (~10 fps) through desktop callback
-    if count % 3 == 0 {
-        visio_video::render_local_i420(&frame.buffer, "local-camera");
+    if let Some(i420) = i420 {
+        finalize_and_emit_frame(i420, state, count);
     }
 }
 
@@ -373,7 +378,8 @@ pub fn request_camera_permission() -> bool {
         let block = block2::StackBlock::new(move |granted: Bool| {
             let _ = tx.send(granted.as_bool());
         });
-        let _: () = msg_send![cls, requestAccessForMediaType: AVMediaTypeVideo, completionHandler: &*block];
+        let _: () =
+            msg_send![cls, requestAccessForMediaType: AVMediaTypeVideo, completionHandler: &*block];
         rx.recv().unwrap_or(false)
     }
 }
@@ -457,7 +463,8 @@ impl MacCameraCapture {
         let session: Retained<AnyObject> = unsafe { msg_send![session_cls, new] };
 
         // Set session preset
-        let _: () = unsafe { msg_send![&*session, setSessionPreset: AVCaptureSessionPreset1280x720] };
+        let _: () =
+            unsafe { msg_send![&*session, setSessionPreset: AVCaptureSessionPreset1280x720] };
 
         // --- Find camera device by uniqueID ---
         let device_cls =
@@ -556,7 +563,8 @@ impl MacCameraCapture {
         let session: Retained<AnyObject> = unsafe { msg_send![session_cls, new] };
 
         // Set session preset
-        let _: () = unsafe { msg_send![&*session, setSessionPreset: AVCaptureSessionPreset1280x720] };
+        let _: () =
+            unsafe { msg_send![&*session, setSessionPreset: AVCaptureSessionPreset1280x720] };
 
         // --- Find camera device ---
         let device_cls =

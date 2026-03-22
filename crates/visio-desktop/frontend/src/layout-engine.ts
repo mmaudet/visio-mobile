@@ -95,7 +95,7 @@ function shouldSwitchFocus(
   targetFocus: FocusItemNonNull,
   nowMs: number
 ): boolean {
-  if (!previousState.currentFocus) {
+  if (previousState.currentFocus === null) {
     return true
   }
   if (
@@ -121,15 +121,15 @@ function handleActiveSpeaker<T extends LayoutDisplayItem>(
 ): [LayoutDecision<T>, LayoutState] | null {
   const isLocalSpeaking = currentSpeakerSid === localParticipantSid
 
-  const newLastRemote = !isLocalSpeaking
-    ? currentSpeakerSid
-    : previousState.lastRemoteSpeakerSid
+  const newLastRemote = isLocalSpeaking
+    ? previousState.lastRemoteSpeakerSid
+    : currentSpeakerSid
 
   const targetSid = isLocalSpeaking
     ? (previousState.lastRemoteSpeakerSid ?? null)
     : currentSpeakerSid
 
-  if (!targetSid) {
+  if (targetSid === null) {
     return null
   }
 

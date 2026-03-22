@@ -45,8 +45,7 @@ fn capture_thumbnail(img: xcap::XCapResult<image::RgbaImage>) -> String {
     // Encode as JPEG
     let rgb = thumb.to_rgb8();
     let mut buf = Cursor::new(Vec::new());
-    let encoder =
-        image::codecs::jpeg::JpegEncoder::new_with_quality(&mut buf, THUMBNAIL_QUALITY);
+    let encoder = image::codecs::jpeg::JpegEncoder::new_with_quality(&mut buf, THUMBNAIL_QUALITY);
     if rgb.write_with_encoder(encoder).is_err() {
         return String::new();
     }
@@ -152,7 +151,10 @@ pub fn list_sources() -> Vec<ScreenSource> {
     tracing::info!(
         "list_sources: returning {} sources ({} monitors + {} windows)",
         sources.len(),
-        sources.iter().filter(|s| s.source_type == "monitor").count(),
+        sources
+            .iter()
+            .filter(|s| s.source_type == "monitor")
+            .count(),
         sources.iter().filter(|s| s.source_type == "window").count(),
     );
     sources
@@ -266,47 +268,71 @@ fn capture_and_convert(
     Ok((i420, width, height))
 }
 
+type CaptureFn = Arc<dyn Fn() -> Result<DynamicImage, String> + Send + Sync>;
+
+/// Build a capturer closure for a monitor source (e.g. "monitor-0").
+fn make_monitor_capturer(idx_str: &str) -> Result<CaptureFn, String> {
+    let idx: usize = idx_str
+        .parse()
+        .map_err(|_| format!("invalid monitor index: {idx_str}"))?;
+    Ok(Arc::new(move || {
+        let monitors = xcap::Monitor::all().map_err(|e| e.to_string())?;
+        let monitor = monitors
+            .into_iter()
+            .nth(idx)
+            .ok_or_else(|| format!("monitor {idx} not found"))?;
+        let img = monitor.capture_image().map_err(|e| e.to_string())?;
+        Ok(DynamicImage::ImageRgba8(img))
+    }))
+}
+
+/// Build a capturer closure for a window source (e.g. "window-12345").
+fn make_window_capturer(id_str: &str) -> Result<CaptureFn, String> {
+    let win_id: u32 = id_str
+        .parse()
+        .map_err(|_| format!("invalid window id: {id_str}"))?;
+    Ok(Arc::new(move || {
+        let windows = xcap::Window::all().map_err(|e| e.to_string())?;
+        let window = windows
+            .into_iter()
+            .find(|w| w.id().ok() == Some(win_id))
+            .ok_or_else(|| format!("window {win_id} not found"))?;
+        let img = window.capture_image().map_err(|e| e.to_string())?;
+        Ok(DynamicImage::ImageRgba8(img))
+    }))
+}
+
+/// Resolve a source_id string to a capturer closure, or return an error.
+fn make_capturer(source_id: &str) -> Result<CaptureFn, String> {
+    if let Some(idx_str) = source_id.strip_prefix("monitor-") {
+        make_monitor_capturer(idx_str)
+    } else if let Some(id_str) = source_id.strip_prefix("window-") {
+        make_window_capturer(id_str)
+    } else {
+        Err(format!("unknown source_id format: {source_id}"))
+    }
+}
+
+/// Emit a captured I420 frame to the LiveKit video source and local self-view.
+fn emit_captured_frame(i420: I420Buffer, video_source: &NativeVideoSource) {
+    let frame = VideoFrame {
+        rotation: VideoRotation::VideoRotation0,
+        timestamp_us: 0,
+        buffer: i420,
+    };
+    video_source.capture_frame(&frame);
+    visio_video::render_local_i420(&frame.buffer, "local-screen");
+}
+
 /// The main capture loop.
 async fn capture_loop(source_id: &str, video_source: NativeVideoSource, stop: Arc<AtomicBool>) {
-    let capturer: Arc<dyn Fn() -> Result<image::DynamicImage, String> + Send + Sync> =
-        if let Some(idx_str) = source_id.strip_prefix("monitor-") {
-            let idx: usize = match idx_str.parse() {
-                Ok(i) => i,
-                Err(_) => {
-                    tracing::error!("invalid monitor index: {idx_str}");
-                    return;
-                }
-            };
-            Arc::new(move || {
-                let monitors = xcap::Monitor::all().map_err(|e| e.to_string())?;
-                let monitor = monitors
-                    .into_iter()
-                    .nth(idx)
-                    .ok_or_else(|| format!("monitor {idx} not found"))?;
-                let img = monitor.capture_image().map_err(|e| e.to_string())?;
-                Ok(DynamicImage::ImageRgba8(img))
-            })
-        } else if let Some(id_str) = source_id.strip_prefix("window-") {
-            let win_id: u32 = match id_str.parse() {
-                Ok(i) => i,
-                Err(_) => {
-                    tracing::error!("invalid window id: {id_str}");
-                    return;
-                }
-            };
-            Arc::new(move || {
-                let windows = xcap::Window::all().map_err(|e| e.to_string())?;
-                let window = windows
-                    .into_iter()
-                    .find(|w| w.id().ok() == Some(win_id))
-                    .ok_or_else(|| format!("window {win_id} not found"))?;
-                let img = window.capture_image().map_err(|e| e.to_string())?;
-                Ok(DynamicImage::ImageRgba8(img))
-            })
-        } else {
-            tracing::error!("unknown source_id format: {source_id}");
+    let capturer = match make_capturer(source_id) {
+        Ok(c) => c,
+        Err(e) => {
+            tracing::error!("{e}");
             return;
-        };
+        }
+    };
 
     let mut interval = tokio::time::interval(Duration::from_millis(67));
 
@@ -323,19 +349,8 @@ async fn capture_loop(source_id: &str, video_source: NativeVideoSource, stop: Ar
         let result = tokio::task::spawn_blocking(move || capture_and_convert(cap.as_ref())).await;
 
         match result {
-            Ok(Ok((i420, _w, _h))) => {
-                let frame = VideoFrame {
-                    rotation: VideoRotation::VideoRotation0,
-                    timestamp_us: 0,
-                    buffer: i420,
-                };
-                video_source.capture_frame(&frame);
-                // Self-view: render locally so the user sees their own screen share
-                visio_video::render_local_i420(&frame.buffer, "local-screen");
-            }
-            Ok(Err(e)) => {
-                tracing::warn!("screen capture failed: {e}");
-            }
+            Ok(Ok((i420, _w, _h))) => emit_captured_frame(i420, &video_source),
+            Ok(Err(e)) => tracing::warn!("screen capture failed: {e}"),
             Err(e) => {
                 tracing::warn!("capture task panicked: {e}");
                 break;

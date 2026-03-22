@@ -171,6 +171,7 @@ private fun BlurredCameraPreview(
 
 // ── PreJoinScreen ─────────────────────────────────────────────────────────────
 
+@Suppress("kotlin:S3776", "kotlin:S6615")
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PreJoinScreen(
@@ -249,11 +250,15 @@ fun PreJoinScreen(
     DisposableEffect(Unit) {
         val listener =
             object : android.media.AudioDeviceCallback() {
-                override fun onAudioDevicesAdded(addedDevices: Array<out AudioDeviceInfo>) {
+                override fun onAudioDevicesAdded(
+                    @Suppress("kotlin:S1172") addedDevices: Array<out AudioDeviceInfo>,
+                ) {
                     audioDeviceRefreshKey++
                 }
 
-                override fun onAudioDevicesRemoved(removedDevices: Array<out AudioDeviceInfo>) {
+                override fun onAudioDevicesRemoved(
+                    @Suppress("kotlin:S1172") removedDevices: Array<out AudioDeviceInfo>,
+                ) {
                     audioDeviceRefreshKey++
                 }
             }
@@ -918,6 +923,7 @@ private fun BackgroundFilterSheet(
 
 // ── Extracted sub-composables ─────────────────────────────────────────────────
 
+@Suppress("kotlin:S107")
 @Composable
 private fun PreJoinCameraSection(
     cameraEnabled: Boolean,
@@ -1130,6 +1136,7 @@ private fun PreJoinAudioSection(
     }
 }
 
+@Suppress("kotlin:S107")
 @Composable
 private fun PreJoinAudioRouteSelectors(
     audioInputDevices: List<AudioDeviceInfo>,

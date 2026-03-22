@@ -75,7 +75,6 @@ fun MeetingsTab(
                 isDark = isDark,
                 lang = lang,
                 onJoinMeeting = onJoinMeeting,
-                onRefresh = { VisioManager.refreshCalendarNow() },
             )
         }
     }
@@ -202,16 +201,12 @@ private fun MeetingsList(
     isDark: Boolean,
     lang: String,
     onJoinMeeting: (roomUrl: String, serverName: String) -> Unit,
-    onRefresh: () -> Unit,
 ) {
     val now = System.currentTimeMillis() / 1000L
 
     // Separate in-progress meetings (started) from upcoming
     val inProgress = meetings.filter { it.startTime <= now && it.endTime > now }
     val upcoming = meetings.filter { it.startTime > now }
-
-    // Group upcoming by day label
-    val groupedUpcoming = groupMeetingsByDay(upcoming, lang)
 
     // Combine in-progress and upcoming into a unified grouped list
     val allMeetings = inProgress + upcoming
@@ -261,6 +256,7 @@ private fun MeetingsList(
     }
 }
 
+@Suppress("kotlin:S107")
 @Composable
 private fun MeetingCard(
     meeting: Meeting,
@@ -336,6 +332,7 @@ private fun MeetingCard(
     }
 }
 
+@Suppress("kotlin:S107")
 @Composable
 private fun MeetingCardDetails(
     meeting: Meeting,
