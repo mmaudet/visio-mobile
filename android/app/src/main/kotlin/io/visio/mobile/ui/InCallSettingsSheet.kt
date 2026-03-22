@@ -87,6 +87,7 @@ import uniffi.visio.UserSearchResult
 @Composable
 fun InCallSettingsSheet(
     roomUrl: String,
+    roomName: String? = null,
     initialTab: Int = 0,
     onDismiss: () -> Unit,
     onSelectAudioInput: (AudioDeviceInfo) -> Unit,
@@ -178,7 +179,7 @@ fun InCallSettingsSheet(
                         .padding(start = 8.dp, end = 8.dp, bottom = 32.dp),
             ) {
                 when (selectedTab) {
-                    0 -> RoomInfoTab(roomUrl, lang)
+                    0 -> RoomInfoTab(roomUrl, roomName, lang)
                     1 -> MicroTab(context, lang, onSelectAudioInput, onSelectAudioOutput)
                     2 -> CameraTab(lang, isFrontCamera, onSwitchCamera)
                     3 ->
@@ -679,11 +680,25 @@ private fun NotificationRow(
 @Composable
 private fun RoomInfoTab(
     roomUrl: String,
+    roomName: String?,
     lang: String,
 ) {
     val context = LocalContext.current
     val displayUrl = roomUrl.removePrefix("https://").removePrefix("http://")
-    val deepLink = "visio://$displayUrl"
+    val deepLink =
+        if (roomName != null) {
+            val encoded = java.net.URLEncoder.encode(roomName, "UTF-8").replace("+", "%20")
+            "visio://$displayUrl?room-display-name=$encoded"
+        } else {
+            "visio://$displayUrl"
+        }
+    val shareHttpUrl =
+        if (roomName != null) {
+            val encoded = java.net.URLEncoder.encode(roomName, "UTF-8").replace("+", "%20")
+            "$roomUrl?room-display-name=$encoded"
+        } else {
+            roomUrl
+        }
     var copiedHttp by remember { mutableStateOf(false) }
     var copiedDeep by remember { mutableStateOf(false) }
 
@@ -703,7 +718,7 @@ private fun RoomInfoTab(
             )
             IconButton(onClick = {
                 val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
-                clipboard.setPrimaryClip(android.content.ClipData.newPlainText("Room URL", roomUrl))
+                clipboard.setPrimaryClip(android.content.ClipData.newPlainText("Room URL", shareHttpUrl))
                 copiedHttp = true
             }, modifier = Modifier.size(32.dp).testTag("incall_room_url_copy")) {
                 Icon(
@@ -717,7 +732,7 @@ private fun RoomInfoTab(
                 val shareIntent =
                     android.content.Intent(android.content.Intent.ACTION_SEND).apply {
                         type = "text/plain"
-                        putExtra(android.content.Intent.EXTRA_TEXT, roomUrl)
+                        putExtra(android.content.Intent.EXTRA_TEXT, shareHttpUrl)
                     }
                 context.startActivity(android.content.Intent.createChooser(shareIntent, null))
             }, modifier = Modifier.size(32.dp)) {
@@ -730,7 +745,7 @@ private fun RoomInfoTab(
             }
         }
         OutlinedTextField(
-            value = roomUrl,
+            value = shareHttpUrl,
             onValueChange = {},
             readOnly = true,
             singleLine = true,
@@ -772,7 +787,7 @@ private fun RoomInfoTab(
                 val shareIntent =
                     android.content.Intent(android.content.Intent.ACTION_SEND).apply {
                         type = "text/plain"
-                        putExtra(android.content.Intent.EXTRA_TEXT, roomUrl)
+                        putExtra(android.content.Intent.EXTRA_TEXT, deepLink)
                     }
                 context.startActivity(android.content.Intent.createChooser(shareIntent, null))
             }, modifier = Modifier.size(32.dp)) {

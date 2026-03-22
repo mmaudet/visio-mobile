@@ -60,6 +60,7 @@ struct CallView: View {
 
     let roomURL: String
     let displayName: String
+    var roomDisplayName: String? = nil
 
     @State private var showChat: Bool = false
     @State private var showAudioDevices: Bool = false
@@ -256,7 +257,7 @@ struct CallView: View {
                 }
             }
         }
-        .navigationTitle(Strings.t("call.title", lang: lang))
+        .navigationTitle(roomDisplayName ?? Strings.t("call.title", lang: lang))
         .navigationBarTitleDisplayMode(.inline)
         .navigationBarBackButtonHidden(true)
         .toolbarColorScheme(isDark ? .dark : .light, for: .navigationBar)
@@ -281,7 +282,7 @@ struct CallView: View {
                 .presentationDetents([.medium])
         }
         .sheet(isPresented: $showInCallSettings) {
-            InCallSettingsSheet(roomURL: roomURL, selectedTab: inCallSettingsTab)
+            InCallSettingsSheet(roomURL: roomURL, selectedTab: inCallSettingsTab, roomDisplayName: roomDisplayName)
                 .environmentObject(manager)
                 .presentationDetents([.medium, .large])
         }
@@ -289,7 +290,15 @@ struct CallView: View {
             // Only connect if not already connected (PreJoinView already connects)
             if case .disconnected = manager.connectionState {
                 let name = displayName.isEmpty ? nil : displayName
-                manager.connect(url: roomURL, username: name)
+                var connectURL = roomURL
+                if let rdName = roomDisplayName, !rdName.isEmpty {
+                    var allowed = CharacterSet.urlQueryAllowed
+                    allowed.remove(charactersIn: " +&=")
+                    let encoded = rdName.addingPercentEncoding(withAllowedCharacters: allowed) ?? rdName
+                    let separator = connectURL.contains("?") ? "&" : "?"
+                    connectURL += "\(separator)room-display-name=\(encoded)"
+                }
+                manager.connect(url: connectURL, username: name)
             }
             CallKitManager.shared.reportCallStarted(roomName: roomURL)
             UIApplication.shared.isIdleTimerDisabled = true

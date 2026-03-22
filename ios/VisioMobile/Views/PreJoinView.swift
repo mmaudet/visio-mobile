@@ -168,6 +168,7 @@ private struct BackgroundFilterSheet: View {
 struct PreJoinView: View {
     let roomURL: String
     let initialDisplayName: String
+    var roomDisplayName: String? = nil
 
     @EnvironmentObject private var manager: VisioManager
     @Environment(\.dismiss) private var dismiss
@@ -195,10 +196,20 @@ struct PreJoinView: View {
         ScrollView {
             VStack(spacing: 20) {
                 // Room name
-                Text(slug)
-                    .font(.title2)
-                    .fontWeight(.semibold)
-                    .foregroundStyle(VisioColors.onBackground(dark: isDark))
+                if let name = roomDisplayName {
+                    Text(name)
+                        .font(.title2)
+                        .fontWeight(.semibold)
+                        .foregroundStyle(VisioColors.onBackground(dark: isDark))
+                    Text(slug)
+                        .font(.subheadline)
+                        .foregroundStyle(VisioColors.secondaryText(dark: isDark))
+                } else {
+                    Text(slug)
+                        .font(.title2)
+                        .fontWeight(.semibold)
+                        .foregroundStyle(VisioColors.onBackground(dark: isDark))
+                }
 
                 // Display name
                 TextField(Strings.t("prejoin.displayName", lang: lang), text: $displayName)
@@ -233,7 +244,11 @@ struct PreJoinView: View {
             }
         }
         .navigationDestination(isPresented: $navigateToCall) {
-            CallView(roomURL: roomURL, displayName: displayName.trimmingCharacters(in: .whitespacesAndNewlines))
+            CallView(
+                roomURL: roomURL,
+                displayName: displayName.trimmingCharacters(in: .whitespacesAndNewlines),
+                roomDisplayName: roomDisplayName
+            )
         }
         .sheet(isPresented: $showFilterSheet) {
             BackgroundFilterSheet(backgroundMode: $backgroundMode, lang: lang, isDark: isDark)
@@ -499,7 +514,17 @@ struct PreJoinView: View {
             manager.client.setMicEnabledOnJoin(enabled: isMicOn)
         }
 
-        manager.connect(url: roomURL, username: name.isEmpty ? nil : name)
+        // Append room-display-name query param so the FFI stores it in history
+        var connectURL = roomURL
+        if let rdName = roomDisplayName, !rdName.isEmpty {
+            var allowed = CharacterSet.urlQueryAllowed
+            allowed.remove(charactersIn: " +&=")
+            let encoded = rdName.addingPercentEncoding(withAllowedCharacters: allowed) ?? rdName
+            let separator = connectURL.contains("?") ? "&" : "?"
+            connectURL += "\(separator)room-display-name=\(encoded)"
+        }
+
+        manager.connect(url: connectURL, username: name.isEmpty ? nil : name)
 
         // Start 60s timeout
         DispatchQueue.main.asyncAfter(deadline: .now() + 60) { [self] in

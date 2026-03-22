@@ -8,6 +8,7 @@ struct InCallSettingsSheet: View {
 
     let roomURL: String
     @State var selectedTab: Int
+    var roomDisplayName: String? = nil
 
     private var lang: String { manager.currentLang }
     private var isDark: Bool { manager.currentTheme == "dark" }
@@ -214,7 +215,25 @@ struct InCallSettingsSheet: View {
     private var roomInfoTab: some View {
         let displayUrl = roomURL.replacingOccurrences(of: "https://", with: "")
                                 .replacingOccurrences(of: "http://", with: "")
+        let shareUrl: String = {
+            if let name = roomDisplayName, !name.isEmpty {
+                var allowed = CharacterSet.urlQueryAllowed
+                allowed.remove(charactersIn: " +&=")
+                let encoded = name.addingPercentEncoding(withAllowedCharacters: allowed) ?? name
+                return "\(roomURL)?room-display-name=\(encoded)"
+            }
+            return roomURL
+        }()
         let deepLink = "visio://\(displayUrl)"
+        let deepShareUrl: String = {
+            if let name = roomDisplayName, !name.isEmpty {
+                var allowed = CharacterSet.urlQueryAllowed
+                allowed.remove(charactersIn: " +&=")
+                let encoded = name.addingPercentEncoding(withAllowedCharacters: allowed) ?? name
+                return "\(deepLink)?room-display-name=\(encoded)"
+            }
+            return deepLink
+        }()
 
         return ScrollView {
             VStack(alignment: .leading, spacing: 20) {
@@ -230,17 +249,17 @@ struct InCallSettingsSheet: View {
                             .foregroundStyle(VisioColors.onBackground(dark: isDark))
                         Spacer()
                         Button {
-                            UIPasteboard.general.string = roomURL
+                            UIPasteboard.general.string = shareUrl
                         } label: {
                             Image(systemName: "doc.on.doc")
                                 .font(.caption)
                         }
-                        ShareLink(item: roomURL) {
+                        ShareLink(item: shareUrl) {
                             Image(systemName: "square.and.arrow.up")
                                 .font(.caption)
                         }
                     }
-                    TextField("", text: .constant(roomURL))
+                    TextField("", text: .constant(shareUrl))
                         .font(.caption)
                         .textFieldStyle(.roundedBorder)
                         .disabled(true)
@@ -258,17 +277,17 @@ struct InCallSettingsSheet: View {
                             .foregroundStyle(VisioColors.onBackground(dark: isDark))
                         Spacer()
                         Button {
-                            UIPasteboard.general.string = deepLink
+                            UIPasteboard.general.string = deepShareUrl
                         } label: {
                             Image(systemName: "doc.on.doc")
                                 .font(.caption)
                         }
-                        ShareLink(item: roomURL) {
+                        ShareLink(item: deepShareUrl) {
                             Image(systemName: "square.and.arrow.up")
                                 .font(.caption)
                         }
                     }
-                    TextField("", text: .constant(deepLink))
+                    TextField("", text: .constant(deepShareUrl))
                         .font(.caption)
                         .textFieldStyle(.roundedBorder)
                         .disabled(true)

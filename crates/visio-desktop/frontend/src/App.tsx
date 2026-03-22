@@ -155,6 +155,11 @@ interface Meeting {
   server_name: string
 }
 
+interface RoomHistoryEntry {
+  url: string
+  display_name: string | null
+}
+
 interface ReactionData {
   id: number
   participantSid: string
@@ -815,12 +820,13 @@ function HomeView({
   const t = useT()
   const [activeTab, setActiveTab] = useState<'join' | 'meetings'>('join')
   const [meetUrl, setMeetUrl] = useState('')
+  const [roomDisplayName, setRoomDisplayName] = useState('')
   const [resolvedUrl, setResolvedUrl] = useState('')
-  const [roomHistory, setRoomHistory] = useState<string[]>([])
+  const [roomHistory, setRoomHistory] = useState<RoomHistoryEntry[]>([])
   const [meetingCount, setMeetingCount] = useState(0)
 
   useEffect(() => {
-    invoke<string[]>('get_room_history')
+    invoke<RoomHistoryEntry[]>('get_room_history')
       .then(setRoomHistory)
       .catch(() => {})
   }, [])
@@ -924,10 +930,15 @@ function HomeView({
   }, [meetUrl])
 
   const handleJoin = async () => {
-    const url = resolvedUrl
+    let url = resolvedUrl
     if (!url) {
       setError(t('home.error.noUrl'))
       return
+    }
+    const trimmedDisplayName = roomDisplayName.trim()
+    if (trimmedDisplayName) {
+      const sep = url.includes('?') ? '&' : '?'
+      url = `${url}${sep}room-display-name=${encodeURIComponent(trimmedDisplayName)}`
     }
     setError('')
     setJoining(true)
@@ -1202,6 +1213,21 @@ function HomeView({
                 onKeyDown={handleKeyDown}
               />
             </div>
+            <div className="form-group">
+              <label htmlFor="roomDisplayName">
+                {t('home.roomDisplayName')}
+              </label>
+              <input
+                id="roomDisplayName"
+                type="text"
+                placeholder={t('home.roomDisplayNamePlaceholder')}
+                autoComplete="off"
+                data-testid="home-room-display-name-input"
+                value={roomDisplayName}
+                onChange={(e) => setRoomDisplayName(e.target.value)}
+                onKeyDown={handleKeyDown}
+              />
+            </div>
             {roomStatus === 'auth_required' ? (
               <button className="btn btn-primary" onClick={handleAuth}>
                 {t('home.signIn')}
@@ -1255,12 +1281,17 @@ function HomeView({
             {roomHistory.length > 0 && (
               <div className="room-history">
                 <h4>{t('home.recentRooms')}</h4>
-                {roomHistory.map((url, i) => {
+                {roomHistory.map((entry, i) => {
+                  const { url, display_name } = entry
                   const slug = url.includes('/') ? url.split('/').pop() : url
                   let host = ''
                   try {
                     host = new URL(url).host
                   } catch {}
+                  const primaryLabel = display_name || slug || url
+                  const secondaryLabel = display_name
+                    ? `${slug} · ${host}`
+                    : host
                   return (
                     <button
                       key={i}
@@ -1296,9 +1327,13 @@ function HomeView({
                         <RiGlobalLine size={16} />
                       )}
                       <div className="room-history-info">
-                        <span className="room-history-slug">{slug}</span>
-                        {host && (
-                          <span className="room-history-host">{host}</span>
+                        <span className="room-history-slug">
+                          {primaryLabel}
+                        </span>
+                        {secondaryLabel && (
+                          <span className="room-history-host">
+                            {secondaryLabel}
+                          </span>
                         )}
                       </div>
                     </button>
@@ -1691,11 +1726,13 @@ function InfoSidebar({
   onClose,
   roomId,
   accessLevel,
+  roomDisplayName,
 }: {
   meetUrl: string
   onClose: () => void
   roomId?: string
   accessLevel?: string
+  roomDisplayName?: string | null
 }) {
   const t = useT()
   const [copiedHttp, setCopiedHttp] = useState(false)
@@ -1704,9 +1741,19 @@ function InfoSidebar({
   const [memberSearch, setMemberSearch] = useState('')
   const [memberResults, setMemberResults] = useState<any[]>([])
 
+  // Build share URL with room display name param if available
+  const shareUrl = (() => {
+    if (!roomDisplayName) return meetUrl
+    const sep = meetUrl.includes('?') ? '&' : '?'
+    return `${meetUrl}${sep}room-display-name=${encodeURIComponent(roomDisplayName)}`
+  })()
+
   // Normalize URL for display (strip scheme)
   const displayUrl = meetUrl.replace(/^https?:\/\//, '')
-  const deepLink = `visio://${displayUrl}`
+  const deepLinkBase = `visio://${displayUrl}`
+  const deepLink = roomDisplayName
+    ? `${deepLinkBase}?room-display-name=${encodeURIComponent(roomDisplayName)}`
+    : deepLinkBase
 
   // Fetch accesses on mount if roomId is provided
   useEffect(() => {
@@ -1747,7 +1794,7 @@ function InfoSidebar({
 
   const handleCopyHttp = async () => {
     try {
-      await navigator.clipboard.writeText(meetUrl)
+      await navigator.clipboard.writeText(shareUrl)
       setCopiedHttp(true)
       setTimeout(() => setCopiedHttp(false), 2000)
     } catch {
@@ -1793,7 +1840,7 @@ function InfoSidebar({
           <input
             className="info-link-input"
             readOnly
-            value={meetUrl}
+            value={shareUrl}
             onClick={(e) => (e.target as HTMLInputElement).select()}
           />
         </div>
@@ -2170,6 +2217,7 @@ function CallView({
   setWaitingParticipants,
   roomId,
   accessLevel,
+  roomDisplayName,
 }: {
   participants: Participant[]
   localParticipant: Participant | null
@@ -2214,6 +2262,7 @@ function CallView({
   >
   roomId?: string
   accessLevel?: string
+  roomDisplayName?: string | null
 }) {
   const t = useT()
   const [focusedItem, setFocusedItem] = useState<FocusItem>(null)
@@ -2923,6 +2972,7 @@ function CallView({
             onClose={onToggleInfo}
             roomId={roomId}
             accessLevel={accessLevel}
+            roomDisplayName={roomDisplayName}
           />
         )}
 
@@ -3705,6 +3755,7 @@ function chainUnlisten(
 function PreJoinScreen({
   roomUrl,
   username,
+  roomDisplayName,
   lang,
   isDark,
   onJoin,
@@ -3712,6 +3763,7 @@ function PreJoinScreen({
 }: {
   roomUrl: string
   username: string | null
+  roomDisplayName?: string | null
   lang: string
   isDark: boolean
   onJoin: (username: string | null) => void
@@ -3722,7 +3774,10 @@ function PreJoinScreen({
     [lang]
   )
 
-  const slug = roomUrl.includes('/') ? roomUrl.split('/').pop() : roomUrl
+  const slugSource = roomUrl.split('?')[0]
+  const slug = slugSource.includes('/')
+    ? slugSource.split('/').pop()
+    : slugSource
 
   // ---- State ---------------------------------------------------------------
   const [displayName, setDisplayName] = useState(username ?? '')
@@ -4026,7 +4081,14 @@ function PreJoinScreen({
       {/* Header */}
       <div className="prejoin-header">
         <span className="prejoin-app-name">Visio Mobile</span>
-        <span className="prejoin-slug">{slug}</span>
+        {roomDisplayName ? (
+          <>
+            <span className="prejoin-slug">{roomDisplayName}</span>
+            <span className="prejoin-slug-secondary">{slug}</span>
+          </>
+        ) : (
+          <span className="prejoin-slug">{slug}</span>
+        )}
       </div>
 
       {/* Display name */}
@@ -4309,6 +4371,9 @@ export default function App() {
   const [view, setView] = useState<View>('home')
   const [lobbyRoomUrl, setLobbyRoomUrl] = useState('')
   const [lobbyUsername, setLobbyUsername] = useState<string | null>(null)
+  const [currentRoomDisplayName, setCurrentRoomDisplayName] = useState<
+    string | null
+  >(null)
   const [connectionState, setConnectionState] = useState('disconnected')
   const [participants, setParticipants] = useState<Participant[]>([])
   const [localParticipant, setLocalParticipant] = useState<Participant | null>(
@@ -4450,14 +4515,19 @@ export default function App() {
           return
         }
 
-        // Handle room deep links: visio://{host}/{slug}
+        // Handle room deep links: visio://{host}/{slug}[?room-display-name=...]
         const slug = parsed.pathname.replace(/^\//, '')
         if (!host || !slug) return
 
+        const deepLinkDisplayName = parsed.searchParams.get('room-display-name')
         invoke<string[]>('get_meet_instances').then((instances) => {
           if (instances.includes(host)) {
             setView('home')
-            setDeepLinkUrl(`https://${host}/${slug}`)
+            let roomUrl = `https://${host}/${slug}`
+            if (deepLinkDisplayName) {
+              roomUrl += `?room-display-name=${encodeURIComponent(deepLinkDisplayName)}`
+            }
+            setDeepLinkUrl(roomUrl)
             setDeepLinkError(null)
           } else {
             setDeepLinkError(
@@ -4908,6 +4978,18 @@ export default function App() {
     roomId?: string,
     accessLevel?: string
   ) => {
+    // Extract room display name from query param before storing URL
+    let displayNameFromUrl: string | null = null
+    try {
+      const parsed = new URL(
+        meetUrl.startsWith('http') ? meetUrl : `https://${meetUrl}`
+      )
+      const raw = parsed.searchParams.get('room-display-name')
+      if (raw) displayNameFromUrl = decodeURIComponent(raw)
+    } catch {
+      /* ignore */
+    }
+    setCurrentRoomDisplayName(displayNameFromUrl)
     setCurrentMeetUrl(meetUrl)
     if (roomId) setCurrentRoomId(roomId)
     if (accessLevel) setCurrentAccessLevel(accessLevel)
@@ -5064,7 +5146,7 @@ export default function App() {
     <I18nContext.Provider value={t}>
       {(view === 'call' || connectionState === 'waiting_for_host') && (
         <header>
-          <h1>{t('app.title')}</h1>
+          <h1>{currentRoomDisplayName || t('app.title')}</h1>
           <StatusBadge state={connectionState} />
         </header>
       )}
@@ -5128,6 +5210,7 @@ export default function App() {
           <PreJoinScreen
             roomUrl={lobbyRoomUrl}
             username={lobbyUsername}
+            roomDisplayName={currentRoomDisplayName}
             lang={lang}
             isDark={theme === 'dark'}
             onJoin={() => {
@@ -5190,6 +5273,7 @@ export default function App() {
             setWaitingParticipants={setWaitingParticipants}
             roomId={currentRoomId || undefined}
             accessLevel={currentAccessLevel || undefined}
+            roomDisplayName={currentRoomDisplayName}
           />
         )}
         {connectionState === 'waiting_for_host' && (

@@ -86,14 +86,15 @@ private const val TAG = "HomeScreen"
 
 @Composable
 fun HomeScreen(
-    onJoin: (roomUrl: String, username: String) -> Unit,
+    onJoin: (roomUrl: String, username: String, roomDisplayName: String?) -> Unit,
     onSettings: () -> Unit,
 ) {
     val context = LocalContext.current
     var roomUrl by remember { mutableStateOf("") }
     var resolvedRoomUrl by remember { mutableStateOf("") }
     var username by remember { mutableStateOf("") }
-    var roomHistory by remember { mutableStateOf(listOf<String>()) }
+    var roomDisplayName by remember { mutableStateOf("") }
+    var roomHistory by remember { mutableStateOf(listOf<uniffi.visio.RoomHistoryEntry>()) }
     val lang = VisioManager.currentLang
     val isDark = VisioManager.currentTheme == "dark"
     var roomStatus by remember { mutableStateOf("idle") }
@@ -122,6 +123,7 @@ fun HomeScreen(
         onRoomStatusChange = { roomStatus = it },
         onResolvedRoomUrlChange = { resolvedRoomUrl = it },
         onUsernameChange = { username = it },
+        onRoomDisplayNameChange = { roomDisplayName = it },
     )
 
     val nowSeconds = System.currentTimeMillis() / 1000L
@@ -173,6 +175,7 @@ fun HomeScreen(
             selectedTab = selectedTab,
             roomUrl = roomUrl,
             username = username,
+            roomDisplayName = roomDisplayName,
             roomStatus = roomStatus,
             resolvedRoomUrl = resolvedRoomUrl,
             isDark = isDark,
@@ -185,6 +188,7 @@ fun HomeScreen(
             coroutineScope = coroutineScope,
             onRoomUrlChange = { roomUrl = it },
             onUsernameChange = { username = it },
+            onRoomDisplayNameChange = { roomDisplayName = it },
             onJoin = onJoin,
             onShowCreateRoom = { showCreateRoom = true },
             onHistoryJoiningChange = { historyJoining = it },
@@ -198,7 +202,7 @@ fun HomeScreen(
             lang = lang,
             onCreated = { url ->
                 showCreateRoom = false
-                onJoin(url, username)
+                onJoin(url, username, null)
             },
             onDismiss = { showCreateRoom = false },
         )
@@ -212,13 +216,14 @@ private fun HomeScreenEffects(
     username: String,
     slugRegex: Regex,
     meetInstances: List<String>,
-    onRoomHistoryLoaded: (List<String>) -> Unit,
+    onRoomHistoryLoaded: (List<uniffi.visio.RoomHistoryEntry>) -> Unit,
     onHasCalendarUrlChange: (Boolean) -> Unit,
     onRoomUrlChange: (String) -> Unit,
     onMeetInstancesLoaded: (List<String>) -> Unit,
     onRoomStatusChange: (String) -> Unit,
     onResolvedRoomUrlChange: (String) -> Unit,
     onUsernameChange: (String) -> Unit,
+    onRoomDisplayNameChange: (String) -> Unit,
 ) {
     LaunchedEffect(Unit) {
         try {
@@ -248,6 +253,11 @@ private fun HomeScreenEffects(
         if (link != null) {
             onRoomUrlChange(link)
             VisioManager.pendingDeepLink = null
+            val displayName = VisioManager.pendingDeepLinkDisplayName
+            if (displayName != null) {
+                onRoomDisplayNameChange(displayName)
+                VisioManager.pendingDeepLinkDisplayName = null
+            }
         }
     }
 
@@ -479,11 +489,12 @@ private fun ColumnScope.HomeTabContent(
     selectedTab: Int,
     roomUrl: String,
     username: String,
+    roomDisplayName: String,
     roomStatus: String,
     resolvedRoomUrl: String,
     isDark: Boolean,
     lang: String,
-    roomHistory: List<String>,
+    roomHistory: List<uniffi.visio.RoomHistoryEntry>,
     historyJoining: String?,
     upcomingMeetings: List<uniffi.visio.Meeting>,
     hasCalendarUrl: Boolean,
@@ -491,7 +502,8 @@ private fun ColumnScope.HomeTabContent(
     coroutineScope: kotlinx.coroutines.CoroutineScope,
     onRoomUrlChange: (String) -> Unit,
     onUsernameChange: (String) -> Unit,
-    onJoin: (roomUrl: String, username: String) -> Unit,
+    onRoomDisplayNameChange: (String) -> Unit,
+    onJoin: (roomUrl: String, username: String, roomDisplayName: String?) -> Unit,
     onShowCreateRoom: () -> Unit,
     onHistoryJoiningChange: (String?) -> Unit,
     onSettings: () -> Unit,
@@ -503,6 +515,8 @@ private fun ColumnScope.HomeTabContent(
                 onRoomUrlChange = onRoomUrlChange,
                 username = username,
                 onUsernameChange = onUsernameChange,
+                roomDisplayName = roomDisplayName,
+                onRoomDisplayNameChange = onRoomDisplayNameChange,
                 roomStatus = roomStatus,
                 resolvedRoomUrl = resolvedRoomUrl,
                 isDark = isDark,
@@ -512,13 +526,14 @@ private fun ColumnScope.HomeTabContent(
                 historyJoining = historyJoining,
                 onJoin = onJoin,
                 onShowCreateRoom = onShowCreateRoom,
-                onHistoryClick = { url ->
-                    onRoomUrlChange(url)
-                    onHistoryJoiningChange(url)
+                onHistoryClick = { entry ->
+                    onRoomUrlChange(entry.url)
+                    onHistoryJoiningChange(entry.url)
                     coroutineScope.launch {
                         handleHistoryJoin(
-                            url,
+                            entry.url,
                             username,
+                            entry.displayName,
                             onJoin,
                             onHistoryJoiningChange,
                         )
@@ -535,7 +550,7 @@ private fun ColumnScope.HomeTabContent(
                 lang = lang,
                 onSettings = onSettings,
                 onJoinMeeting = { meetingRoomUrl, _ ->
-                    onJoin(meetingRoomUrl, username.trim())
+                    onJoin(meetingRoomUrl, username.trim(), null)
                 },
             )
         }
@@ -545,7 +560,8 @@ private fun ColumnScope.HomeTabContent(
 private suspend fun handleHistoryJoin(
     url: String,
     username: String,
-    onJoin: (String, String) -> Unit,
+    roomDisplayName: String?,
+    onJoin: (String, String, String?) -> Unit,
     onHistoryJoiningChange: (String?) -> Unit,
 ) {
     try {
@@ -556,7 +572,7 @@ private suspend fun handleHistoryJoin(
             }
         if (result is RoomValidationResult.Valid) {
             onHistoryJoiningChange(null)
-            onJoin(url, username.trim())
+            onJoin(url, username.trim(), roomDisplayName)
         } else {
             onHistoryJoiningChange(null)
         }
@@ -667,16 +683,18 @@ private fun JoinTab(
     onRoomUrlChange: (String) -> Unit,
     username: String,
     onUsernameChange: (String) -> Unit,
+    roomDisplayName: String,
+    onRoomDisplayNameChange: (String) -> Unit,
     roomStatus: String,
     resolvedRoomUrl: String,
     isDark: Boolean,
     lang: String,
     isAuthenticated: Boolean,
-    roomHistory: List<String>,
+    roomHistory: List<uniffi.visio.RoomHistoryEntry>,
     historyJoining: String?,
-    onJoin: (roomUrl: String, username: String) -> Unit,
+    onJoin: (roomUrl: String, username: String, roomDisplayName: String?) -> Unit,
     onShowCreateRoom: () -> Unit,
-    onHistoryClick: (String) -> Unit,
+    onHistoryClick: (uniffi.visio.RoomHistoryEntry) -> Unit,
 ) {
     Column(
         modifier =
@@ -764,10 +782,32 @@ private fun JoinTab(
             shape = RoundedCornerShape(12.dp),
         )
 
+        Spacer(modifier = Modifier.height(16.dp))
+
+        OutlinedTextField(
+            value = roomDisplayName,
+            onValueChange = onRoomDisplayNameChange,
+            label = {
+                Text(
+                    Strings.t("home.roomDisplayName", lang),
+                    color = if (isDark) VisioColors.Greyscale400 else VisioColors.LightTextSecondary,
+                )
+            },
+            placeholder = {
+                Text(
+                    Strings.t("home.roomDisplayNamePlaceholder", lang),
+                    color = if (isDark) VisioColors.Greyscale400 else VisioColors.LightTextSecondary,
+                )
+            },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(12.dp),
+        )
+
         Spacer(modifier = Modifier.height(24.dp))
 
         Button(
-            onClick = { onJoin(resolvedRoomUrl, username.trim()) },
+            onClick = { onJoin(resolvedRoomUrl, username.trim(), roomDisplayName.trim().ifBlank { null }) },
             enabled = roomStatus == "valid",
             modifier = Modifier.fillMaxWidth().testTag("home_join_button"),
             colors =
@@ -849,11 +889,11 @@ private fun RoomStatusIndicator(
 
 @Composable
 private fun RoomHistoryList(
-    roomHistory: List<String>,
+    roomHistory: List<uniffi.visio.RoomHistoryEntry>,
     historyJoining: String?,
     isDark: Boolean,
     lang: String,
-    onHistoryClick: (String) -> Unit,
+    onHistoryClick: (uniffi.visio.RoomHistoryEntry) -> Unit,
 ) {
     Spacer(modifier = Modifier.height(24.dp))
     Text(
@@ -863,11 +903,11 @@ private fun RoomHistoryList(
         modifier = Modifier.fillMaxWidth(),
     )
     Spacer(modifier = Modifier.height(8.dp))
-    roomHistory.forEachIndexed { index, url ->
+    roomHistory.forEachIndexed { index, entry ->
         RoomHistoryItem(
-            url = url,
+            entry = entry,
             index = index,
-            isJoining = historyJoining == url,
+            isJoining = historyJoining == entry.url,
             isEnabled = historyJoining == null,
             isDark = isDark,
             onHistoryClick = onHistoryClick,
@@ -878,13 +918,14 @@ private fun RoomHistoryList(
 
 @Composable
 private fun RoomHistoryItem(
-    url: String,
+    entry: uniffi.visio.RoomHistoryEntry,
     index: Int,
     isJoining: Boolean,
     isEnabled: Boolean,
     isDark: Boolean,
-    onHistoryClick: (String) -> Unit,
+    onHistoryClick: (uniffi.visio.RoomHistoryEntry) -> Unit,
 ) {
+    val url = entry.url
     val slug = if ('/' in url) url.substringAfterLast('/') else url
     val host =
         try {
@@ -897,7 +938,7 @@ private fun RoomHistoryItem(
             Modifier
                 .fillMaxWidth()
                 .testTag("home_room_history_item_$index")
-                .clickable(enabled = isEnabled) { onHistoryClick(url) }
+                .clickable(enabled = isEnabled) { onHistoryClick(entry) }
                 .background(
                     VisioColors.Primary500.copy(alpha = if (isDark) 0.12f else 0.08f),
                     RoundedCornerShape(8.dp),
@@ -921,18 +962,33 @@ private fun RoomHistoryItem(
             )
         }
         Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = slug,
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.Medium,
-                color = MaterialTheme.colorScheme.onSurface,
-            )
-            if (host.isNotEmpty()) {
+            val displayName = entry.displayName
+            if (displayName != null) {
                 Text(
-                    text = host,
+                    text = displayName,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+                Text(
+                    text = if (host.isNotEmpty()) "$slug · $host" else slug,
                     style = MaterialTheme.typography.bodySmall,
                     color = if (isDark) VisioColors.Greyscale400 else VisioColors.LightTextSecondary,
                 )
+            } else {
+                Text(
+                    text = slug,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+                if (host.isNotEmpty()) {
+                    Text(
+                        text = host,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = if (isDark) VisioColors.Greyscale400 else VisioColors.LightTextSecondary,
+                    )
+                }
             }
         }
     }

@@ -25,17 +25,18 @@ fun AppNavigation() {
         if (VisioManager.pendingTestConnect != null) {
             // Navigate to call with a placeholder URL; CallScreen will use pendingTestConnect
             val encoded = URLEncoder.encode("test://direct-connect", "UTF-8")
-            navController.navigate("call/$encoded?username=test-user")
+            navController.navigate("call/$encoded?username=test-user&roomDisplayName=")
         }
     }
 
     NavHost(navController = navController, startDestination = "home") {
         composable("home") {
             HomeScreen(
-                onJoin = { roomUrl, username ->
+                onJoin = { roomUrl, username, roomDisplayName ->
                     val encoded = URLEncoder.encode(roomUrl, "UTF-8")
                     val encodedName = URLEncoder.encode(username.ifBlank { "" }, "UTF-8")
-                    navController.navigate("lobby/$encoded?username=$encodedName")
+                    val encodedDisplayName = URLEncoder.encode(roomDisplayName ?: "", "UTF-8")
+                    navController.navigate("lobby/$encoded?username=$encodedName&roomDisplayName=$encodedDisplayName")
                 },
                 onSettings = {
                     navController.navigate("settings")
@@ -44,11 +45,15 @@ fun AppNavigation() {
         }
 
         composable(
-            route = "lobby/{roomUrl}?username={username}",
+            route = "lobby/{roomUrl}?username={username}&roomDisplayName={roomDisplayName}",
             arguments =
                 listOf(
                     navArgument("roomUrl") { type = NavType.StringType },
                     navArgument("username") {
+                        type = NavType.StringType
+                        defaultValue = ""
+                    },
+                    navArgument("roomDisplayName") {
                         type = NavType.StringType
                         defaultValue = ""
                     },
@@ -64,13 +69,20 @@ fun AppNavigation() {
                     backStackEntry.arguments?.getString("username") ?: "",
                     "UTF-8",
                 )
+            val roomDisplayName =
+                URLDecoder.decode(
+                    backStackEntry.arguments?.getString("roomDisplayName") ?: "",
+                    "UTF-8",
+                ).ifBlank { null }
             PreJoinScreen(
                 roomUrl = roomUrl,
                 initialUsername = username,
+                roomDisplayName = roomDisplayName,
                 onJoin = { finalUsername ->
                     val enc = URLEncoder.encode(roomUrl, "UTF-8")
                     val encName = URLEncoder.encode(finalUsername.ifBlank { "" }, "UTF-8")
-                    navController.navigate("call/$enc?username=$encName") {
+                    val encDisplayName = URLEncoder.encode(roomDisplayName ?: "", "UTF-8")
+                    navController.navigate("call/$enc?username=$encName&roomDisplayName=$encDisplayName") {
                         popUpTo("home")
                     }
                 },
@@ -79,11 +91,15 @@ fun AppNavigation() {
         }
 
         composable(
-            route = "call/{roomUrl}?username={username}",
+            route = "call/{roomUrl}?username={username}&roomDisplayName={roomDisplayName}",
             arguments =
                 listOf(
                     navArgument("roomUrl") { type = NavType.StringType },
                     navArgument("username") {
+                        type = NavType.StringType
+                        defaultValue = ""
+                    },
+                    navArgument("roomDisplayName") {
                         type = NavType.StringType
                         defaultValue = ""
                     },
@@ -99,9 +115,15 @@ fun AppNavigation() {
                     backStackEntry.arguments?.getString("username") ?: "",
                     "UTF-8",
                 )
+            val roomDisplayName =
+                URLDecoder.decode(
+                    backStackEntry.arguments?.getString("roomDisplayName") ?: "",
+                    "UTF-8",
+                ).ifBlank { null }
             CallScreen(
                 roomUrl = roomUrl,
                 username = username,
+                roomDisplayName = roomDisplayName,
                 onNavigateToChat = { navController.navigate("chat") },
                 onHangUp = {
                     navController.popBackStack("home", inclusive = false)

@@ -1,7 +1,86 @@
 use std::path::PathBuf;
 use std::sync::Mutex;
 
-use serde::{Deserialize, Serialize};
+use serde::de::{self, Visitor};
+use serde::{Deserialize, Deserializer, Serialize};
+use serde_json::Value;
+
+use crate::room_display_name::strip_room_display_name_param;
+
+/// A single entry in the room join history.
+///
+/// Supports backward-compatible deserialization: old format stores bare strings,
+/// new format stores `{"url": "...", "display_name": "..."}` objects.
+#[derive(Debug, Clone, Serialize, PartialEq)]
+pub struct RoomHistoryEntry {
+    pub url: String,
+    pub display_name: Option<String>,
+}
+
+impl<'de> Deserialize<'de> for RoomHistoryEntry {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        struct RoomHistoryEntryVisitor;
+
+        impl<'de> Visitor<'de> for RoomHistoryEntryVisitor {
+            type Value = RoomHistoryEntry;
+
+            fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                formatter.write_str("a string URL or an object with url and optional display_name")
+            }
+
+            fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
+            where
+                E: de::Error,
+            {
+                Ok(RoomHistoryEntry {
+                    url: v.to_string(),
+                    display_name: None,
+                })
+            }
+
+            fn visit_string<E>(self, v: String) -> Result<Self::Value, E>
+            where
+                E: de::Error,
+            {
+                Ok(RoomHistoryEntry {
+                    url: v,
+                    display_name: None,
+                })
+            }
+
+            fn visit_map<A>(self, mut map: A) -> Result<Self::Value, A::Error>
+            where
+                A: de::MapAccess<'de>,
+            {
+                let mut url: Option<String> = None;
+                let mut display_name: Option<String> = None;
+
+                while let Some(key) = map.next_key::<String>()? {
+                    match key.as_str() {
+                        "url" => {
+                            url = Some(map.next_value()?);
+                        }
+                        "display_name" => {
+                            display_name = map.next_value()?;
+                        }
+                        _ => {
+                            // Ignore unknown fields
+                            let _ = map.next_value::<Value>()?;
+                        }
+                    }
+                }
+
+                let url = url.ok_or_else(|| de::Error::missing_field("url"))?;
+                Ok(RoomHistoryEntry { url, display_name })
+            }
+        }
+
+        deserializer.deserialize_any(RoomHistoryEntryVisitor)
+    }
+}
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Default)]
 pub enum CalendarRefreshInterval {
@@ -40,7 +119,7 @@ pub struct Settings {
     #[serde(default)]
     pub adaptive_mode_enabled: bool,
     #[serde(default)]
-    pub room_history: Vec<String>,
+    pub room_history: Vec<RoomHistoryEntry>,
     #[serde(default = "default_true")]
     pub noise_reduction_enabled: bool,
     /// Preferred audio input device name.
@@ -266,16 +345,35 @@ impl SettingsStore {
         self.save();
     }
 
-    pub fn add_room_to_history(&self, url: String) {
+    pub fn add_room_to_history(&self, url: String, display_name: Option<String>) {
+        let canonical = strip_room_display_name_param(&url);
         let mut s = self.settings.lock().unwrap_or_else(|e| e.into_inner());
-        s.room_history.retain(|u| u != &url);
-        s.room_history.insert(0, url);
+        if let Some(pos) = s.room_history.iter().position(|e| e.url == canonical) {
+            let existing_name = s.room_history[pos].display_name.take();
+            let merged_name = display_name.or(existing_name);
+            s.room_history.remove(pos);
+            s.room_history.insert(
+                0,
+                RoomHistoryEntry {
+                    url: canonical,
+                    display_name: merged_name,
+                },
+            );
+        } else {
+            s.room_history.insert(
+                0,
+                RoomHistoryEntry {
+                    url: canonical,
+                    display_name,
+                },
+            );
+        }
         s.room_history.truncate(10);
         drop(s);
         self.save();
     }
 
-    pub fn get_room_history(&self) -> Vec<String> {
+    pub fn get_room_history(&self) -> Vec<RoomHistoryEntry> {
         self.settings
             .lock()
             .unwrap_or_else(|e| e.into_inner())
@@ -651,14 +749,14 @@ mod tests {
         let dir = temp_dir();
         let store = SettingsStore::new(dir.path().to_str().unwrap());
 
-        store.add_room_to_history("https://meet.example.com/room1".to_string());
-        store.add_room_to_history("https://meet.example.com/room2".to_string());
-        store.add_room_to_history("https://meet.example.com/room1".to_string()); // dedup, moves to front
+        store.add_room_to_history("https://meet.example.com/room1".to_string(), None);
+        store.add_room_to_history("https://meet.example.com/room2".to_string(), None);
+        store.add_room_to_history("https://meet.example.com/room1".to_string(), None); // dedup, moves to front
 
         let history = store.get_room_history();
         assert_eq!(history.len(), 2);
-        assert_eq!(history[0], "https://meet.example.com/room1");
-        assert_eq!(history[1], "https://meet.example.com/room2");
+        assert_eq!(history[0].url, "https://meet.example.com/room1");
+        assert_eq!(history[1].url, "https://meet.example.com/room2");
 
         store.clear_room_history();
         assert!(store.get_room_history().is_empty());
@@ -670,12 +768,12 @@ mod tests {
         let store = SettingsStore::new(dir.path().to_str().unwrap());
 
         for i in 0..15 {
-            store.add_room_to_history(format!("https://meet.example.com/room{i}"));
+            store.add_room_to_history(format!("https://meet.example.com/room{i}"), None);
         }
 
         let history = store.get_room_history();
         assert_eq!(history.len(), 10);
-        assert_eq!(history[0], "https://meet.example.com/room14");
+        assert_eq!(history[0].url, "https://meet.example.com/room14");
     }
 
     #[test]
@@ -684,12 +782,12 @@ mod tests {
         let path = dir.path().to_str().unwrap();
         {
             let store = SettingsStore::new(path);
-            store.add_room_to_history("https://meet.example.com/room1".to_string());
+            store.add_room_to_history("https://meet.example.com/room1".to_string(), None);
         }
         let store = SettingsStore::new(path);
         let history = store.get_room_history();
         assert_eq!(history.len(), 1);
-        assert_eq!(history[0], "https://meet.example.com/room1");
+        assert_eq!(history[0].url, "https://meet.example.com/room1");
     }
 
     #[test]
@@ -852,5 +950,132 @@ mod tests {
             s.calendar_refresh_interval,
             CalendarRefreshInterval::Minutes15
         );
+    }
+
+    // --- RoomHistoryEntry and migration tests ---
+
+    #[test]
+    fn room_history_entry_round_trip() {
+        let entry = RoomHistoryEntry {
+            url: "https://meet.example.com/room".to_string(),
+            display_name: Some("My Room".to_string()),
+        };
+        let json = serde_json::to_string(&entry).unwrap();
+        let decoded: RoomHistoryEntry = serde_json::from_str(&json).unwrap();
+        assert_eq!(decoded.url, "https://meet.example.com/room");
+        assert_eq!(decoded.display_name, Some("My Room".to_string()));
+    }
+
+    #[test]
+    fn room_history_entry_without_name() {
+        let entry = RoomHistoryEntry {
+            url: "https://meet.example.com/room".to_string(),
+            display_name: None,
+        };
+        let json = serde_json::to_string(&entry).unwrap();
+        let decoded: RoomHistoryEntry = serde_json::from_str(&json).unwrap();
+        assert_eq!(decoded.url, "https://meet.example.com/room");
+        assert_eq!(decoded.display_name, None);
+    }
+
+    #[test]
+    fn room_history_migrates_old_string_format() {
+        let dir = temp_dir();
+        let path = dir.path().to_str().unwrap();
+        fs::write(
+            dir.path().join("settings.json"),
+            r#"{"room_history": ["https://meet.example.com/room1", "https://meet.example.com/room2"]}"#,
+        )
+        .unwrap();
+        let store = SettingsStore::new(path);
+        let history = store.get_room_history();
+        assert_eq!(history.len(), 2);
+        assert_eq!(history[0].url, "https://meet.example.com/room1");
+        assert_eq!(history[0].display_name, None);
+        assert_eq!(history[1].url, "https://meet.example.com/room2");
+        assert_eq!(history[1].display_name, None);
+    }
+
+    #[test]
+    fn room_history_new_format() {
+        let dir = temp_dir();
+        let path = dir.path().to_str().unwrap();
+        fs::write(
+            dir.path().join("settings.json"),
+            r#"{"room_history": [{"url": "https://meet.example.com/room", "display_name": "My Room"}]}"#,
+        )
+        .unwrap();
+        let store = SettingsStore::new(path);
+        let history = store.get_room_history();
+        assert_eq!(history.len(), 1);
+        assert_eq!(history[0].url, "https://meet.example.com/room");
+        assert_eq!(history[0].display_name, Some("My Room".to_string()));
+    }
+
+    #[test]
+    fn room_history_mixed_format() {
+        let dir = temp_dir();
+        let path = dir.path().to_str().unwrap();
+        fs::write(
+            dir.path().join("settings.json"),
+            r#"{"room_history": ["https://meet.example.com/room1", {"url": "https://meet.example.com/room2", "display_name": "Room Two"}]}"#,
+        )
+        .unwrap();
+        let store = SettingsStore::new(path);
+        let history = store.get_room_history();
+        assert_eq!(history.len(), 2);
+        assert_eq!(history[0].url, "https://meet.example.com/room1");
+        assert_eq!(history[0].display_name, None);
+        assert_eq!(history[1].url, "https://meet.example.com/room2");
+        assert_eq!(history[1].display_name, Some("Room Two".to_string()));
+    }
+
+    #[test]
+    fn add_room_updates_display_name() {
+        let dir = temp_dir();
+        let store = SettingsStore::new(dir.path().to_str().unwrap());
+        store.add_room_to_history(
+            "https://meet.example.com/room".to_string(),
+            Some("Old Name".to_string()),
+        );
+        store.add_room_to_history(
+            "https://meet.example.com/room".to_string(),
+            Some("New Name".to_string()),
+        );
+        let history = store.get_room_history();
+        assert_eq!(history.len(), 1);
+        assert_eq!(history[0].url, "https://meet.example.com/room");
+        assert_eq!(history[0].display_name, Some("New Name".to_string()));
+    }
+
+    #[test]
+    fn add_room_without_name_preserves_existing() {
+        let dir = temp_dir();
+        let store = SettingsStore::new(dir.path().to_str().unwrap());
+        store.add_room_to_history(
+            "https://meet.example.com/room".to_string(),
+            Some("Keep Me".to_string()),
+        );
+        store.add_room_to_history("https://meet.example.com/room".to_string(), None);
+        let history = store.get_room_history();
+        assert_eq!(history.len(), 1);
+        assert_eq!(history[0].url, "https://meet.example.com/room");
+        assert_eq!(history[0].display_name, Some("Keep Me".to_string()));
+    }
+
+    #[test]
+    fn add_room_caps_at_10() {
+        let dir = temp_dir();
+        let store = SettingsStore::new(dir.path().to_str().unwrap());
+        for i in 0..12 {
+            store.add_room_to_history(
+                format!("https://meet.example.com/room{i}"),
+                Some(format!("Room {i}")),
+            );
+        }
+        let history = store.get_room_history();
+        assert_eq!(history.len(), 10);
+        assert_eq!(history[0].url, "https://meet.example.com/room11");
+        assert_eq!(history[0].display_name, Some("Room 11".to_string()));
     }
 }

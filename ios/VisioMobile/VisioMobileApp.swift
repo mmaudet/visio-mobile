@@ -40,7 +40,17 @@ struct VisioMobileApp: App {
 
                 let instances = manager.client.getMeetInstances()
                 if instances.contains(host) {
-                    manager.pendingDeepLink = "https://\(host)/\(slug)"
+                    // Preserve room-display-name query param if present
+                    let components = URLComponents(url: url, resolvingAgainstBaseURL: false)
+                    let rdName = components?.queryItems?.first(where: { $0.name == "room-display-name" })?.value
+                    var pendingURL = "https://\(host)/\(slug)"
+                    if let name = rdName, !name.isEmpty {
+                        var allowed = CharacterSet.urlQueryAllowed
+                        allowed.remove(charactersIn: " +&=")
+                        let encoded = name.addingPercentEncoding(withAllowedCharacters: allowed) ?? name
+                        pendingURL += "?room-display-name=\(encoded)"
+                    }
+                    manager.pendingDeepLink = pendingURL
                 }
             }
             .onChange(of: scenePhase) { phase in

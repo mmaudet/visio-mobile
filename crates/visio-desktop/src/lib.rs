@@ -128,7 +128,9 @@ fn handle_connection_state_changed(
         let settings = settings.clone();
         tokio::spawn(async move {
             if let Some((url, _)) = room.lock().await.last_connection_info().await {
-                settings.add_room_to_history(url);
+                let display_name = visio_core::extract_room_display_name(&url);
+                let clean_url = visio_core::strip_room_display_name_param(&url);
+                settings.add_room_to_history(clean_url, display_name);
             }
         });
     }
@@ -920,9 +922,28 @@ fn set_meet_instances(state: tauri::State<'_, VisioState>, instances: Vec<String
     state.settings.set_meet_instances(instances);
 }
 
+#[derive(serde::Serialize)]
+struct RoomHistoryEntryJs {
+    url: String,
+    display_name: Option<String>,
+}
+
 #[tauri::command]
-fn get_room_history(state: tauri::State<'_, VisioState>) -> Result<Vec<String>, String> {
-    Ok(state.settings.get_room_history())
+fn get_room_history(state: tauri::State<'_, VisioState>) -> Result<Vec<RoomHistoryEntryJs>, String> {
+    Ok(state
+        .settings
+        .get_room_history()
+        .into_iter()
+        .map(|e| RoomHistoryEntryJs {
+            url: e.url,
+            display_name: e.display_name,
+        })
+        .collect())
+}
+
+#[tauri::command]
+fn validate_room_display_name_cmd(name: String) -> Option<String> {
+    visio_core::validate_room_display_name(&name)
 }
 
 #[tauri::command]
@@ -2130,6 +2151,7 @@ pub fn run() {
             check_media_permissions,
             get_room_history,
             clear_room_history,
+            validate_room_display_name_cmd,
             get_calendar_url,
             set_calendar_url,
             get_calendar_refresh_interval,

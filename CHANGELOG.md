@@ -8,6 +8,11 @@ and this project adheres to
 
 ## [Unreleased]
 
+### Added
+
+- Room display name via `?room-display-name=` URL param
+  or manual input (#113)
+
 ### Changed
 
 - Convert desktop settings from modal to full-page view (#80)

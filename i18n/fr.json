@@ -189,6 +189,8 @@
   "bandwidth.reducedVideo": "Faible débit — vidéo réduite",
   "bandwidth.audioOnly": "Très faible débit — audio uniquement",
   "home.recentRooms": "Salles récentes",
+  "home.roomDisplayName": "Nom de la room (optionnel)",
+  "home.roomDisplayNamePlaceholder": "ex. \"Réunion hebdo\"",
   "participant.pin": "Épingler",
   "participant.unpin": "Désépingler",
   "participant.mute": "Couper le micro",

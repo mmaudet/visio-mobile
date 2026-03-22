@@ -189,6 +189,8 @@
   "bandwidth.reducedVideo": "Ancho de banda bajo — video reducido",
   "bandwidth.audioOnly": "Ancho de banda muy bajo — solo audio",
   "home.recentRooms": "Salas recientes",
+  "home.roomDisplayName": "Nombre de sala (opcional)",
+  "home.roomDisplayNamePlaceholder": "ej. \"Reunión semanal\"",
   "participant.pin": "Fijar",
   "participant.unpin": "Desfijar",
   "participant.mute": "Silenciar",
