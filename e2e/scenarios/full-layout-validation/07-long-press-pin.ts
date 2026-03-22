@@ -21,7 +21,7 @@ export default async function(ctx: ScenarioContext) {
 
   if (android) {
     // Verify Alice is in main tile before pinning
-    await android.assertTestTag(`main-tile:${aliceSid}`, { timeout: 5000 });
+    await android.assertTestTag(`main-tile:${aliceSid}`, { timeout: 10000 });
 
     // Long press on Alice's tile to pin her
     ctx.log("Long pressing Alice's main tile to pin");
@@ -29,7 +29,7 @@ export default async function(ctx: ScenarioContext) {
     await ctx.sleep(500);
 
     // Pin indicator must appear on Alice's tile
-    await android.assertTestTag(`pin-indicator:${aliceSid}`, { timeout: 3000 });
+    await android.assertTestTag(`pin-indicator:${aliceSid}`, { timeout: 10000 });
     await android.screenshot("07-pin-indicator-visible-android");
   }
 

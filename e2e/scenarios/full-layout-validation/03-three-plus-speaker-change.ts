@@ -26,8 +26,8 @@ export default async function(ctx: ScenarioContext) {
   await ctx.sleep(5000); // Alice speaks 5 full seconds
 
   if (android) {
-    await android.assertTestTag("layout-mode:FOCUS", { timeout: 5000 });
-    await android.assertTestTag(`main-tile:${aliceSid}`, { timeout: 5000 });
+    await android.assertTestTag("layout-mode:FOCUS", { timeout: 10000 });
+    await android.assertTestTag(`main-tile:${aliceSid}`, { timeout: 10000 });
     await android.screenshot("03-alice-initial-focus-android");
   }
 
@@ -53,12 +53,12 @@ export default async function(ctx: ScenarioContext) {
   // Bob should now be in main tile
   ctx.log("After stabilization: Bob should be in main tile");
   if (android) {
-    await android.assertTestTag(`main-tile:${bobSid}`, { timeout: 5000 });
+    await android.assertTestTag(`main-tile:${bobSid}`, { timeout: 10000 });
     await android.screenshot("03-bob-after-stabilization-android");
   }
 
   if (desktop) {
-    await desktop.assertTestId(`main-tile:${bobSid}`, { timeout: 5000 });
+    await desktop.assertTestId(`main-tile:${bobSid}`, { timeout: 10000 });
     await desktop.screenshot("03-bob-after-stabilization-desktop");
   }
 

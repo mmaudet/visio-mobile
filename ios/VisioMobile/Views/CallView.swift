@@ -286,9 +286,11 @@ struct CallView: View {
                 .presentationDetents([.medium, .large])
         }
         .onAppear {
-            let name = displayName.isEmpty ? nil : displayName
-            manager.connect(url: roomURL, username: name)
-            // Audio playout is now started automatically after connection succeeds (in VisioManager)
+            // Only connect if not already connected (PreJoinView already connects)
+            if case .disconnected = manager.connectionState {
+                let name = displayName.isEmpty ? nil : displayName
+                manager.connect(url: roomURL, username: name)
+            }
             CallKitManager.shared.reportCallStarted(roomName: roomURL)
             UIApplication.shared.isIdleTimerDisabled = true
             PiPManager.shared.setup()

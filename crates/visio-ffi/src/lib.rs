@@ -1830,6 +1830,94 @@ fn audio_runtime() -> &'static tokio::runtime::Runtime {
     })
 }
 
+/// Copy the Y (luma) plane row-by-row into the I420 buffer.
+///
+/// # Safety
+/// `src_ptr` must point to valid memory for at least `rows * src_stride` bytes.
+#[cfg(target_os = "android")]
+unsafe fn copy_y_plane(
+    src_ptr: *mut u8,
+    dst: &mut [u8],
+    rows: usize,
+    width: usize,
+    src_stride: usize,
+    dst_stride: usize,
+) {
+    for row in 0..rows {
+        let src = unsafe { std::slice::from_raw_parts(src_ptr.add(row * src_stride), width) };
+        let dst_start = row * dst_stride;
+        dst[dst_start..dst_start + width].copy_from_slice(src);
+    }
+}
+
+/// Copy a chroma (U or V) plane into the I420 buffer, handling pixel stride.
+///
+/// When `pixel_stride` is 1 the data is planar (I420); when 2 the data is
+/// semi-planar (NV12) and every other byte must be skipped.
+///
+/// # Safety
+/// `src_ptr` must point to valid memory for at least `rows * src_stride` bytes.
+#[cfg(target_os = "android")]
+unsafe fn copy_chroma_plane(
+    src_ptr: *mut u8,
+    dst: &mut [u8],
+    rows: usize,
+    width: usize,
+    src_stride: usize,
+    pixel_stride: usize,
+    dst_stride: usize,
+) {
+    for row in 0..rows {
+        let row_base = unsafe { src_ptr.add(row * src_stride) };
+        let dst_start = row * dst_stride;
+        if pixel_stride == 1 {
+            let src = unsafe { std::slice::from_raw_parts(row_base, width) };
+            dst[dst_start..dst_start + width].copy_from_slice(src);
+        } else {
+            for col in 0..width {
+                dst[dst_start + col] = unsafe { *row_base.add(col * pixel_stride) };
+            }
+        }
+    }
+}
+
+/// Apply background blur processing and render to the local preview surface.
+#[cfg(target_os = "android")]
+fn apply_blur_and_preview(i420: &mut I420Buffer, w: u32, h: u32, rotation_degrees: u32) {
+    // Apply background processing (blur/replacement) if enabled
+    {
+        let strides = i420.strides();
+        let (y_data, u_data, v_data) = i420.data_mut();
+        blur::BlurProcessor::process_i420(
+            y_data,
+            u_data,
+            v_data,
+            w as usize,
+            h as usize,
+            strides.0 as usize,
+            strides.1 as usize,
+            strides.2 as usize,
+            rotation_degrees,
+        );
+    }
+
+    // Render to local preview surface (self-view). The guard MUST be kept alive
+    // during rendering so that detachSurface cannot release the ANativeWindow
+    // while we are writing to it (prevents SIGSEGV).
+    {
+        let guard = LOCAL_PREVIEW_SURFACE.lock().unwrap();
+        if let Some(ref handle) = *guard {
+            visio_video::render_i420_to_surface(
+                i420,
+                handle.as_ptr() as *mut std::ffi::c_void,
+                rotation_degrees,
+                true, // mirror for front-camera self-view
+            );
+        }
+        drop(guard);
+    }
+}
+
 /// Shared helper: extract JNI ByteBuffers, copy YUV planes into an I420Buffer,
 /// apply blur processing, and render to the local preview surface.
 ///
@@ -1889,72 +1977,35 @@ unsafe fn process_camera_frame_common(
     let (y_dst, u_dst, v_dst) = i420.data_mut();
 
     // Copy Y plane row-by-row (Y always has pixelStride=1)
-    for row in 0..hu {
-        let src = unsafe { std::slice::from_raw_parts(y_ptr.add(row * ys), wu) };
-        let dst_start = row * strides.0 as usize;
-        y_dst[dst_start..dst_start + wu].copy_from_slice(src);
-    }
+    unsafe { copy_y_plane(y_ptr, y_dst, hu, wu, ys, strides.0 as usize) };
 
     // Copy U plane — handle pixelStride (1 = planar I420, 2 = semi-planar NV12)
-    for row in 0..chroma_h {
-        let row_base = unsafe { u_ptr.add(row * us) };
-        let dst_start = row * strides.1 as usize;
-        if ups == 1 {
-            let src = unsafe { std::slice::from_raw_parts(row_base, chroma_w) };
-            u_dst[dst_start..dst_start + chroma_w].copy_from_slice(src);
-        } else {
-            for col in 0..chroma_w {
-                u_dst[dst_start + col] = unsafe { *row_base.add(col * ups) };
-            }
-        }
-    }
+    unsafe {
+        copy_chroma_plane(
+            u_ptr,
+            u_dst,
+            chroma_h,
+            chroma_w,
+            us,
+            ups,
+            strides.1 as usize,
+        )
+    };
 
     // Copy V plane — same pixel stride handling
-    for row in 0..chroma_h {
-        let row_base = unsafe { v_ptr.add(row * vs) };
-        let dst_start = row * strides.2 as usize;
-        if vps == 1 {
-            let src = unsafe { std::slice::from_raw_parts(row_base, chroma_w) };
-            v_dst[dst_start..dst_start + chroma_w].copy_from_slice(src);
-        } else {
-            for col in 0..chroma_w {
-                v_dst[dst_start + col] = unsafe { *row_base.add(col * vps) };
-            }
-        }
-    }
-
-    // Apply background processing (blur/replacement) if enabled
-    {
-        let strides = i420.strides();
-        let (y_data, u_data, v_data) = i420.data_mut();
-        blur::BlurProcessor::process_i420(
-            y_data,
-            u_data,
-            v_data,
-            w as usize,
-            h as usize,
-            strides.0 as usize,
-            strides.1 as usize,
+    unsafe {
+        copy_chroma_plane(
+            v_ptr,
+            v_dst,
+            chroma_h,
+            chroma_w,
+            vs,
+            vps,
             strides.2 as usize,
-            rotation_degrees as u32,
-        );
-    }
+        )
+    };
 
-    // Render to local preview surface (self-view). The guard MUST be kept alive
-    // during rendering so that detachSurface cannot release the ANativeWindow
-    // while we are writing to it (prevents SIGSEGV).
-    {
-        let guard = LOCAL_PREVIEW_SURFACE.lock().unwrap();
-        if let Some(ref handle) = *guard {
-            visio_video::render_i420_to_surface(
-                &i420,
-                handle.as_ptr() as *mut std::ffi::c_void,
-                rotation_degrees as u32,
-                true, // mirror for front-camera self-view
-            );
-        }
-        drop(guard);
-    }
+    apply_blur_and_preview(&mut i420, w, h, rotation_degrees as u32);
 
     Some((i420, jni_env))
 }

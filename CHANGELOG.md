@@ -10,11 +10,13 @@ and this project adheres to
 
 ### Changed
 
+- Reduce all functions to cognitive complexity <=15 (#103)
 - Reduce cognitive complexity across all platforms (#94)
 
 ### Fixed
 
 - Fix 12 SonarCloud reliability issues in desktop frontend (#92)
+- Lobby camera/mic/Bluetooth settings now applied when joining room (#98)
 - Auto-fallback to default audio device when Bluetooth disconnects (#83)
 - Migrate all hardcoded UI strings to i18n system (Android, iOS, Desktop) (#89)
 - Fix adaptive mode defaulting to enabled on Desktop (#89)

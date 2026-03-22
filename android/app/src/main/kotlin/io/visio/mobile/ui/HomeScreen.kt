@@ -7,6 +7,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -103,119 +104,26 @@ fun HomeScreen(
     var customServer by remember { mutableStateOf("") }
     var historyJoining by remember { mutableStateOf<String?>(null) }
     val coroutineScope = rememberCoroutineScope()
-    // Calendar / Meetings tab state
     var selectedTab by remember { mutableIntStateOf(0) }
     val upcomingMeetings by VisioManager.upcomingMeetings.collectAsState()
     val calendarLoading by VisioManager.calendarLoading.collectAsState()
     var hasCalendarUrl by remember { mutableStateOf(false) }
 
-    LaunchedEffect(Unit) {
-        try {
-            roomHistory = VisioManager.client.getRoomHistory()
-            hasCalendarUrl = VisioManager.client.getCalendarUrl() != null
-            if (hasCalendarUrl) {
-                VisioManager.refreshCalendarNow()
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to load room history", e)
-        }
-    }
+    HomeScreenEffects(
+        selectedTab = selectedTab,
+        roomUrl = roomUrl,
+        username = username,
+        slugRegex = slugRegex,
+        meetInstances = meetInstances,
+        onRoomHistoryLoaded = { roomHistory = it },
+        onHasCalendarUrlChange = { hasCalendarUrl = it },
+        onRoomUrlChange = { roomUrl = it },
+        onMeetInstancesLoaded = { meetInstances = it },
+        onRoomStatusChange = { roomStatus = it },
+        onResolvedRoomUrlChange = { resolvedRoomUrl = it },
+        onUsernameChange = { username = it },
+    )
 
-    // Reload calendar URL state when returning from Settings
-    androidx.lifecycle.compose.LifecycleResumeEffect("calendar_url") {
-        try {
-            hasCalendarUrl = VisioManager.client.getCalendarUrl() != null
-        } catch (_: Exception) {
-        }
-        onPauseOrDispose {}
-    }
-
-    // Refresh calendar when switching to Réunions tab
-    LaunchedEffect(selectedTab) {
-        if (selectedTab == 1) {
-            VisioManager.refreshCalendarNow()
-        }
-    }
-
-    LaunchedEffect(VisioManager.pendingDeepLink) {
-        val link = VisioManager.pendingDeepLink
-        if (link != null) {
-            roomUrl = link
-            VisioManager.pendingDeepLink = null
-        }
-    }
-
-    // Reload meet instances when the screen becomes visible (e.g. returning
-    // from Settings where the user may have added/removed instances).
-    androidx.lifecycle.compose.LifecycleResumeEffect(Unit) {
-        try {
-            meetInstances = VisioManager.client.getMeetInstances()
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to load meet instances", e)
-        }
-        onPauseOrDispose {}
-    }
-
-    LaunchedEffect(roomUrl) {
-        val trimmed = roomUrl.trim()
-        val isSlug = slugRegex.matches(trimmed)
-        val candidate =
-            if (isSlug) {
-                trimmed
-            } else {
-                val stripped = trimmed.trimEnd('/')
-                if ('/' in stripped) stripped.substringAfterLast('/') else stripped
-            }
-        if (!slugRegex.matches(candidate)) {
-            roomStatus = "idle"
-            resolvedRoomUrl = trimmed
-            return@LaunchedEffect
-        }
-        roomStatus = "checking"
-        delay(500)
-        // If input is a slug, try each configured server; otherwise validate the full URL
-        val urlsToTry =
-            if (isSlug && meetInstances.isNotEmpty()) {
-                meetInstances.map { server -> "https://$server/$trimmed" }
-            } else {
-                listOf(trimmed)
-            }
-        try {
-            var foundValid = false
-            for (url in urlsToTry) {
-                val result =
-                    withContext(Dispatchers.IO) {
-                        VisioManager.client.validateRoom(url, username.trim().ifEmpty { null })
-                    }
-                when (result) {
-                    is RoomValidationResult.Valid -> {
-                        roomStatus = "valid"
-                        resolvedRoomUrl = url
-                        foundValid = true
-                        break
-                    }
-                    else -> continue
-                }
-            }
-            if (!foundValid) {
-                roomStatus = "not_found"
-                resolvedRoomUrl = urlsToTry.first()
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to validate room URL", e)
-            roomStatus = "error"
-        }
-    }
-
-    // Pre-fill display name from VisioManager observable state
-    LaunchedEffect(VisioManager.displayName) {
-        val name = VisioManager.displayName
-        if (name.isNotBlank() && username.isEmpty()) {
-            username = name
-        }
-    }
-
-    // Check if any meeting is imminent (< 15 min) for badge indicator
     val nowSeconds = System.currentTimeMillis() / 1000L
     val hasImminentMeeting =
         upcomingMeetings.any { meeting ->
@@ -232,107 +140,25 @@ fun HomeScreen(
                 .navigationBarsPadding()
                 .imePadding(),
     ) {
-        // Header row (always visible)
-        Column(modifier = Modifier.padding(horizontal = 32.dp).padding(top = 32.dp)) {
-            // Title row with settings gear
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Spacer(modifier = Modifier.size(48.dp)) // balance the gear icon
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    VisioLogo(size = 120.dp)
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = Strings.t("app.title", lang),
-                        style = MaterialTheme.typography.headlineLarge,
-                        color = MaterialTheme.colorScheme.onBackground,
-                        fontWeight = FontWeight.Bold,
-                    )
-                }
-                IconButton(
-                    onClick = onSettings,
-                    modifier = Modifier.size(48.dp).testTag("home_settings_button"),
-                ) {
-                    Icon(
-                        painter = painterResource(R.drawable.ri_settings_3_line),
-                        contentDescription = Strings.t("settings", lang),
-                        tint = if (isDark) VisioColors.White else VisioColors.Greyscale400,
-                        modifier = Modifier.size(24.dp),
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            Text(
-                text = Strings.t("home.subtitle", lang),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f),
-            )
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // Connect / Logout section
-            if (VisioManager.isAuthenticated) {
-                AuthenticatedCard(
-                    displayName = VisioManager.authenticatedDisplayName,
-                    email = VisioManager.authenticatedEmail,
-                    isDark = isDark,
-                    lang = lang,
-                    onLogout = { VisioManager.logout() },
-                )
-            } else {
-                Button(
-                    onClick = {
-                        if (meetInstances.size <= 1) {
-                            val meetInstance = meetInstances.firstOrNull() ?: return@Button
-                            VisioManager.authManager.launchOidcFlow(context, meetInstance)
-                        } else {
-                            customServer = ""
-                            showServerPicker = true
-                        }
-                    },
-                    modifier = Modifier.fillMaxWidth().testTag("home_connect_button"),
-                    colors =
-                        ButtonDefaults.buttonColors(
-                            containerColor = VisioColors.Primary500,
-                            contentColor = VisioColors.White,
-                        ),
-                    shape = RoundedCornerShape(12.dp),
-                ) {
-                    Icon(
-                        painter = painterResource(R.drawable.ri_account_circle_line),
-                        contentDescription = null,
-                        modifier = Modifier.size(20.dp),
-                    )
-                    Text(
-                        Strings.t("home.connect", lang),
-                        fontSize = 16.sp,
-                        modifier = Modifier.padding(start = 8.dp, top = 4.dp, bottom = 4.dp),
-                    )
-                }
-            }
-
-            if (showServerPicker) {
-                ServerPickerDialog(
-                    instances = meetInstances,
-                    customServer = customServer,
-                    onCustomServerChange = { customServer = it },
-                    lang = lang,
-                    onSelect = { instance ->
-                        showServerPicker = false
-                        VisioManager.authManager.launchOidcFlow(context, instance)
-                    },
-                    onDismiss = { showServerPicker = false },
-                )
-            }
-        } // end header Column
+        HomeHeader(
+            context = context,
+            lang = lang,
+            isDark = isDark,
+            meetInstances = meetInstances,
+            showServerPicker = showServerPicker,
+            customServer = customServer,
+            onSettings = onSettings,
+            onShowServerPicker = { showServerPicker = true },
+            onDismissServerPicker = { showServerPicker = false },
+            onCustomServerChange = { customServer = it },
+            onServerSelected = { instance ->
+                showServerPicker = false
+                VisioManager.authManager.launchOidcFlow(context, instance)
+            },
+        )
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        // Tab strip (Rejoindre / Réunions planifiées)
         HomeTabStrip(
             selectedTab = selectedTab,
             onSelectTab = { selectedTab = it },
@@ -343,74 +169,400 @@ fun HomeScreen(
             hasImminentMeeting = hasImminentMeeting,
         )
 
-        // Tab content
-        Box(modifier = Modifier.weight(1f)) {
-            if (selectedTab == 0) {
-                JoinTab(
-                    roomUrl = roomUrl,
-                    onRoomUrlChange = { roomUrl = it },
-                    username = username,
-                    onUsernameChange = { username = it },
-                    roomStatus = roomStatus,
-                    resolvedRoomUrl = resolvedRoomUrl,
-                    isDark = isDark,
-                    lang = lang,
-                    isAuthenticated = VisioManager.isAuthenticated,
-                    roomHistory = roomHistory,
-                    historyJoining = historyJoining,
-                    onJoin = onJoin,
-                    onShowCreateRoom = { showCreateRoom = true },
-                    onHistoryClick = { url ->
-                        roomUrl = url
-                        historyJoining = url
-                        coroutineScope.launch {
-                            try {
-                                val uname = username.trim().ifEmpty { null }
-                                val result =
-                                    withContext(Dispatchers.IO) {
-                                        VisioManager.client.validateRoom(url, uname)
-                                    }
-                                if (result is RoomValidationResult.Valid) {
-                                    historyJoining = null
-                                    onJoin(url, username.trim())
-                                } else {
-                                    historyJoining = null
-                                }
-                            } catch (e: Exception) {
-                                Log.e(TAG, "Failed to join from history", e)
-                                historyJoining = null
-                            }
-                        }
-                    },
-                )
-            }
-
-            if (selectedTab == 1) {
-                MeetingsTab(
-                    meetings = upcomingMeetings,
-                    hasCalendarUrl = hasCalendarUrl,
-                    isLoading = calendarLoading,
-                    isDark = isDark,
-                    lang = lang,
-                    onSettings = onSettings,
-                    onJoinMeeting = { meetingRoomUrl, _ ->
-                        onJoin(meetingRoomUrl, username.trim())
-                    },
-                )
-            }
-        }
-    } // end outer Column
+        HomeTabContent(
+            selectedTab = selectedTab,
+            roomUrl = roomUrl,
+            username = username,
+            roomStatus = roomStatus,
+            resolvedRoomUrl = resolvedRoomUrl,
+            isDark = isDark,
+            lang = lang,
+            roomHistory = roomHistory,
+            historyJoining = historyJoining,
+            upcomingMeetings = upcomingMeetings,
+            hasCalendarUrl = hasCalendarUrl,
+            calendarLoading = calendarLoading,
+            coroutineScope = coroutineScope,
+            onRoomUrlChange = { roomUrl = it },
+            onUsernameChange = { username = it },
+            onJoin = onJoin,
+            onShowCreateRoom = { showCreateRoom = true },
+            onHistoryJoiningChange = { historyJoining = it },
+            onSettings = onSettings,
+        )
+    }
 
     if (showCreateRoom) {
         CreateRoomDialog(
             meetInstance = VisioManager.authenticatedMeetInstance,
             lang = lang,
-            onCreated = { roomUrl ->
+            onCreated = { url ->
                 showCreateRoom = false
-                onJoin(roomUrl, username)
+                onJoin(url, username)
             },
             onDismiss = { showCreateRoom = false },
         )
+    }
+}
+
+@Composable
+private fun HomeScreenEffects(
+    selectedTab: Int,
+    roomUrl: String,
+    username: String,
+    slugRegex: Regex,
+    meetInstances: List<String>,
+    onRoomHistoryLoaded: (List<String>) -> Unit,
+    onHasCalendarUrlChange: (Boolean) -> Unit,
+    onRoomUrlChange: (String) -> Unit,
+    onMeetInstancesLoaded: (List<String>) -> Unit,
+    onRoomStatusChange: (String) -> Unit,
+    onResolvedRoomUrlChange: (String) -> Unit,
+    onUsernameChange: (String) -> Unit,
+) {
+    LaunchedEffect(Unit) {
+        try {
+            onRoomHistoryLoaded(VisioManager.client.getRoomHistory())
+            val hasCal = VisioManager.client.getCalendarUrl() != null
+            onHasCalendarUrlChange(hasCal)
+            if (hasCal) VisioManager.refreshCalendarNow()
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to load room history", e)
+        }
+    }
+
+    androidx.lifecycle.compose.LifecycleResumeEffect("calendar_url") {
+        try {
+            onHasCalendarUrlChange(VisioManager.client.getCalendarUrl() != null)
+        } catch (_: Exception) {
+        }
+        onPauseOrDispose {}
+    }
+
+    LaunchedEffect(selectedTab) {
+        if (selectedTab == 1) VisioManager.refreshCalendarNow()
+    }
+
+    LaunchedEffect(VisioManager.pendingDeepLink) {
+        val link = VisioManager.pendingDeepLink
+        if (link != null) {
+            onRoomUrlChange(link)
+            VisioManager.pendingDeepLink = null
+        }
+    }
+
+    androidx.lifecycle.compose.LifecycleResumeEffect(Unit) {
+        try {
+            onMeetInstancesLoaded(VisioManager.client.getMeetInstances())
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to load meet instances", e)
+        }
+        onPauseOrDispose {}
+    }
+
+    HomeScreenRoomValidationEffect(
+        roomUrl = roomUrl,
+        username = username,
+        slugRegex = slugRegex,
+        meetInstances = meetInstances,
+        onRoomStatusChange = onRoomStatusChange,
+        onResolvedRoomUrlChange = onResolvedRoomUrlChange,
+    )
+
+    LaunchedEffect(VisioManager.displayName) {
+        val name = VisioManager.displayName
+        if (name.isNotBlank()) onUsernameChange(name)
+    }
+}
+
+@Composable
+private fun HomeScreenRoomValidationEffect(
+    roomUrl: String,
+    username: String,
+    slugRegex: Regex,
+    meetInstances: List<String>,
+    onRoomStatusChange: (String) -> Unit,
+    onResolvedRoomUrlChange: (String) -> Unit,
+) {
+    LaunchedEffect(roomUrl) {
+        val trimmed = roomUrl.trim()
+        val isSlug = slugRegex.matches(trimmed)
+        val candidate = extractSlugCandidate(trimmed, isSlug)
+        if (!slugRegex.matches(candidate)) {
+            onRoomStatusChange("idle")
+            onResolvedRoomUrlChange(trimmed)
+            return@LaunchedEffect
+        }
+        onRoomStatusChange("checking")
+        delay(500)
+        val urlsToTry =
+            if (isSlug && meetInstances.isNotEmpty()) {
+                meetInstances.map { server -> "https://$server/$trimmed" }
+            } else {
+                listOf(trimmed)
+            }
+        validateRoomUrls(
+            urlsToTry,
+            username,
+            onRoomStatusChange,
+            onResolvedRoomUrlChange,
+        )
+    }
+}
+
+private fun extractSlugCandidate(
+    trimmed: String,
+    isSlug: Boolean,
+): String =
+    if (isSlug) {
+        trimmed
+    } else {
+        val stripped = trimmed.trimEnd('/')
+        if ('/' in stripped) stripped.substringAfterLast('/') else stripped
+    }
+
+private suspend fun validateRoomUrls(
+    urlsToTry: List<String>,
+    username: String,
+    onRoomStatusChange: (String) -> Unit,
+    onResolvedRoomUrlChange: (String) -> Unit,
+) {
+    try {
+        var foundValid = false
+        for (url in urlsToTry) {
+            val result =
+                withContext(Dispatchers.IO) {
+                    VisioManager.client.validateRoom(
+                        url,
+                        username.trim().ifEmpty { null },
+                    )
+                }
+            if (result is RoomValidationResult.Valid) {
+                onRoomStatusChange("valid")
+                onResolvedRoomUrlChange(url)
+                foundValid = true
+                break
+            }
+        }
+        if (!foundValid) {
+            onRoomStatusChange("not_found")
+            onResolvedRoomUrlChange(urlsToTry.first())
+        }
+    } catch (e: Exception) {
+        Log.e(TAG, "Failed to validate room URL", e)
+        onRoomStatusChange("error")
+    }
+}
+
+@Composable
+private fun HomeHeader(
+    context: android.content.Context,
+    lang: String,
+    isDark: Boolean,
+    meetInstances: List<String>,
+    showServerPicker: Boolean,
+    customServer: String,
+    onSettings: () -> Unit,
+    onShowServerPicker: () -> Unit,
+    onDismissServerPicker: () -> Unit,
+    onCustomServerChange: (String) -> Unit,
+    onServerSelected: (String) -> Unit,
+) {
+    Column(modifier = Modifier.padding(horizontal = 32.dp).padding(top = 32.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Spacer(modifier = Modifier.size(48.dp))
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                VisioLogo(size = 120.dp)
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = Strings.t("app.title", lang),
+                    style = MaterialTheme.typography.headlineLarge,
+                    color = MaterialTheme.colorScheme.onBackground,
+                    fontWeight = FontWeight.Bold,
+                )
+            }
+            IconButton(
+                onClick = onSettings,
+                modifier = Modifier.size(48.dp).testTag("home_settings_button"),
+            ) {
+                Icon(
+                    painter = painterResource(R.drawable.ri_settings_3_line),
+                    contentDescription = Strings.t("settings", lang),
+                    tint = if (isDark) VisioColors.White else VisioColors.Greyscale400,
+                    modifier = Modifier.size(24.dp),
+                )
+            }
+        }
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            text = Strings.t("home.subtitle", lang),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f),
+        )
+        Spacer(modifier = Modifier.height(16.dp))
+
+        HomeAuthSection(
+            context = context,
+            lang = lang,
+            isDark = isDark,
+            meetInstances = meetInstances,
+            onShowServerPicker = onShowServerPicker,
+        )
+
+        if (showServerPicker) {
+            ServerPickerDialog(
+                instances = meetInstances,
+                customServer = customServer,
+                onCustomServerChange = onCustomServerChange,
+                lang = lang,
+                onSelect = onServerSelected,
+                onDismiss = onDismissServerPicker,
+            )
+        }
+    }
+}
+
+@Composable
+private fun HomeAuthSection(
+    context: android.content.Context,
+    lang: String,
+    isDark: Boolean,
+    meetInstances: List<String>,
+    onShowServerPicker: () -> Unit,
+) {
+    if (VisioManager.isAuthenticated) {
+        AuthenticatedCard(
+            displayName = VisioManager.authenticatedDisplayName,
+            email = VisioManager.authenticatedEmail,
+            isDark = isDark,
+            lang = lang,
+            onLogout = { VisioManager.logout() },
+        )
+    } else {
+        Button(
+            onClick = {
+                if (meetInstances.size <= 1) {
+                    val meetInstance = meetInstances.firstOrNull() ?: return@Button
+                    VisioManager.authManager.launchOidcFlow(context, meetInstance)
+                } else {
+                    onShowServerPicker()
+                }
+            },
+            modifier = Modifier.fillMaxWidth().testTag("home_connect_button"),
+            colors =
+                ButtonDefaults.buttonColors(
+                    containerColor = VisioColors.Primary500,
+                    contentColor = VisioColors.White,
+                ),
+            shape = RoundedCornerShape(12.dp),
+        ) {
+            Icon(
+                painter = painterResource(R.drawable.ri_account_circle_line),
+                contentDescription = null,
+                modifier = Modifier.size(20.dp),
+            )
+            Text(
+                Strings.t("home.connect", lang),
+                fontSize = 16.sp,
+                modifier = Modifier.padding(start = 8.dp, top = 4.dp, bottom = 4.dp),
+            )
+        }
+    }
+}
+
+@Composable
+private fun ColumnScope.HomeTabContent(
+    selectedTab: Int,
+    roomUrl: String,
+    username: String,
+    roomStatus: String,
+    resolvedRoomUrl: String,
+    isDark: Boolean,
+    lang: String,
+    roomHistory: List<String>,
+    historyJoining: String?,
+    upcomingMeetings: List<uniffi.visio.Meeting>,
+    hasCalendarUrl: Boolean,
+    calendarLoading: Boolean,
+    coroutineScope: kotlinx.coroutines.CoroutineScope,
+    onRoomUrlChange: (String) -> Unit,
+    onUsernameChange: (String) -> Unit,
+    onJoin: (roomUrl: String, username: String) -> Unit,
+    onShowCreateRoom: () -> Unit,
+    onHistoryJoiningChange: (String?) -> Unit,
+    onSettings: () -> Unit,
+) {
+    Box(modifier = Modifier.weight(1f)) {
+        if (selectedTab == 0) {
+            JoinTab(
+                roomUrl = roomUrl,
+                onRoomUrlChange = onRoomUrlChange,
+                username = username,
+                onUsernameChange = onUsernameChange,
+                roomStatus = roomStatus,
+                resolvedRoomUrl = resolvedRoomUrl,
+                isDark = isDark,
+                lang = lang,
+                isAuthenticated = VisioManager.isAuthenticated,
+                roomHistory = roomHistory,
+                historyJoining = historyJoining,
+                onJoin = onJoin,
+                onShowCreateRoom = onShowCreateRoom,
+                onHistoryClick = { url ->
+                    onRoomUrlChange(url)
+                    onHistoryJoiningChange(url)
+                    coroutineScope.launch {
+                        handleHistoryJoin(
+                            url,
+                            username,
+                            onJoin,
+                            onHistoryJoiningChange,
+                        )
+                    }
+                },
+            )
+        }
+        if (selectedTab == 1) {
+            MeetingsTab(
+                meetings = upcomingMeetings,
+                hasCalendarUrl = hasCalendarUrl,
+                isLoading = calendarLoading,
+                isDark = isDark,
+                lang = lang,
+                onSettings = onSettings,
+                onJoinMeeting = { meetingRoomUrl, _ ->
+                    onJoin(meetingRoomUrl, username.trim())
+                },
+            )
+        }
+    }
+}
+
+private suspend fun handleHistoryJoin(
+    url: String,
+    username: String,
+    onJoin: (String, String) -> Unit,
+    onHistoryJoiningChange: (String?) -> Unit,
+) {
+    try {
+        val uname = username.trim().ifEmpty { null }
+        val result =
+            withContext(Dispatchers.IO) {
+                VisioManager.client.validateRoom(url, uname)
+            }
+        if (result is RoomValidationResult.Valid) {
+            onHistoryJoiningChange(null)
+            onJoin(url, username.trim())
+        } else {
+            onHistoryJoiningChange(null)
+        }
+    } catch (e: Exception) {
+        Log.e(TAG, "Failed to join from history", e)
+        onHistoryJoiningChange(null)
     }
 }
 
@@ -424,6 +576,9 @@ private fun HomeTabStrip(
     meetingCount: Int,
     hasImminentMeeting: Boolean,
 ) {
+    val inactiveColor =
+        if (isDark) VisioColors.Greyscale400 else VisioColors.LightTextSecondary
+
     TabRow(
         selectedTabIndex = selectedTab,
         containerColor = MaterialTheme.colorScheme.surface,
@@ -441,12 +596,7 @@ private fun HomeTabStrip(
             text = {
                 Text(
                     Strings.t("home.tab.join", lang),
-                    color =
-                        if (selectedTab == 0) {
-                            VisioColors.Primary500
-                        } else {
-                            if (isDark) VisioColors.Greyscale400 else VisioColors.LightTextSecondary
-                        },
+                    color = if (selectedTab == 0) VisioColors.Primary500 else inactiveColor,
                 )
             },
         )
@@ -454,40 +604,60 @@ private fun HomeTabStrip(
             selected = selectedTab == 1,
             onClick = { onSelectTab(1) },
             text = {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        Strings.t("home.tab.meetings", lang),
-                        color =
-                            if (selectedTab == 1) {
-                                VisioColors.Primary500
-                            } else {
-                                if (isDark) VisioColors.Greyscale400 else VisioColors.LightTextSecondary
-                            },
-                    )
-                    if (calendarLoading && meetingCount == 0) {
-                        Spacer(modifier = Modifier.width(6.dp))
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(14.dp),
-                            strokeWidth = 2.dp,
-                            color = VisioColors.Primary500,
-                        )
-                    } else if (meetingCount > 0 || hasImminentMeeting) {
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Badge(
-                            containerColor =
-                                if (hasImminentMeeting) Color(0xFFE1000F) else VisioColors.Primary500,
-                        ) {
-                            if (meetingCount > 0) {
-                                Text(
-                                    meetingCount.toString(),
-                                    color = VisioColors.White,
-                                )
-                            }
-                        }
-                    }
-                }
+                MeetingsTabLabel(
+                    isSelected = selectedTab == 1,
+                    inactiveColor = inactiveColor,
+                    calendarLoading = calendarLoading,
+                    meetingCount = meetingCount,
+                    hasImminentMeeting = hasImminentMeeting,
+                    lang = lang,
+                )
             },
         )
+    }
+}
+
+@Composable
+private fun MeetingsTabLabel(
+    isSelected: Boolean,
+    inactiveColor: Color,
+    calendarLoading: Boolean,
+    meetingCount: Int,
+    hasImminentMeeting: Boolean,
+    lang: String,
+) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text(
+            Strings.t("home.tab.meetings", lang),
+            color = if (isSelected) VisioColors.Primary500 else inactiveColor,
+        )
+        MeetingsTabBadge(calendarLoading, meetingCount, hasImminentMeeting)
+    }
+}
+
+@Composable
+private fun MeetingsTabBadge(
+    calendarLoading: Boolean,
+    meetingCount: Int,
+    hasImminentMeeting: Boolean,
+) {
+    if (calendarLoading && meetingCount == 0) {
+        Spacer(modifier = Modifier.width(6.dp))
+        CircularProgressIndicator(
+            modifier = Modifier.size(14.dp),
+            strokeWidth = 2.dp,
+            color = VisioColors.Primary500,
+        )
+    } else if (meetingCount > 0 || hasImminentMeeting) {
+        Spacer(modifier = Modifier.width(6.dp))
+        Badge(
+            containerColor =
+                if (hasImminentMeeting) Color(0xFFE1000F) else VisioColors.Primary500,
+        ) {
+            if (meetingCount > 0) {
+                Text(meetingCount.toString(), color = VisioColors.White)
+            }
+        }
     }
 }
 
@@ -694,60 +864,77 @@ private fun RoomHistoryList(
     )
     Spacer(modifier = Modifier.height(8.dp))
     roomHistory.forEachIndexed { index, url ->
-        val slug = if ('/' in url) url.substringAfterLast('/') else url
-        val host =
-            try {
-                java.net.URI(url).host ?: ""
-            } catch (_: Exception) {
-                ""
-            }
-        Row(
-            modifier =
-                Modifier
-                    .fillMaxWidth()
-                    .testTag("home_room_history_item_$index")
-                    .clickable(enabled = historyJoining == null) {
-                        onHistoryClick(url)
-                    }
-                    .background(
-                        VisioColors.Primary500.copy(alpha = if (isDark) 0.12f else 0.08f),
-                        RoundedCornerShape(8.dp),
-                    )
-                    .padding(horizontal = 12.dp, vertical = 10.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            if (historyJoining == url) {
-                CircularProgressIndicator(
-                    modifier = Modifier.size(18.dp),
-                    strokeWidth = 2.dp,
-                    color = VisioColors.Primary500,
+        RoomHistoryItem(
+            url = url,
+            index = index,
+            isJoining = historyJoining == url,
+            isEnabled = historyJoining == null,
+            isDark = isDark,
+            onHistoryClick = onHistoryClick,
+        )
+        Spacer(modifier = Modifier.height(6.dp))
+    }
+}
+
+@Composable
+private fun RoomHistoryItem(
+    url: String,
+    index: Int,
+    isJoining: Boolean,
+    isEnabled: Boolean,
+    isDark: Boolean,
+    onHistoryClick: (String) -> Unit,
+) {
+    val slug = if ('/' in url) url.substringAfterLast('/') else url
+    val host =
+        try {
+            java.net.URI(url).host ?: ""
+        } catch (_: Exception) {
+            ""
+        }
+    Row(
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .testTag("home_room_history_item_$index")
+                .clickable(enabled = isEnabled) { onHistoryClick(url) }
+                .background(
+                    VisioColors.Primary500.copy(alpha = if (isDark) 0.12f else 0.08f),
+                    RoundedCornerShape(8.dp),
                 )
-            } else {
-                Icon(
-                    imageVector = Icons.Default.Public,
-                    contentDescription = null,
-                    tint = VisioColors.Primary500,
-                    modifier = Modifier.size(18.dp),
-                )
-            }
-            Column(modifier = Modifier.weight(1f)) {
+                .padding(horizontal = 12.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        if (isJoining) {
+            CircularProgressIndicator(
+                modifier = Modifier.size(18.dp),
+                strokeWidth = 2.dp,
+                color = VisioColors.Primary500,
+            )
+        } else {
+            Icon(
+                imageVector = Icons.Default.Public,
+                contentDescription = null,
+                tint = VisioColors.Primary500,
+                modifier = Modifier.size(18.dp),
+            )
+        }
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = slug,
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.Medium,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+            if (host.isNotEmpty()) {
                 Text(
-                    text = slug,
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.Medium,
-                    color = MaterialTheme.colorScheme.onSurface,
+                    text = host,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (isDark) VisioColors.Greyscale400 else VisioColors.LightTextSecondary,
                 )
-                if (host.isNotEmpty()) {
-                    Text(
-                        text = host,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = if (isDark) VisioColors.Greyscale400 else VisioColors.LightTextSecondary,
-                    )
-                }
             }
         }
-        Spacer(modifier = Modifier.height(6.dp))
     }
 }
 

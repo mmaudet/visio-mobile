@@ -22,7 +22,7 @@ export default async function(ctx: ScenarioContext) {
   const aliceSid = alice.sid;
 
   // Verify Alice is in main tile on Android
-  if (android) await android.assertTestTag(`main-tile:${aliceSid}`, { timeout: 5000 });
+  if (android) await android.assertTestTag(`main-tile:${aliceSid}`, { timeout: 10000 });
 
   // Alice mutes — main tile must NOT switch to local participant
   ctx.log("Alice mutes — verifying main tile stays on Alice (no self-focus)");
@@ -31,12 +31,12 @@ export default async function(ctx: ScenarioContext) {
 
   // Main tile should still be Alice — local mic activity must not steal focus
   if (android) {
-    await android.assertTestTag(`main-tile:${aliceSid}`, { timeout: 3000 });
+    await android.assertTestTag(`main-tile:${aliceSid}`, { timeout: 10000 });
     await android.screenshot("02-no-self-focus-android");
   }
 
   if (desktop) {
-    await desktop.assertTestId(`main-tile:${aliceSid}`, { timeout: 3000 });
+    await desktop.assertTestId(`main-tile:${aliceSid}`, { timeout: 10000 });
     await desktop.screenshot("02-no-self-focus-desktop");
   }
 

@@ -1,4 +1,4 @@
-import { spawn, type ChildProcess } from "node:child_process";
+import { spawn, execSync, type ChildProcess } from "node:child_process";
 import { join, resolve } from "node:path";
 import { existsSync } from "node:fs";
 import { pollUntil } from "../assertions/poll.js";
@@ -82,11 +82,11 @@ export class DesktopParticipantImpl implements DesktopParticipant {
     // Use screencapture on macOS to capture the desktop window
     const outputPath = join(this._screenshotDir, `${name}.png`);
     try {
-      const { execSync } = await import("node:child_process");
+      // execSync imported at top level
       execSync(`screencapture -x -l $(osascript -e 'tell application "System Events" to get id of first window of (first process whose name is "visio-desktop")' 2>/dev/null || echo 0) "${outputPath}" 2>/dev/null || screencapture -x "${outputPath}"`, { timeout: 5000 });
     } catch {
       // Fallback: full screen capture
-      const { execSync } = await import("node:child_process");
+      // execSync imported at top level
       try {
         execSync(`screencapture -x "${outputPath}"`, { timeout: 5000 });
       } catch { /* ignore */ }

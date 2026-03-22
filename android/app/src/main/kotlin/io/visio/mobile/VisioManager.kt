@@ -631,72 +631,81 @@ object VisioManager : VisioEventListener {
      */
     private fun startAudioFocusMonitoring() {
         val am = appContext.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+        registerBluetoothDisconnectCallback(am)
+        createAudioFocusListener()
+        val result = requestAudioFocus(am)
+        Log.i("VisioManager", "Audio focus requested: result=$result")
+    }
 
-        // Register Bluetooth disconnect fallback callback
+    private fun registerBluetoothDisconnectCallback(am: AudioManager) {
         bluetoothDeviceCallback =
             object : AudioDeviceCallback() {
                 override fun onAudioDevicesRemoved(removedDevices: Array<out AudioDeviceInfo>) {
                     val btRemoved =
                         removedDevices.any { device ->
-                            device.type == AudioDeviceInfo.TYPE_BLUETOOTH_SCO ||
-                                device.type == AudioDeviceInfo.TYPE_BLUETOOTH_A2DP ||
-                                device.type == AudioDeviceInfo.TYPE_BLE_HEADSET
+                            isBluetoothDevice(device)
                         }
                     if (btRemoved && _connectionState.value is ConnectionState.Connected) {
                         Log.i("VisioManager", "Bluetooth audio device removed mid-session — falling back to system default")
-                        scope.launch(Dispatchers.IO) {
-                            restoreDefaultAudioRoute()
-                        }
+                        scope.launch(Dispatchers.IO) { restoreDefaultAudioRoute() }
                     }
                 }
             }
         am.registerAudioDeviceCallback(bluetoothDeviceCallback, null)
+    }
 
+    private fun isBluetoothDevice(device: AudioDeviceInfo): Boolean =
+        device.type == AudioDeviceInfo.TYPE_BLUETOOTH_SCO ||
+            device.type == AudioDeviceInfo.TYPE_BLUETOOTH_A2DP ||
+            device.type == AudioDeviceInfo.TYPE_BLE_HEADSET
+
+    private fun createAudioFocusListener() {
         audioFocusListener =
             AudioManager.OnAudioFocusChangeListener { focusChange ->
-                when (focusChange) {
-                    AudioManager.AUDIOFOCUS_LOSS,
-                    AudioManager.AUDIOFOCUS_LOSS_TRANSIENT,
-                    -> {
-                        Log.i("VisioManager", "Audio focus lost (phone call?) — pausing audio")
-                        wasPlayingBeforeFocusLoss = audioPlayout != null
-                        stopAudioPlayout()
-                        stopAudioCapture()
-                    }
-                    AudioManager.AUDIOFOCUS_GAIN -> {
-                        Log.i("VisioManager", "Audio focus regained — resuming audio")
-                        if (wasPlayingBeforeFocusLoss && connectionState.value is ConnectionState.Connected) {
-                            scope.launch(Dispatchers.IO) {
-                                startAudioPlayout()
-                                if (client.isMicrophoneEnabled()) {
-                                    startAudioCapture()
-                                }
-                            }
-                        }
-                        wasPlayingBeforeFocusLoss = false
+                handleAudioFocusChange(focusChange)
+            }
+    }
+
+    private fun handleAudioFocusChange(focusChange: Int) {
+        when (focusChange) {
+            AudioManager.AUDIOFOCUS_LOSS,
+            AudioManager.AUDIOFOCUS_LOSS_TRANSIENT,
+            -> {
+                Log.i("VisioManager", "Audio focus lost (phone call?) — pausing audio")
+                wasPlayingBeforeFocusLoss = audioPlayout != null
+                stopAudioPlayout()
+                stopAudioCapture()
+            }
+            AudioManager.AUDIOFOCUS_GAIN -> {
+                Log.i("VisioManager", "Audio focus regained — resuming audio")
+                if (wasPlayingBeforeFocusLoss && connectionState.value is ConnectionState.Connected) {
+                    scope.launch(Dispatchers.IO) {
+                        startAudioPlayout()
+                        if (client.isMicrophoneEnabled()) startAudioCapture()
                     }
                 }
+                wasPlayingBeforeFocusLoss = false
             }
-
-        val result =
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                val request =
-                    android.media.AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN)
-                        .setAudioAttributes(
-                            android.media.AudioAttributes.Builder()
-                                .setUsage(android.media.AudioAttributes.USAGE_VOICE_COMMUNICATION)
-                                .setContentType(android.media.AudioAttributes.CONTENT_TYPE_SPEECH)
-                                .build(),
-                        )
-                        .setOnAudioFocusChangeListener(audioFocusListener!!)
-                        .build()
-                am.requestAudioFocus(request)
-            } else {
-                @Suppress("DEPRECATION")
-                am.requestAudioFocus(audioFocusListener, AudioManager.STREAM_VOICE_CALL, AudioManager.AUDIOFOCUS_GAIN)
-            }
-        Log.i("VisioManager", "Audio focus requested: result=$result")
+        }
     }
+
+    private fun requestAudioFocus(am: AudioManager): Int =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val request =
+                android.media.AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN)
+                    .setAudioAttributes(
+                        android.media.AudioAttributes.Builder()
+                            .setUsage(android.media.AudioAttributes.USAGE_VOICE_COMMUNICATION)
+                            .setContentType(android.media.AudioAttributes.CONTENT_TYPE_SPEECH)
+                            .build(),
+                    )
+                    .setOnAudioFocusChangeListener(audioFocusListener!!)
+                    .build()
+            am.requestAudioFocus(request)
+        } else {
+            @Suppress("DEPRECATION")
+            am.requestAudioFocus(audioFocusListener, AudioManager.STREAM_VOICE_CALL, AudioManager.AUDIOFOCUS_GAIN)
+        }
 
     /**
      * Stop monitoring audio focus changes. Call when disconnecting.
@@ -1191,42 +1200,51 @@ object VisioManager : VisioEventListener {
         _adaptiveMode.value = newMode
         Log.d("VISIO", "Adaptive mode changed: $previousMode -> $newMode")
         if (newMode == uniffi.visio.AdaptiveMode.CAR) {
-            scope.launch(Dispatchers.IO) {
-                // If we just connected, wait for camera-on-join to settle
-                val elapsed = System.currentTimeMillis() - connectionTimestampMs
-                if (elapsed < CONNECTION_GRACE_MS) {
-                    val delayMs = CONNECTION_GRACE_MS - elapsed
-                    Log.d("VISIO", "CAR mode: waiting ${delayMs}ms for connection grace period")
-                    kotlinx.coroutines.delay(delayMs)
-                }
-                cameraWasEnabledBeforeCar = client.isCameraEnabled()
-                if (cameraWasEnabledBeforeCar) {
-                    stopCameraCapture()
-                    client.setCameraEnabled(false)
-                }
-                // Small delay to let audio session settle after camera state change
-                kotlinx.coroutines.delay(200)
-                routeAudioToBluetooth()
-                // Verify Bluetooth routing was applied
-                val am = appContext.getSystemService(Context.AUDIO_SERVICE) as AudioManager
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                    val commDevice = am.communicationDevice
-                    Log.i("VisioManager", "CAR mode: communication device after routing = ${commDevice?.productName ?: "none"}")
-                }
-            }
+            scope.launch(Dispatchers.IO) { enterCarMode() }
         } else if (previousMode == uniffi.visio.AdaptiveMode.CAR) {
-            scope.launch(Dispatchers.IO) {
-                restoreDefaultAudioRoute()
-                if (cameraWasEnabledBeforeCar) {
-                    try {
-                        client.setCameraEnabled(true)
-                        startCameraCapture()
-                    } catch (e: Exception) {
-                        Log.e("VISIO", "Failed to restore camera after car mode", e)
-                    }
-                    cameraWasEnabledBeforeCar = false
-                }
+            scope.launch(Dispatchers.IO) { exitCarMode() }
+        }
+    }
+
+    private suspend fun enterCarMode() {
+        awaitConnectionGracePeriod()
+        cameraWasEnabledBeforeCar = client.isCameraEnabled()
+        if (cameraWasEnabledBeforeCar) {
+            stopCameraCapture()
+            client.setCameraEnabled(false)
+        }
+        kotlinx.coroutines.delay(200)
+        routeAudioToBluetooth()
+        logCarModeBluetoothState()
+    }
+
+    private suspend fun awaitConnectionGracePeriod() {
+        val elapsed = System.currentTimeMillis() - connectionTimestampMs
+        if (elapsed < CONNECTION_GRACE_MS) {
+            val delayMs = CONNECTION_GRACE_MS - elapsed
+            Log.d("VISIO", "CAR mode: waiting ${delayMs}ms for connection grace period")
+            kotlinx.coroutines.delay(delayMs)
+        }
+    }
+
+    private fun logCarModeBluetoothState() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            val am = appContext.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+            val commDevice = am.communicationDevice
+            Log.i("VisioManager", "CAR mode: communication device after routing = ${commDevice?.productName ?: "none"}")
+        }
+    }
+
+    private suspend fun exitCarMode() {
+        restoreDefaultAudioRoute()
+        if (cameraWasEnabledBeforeCar) {
+            try {
+                client.setCameraEnabled(true)
+                startCameraCapture()
+            } catch (e: Exception) {
+                Log.e("VISIO", "Failed to restore camera after car mode", e)
             }
+            cameraWasEnabledBeforeCar = false
         }
     }
 }

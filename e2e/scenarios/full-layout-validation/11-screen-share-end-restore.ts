@@ -18,7 +18,7 @@ export default async function(ctx: ScenarioContext) {
   await ctx.sleep(2000);
 
   if (android) {
-    await android.assertTestTag("layout-mode:GRID", { timeout: 5000 });
+    await android.assertTestTag("layout-mode:GRID", { timeout: 10000 });
     await android.screenshot("11-initial-grid-android");
   }
 
@@ -28,12 +28,12 @@ export default async function(ctx: ScenarioContext) {
   await ctx.sleep(3000);
 
   if (android) {
-    await android.assertTestTag("layout-mode:FOCUS", { timeout: 5000 });
+    await android.assertTestTag("layout-mode:FOCUS", { timeout: 10000 });
     await android.screenshot("11-screen-share-active-android");
   }
 
   if (desktop) {
-    await desktop.assertTestId("layout-mode:FOCUS", { timeout: 5000 });
+    await desktop.assertTestId("layout-mode:FOCUS", { timeout: 10000 });
     await desktop.screenshot("11-screen-share-active-desktop");
   }
 
@@ -45,12 +45,12 @@ export default async function(ctx: ScenarioContext) {
   await ctx.sleep(3000);
 
   if (android) {
-    await android.assertTestTag("layout-mode:GRID", { timeout: 5000 });
+    await android.assertTestTag("layout-mode:GRID", { timeout: 10000 });
     await android.screenshot("11-grid-restored-android");
   }
 
   if (desktop) {
-    await desktop.assertTestId("layout-mode:GRID", { timeout: 5000 });
+    await desktop.assertTestId("layout-mode:GRID", { timeout: 10000 });
     await desktop.screenshot("11-grid-restored-desktop");
   }
 

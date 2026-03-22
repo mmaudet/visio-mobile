@@ -92,6 +92,7 @@ import io.visio.mobile.VideoSurfaceView
 import io.visio.mobile.VisioManager
 import io.visio.mobile.ui.i18n.Strings
 import io.visio.mobile.ui.theme.VisioColors
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -162,6 +163,312 @@ fun Context.findActivity(): Activity? {
         ctx = ctx.baseContext
     }
     return null
+}
+
+private suspend fun handleTestConnect(
+    testConnect: Triple<String, String, String?>,
+    coroutineScope: CoroutineScope,
+    onError: (String) -> Unit,
+    onMicState: (Boolean) -> Unit,
+    onCameraState: (Boolean) -> Unit,
+) {
+    val (livekitUrl, token, mediaFile) = testConnect
+    VisioManager.pendingTestConnect = null
+    VisioManager.isTestConnection = true
+    Log.i(TAG, "Test deep link: connecting directly to $livekitUrl, media=$mediaFile")
+    try {
+        VisioManager.client.connectWithToken(livekitUrl, token)
+    } catch (e: Exception) {
+        onError("Test connection failed: ${e.message}")
+        return
+    }
+
+    try {
+        VisioManager.startAudioPlayout()
+    } catch (e: Exception) {
+        onError("Audio playout failed: ${e.message}")
+        return
+    }
+
+    val settings =
+        try {
+            VisioManager.client.getSettings()
+        } catch (_: Exception) {
+            null
+        }
+    onMicState(settings?.micEnabledOnJoin ?: true)
+    onCameraState(true)
+
+    try {
+        VisioManager.startAudioCapture()
+    } catch (_: Exception) {
+    }
+
+    val hasMediaFile = !mediaFile.isNullOrBlank() && java.io.File(mediaFile).exists()
+
+    fun startMediaCapture() {
+        if (hasMediaFile) {
+            VisioManager.startMediaFileCapture(mediaFile!!)
+        } else {
+            VisioManager.startSyntheticAudioCapture()
+            VisioManager.startCameraCapture()
+        }
+    }
+
+    fun stopMediaCapture() {
+        if (hasMediaFile) {
+            VisioManager.stopMediaFileCapture()
+        } else {
+            VisioManager.stopAudioCapture()
+            VisioManager.stopCameraCapture()
+        }
+    }
+
+    launchTestChatMessages(coroutineScope)
+    launchTestTurnSequence(coroutineScope, ::startMediaCapture, ::stopMediaCapture)
+}
+
+private fun launchTestChatMessages(coroutineScope: CoroutineScope) {
+    coroutineScope.launch(Dispatchers.IO) {
+        delay(3000)
+        try {
+            VisioManager.client.sendChatMessage("Android joined the room!")
+        } catch (_: Exception) {
+        }
+        delay(47000)
+        try {
+            VisioManager.client.sendChatMessage("Android: my turn to speak!")
+        } catch (_: Exception) {
+        }
+        delay(15000)
+        try {
+            VisioManager.client.sendChatMessage("Android: mid-turn check-in")
+        } catch (_: Exception) {
+        }
+        delay(10000)
+        try {
+            VisioManager.client.sendChatMessage("Android: muted — iOS's turn")
+        } catch (_: Exception) {
+        }
+        delay(25000)
+        try {
+            VisioManager.client.sendChatMessage("Android: everyone speaking together!")
+        } catch (_: Exception) {
+        }
+    }
+}
+
+private fun launchTestTurnSequence(
+    coroutineScope: CoroutineScope,
+    startMediaCapture: () -> Unit,
+    stopMediaCapture: () -> Unit,
+) {
+    coroutineScope.launch(Dispatchers.IO) {
+        delay(5000)
+        Log.i(TAG, "[TURN] Android muted (bot's turn)")
+        try {
+            stopMediaCapture()
+            VisioManager.client.setMicrophoneEnabled(false)
+        } catch (_: Exception) {
+        }
+        try {
+            VisioManager.client.setCameraEnabled(false)
+        } catch (_: Exception) {
+        }
+
+        delay(45000)
+        Log.i(TAG, "[TURN] Android speaking")
+        try {
+            VisioManager.client.setMicrophoneEnabled(true)
+            VisioManager.client.setCameraEnabled(true)
+        } catch (_: Exception) {
+        }
+        try {
+            startMediaCapture()
+        } catch (_: Exception) {
+        }
+
+        delay(25000)
+        Log.i(TAG, "[TURN] Android muted (iOS's turn)")
+        try {
+            stopMediaCapture()
+            VisioManager.client.setMicrophoneEnabled(false)
+        } catch (_: Exception) {
+        }
+        try {
+            VisioManager.client.setCameraEnabled(false)
+        } catch (_: Exception) {
+        }
+
+        delay(25000)
+        Log.i(TAG, "[TURN] Android unmuted (all speak)")
+        try {
+            VisioManager.client.setMicrophoneEnabled(true)
+            VisioManager.client.setCameraEnabled(true)
+        } catch (_: Exception) {
+        }
+        try {
+            startMediaCapture()
+        } catch (_: Exception) {
+        }
+    }
+}
+
+private suspend fun handleNormalConnect(
+    context: Context,
+    roomUrl: String,
+    username: String,
+    onError: (String) -> Unit,
+    onMicState: (Boolean) -> Unit,
+    onCameraState: (Boolean) -> Unit,
+) {
+    val settings =
+        try {
+            VisioManager.client.getSettings()
+        } catch (e: Exception) {
+            onError("Failed to load settings: ${e.message}")
+            return
+        }
+
+    val user = username.ifBlank { null }
+    try {
+        VisioManager.client.connect(roomUrl, user)
+    } catch (e: Exception) {
+        onError("Connection failed: ${e.message}")
+        return
+    }
+
+    try {
+        VisioManager.startAudioPlayout()
+    } catch (e: Exception) {
+        onError("Audio playout failed: ${e.message}")
+        return
+    }
+
+    applyMicOnJoin(context, settings.micEnabledOnJoin)
+    onMicState(VisioManager.client.isMicrophoneEnabled())
+
+    applyCameraOnJoin(context, settings.cameraEnabledOnJoin)
+    onCameraState(VisioManager.client.isCameraEnabled())
+}
+
+private fun applyMicOnJoin(
+    context: Context,
+    micEnabledOnJoin: Boolean,
+) {
+    if (!micEnabledOnJoin) return
+    val hasMicPerm =
+        ContextCompat.checkSelfPermission(
+            context, Manifest.permission.RECORD_AUDIO,
+        ) == PackageManager.PERMISSION_GRANTED
+    if (hasMicPerm) {
+        try {
+            VisioManager.client.setMicrophoneEnabled(true)
+            VisioManager.startAudioCapture()
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to enable microphone on join", e)
+        }
+    }
+}
+
+private fun applyCameraOnJoin(
+    context: Context,
+    cameraEnabledOnJoin: Boolean,
+) {
+    if (!cameraEnabledOnJoin) return
+    val hasCamPerm =
+        ContextCompat.checkSelfPermission(
+            context, Manifest.permission.CAMERA,
+        ) == PackageManager.PERMISSION_GRANTED
+    if (hasCamPerm) {
+        try {
+            VisioManager.client.setCameraEnabled(true)
+            VisioManager.startCameraCapture()
+            VisioManager.refreshParticipantsPublic()
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to enable camera on join", e)
+        }
+    }
+}
+
+private fun toggleMic(
+    micEnabled: Boolean,
+    context: Context,
+    coroutineScope: CoroutineScope,
+    micPermissionLauncher: androidx.activity.result.ActivityResultLauncher<String>,
+    onMicState: (Boolean) -> Unit,
+) {
+    val newState = !micEnabled
+    if (newState) {
+        val hasPermission =
+            ContextCompat.checkSelfPermission(
+                context, Manifest.permission.RECORD_AUDIO,
+            ) == PackageManager.PERMISSION_GRANTED
+        if (hasPermission) {
+            coroutineScope.launch(Dispatchers.IO) {
+                try {
+                    VisioManager.client.setMicrophoneEnabled(true)
+                    VisioManager.startAudioCapture()
+                    onMicState(true)
+                } catch (e: Exception) {
+                    Log.e(TAG, "Failed to enable microphone", e)
+                }
+            }
+        } else {
+            micPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+        }
+    } else {
+        coroutineScope.launch(Dispatchers.IO) {
+            try {
+                VisioManager.stopAudioCapture()
+                VisioManager.client.setMicrophoneEnabled(false)
+                onMicState(false)
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to disable microphone", e)
+            }
+        }
+    }
+}
+
+private fun toggleCamera(
+    cameraEnabled: Boolean,
+    context: Context,
+    coroutineScope: CoroutineScope,
+    cameraPermissionLauncher: androidx.activity.result.ActivityResultLauncher<String>,
+    onCameraState: (Boolean) -> Unit,
+) {
+    val newState = !cameraEnabled
+    if (newState) {
+        val hasPermission =
+            ContextCompat.checkSelfPermission(
+                context, Manifest.permission.CAMERA,
+            ) == PackageManager.PERMISSION_GRANTED
+        if (hasPermission) {
+            coroutineScope.launch(Dispatchers.IO) {
+                try {
+                    VisioManager.startCameraCapture()
+                    VisioManager.client.setCameraEnabled(true)
+                    onCameraState(true)
+                    VisioManager.refreshParticipantsPublic()
+                } catch (e: Exception) {
+                    Log.e(TAG, "Failed to enable camera", e)
+                }
+            }
+        } else {
+            cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+        }
+    } else {
+        coroutineScope.launch(Dispatchers.IO) {
+            try {
+                VisioManager.stopCameraCapture()
+                VisioManager.client.setCameraEnabled(false)
+                onCameraState(false)
+                VisioManager.refreshParticipantsPublic()
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to disable camera", e)
+            }
+        }
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -376,214 +683,37 @@ fun CallScreen(
         withContext(Dispatchers.IO) {
             val state = VisioManager.connectionState.value
             if (state is ConnectionState.Connected || state is ConnectionState.Connecting) {
-                micEnabled = VisioManager.client.isMicrophoneEnabled()
-                cameraEnabled = VisioManager.client.isCameraEnabled()
-                return@withContext
-            }
-
-            // Test deep link: connect directly with LiveKit URL + token (debug builds only)
-            val testConnect = VisioManager.pendingTestConnect
-            if (testConnect != null) {
-                VisioManager.pendingTestConnect = null
-                VisioManager.isTestConnection = true
-                val (livekitUrl, token, mediaFile) = testConnect
-                Log.i(TAG, "Test deep link: connecting directly to $livekitUrl, media=$mediaFile")
-                try {
-                    VisioManager.client.connectWithToken(livekitUrl, token)
-                } catch (e: Exception) {
-                    errorMessage = "Test connection failed: ${e.message}"
-                    return@withContext
-                }
-
-                try {
-                    VisioManager.startAudioPlayout()
-                } catch (e: Exception) {
-                    errorMessage = "Audio playout failed: ${e.message}"
-                    return@withContext
-                }
-
-                // Apply default settings for mic/camera
-                val settings =
+                val s =
                     try {
                         VisioManager.client.getSettings()
-                    } catch (e: Exception) {
+                    } catch (_: Exception) {
                         null
                     }
-                micEnabled = settings?.micEnabledOnJoin ?: true
-                cameraEnabled = true // Always enable camera for E2E tests
-
-                // Ensure mic capture is active so the phone's audio is published
-                try {
-                    VisioManager.startAudioCapture()
-                } catch (_: Exception) {
-                }
-
-                val hasMediaFile = !mediaFile.isNullOrBlank() && java.io.File(mediaFile).exists()
-
-                // Auto-chat messages for E2E test (turn-based)
-                coroutineScope.launch(Dispatchers.IO) {
-                    delay(3000)
-                    try {
-                        VisioManager.client.sendChatMessage("Android joined the room!")
-                    } catch (_: Exception) {
-                    }
-                    delay(47000) // 50s total
-                    try {
-                        VisioManager.client.sendChatMessage("Android: my turn to speak!")
-                    } catch (_: Exception) {
-                    }
-                    delay(15000) // 65s total
-                    try {
-                        VisioManager.client.sendChatMessage("Android: mid-turn check-in")
-                    } catch (_: Exception) {
-                    }
-                    delay(10000) // 75s total
-                    try {
-                        VisioManager.client.sendChatMessage("Android: muted — iOS's turn")
-                    } catch (_: Exception) {
-                    }
-                    delay(25000) // 100s total
-                    try {
-                        VisioManager.client.sendChatMessage("Android: everyone speaking together!")
-                    } catch (_: Exception) {
-                    }
-                }
-
-                // Helper: start media capture from file or synthetic fallback
-                fun startMediaCapture() {
-                    if (hasMediaFile) {
-                        VisioManager.startMediaFileCapture(mediaFile!!)
-                    } else {
-                        VisioManager.startSyntheticAudioCapture()
-                        VisioManager.startCameraCapture()
-                    }
-                }
-
-                fun stopMediaCapture() {
-                    if (hasMediaFile) {
-                        VisioManager.stopMediaFileCapture()
-                    } else {
-                        VisioManager.stopAudioCapture()
-                        VisioManager.stopCameraCapture()
-                    }
-                }
-
-                // Turn-based speaking: Android speaks at 50-75s, muted otherwise (except warmup 0-5s and final 100-120s)
-                coroutineScope.launch(Dispatchers.IO) {
-                    // 5s: mute mic+cam (bot's turn)
-                    delay(5000)
-                    Log.i(TAG, "[TURN] Android muted (bot's turn)")
-                    try {
-                        stopMediaCapture()
-                        VisioManager.client.setMicrophoneEnabled(false)
-                    } catch (_: Exception) {
-                    }
-                    try {
-                        VisioManager.client.setCameraEnabled(false)
-                    } catch (_: Exception) {
-                    }
-                    // 50s: unmute — Android's turn to speak
-                    delay(45000)
-                    Log.i(TAG, "[TURN] Android speaking")
-                    try {
-                        VisioManager.client.setMicrophoneEnabled(true)
-                        VisioManager.client.setCameraEnabled(true)
-                    } catch (
-                        _: Exception,
-                    ) {
-                    }
-                    try {
-                        startMediaCapture()
-                    } catch (_: Exception) {
-                    }
-                    // 75s: mute — iOS's turn
-                    delay(25000)
-                    Log.i(TAG, "[TURN] Android muted (iOS's turn)")
-                    try {
-                        stopMediaCapture()
-                        VisioManager.client.setMicrophoneEnabled(false)
-                    } catch (_: Exception) {
-                    }
-                    try {
-                        VisioManager.client.setCameraEnabled(false)
-                    } catch (_: Exception) {
-                    }
-                    // 100s: unmute — everyone speaks
-                    delay(25000)
-                    Log.i(TAG, "[TURN] Android unmuted (all speak)")
-                    try {
-                        VisioManager.client.setMicrophoneEnabled(true)
-                        VisioManager.client.setCameraEnabled(true)
-                    } catch (
-                        _: Exception,
-                    ) {
-                    }
-                    try {
-                        startMediaCapture()
-                    } catch (_: Exception) {
-                    }
-                }
-
+                micEnabled = s?.micEnabledOnJoin ?: VisioManager.client.isMicrophoneEnabled()
+                cameraEnabled = s?.cameraEnabledOnJoin ?: VisioManager.client.isCameraEnabled()
                 return@withContext
             }
 
-            val settings =
-                try {
-                    VisioManager.client.getSettings()
-                } catch (e: Exception) {
-                    errorMessage = "Failed to load settings: ${e.message}"
-                    return@withContext
-                }
-
-            val user = username.ifBlank { null }
-            try {
-                VisioManager.client.connect(roomUrl, user)
-            } catch (e: Exception) {
-                errorMessage = "Connection failed: ${e.message}"
+            val testConnect = VisioManager.pendingTestConnect
+            if (testConnect != null) {
+                handleTestConnect(
+                    testConnect,
+                    coroutineScope,
+                    onError = { errorMessage = it },
+                    onMicState = { micEnabled = it },
+                    onCameraState = { cameraEnabled = it },
+                )
                 return@withContext
             }
 
-            try {
-                VisioManager.startAudioPlayout()
-            } catch (e: Exception) {
-                errorMessage = "Audio playout failed: ${e.message}"
-                return@withContext
-            }
-
-            // Apply mic-on-join setting (only if permission already granted)
-            if (settings.micEnabledOnJoin) {
-                val hasMicPerm =
-                    ContextCompat.checkSelfPermission(
-                        context, Manifest.permission.RECORD_AUDIO,
-                    ) == PackageManager.PERMISSION_GRANTED
-                if (hasMicPerm) {
-                    try {
-                        VisioManager.client.setMicrophoneEnabled(true)
-                        VisioManager.startAudioCapture()
-                    } catch (e: Exception) {
-                        Log.e(TAG, "Failed to enable microphone on join", e)
-                    }
-                }
-            }
-            micEnabled = VisioManager.client.isMicrophoneEnabled()
-
-            // Apply camera-on-join setting (only if permission already granted)
-            if (settings.cameraEnabledOnJoin) {
-                val hasCamPerm =
-                    ContextCompat.checkSelfPermission(
-                        context, Manifest.permission.CAMERA,
-                    ) == PackageManager.PERMISSION_GRANTED
-                if (hasCamPerm) {
-                    try {
-                        VisioManager.client.setCameraEnabled(true)
-                        VisioManager.startCameraCapture()
-                        VisioManager.refreshParticipantsPublic()
-                    } catch (e: Exception) {
-                        Log.e(TAG, "Failed to enable camera on join", e)
-                    }
-                }
-            }
-            cameraEnabled = VisioManager.client.isCameraEnabled()
+            handleNormalConnect(
+                context,
+                roomUrl,
+                username,
+                onError = { errorMessage = it },
+                onMicState = { micEnabled = it },
+                onCameraState = { cameraEnabled = it },
+            )
         }
     }
 
@@ -688,66 +818,26 @@ fun CallScreen(
                         .padding(if (isFullscreenFocus) 0.dp else 8.dp)
                         .testTag("layout-mode:${if (layoutDecision.mode == LayoutMode.FOCUS) "FOCUS" else "GRID"}"),
             ) {
-                when (effectiveAdaptiveMode) {
-                    AdaptiveMode.CAR -> {
-                        val speaker =
-                            layoutDecision.mainTile?.participant
-                                ?: participants.firstOrNull()
-                        CarModeView(
-                            speakerName = speaker?.name ?: speaker?.identity ?: "",
-                            lang = lang,
-                        )
-                    }
-
-                    AdaptiveMode.PEDESTRIAN -> {
-                        val mainParticipant = layoutDecision.mainTile?.participant ?: participants.firstOrNull()
-                        PedestrianModeView(
-                            participant = mainParticipant,
-                            speakerIndicatorSid = layoutDecision.speakerIndicatorSid,
-                            handRaisedMap = handRaisedMap,
-                        )
-                    }
-
-                    AdaptiveMode.OFFICE -> {
-                        val displayItems = buildDisplayItems(participants)
-
-                        if (layoutDecision.mode == LayoutMode.FOCUS && layoutDecision.mainTile != null) {
-                            OfficeFocusLayout(
-                                focusedDisplayItem = layoutDecision.mainTile,
-                                secondaryTiles = layoutDecision.secondaryTiles,
-                                speakerIndicatorSid = layoutDecision.speakerIndicatorSid,
-                                pinnedIndicatorSid = layoutDecision.pinnedIndicatorSid,
-                                handRaisedMap = handRaisedMap,
-                                controlsVisible = controlsVisible,
-                                onToggleControls = { controlsVisible = !controlsVisible },
-                                onExitFocus = {
-                                    focusedItem = null
-                                    userPinnedItem = null
-                                },
-                                onFocusItem = { fi ->
-                                    focusedItem = fi
-                                    userPinnedItem = fi
-                                },
-                                onTogglePin = { fi ->
-                                    userPinnedItem = if (userPinnedItem == fi) null else fi
-                                },
-                            )
-                        } else {
-                            OfficeGridLayout(
-                                displayItems = displayItems,
-                                speakerIndicatorSid = layoutDecision.speakerIndicatorSid,
-                                handRaisedMap = handRaisedMap,
-                                onFocusItem = { fi ->
-                                    focusedItem = fi
-                                    userPinnedItem = fi
-                                },
-                                onTogglePin = { fi ->
-                                    userPinnedItem = if (userPinnedItem == fi) null else fi
-                                },
-                            )
-                        }
-                    }
-                }
+                AdaptiveModeVideoArea(
+                    effectiveAdaptiveMode = effectiveAdaptiveMode,
+                    layoutDecision = layoutDecision,
+                    participants = participants,
+                    handRaisedMap = handRaisedMap,
+                    controlsVisible = controlsVisible,
+                    lang = lang,
+                    onToggleControls = { controlsVisible = !controlsVisible },
+                    onExitFocus = {
+                        focusedItem = null
+                        userPinnedItem = null
+                    },
+                    onFocusItem = { fi ->
+                        focusedItem = fi
+                        userPinnedItem = fi
+                    },
+                    onTogglePin = { fi ->
+                        userPinnedItem = if (userPinnedItem == fi) null else fi
+                    },
+                )
 
                 // Reaction overlay on top of video grid
                 ReactionOverlay(reactions = reactions)
@@ -777,35 +867,8 @@ fun CallScreen(
                     isAdaptiveModeEnabled = isAdaptiveModeEnabled,
                     lang = lang,
                     onToggleMic = {
-                        val newState = !micEnabled
-                        if (newState) {
-                            val hasPermission =
-                                ContextCompat.checkSelfPermission(
-                                    context, Manifest.permission.RECORD_AUDIO,
-                                ) == PackageManager.PERMISSION_GRANTED
-                            if (hasPermission) {
-                                coroutineScope.launch(Dispatchers.IO) {
-                                    try {
-                                        VisioManager.client.setMicrophoneEnabled(true)
-                                        VisioManager.startAudioCapture()
-                                        micEnabled = true
-                                    } catch (e: Exception) {
-                                        Log.e(TAG, "Failed to enable microphone", e)
-                                    }
-                                }
-                            } else {
-                                micPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
-                            }
-                        } else {
-                            coroutineScope.launch(Dispatchers.IO) {
-                                try {
-                                    VisioManager.stopAudioCapture()
-                                    VisioManager.client.setMicrophoneEnabled(false)
-                                    micEnabled = false
-                                } catch (e: Exception) {
-                                    Log.e(TAG, "Failed to disable microphone", e)
-                                }
-                            }
+                        toggleMic(micEnabled, context, coroutineScope, micPermissionLauncher) {
+                            micEnabled = it
                         }
                     },
                     onAudioPicker = {
@@ -813,37 +876,8 @@ fun CallScreen(
                         showInCallSettings = true
                     },
                     onToggleCamera = {
-                        val newState = !cameraEnabled
-                        if (newState) {
-                            val hasPermission =
-                                ContextCompat.checkSelfPermission(
-                                    context, Manifest.permission.CAMERA,
-                                ) == PackageManager.PERMISSION_GRANTED
-                            if (hasPermission) {
-                                coroutineScope.launch(Dispatchers.IO) {
-                                    try {
-                                        VisioManager.startCameraCapture()
-                                        VisioManager.client.setCameraEnabled(true)
-                                        cameraEnabled = true
-                                        VisioManager.refreshParticipantsPublic()
-                                    } catch (e: Exception) {
-                                        Log.e(TAG, "Failed to enable camera", e)
-                                    }
-                                }
-                            } else {
-                                cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
-                            }
-                        } else {
-                            coroutineScope.launch(Dispatchers.IO) {
-                                try {
-                                    VisioManager.stopCameraCapture()
-                                    VisioManager.client.setCameraEnabled(false)
-                                    cameraEnabled = false
-                                    VisioManager.refreshParticipantsPublic()
-                                } catch (e: Exception) {
-                                    Log.e(TAG, "Failed to disable camera", e)
-                                }
-                            }
+                        toggleCamera(cameraEnabled, context, coroutineScope, cameraPermissionLauncher) {
+                            cameraEnabled = it
                         }
                     },
                     onToggleHandRaise = {
@@ -999,6 +1033,86 @@ private fun CallPiPView(
                 onClick = {},
             )
         }
+    }
+}
+
+@Composable
+private fun AdaptiveModeVideoArea(
+    effectiveAdaptiveMode: AdaptiveMode,
+    layoutDecision: LayoutDecision,
+    participants: List<ParticipantInfo>,
+    handRaisedMap: Map<String, Int>,
+    controlsVisible: Boolean,
+    lang: String,
+    onToggleControls: () -> Unit,
+    onExitFocus: () -> Unit,
+    onFocusItem: (FocusItem) -> Unit,
+    onTogglePin: (FocusItem) -> Unit,
+) {
+    when (effectiveAdaptiveMode) {
+        AdaptiveMode.CAR -> {
+            val speaker = layoutDecision.mainTile?.participant ?: participants.firstOrNull()
+            CarModeView(
+                speakerName = speaker?.name ?: speaker?.identity ?: "",
+                lang = lang,
+            )
+        }
+        AdaptiveMode.PEDESTRIAN -> {
+            val mainParticipant = layoutDecision.mainTile?.participant ?: participants.firstOrNull()
+            PedestrianModeView(
+                participant = mainParticipant,
+                speakerIndicatorSid = layoutDecision.speakerIndicatorSid,
+                handRaisedMap = handRaisedMap,
+            )
+        }
+        AdaptiveMode.OFFICE -> {
+            OfficeVideoArea(
+                layoutDecision = layoutDecision,
+                participants = participants,
+                handRaisedMap = handRaisedMap,
+                controlsVisible = controlsVisible,
+                onToggleControls = onToggleControls,
+                onExitFocus = onExitFocus,
+                onFocusItem = onFocusItem,
+                onTogglePin = onTogglePin,
+            )
+        }
+    }
+}
+
+@Composable
+private fun OfficeVideoArea(
+    layoutDecision: LayoutDecision,
+    participants: List<ParticipantInfo>,
+    handRaisedMap: Map<String, Int>,
+    controlsVisible: Boolean,
+    onToggleControls: () -> Unit,
+    onExitFocus: () -> Unit,
+    onFocusItem: (FocusItem) -> Unit,
+    onTogglePin: (FocusItem) -> Unit,
+) {
+    val displayItems = buildDisplayItems(participants)
+    if (layoutDecision.mode == LayoutMode.FOCUS && layoutDecision.mainTile != null) {
+        OfficeFocusLayout(
+            focusedDisplayItem = layoutDecision.mainTile,
+            secondaryTiles = layoutDecision.secondaryTiles,
+            speakerIndicatorSid = layoutDecision.speakerIndicatorSid,
+            pinnedIndicatorSid = layoutDecision.pinnedIndicatorSid,
+            handRaisedMap = handRaisedMap,
+            controlsVisible = controlsVisible,
+            onToggleControls = onToggleControls,
+            onExitFocus = onExitFocus,
+            onFocusItem = onFocusItem,
+            onTogglePin = onTogglePin,
+        )
+    } else {
+        OfficeGridLayout(
+            displayItems = displayItems,
+            speakerIndicatorSid = layoutDecision.speakerIndicatorSid,
+            handRaisedMap = handRaisedMap,
+            onFocusItem = onFocusItem,
+            onTogglePin = onTogglePin,
+        )
     }
 }
 
@@ -1368,409 +1482,525 @@ private fun ControlBar(
     Column(
         modifier = Modifier.fillMaxWidth(),
     ) {
-        // Reaction picker (slides above control bar)
         if (showReactionPicker) {
-            Row(
-                modifier =
-                    Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 4.dp)
-                        .background(Color(0xCC000000), RoundedCornerShape(12.dp))
-                        .padding(horizontal = 8.dp, vertical = 8.dp),
-                horizontalArrangement = Arrangement.SpaceEvenly,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                REACTION_EMOJIS.forEach { (id, emoji) ->
-                    Text(
-                        text = emoji,
-                        fontSize = 28.sp,
-                        modifier =
-                            Modifier
-                                .clickable { onReaction(id) }
-                                .padding(4.dp),
-                    )
-                }
-            }
+            ReactionPickerRow(onReaction = onReaction)
         }
 
-        // Overflow menu (slides above control bar)
         if (showOverflow) {
-            Row(
-                modifier =
-                    Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 4.dp)
-                        .background(Color(0xCC000000), RoundedCornerShape(12.dp))
-                        .padding(horizontal = 12.dp, vertical = 8.dp),
-                horizontalArrangement = Arrangement.SpaceEvenly,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                // Hand raise
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier =
-                        Modifier.clickable {
-                            onToggleHandRaise()
-                            showOverflow = false
-                        }.padding(horizontal = 8.dp),
-                ) {
-                    IconButton(
-                        onClick = {
-                            onToggleHandRaise()
-                            showOverflow = false
-                        },
-                        modifier =
-                            Modifier
-                                .size(38.dp)
-                                .background(
-                                    if (isHandRaised) VisioColors.HandRaise else VisioColors.PrimaryDark100,
-                                    RoundedCornerShape(8.dp),
-                                )
-                                .testTag("call_hand_raise_button"),
-                    ) {
-                        Icon(
-                            painter = painterResource(R.drawable.ri_hand),
-                            contentDescription =
-                                if (isHandRaised) {
-                                    Strings.t(
-                                        "control.lowerHand",
-                                        lang,
-                                    )
-                                } else {
-                                    Strings.t("control.raiseHand", lang)
-                                },
-                            tint = if (isHandRaised) Color.Black else VisioColors.White,
-                            modifier = Modifier.size(20.dp),
-                        )
-                    }
-                    Text(
-                        text = if (isHandRaised) Strings.t("control.lowerHand", lang) else Strings.t("control.raiseHand", lang),
-                        color = VisioColors.White,
-                        fontSize = 10.sp,
-                        maxLines = 1,
-                    )
-                }
-
-                // Reaction
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier =
-                        Modifier.clickable {
-                            showOverflow = false
-                            onToggleReactionPicker()
-                        }.padding(horizontal = 8.dp),
-                ) {
-                    IconButton(
-                        onClick = {
-                            showOverflow = false
-                            onToggleReactionPicker()
-                        },
-                        modifier =
-                            Modifier
-                                .size(38.dp)
-                                .background(VisioColors.PrimaryDark100, RoundedCornerShape(8.dp)),
-                    ) {
-                        Icon(
-                            painter = painterResource(R.drawable.ri_emotion_line),
-                            contentDescription = "Reaction",
-                            tint = VisioColors.White,
-                            modifier = Modifier.size(20.dp),
-                        )
-                    }
-                    Text(
-                        text = "Reaction",
-                        color = VisioColors.White,
-                        fontSize = 10.sp,
-                        maxLines = 1,
-                    )
-                }
-
-                // Settings
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier =
-                        Modifier.clickable {
-                            showOverflow = false
-                            onSettings()
-                        }.padding(horizontal = 8.dp),
-                ) {
-                    IconButton(
-                        onClick = {
-                            showOverflow = false
-                            onSettings()
-                        },
-                        modifier =
-                            Modifier
-                                .size(38.dp)
-                                .background(VisioColors.PrimaryDark100, RoundedCornerShape(8.dp))
-                                .testTag("call_settings_button"),
-                    ) {
-                        Icon(
-                            painter = painterResource(R.drawable.ri_settings_3_line),
-                            contentDescription = Strings.t("settings.incall", lang),
-                            tint = VisioColors.White,
-                            modifier = Modifier.size(20.dp),
-                        )
-                    }
-                    Text(
-                        text = Strings.t("settings.incall", lang),
-                        color = VisioColors.White,
-                        fontSize = 10.sp,
-                        maxLines = 1,
-                    )
-                }
-            }
-
-            // Adaptive mode override — only shown when adaptive mode is enabled
-            if (isAdaptiveModeEnabled) {
-                Column(
-                    modifier =
-                        Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 4.dp)
-                            .background(Color(0xCC000000), RoundedCornerShape(12.dp))
-                            .padding(horizontal = 12.dp, vertical = 8.dp),
-                ) {
-                    Text(
-                        text = Strings.t("adaptive.override", lang),
-                        color = VisioColors.White,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Medium,
-                        modifier = Modifier.padding(bottom = 6.dp),
-                    )
-                    Row(
-                        horizontalArrangement = Arrangement.SpaceEvenly,
-                        modifier = Modifier.fillMaxWidth(),
-                    ) {
-                        val modeOptions =
-                            listOf<Pair<AdaptiveMode?, String>>(
-                                null to Strings.t("adaptive.auto", lang),
-                                AdaptiveMode.OFFICE to Strings.t("adaptive.office", lang),
-                                AdaptiveMode.PEDESTRIAN to Strings.t("adaptive.pedestrian", lang),
-                                AdaptiveMode.CAR to Strings.t("adaptive.car", lang),
-                            )
-                        modeOptions.forEach { (mode, label) ->
-                            val isSelected = mode == adaptiveModeOverride
-                            Text(
-                                text = label,
-                                color = if (isSelected) Color.Black else VisioColors.White,
-                                fontSize = 11.sp,
-                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                modifier =
-                                    Modifier
-                                        .background(
-                                            if (isSelected) VisioColors.Primary500 else VisioColors.PrimaryDark100,
-                                            RoundedCornerShape(16.dp),
-                                        )
-                                        .clickable {
-                                            adaptiveModeOverride = mode
-                                            onAdaptiveModeOverride(mode)
-                                        }
-                                        .padding(horizontal = 10.dp, vertical = 6.dp),
-                                maxLines = 1,
-                            )
-                        }
-                    }
-                }
-            }
+            OverflowMenu(
+                isHandRaised = isHandRaised,
+                lang = lang,
+                isAdaptiveModeEnabled = isAdaptiveModeEnabled,
+                adaptiveModeOverride = adaptiveModeOverride,
+                onToggleHandRaise = {
+                    onToggleHandRaise()
+                    showOverflow = false
+                },
+                onReactionPicker = {
+                    showOverflow = false
+                    onToggleReactionPicker()
+                },
+                onSettings = {
+                    showOverflow = false
+                    onSettings()
+                },
+                onAdaptiveModeOverride = { mode ->
+                    adaptiveModeOverride = mode
+                    onAdaptiveModeOverride(mode)
+                },
+            )
         }
 
-        // Main control bar — button sizes adapt to mode (always Office when adaptive mode disabled)
-        val effectiveMode = if (isAdaptiveModeEnabled) adaptiveMode else AdaptiveMode.OFFICE
-        val isLargeButtons = effectiveMode != AdaptiveMode.OFFICE
-        val btnSize = if (isLargeButtons) 96.dp else 38.dp
-        val iconSize = if (isLargeButtons) 48.dp else 20.dp
-        val cornerRadius = if (isLargeButtons) 16.dp else 8.dp
+        ControlBarButtons(
+            micEnabled = micEnabled,
+            cameraEnabled = cameraEnabled,
+            unreadCount = unreadCount,
+            participantCount = participantCount,
+            adaptiveMode = adaptiveMode,
+            isAdaptiveModeEnabled = isAdaptiveModeEnabled,
+            showOverflow = showOverflow,
+            lang = lang,
+            onToggleMic = onToggleMic,
+            onAudioPicker = onAudioPicker,
+            onToggleCamera = onToggleCamera,
+            onParticipants = onParticipants,
+            onChat = onChat,
+            onToggleOverflow = { showOverflow = !showOverflow },
+            onHangUp = onHangUp,
+        )
+    }
+}
 
-        Row(
+@Composable
+private fun ReactionPickerRow(onReaction: (String) -> Unit) {
+    Row(
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 4.dp)
+                .background(Color(0xCC000000), RoundedCornerShape(12.dp))
+                .padding(horizontal = 8.dp, vertical = 8.dp),
+        horizontalArrangement = Arrangement.SpaceEvenly,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        REACTION_EMOJIS.forEach { (id, emoji) ->
+            Text(
+                text = emoji,
+                fontSize = 28.sp,
+                modifier =
+                    Modifier
+                        .clickable { onReaction(id) }
+                        .padding(4.dp),
+            )
+        }
+    }
+}
+
+@Composable
+private fun OverflowMenu(
+    isHandRaised: Boolean,
+    lang: String,
+    isAdaptiveModeEnabled: Boolean,
+    adaptiveModeOverride: AdaptiveMode?,
+    onToggleHandRaise: () -> Unit,
+    onReactionPicker: () -> Unit,
+    onSettings: () -> Unit,
+    onAdaptiveModeOverride: (AdaptiveMode?) -> Unit,
+) {
+    Row(
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 4.dp)
+                .background(Color(0xCC000000), RoundedCornerShape(12.dp))
+                .padding(horizontal = 12.dp, vertical = 8.dp),
+        horizontalArrangement = Arrangement.SpaceEvenly,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        OverflowHandRaiseItem(isHandRaised, lang, onToggleHandRaise)
+        OverflowReactionItem(onReactionPicker)
+        OverflowSettingsItem(lang, onSettings)
+    }
+
+    if (isAdaptiveModeEnabled) {
+        AdaptiveModeOverridePicker(
+            lang = lang,
+            adaptiveModeOverride = adaptiveModeOverride,
+            onAdaptiveModeOverride = onAdaptiveModeOverride,
+        )
+    }
+}
+
+@Composable
+private fun OverflowHandRaiseItem(
+    isHandRaised: Boolean,
+    lang: String,
+    onToggleHandRaise: () -> Unit,
+) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier.clickable { onToggleHandRaise() }.padding(horizontal = 8.dp),
+    ) {
+        IconButton(
+            onClick = onToggleHandRaise,
             modifier =
                 Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 8.dp)
-                    .background(VisioColors.PrimaryDark75, RoundedCornerShape(16.dp))
-                    .padding(horizontal = 6.dp, vertical = 8.dp),
-            horizontalArrangement = Arrangement.SpaceEvenly,
-            verticalAlignment = Alignment.CenterVertically,
+                    .size(38.dp)
+                    .background(
+                        if (isHandRaised) VisioColors.HandRaise else VisioColors.PrimaryDark100,
+                        RoundedCornerShape(8.dp),
+                    )
+                    .testTag("call_hand_raise_button"),
         ) {
-            // Mic group: toggle + audio picker chevron
-            Row(
-                modifier =
-                    Modifier
-                        .background(
-                            if (micEnabled) VisioColors.PrimaryDark100 else VisioColors.Error200,
-                            RoundedCornerShape(cornerRadius),
-                        ),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                IconButton(
-                    onClick = onToggleMic,
-                    modifier = Modifier.size(btnSize).testTag("call_mic_button"),
-                ) {
-                    Icon(
-                        painter =
-                            painterResource(
-                                if (micEnabled) R.drawable.ri_mic_line else R.drawable.ri_mic_off_line,
-                            ),
-                        contentDescription = if (micEnabled) Strings.t("control.mute", lang) else Strings.t("control.unmute", lang),
-                        tint = VisioColors.White,
-                        modifier = Modifier.size(iconSize),
-                    )
-                }
-                // Audio device picker chevron — visible in all modes
-                val chevronHeight = if (isLargeButtons) 96.dp else 38.dp
-                val chevronWidth = if (isLargeButtons) 40.dp else 22.dp
-                val chevronIconSize = if (isLargeButtons) 24.dp else 14.dp
-                IconButton(
-                    onClick = onAudioPicker,
-                    modifier = Modifier.size(chevronWidth, chevronHeight),
-                ) {
-                    Icon(
-                        painter = painterResource(R.drawable.ri_arrow_up_s_line),
-                        contentDescription = Strings.t("control.audioDevices", lang),
-                        tint = VisioColors.White,
-                        modifier = Modifier.size(chevronIconSize),
-                    )
-                }
-            }
+            Icon(
+                painter = painterResource(R.drawable.ri_hand),
+                contentDescription =
+                    if (isHandRaised) Strings.t("control.lowerHand", lang) else Strings.t("control.raiseHand", lang),
+                tint = if (isHandRaised) Color.Black else VisioColors.White,
+                modifier = Modifier.size(20.dp),
+            )
+        }
+        Text(
+            text = if (isHandRaised) Strings.t("control.lowerHand", lang) else Strings.t("control.raiseHand", lang),
+            color = VisioColors.White,
+            fontSize = 10.sp,
+            maxLines = 1,
+        )
+    }
+}
 
-            // Camera toggle — visible in OFFICE and PEDESTRIAN only
-            if (adaptiveMode != AdaptiveMode.CAR) {
-                IconButton(
-                    onClick = onToggleCamera,
+@Composable
+private fun OverflowReactionItem(onReactionPicker: () -> Unit) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier.clickable { onReactionPicker() }.padding(horizontal = 8.dp),
+    ) {
+        IconButton(
+            onClick = onReactionPicker,
+            modifier =
+                Modifier
+                    .size(38.dp)
+                    .background(VisioColors.PrimaryDark100, RoundedCornerShape(8.dp)),
+        ) {
+            Icon(
+                painter = painterResource(R.drawable.ri_emotion_line),
+                contentDescription = "Reaction",
+                tint = VisioColors.White,
+                modifier = Modifier.size(20.dp),
+            )
+        }
+        Text(
+            text = "Reaction",
+            color = VisioColors.White,
+            fontSize = 10.sp,
+            maxLines = 1,
+        )
+    }
+}
+
+@Composable
+private fun OverflowSettingsItem(
+    lang: String,
+    onSettings: () -> Unit,
+) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier.clickable { onSettings() }.padding(horizontal = 8.dp),
+    ) {
+        IconButton(
+            onClick = onSettings,
+            modifier =
+                Modifier
+                    .size(38.dp)
+                    .background(VisioColors.PrimaryDark100, RoundedCornerShape(8.dp))
+                    .testTag("call_settings_button"),
+        ) {
+            Icon(
+                painter = painterResource(R.drawable.ri_settings_3_line),
+                contentDescription = Strings.t("settings.incall", lang),
+                tint = VisioColors.White,
+                modifier = Modifier.size(20.dp),
+            )
+        }
+        Text(
+            text = Strings.t("settings.incall", lang),
+            color = VisioColors.White,
+            fontSize = 10.sp,
+            maxLines = 1,
+        )
+    }
+}
+
+@Composable
+private fun AdaptiveModeOverridePicker(
+    lang: String,
+    adaptiveModeOverride: AdaptiveMode?,
+    onAdaptiveModeOverride: (AdaptiveMode?) -> Unit,
+) {
+    Column(
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 4.dp)
+                .background(Color(0xCC000000), RoundedCornerShape(12.dp))
+                .padding(horizontal = 12.dp, vertical = 8.dp),
+    ) {
+        Text(
+            text = Strings.t("adaptive.override", lang),
+            color = VisioColors.White,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Medium,
+            modifier = Modifier.padding(bottom = 6.dp),
+        )
+        Row(
+            horizontalArrangement = Arrangement.SpaceEvenly,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            val modeOptions =
+                listOf<Pair<AdaptiveMode?, String>>(
+                    null to Strings.t("adaptive.auto", lang),
+                    AdaptiveMode.OFFICE to Strings.t("adaptive.office", lang),
+                    AdaptiveMode.PEDESTRIAN to Strings.t("adaptive.pedestrian", lang),
+                    AdaptiveMode.CAR to Strings.t("adaptive.car", lang),
+                )
+            modeOptions.forEach { (mode, label) ->
+                val isSelected = mode == adaptiveModeOverride
+                Text(
+                    text = label,
+                    color = if (isSelected) Color.Black else VisioColors.White,
+                    fontSize = 11.sp,
+                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
                     modifier =
                         Modifier
-                            .size(btnSize)
                             .background(
-                                if (cameraEnabled) VisioColors.PrimaryDark100 else VisioColors.Error200,
-                                RoundedCornerShape(cornerRadius),
+                                if (isSelected) VisioColors.Primary500 else VisioColors.PrimaryDark100,
+                                RoundedCornerShape(16.dp),
                             )
-                            .testTag("call_camera_button"),
-                ) {
-                    Icon(
-                        painter =
-                            painterResource(
-                                if (cameraEnabled) R.drawable.ri_video_on_line else R.drawable.ri_video_off_line,
-                            ),
-                        contentDescription = if (cameraEnabled) Strings.t("control.camOff", lang) else Strings.t("control.camOn", lang),
-                        tint = VisioColors.White,
-                        modifier = Modifier.size(iconSize),
-                    )
-                }
-            }
-
-            // Participants with count badge — OFFICE only
-            if (adaptiveMode == AdaptiveMode.OFFICE) {
-                IconButton(
-                    onClick = onParticipants,
-                    modifier =
-                        Modifier
-                            .size(btnSize)
-                            .background(VisioColors.PrimaryDark100, RoundedCornerShape(cornerRadius))
-                            .testTag("call_participants_button"),
-                ) {
-                    BadgedBox(
-                        badge = {
-                            if (participantCount > 0) {
-                                Badge(
-                                    containerColor = VisioColors.Primary500,
-                                    contentColor = VisioColors.White,
-                                ) {
-                                    Text(
-                                        text = "$participantCount",
-                                        fontSize = 10.sp,
-                                    )
-                                }
-                            }
-                        },
-                    ) {
-                        Icon(
-                            painter = painterResource(R.drawable.ri_group_line),
-                            contentDescription = Strings.t("participants.title", lang),
-                            tint = VisioColors.White,
-                            modifier = Modifier.size(iconSize),
-                        )
-                    }
-                }
-            }
-
-            // Chat with unread badge — OFFICE only
-            if (adaptiveMode == AdaptiveMode.OFFICE) {
-                IconButton(
-                    onClick = onChat,
-                    modifier =
-                        Modifier
-                            .size(btnSize)
-                            .background(VisioColors.PrimaryDark100, RoundedCornerShape(cornerRadius))
-                            .testTag("call_chat_button"),
-                ) {
-                    BadgedBox(
-                        badge = {
-                            if (unreadCount > 0) {
-                                Badge(
-                                    containerColor = VisioColors.Error500,
-                                    contentColor = VisioColors.White,
-                                ) {
-                                    Text(
-                                        text = "$unreadCount",
-                                        fontSize = 10.sp,
-                                    )
-                                }
-                            }
-                        },
-                    ) {
-                        Icon(
-                            painter = painterResource(R.drawable.ri_chat_1_line),
-                            contentDescription = Strings.t("chat", lang),
-                            tint = VisioColors.White,
-                            modifier = Modifier.size(iconSize),
-                        )
-                    }
-                }
-            }
-
-            // More (overflow) button — OFFICE only
-            if (adaptiveMode == AdaptiveMode.OFFICE) {
-                IconButton(
-                    onClick = {
-                        showOverflow = !showOverflow
-                        if (showOverflow) {
-                            // Close reaction picker when opening overflow
-                        }
-                    },
-                    modifier =
-                        Modifier
-                            .size(btnSize)
-                            .background(
-                                if (showOverflow) VisioColors.Primary500 else VisioColors.PrimaryDark100,
-                                RoundedCornerShape(cornerRadius),
-                            ),
-                ) {
-                    Icon(
-                        painter = painterResource(R.drawable.ri_more_2_fill),
-                        contentDescription = "More",
-                        tint = VisioColors.White,
-                        modifier = Modifier.size(iconSize),
-                    )
-                }
-            }
-
-            // Hangup
-            IconButton(
-                onClick = onHangUp,
-                modifier =
-                    Modifier
-                        .size(btnSize)
-                        .background(VisioColors.Error500, RoundedCornerShape(cornerRadius))
-                        .testTag("call_hangup_button"),
-            ) {
-                Icon(
-                    painter = painterResource(R.drawable.ri_phone_fill),
-                    contentDescription = Strings.t("control.leave", lang),
-                    tint = VisioColors.White,
-                    modifier = Modifier.size(iconSize),
+                            .clickable { onAdaptiveModeOverride(mode) }
+                            .padding(horizontal = 10.dp, vertical = 6.dp),
+                    maxLines = 1,
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun ControlBarButtons(
+    micEnabled: Boolean,
+    cameraEnabled: Boolean,
+    unreadCount: Int,
+    participantCount: Int,
+    adaptiveMode: AdaptiveMode,
+    isAdaptiveModeEnabled: Boolean,
+    showOverflow: Boolean,
+    lang: String,
+    onToggleMic: () -> Unit,
+    onAudioPicker: () -> Unit,
+    onToggleCamera: () -> Unit,
+    onParticipants: () -> Unit,
+    onChat: () -> Unit,
+    onToggleOverflow: () -> Unit,
+    onHangUp: () -> Unit,
+) {
+    val effectiveMode = if (isAdaptiveModeEnabled) adaptiveMode else AdaptiveMode.OFFICE
+    val isLargeButtons = effectiveMode != AdaptiveMode.OFFICE
+    val btnSize = if (isLargeButtons) 96.dp else 38.dp
+    val iconSize = if (isLargeButtons) 48.dp else 20.dp
+    val cornerRadius = if (isLargeButtons) 16.dp else 8.dp
+
+    Row(
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 8.dp)
+                .background(VisioColors.PrimaryDark75, RoundedCornerShape(16.dp))
+                .padding(horizontal = 6.dp, vertical = 8.dp),
+        horizontalArrangement = Arrangement.SpaceEvenly,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        MicButtonGroup(micEnabled, btnSize, iconSize, cornerRadius, isLargeButtons, lang, onToggleMic, onAudioPicker)
+
+        if (adaptiveMode != AdaptiveMode.CAR) {
+            CameraButton(cameraEnabled, btnSize, iconSize, cornerRadius, lang, onToggleCamera)
+        }
+
+        if (adaptiveMode == AdaptiveMode.OFFICE) {
+            ParticipantsButton(participantCount, btnSize, iconSize, cornerRadius, lang, onParticipants)
+            ChatButton(unreadCount, btnSize, iconSize, cornerRadius, lang, onChat)
+            OverflowButton(showOverflow, btnSize, iconSize, cornerRadius, onToggleOverflow)
+        }
+
+        HangUpButton(btnSize, iconSize, cornerRadius, lang, onHangUp)
+    }
+}
+
+@Composable
+private fun MicButtonGroup(
+    micEnabled: Boolean,
+    btnSize: androidx.compose.ui.unit.Dp,
+    iconSize: androidx.compose.ui.unit.Dp,
+    cornerRadius: androidx.compose.ui.unit.Dp,
+    isLargeButtons: Boolean,
+    lang: String,
+    onToggleMic: () -> Unit,
+    onAudioPicker: () -> Unit,
+) {
+    Row(
+        modifier =
+            Modifier
+                .background(
+                    if (micEnabled) VisioColors.PrimaryDark100 else VisioColors.Error200,
+                    RoundedCornerShape(cornerRadius),
+                ),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        IconButton(
+            onClick = onToggleMic,
+            modifier = Modifier.size(btnSize).testTag("call_mic_button"),
+        ) {
+            Icon(
+                painter = painterResource(if (micEnabled) R.drawable.ri_mic_line else R.drawable.ri_mic_off_line),
+                contentDescription = if (micEnabled) Strings.t("control.mute", lang) else Strings.t("control.unmute", lang),
+                tint = VisioColors.White,
+                modifier = Modifier.size(iconSize),
+            )
+        }
+        val chevronHeight = if (isLargeButtons) 96.dp else 38.dp
+        val chevronWidth = if (isLargeButtons) 40.dp else 22.dp
+        val chevronIconSize = if (isLargeButtons) 24.dp else 14.dp
+        IconButton(
+            onClick = onAudioPicker,
+            modifier = Modifier.size(chevronWidth, chevronHeight),
+        ) {
+            Icon(
+                painter = painterResource(R.drawable.ri_arrow_up_s_line),
+                contentDescription = Strings.t("control.audioDevices", lang),
+                tint = VisioColors.White,
+                modifier = Modifier.size(chevronIconSize),
+            )
+        }
+    }
+}
+
+@Composable
+private fun CameraButton(
+    cameraEnabled: Boolean,
+    btnSize: androidx.compose.ui.unit.Dp,
+    iconSize: androidx.compose.ui.unit.Dp,
+    cornerRadius: androidx.compose.ui.unit.Dp,
+    lang: String,
+    onToggleCamera: () -> Unit,
+) {
+    IconButton(
+        onClick = onToggleCamera,
+        modifier =
+            Modifier
+                .size(btnSize)
+                .background(
+                    if (cameraEnabled) VisioColors.PrimaryDark100 else VisioColors.Error200,
+                    RoundedCornerShape(cornerRadius),
+                )
+                .testTag("call_camera_button"),
+    ) {
+        Icon(
+            painter = painterResource(if (cameraEnabled) R.drawable.ri_video_on_line else R.drawable.ri_video_off_line),
+            contentDescription = if (cameraEnabled) Strings.t("control.camOff", lang) else Strings.t("control.camOn", lang),
+            tint = VisioColors.White,
+            modifier = Modifier.size(iconSize),
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ParticipantsButton(
+    participantCount: Int,
+    btnSize: androidx.compose.ui.unit.Dp,
+    iconSize: androidx.compose.ui.unit.Dp,
+    cornerRadius: androidx.compose.ui.unit.Dp,
+    lang: String,
+    onParticipants: () -> Unit,
+) {
+    IconButton(
+        onClick = onParticipants,
+        modifier =
+            Modifier
+                .size(btnSize)
+                .background(VisioColors.PrimaryDark100, RoundedCornerShape(cornerRadius))
+                .testTag("call_participants_button"),
+    ) {
+        BadgedBox(
+            badge = {
+                if (participantCount > 0) {
+                    Badge(
+                        containerColor = VisioColors.Primary500,
+                        contentColor = VisioColors.White,
+                    ) {
+                        Text(text = "$participantCount", fontSize = 10.sp)
+                    }
+                }
+            },
+        ) {
+            Icon(
+                painter = painterResource(R.drawable.ri_group_line),
+                contentDescription = Strings.t("participants.title", lang),
+                tint = VisioColors.White,
+                modifier = Modifier.size(iconSize),
+            )
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ChatButton(
+    unreadCount: Int,
+    btnSize: androidx.compose.ui.unit.Dp,
+    iconSize: androidx.compose.ui.unit.Dp,
+    cornerRadius: androidx.compose.ui.unit.Dp,
+    lang: String,
+    onChat: () -> Unit,
+) {
+    IconButton(
+        onClick = onChat,
+        modifier =
+            Modifier
+                .size(btnSize)
+                .background(VisioColors.PrimaryDark100, RoundedCornerShape(cornerRadius))
+                .testTag("call_chat_button"),
+    ) {
+        BadgedBox(
+            badge = {
+                if (unreadCount > 0) {
+                    Badge(
+                        containerColor = VisioColors.Error500,
+                        contentColor = VisioColors.White,
+                    ) {
+                        Text(text = "$unreadCount", fontSize = 10.sp)
+                    }
+                }
+            },
+        ) {
+            Icon(
+                painter = painterResource(R.drawable.ri_chat_1_line),
+                contentDescription = Strings.t("chat", lang),
+                tint = VisioColors.White,
+                modifier = Modifier.size(iconSize),
+            )
+        }
+    }
+}
+
+@Composable
+private fun OverflowButton(
+    showOverflow: Boolean,
+    btnSize: androidx.compose.ui.unit.Dp,
+    iconSize: androidx.compose.ui.unit.Dp,
+    cornerRadius: androidx.compose.ui.unit.Dp,
+    onToggleOverflow: () -> Unit,
+) {
+    IconButton(
+        onClick = onToggleOverflow,
+        modifier =
+            Modifier
+                .size(btnSize)
+                .background(
+                    if (showOverflow) VisioColors.Primary500 else VisioColors.PrimaryDark100,
+                    RoundedCornerShape(cornerRadius),
+                ),
+    ) {
+        Icon(
+            painter = painterResource(R.drawable.ri_more_2_fill),
+            contentDescription = "More",
+            tint = VisioColors.White,
+            modifier = Modifier.size(iconSize),
+        )
+    }
+}
+
+@Composable
+private fun HangUpButton(
+    btnSize: androidx.compose.ui.unit.Dp,
+    iconSize: androidx.compose.ui.unit.Dp,
+    cornerRadius: androidx.compose.ui.unit.Dp,
+    lang: String,
+    onHangUp: () -> Unit,
+) {
+    IconButton(
+        onClick = onHangUp,
+        modifier =
+            Modifier
+                .size(btnSize)
+                .background(VisioColors.Error500, RoundedCornerShape(cornerRadius))
+                .testTag("call_hangup_button"),
+    ) {
+        Icon(
+            painter = painterResource(R.drawable.ri_phone_fill),
+            contentDescription = Strings.t("control.leave", lang),
+            tint = VisioColors.White,
+            modifier = Modifier.size(iconSize),
+        )
     }
 }
 
