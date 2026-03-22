@@ -16,8 +16,10 @@ import android.media.AudioFormat
 import android.media.AudioManager
 import android.media.AudioRecord
 import android.media.MediaRecorder
+import android.os.Build
 import android.os.Handler
 import android.os.HandlerThread
+import android.util.Log
 import android.view.Surface
 import android.view.TextureView
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -274,7 +276,7 @@ class LocalCameraPreview(
         setTransform(matrix)
     }
 
-    private fun stopCamera() {
+    internal fun stopCamera() {
         session?.close()
         session = null
         camera?.close()
@@ -333,6 +335,27 @@ fun PreJoinScreen(
         rememberLauncherForActivityResult(
             ActivityResultContracts.RequestPermission(),
         ) { granted -> if (granted) micEnabled = true }
+
+    // ── Bluetooth permission (needed to list BT devices by name) ──────────────
+    val btPermissionLauncher =
+        rememberLauncherForActivityResult(
+            ActivityResultContracts.RequestPermission(),
+        ) { granted ->
+            if (granted) {
+                Log.d("PreJoinScreen", "BLUETOOTH_CONNECT permission granted")
+            }
+        }
+    LaunchedEffect(Unit) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            val hasBtPerm =
+                ContextCompat.checkSelfPermission(
+                    context, Manifest.permission.BLUETOOTH_CONNECT,
+                ) == PackageManager.PERMISSION_GRANTED
+            if (!hasBtPerm) {
+                btPermissionLauncher.launch(Manifest.permission.BLUETOOTH_CONNECT)
+            }
+        }
+    }
 
     // ── Audio device state ────────────────────────────────────────────────────
     val audioManager = remember { context.getSystemService(Context.AUDIO_SERVICE) as AudioManager }
@@ -495,9 +518,66 @@ fun PreJoinScreen(
         }
     }
 
-    // ── React to Connected: navigate into call ────────────────────────────────
+    // ── React to Connected: enable media then navigate into call ───────────────
+    // Use a coroutineScope.launch (not LaunchedEffect) so it is NOT cancelled
+    // when connectionState changes or the composable recomposes.
+    var mediaSetupDone by remember { mutableStateOf(false) }
+    Log.d("PreJoinScreen", "connectionState=$connectionState, waiting=$waitingState, mediaSetupDone=$mediaSetupDone")
     LaunchedEffect(connectionState) {
-        if (connectionState is ConnectionState.Connected && waitingState is WaitingState.Waiting) {
+        if (connectionState is ConnectionState.Connected &&
+            waitingState is WaitingState.Waiting &&
+            !mediaSetupDone
+        ) {
+            mediaSetupDone = true
+            // Launch on a NON-CANCELLABLE context so permission dialogs
+            // or recompositions cannot abort the media setup
+            kotlinx.coroutines.withContext(Dispatchers.IO + kotlinx.coroutines.NonCancellable) {
+                try {
+                    VisioManager.startAudioPlayout()
+                } catch (_: Exception) {
+                }
+
+                VisioManager.pendingOutputDevice?.let { device ->
+                    try {
+                        VisioManager.setAudioOutputDevice(device)
+                    } catch (_: Exception) {
+                    }
+                }
+                VisioManager.pendingOutputDevice = null
+
+                Log.i("PreJoinScreen", "Media setup: mic=$micEnabled cam=$cameraEnabled audio=$audioMode")
+                if (micEnabled && audioMode == "computer_audio") {
+                    try {
+                        VisioManager.client.setMicrophoneEnabled(true)
+                        VisioManager.startAudioCapture(selectedInputDeviceRef)
+                    } catch (_: Exception) {
+                    }
+                }
+                VisioManager.pendingInputDevice = null
+
+                if (cameraEnabled) {
+                    // Stop the lobby Camera2 preview FIRST to release the
+                    // physical camera device before CameraCapture opens it
+                    withContext(Dispatchers.Main) {
+                        cameraPreviewRef.value?.stopCamera()
+                        cameraPreviewRef.value = null
+                    }
+                    // Small delay to let Camera2 fully release the device
+                    kotlinx.coroutines.delay(200)
+                    try {
+                        Log.i("PreJoinScreen", "Calling setCameraEnabled(true)...")
+                        VisioManager.client.setCameraEnabled(true)
+                        Log.i("PreJoinScreen", "setCameraEnabled done, starting capture...")
+                        VisioManager.startCameraCapture()
+                        Log.i("PreJoinScreen", "Camera capture started")
+                    } catch (e: Exception) {
+                        Log.e("PreJoinScreen", "Camera setup failed", e)
+                    }
+                }
+
+                VisioManager.refreshParticipantsPublic()
+                Log.i("PreJoinScreen", "Media setup complete, navigating to call")
+            }
             waitingState = WaitingState.Idle
             onJoin(displayName)
         }
@@ -703,36 +783,16 @@ fun PreJoinScreen(
                                 waitingState = WaitingState.Waiting
                             }
 
-                            // Connect
-                            VisioManager.client.connect(roomUrl, displayName.trim())
-                            VisioManager.startAudioPlayout()
-
-                            // Apply output device from lobby
+                            // Save audio device preferences for CallScreen to apply
                             selectedOutputDeviceRef?.let { device ->
-                                try {
-                                    VisioManager.setAudioOutputDevice(device)
-                                } catch (_: Exception) {
-                                    // No-op: audio output routing failure is non-fatal
-                                }
+                                VisioManager.pendingOutputDevice = device
+                            }
+                            selectedInputDeviceRef?.let { device ->
+                                VisioManager.pendingInputDevice = device
                             }
 
-                            // Enable mic/camera based on lobby selections
-                            if (micEnabled && audioMode == "computer_audio") {
-                                try {
-                                    VisioManager.client.setMicrophoneEnabled(true)
-                                    VisioManager.startAudioCapture(selectedInputDeviceRef)
-                                } catch (_: Exception) {
-                                    // No-op: mic enable failure is non-fatal
-                                }
-                            }
-                            if (cameraEnabled) {
-                                try {
-                                    VisioManager.client.setCameraEnabled(true)
-                                    VisioManager.startCameraCapture()
-                                } catch (_: Exception) {
-                                    // No-op: camera enable failure is non-fatal
-                                }
-                            }
+                            // Connect — mic/camera will be enabled by CallScreen
+                            VisioManager.client.connect(roomUrl, displayName.trim())
                         } catch (e: Exception) {
                             withContext(Dispatchers.Main) {
                                 waitingState = WaitingState.Idle
@@ -750,7 +810,6 @@ fun PreJoinScreen(
                                     VisioManager.cancelLobby()
                                     VisioManager.disconnect()
                                 } catch (_: Exception) {
-                                    // No-op: lobby cancellation failure is non-fatal
                                 }
                             }
                         }
@@ -791,7 +850,6 @@ fun PreJoinScreen(
                                 VisioManager.cancelLobby()
                                 VisioManager.disconnect()
                             } catch (_: Exception) {
-                                // No-op: lobby cancellation failure is non-fatal
                             }
                         }
                     },
@@ -868,7 +926,6 @@ private fun BackgroundFilterSheet(
                             try {
                                 VisioManager.client.setBackgroundMode("off")
                             } catch (_: Exception) {
-                                // No-op: background mode change failure is non-fatal
                             }
                         }
                         onSelect("off")
@@ -884,7 +941,6 @@ private fun BackgroundFilterSheet(
                             try {
                                 VisioManager.client.setBackgroundMode("blur")
                             } catch (_: Exception) {
-                                // No-op: background mode change failure is non-fatal
                             }
                         }
                         onSelect("blur")
@@ -945,7 +1001,6 @@ private fun BackgroundFilterSheet(
                                             )
                                             VisioManager.client.setBackgroundMode("image:$id")
                                         } catch (_: Exception) {
-                                            // No-op: background image load failure is non-fatal
                                         }
                                     }
                                     onSelect("image:$id")

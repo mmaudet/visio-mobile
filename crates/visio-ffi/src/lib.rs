@@ -1781,6 +1781,10 @@ mod pending {
 
     pub fn store(track_sid: String, surface: *mut std::ffi::c_void) {
         if let Ok(mut map) = SURFACES.lock() {
+            if let Some(old) = map.remove(&track_sid) {
+                tracing::warn!(track_sid = %track_sid, "replacing existing pending surface — releasing old ANativeWindow");
+                unsafe { ndk_sys::ANativeWindow_release(old.0 as *mut _) };
+            }
             map.insert(track_sid, RawSurface(surface));
         }
     }

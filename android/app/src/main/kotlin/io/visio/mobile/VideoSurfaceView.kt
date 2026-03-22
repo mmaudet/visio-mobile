@@ -35,7 +35,9 @@ class VideoSurfaceView(
         width: Int,
         height: Int,
     ) {
-        Log.d(TAG, "surfaceChanged track=$trackSid ${width}x$height")
+        Log.d(TAG, "surfaceChanged track=$trackSid ${width}x$height, re-attaching surface")
+        NativeVideo.detachSurface(trackSid)
+        NativeVideo.attachSurface(trackSid, holder.surface)
     }
 
     override fun surfaceDestroyed(holder: SurfaceHolder) {

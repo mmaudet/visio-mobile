@@ -57,7 +57,7 @@ fun MeetingsTab(
     isDark: Boolean,
     lang: String,
     onSettings: () -> Unit,
-    onJoinMeeting: (roomUrl: String) -> Unit,
+    onJoinMeeting: (roomUrl: String, serverName: String) -> Unit,
 ) {
     when {
         !hasCalendarUrl -> {
@@ -201,7 +201,7 @@ private fun MeetingsList(
     meetings: List<Meeting>,
     isDark: Boolean,
     lang: String,
-    onJoinMeeting: (roomUrl: String) -> Unit,
+    onJoinMeeting: (roomUrl: String, serverName: String) -> Unit,
     onRefresh: () -> Unit,
 ) {
     val now = System.currentTimeMillis() / 1000L
@@ -244,7 +244,7 @@ private fun MeetingsList(
                     now = now,
                     isInProgress = isInProgressItem,
                     isImminent = !isInProgressItem && minutesUntil in 0..14,
-                    onJoin = { onJoinMeeting(meeting.roomUrl) },
+                    onJoin = { onJoinMeeting(meeting.roomUrl, meeting.serverName) },
                 )
             }
         }

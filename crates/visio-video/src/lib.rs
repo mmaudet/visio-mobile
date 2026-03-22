@@ -213,13 +213,20 @@ async fn frame_loop(
     const MAX_STREAM_RETRIES: u32 = 10;
     let mut stream_retries: u32 = 0;
 
+    /// Maximum number of outer retries after all stream retries are exhausted.
+    /// Each outer retry waits longer (2s) before recreating the stream, handling
+    /// the case where a muted track unmutes after the inner retry window.
+    const MAX_OUTER_RETRIES: u32 = 3;
+    let mut outer_retries: u32 = 0;
+
+    'outer: loop {
     loop {
         tokio::select! {
             _ = cancel_rx.changed() => {
                 #[cfg(target_os = "android")]
                 android_log(&format!("VISIO VIDEO: frame_loop cancelled track={track_sid}"));
                 tracing::info!(track_sid = %track_sid, "frame_loop cancelled");
-                break;
+                break 'outer;
             }
             _ = tokio::time::sleep(std::time::Duration::from_secs(3)) => {
                 #[cfg(target_os = "android")]
@@ -231,8 +238,9 @@ async fn frame_loop(
             frame_opt = stream.next() => {
                 match frame_opt {
                     Some(frame) => {
-                        // Reset retry counter on successful frame reception.
+                        // Reset retry counters on successful frame reception.
                         stream_retries = 0;
+                        outer_retries = 0;
 
                         // --- Android ---
                         #[cfg(target_os = "android")]
@@ -242,8 +250,40 @@ async fn frame_loop(
                                 android_log(&format!("VISIO VIDEO: frame #{android_frame_count} track={track_sid} {}x{}", frame.buffer.width(), frame.buffer.height()));
                             }
                             if !android::render_frame(&frame, surface.0, &track_sid, is_screencast) {
-                                android_log(&format!("VISIO VIDEO: surface invalid, stopping frame_loop track={track_sid}"));
-                                break;
+                                android_log(&format!("VISIO VIDEO: surface invalid, waiting for new surface track={track_sid}"));
+                                tracing::warn!(track_sid = %track_sid, "render_frame failed — surface destroyed, waiting for re-attach");
+
+                                const MAX_SURFACE_RETRIES: u32 = 30;
+                                let mut surface_recovered = false;
+                                for attempt in 1..=MAX_SURFACE_RETRIES {
+                                    tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+
+                                    // Check for cancellation while waiting.
+                                    if *cancel_rx.borrow() {
+                                        android_log(&format!("VISIO VIDEO: cancelled during surface wait track={track_sid}"));
+                                        break 'outer;
+                                    }
+
+                                    // Try rendering again — if the platform attached a new surface
+                                    // it will have called start_track_renderer which replaces us,
+                                    // but if it reused the same pointer we can resume.
+                                    if android::render_frame(&frame, surface.0, &track_sid, is_screencast) {
+                                        android_log(&format!("VISIO VIDEO: surface recovered after {attempt} attempts track={track_sid}"));
+                                        tracing::info!(track_sid = %track_sid, attempt, "surface recovered");
+                                        surface_recovered = true;
+                                        break;
+                                    }
+
+                                    if attempt % 10 == 0 {
+                                        android_log(&format!("VISIO VIDEO: still waiting for surface track={track_sid} attempt={attempt}/{MAX_SURFACE_RETRIES}"));
+                                    }
+                                }
+
+                                if !surface_recovered {
+                                    android_log(&format!("VISIO VIDEO: surface not recovered after {MAX_SURFACE_RETRIES} attempts, stopping frame_loop track={track_sid}"));
+                                    tracing::warn!(track_sid = %track_sid, "surface not recovered after 3s, exiting frame_loop");
+                                    break 'outer;
+                                }
                             }
                         }
 
@@ -283,10 +323,43 @@ async fn frame_loop(
                         if stream_retries > MAX_STREAM_RETRIES {
                             #[cfg(target_os = "android")]
                             android_log(&format!(
-                                "VISIO VIDEO: stream ended permanently track={track_sid} after {MAX_STREAM_RETRIES} retries"
+                                "VISIO VIDEO: stream retries exhausted track={track_sid}, outer retry {outer_retries}/{MAX_OUTER_RETRIES}"
                             ));
-                            tracing::info!(track_sid = %track_sid, "video stream ended permanently after max retries");
-                            break;
+                            tracing::info!(
+                                track_sid = %track_sid,
+                                outer_retry = outer_retries,
+                                max_outer = MAX_OUTER_RETRIES,
+                                "stream retries exhausted, attempting outer retry"
+                            );
+
+                            outer_retries += 1;
+                            if outer_retries > MAX_OUTER_RETRIES {
+                                #[cfg(target_os = "android")]
+                                android_log(&format!(
+                                    "VISIO VIDEO: stream ended permanently track={track_sid} after {MAX_OUTER_RETRIES} outer retries"
+                                ));
+                                tracing::info!(track_sid = %track_sid, "video stream ended permanently after all retries exhausted");
+                                break 'outer;
+                            }
+
+                            // Wait longer before outer retry — gives more time for
+                            // unmute or track re-publication.
+                            tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+
+                            // Check for cancellation after the wait.
+                            if *cancel_rx.borrow() {
+                                break 'outer;
+                            }
+
+                            // Reset inner retry counter and recreate stream.
+                            stream_retries = 0;
+                            stream = NativeVideoStream::new(rtc_track.clone());
+                            #[cfg(target_os = "android")]
+                            android_log(&format!(
+                                "VISIO VIDEO: outer retry — re-created NativeVideoStream track={track_sid}"
+                            ));
+                            tracing::info!(track_sid = %track_sid, "outer retry — re-created NativeVideoStream");
+                            break; // break inner loop to restart
                         }
 
                         // Wait before re-creating the stream — gives the track
@@ -309,6 +382,7 @@ async fn frame_loop(
             }
         }
     }
+    } // 'outer
 
     tracing::info!(track_sid = %track_sid, "frame_loop exited");
 }
