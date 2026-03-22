@@ -62,13 +62,3 @@ func pushNV12FrameToRust(
     }
 }
 
-/// Push an NV12 CVPixelBuffer to the local preview callback only (pre-join lobby).
-func pushNV12PreviewFrameToRust(
-    _ pixelBuffer: CVPixelBuffer,
-    uPlane: inout [UInt8],
-    vPlane: inout [UInt8]
-) {
-    withI420Planes(pixelBuffer, uPlane: &uPlane, vPlane: &vPlane) { yPtr, yStride, uPtr, uStride, vPtr, vStride, width, height in
-        visio_video_process_preview_frame(yPtr, yStride, uPtr, uStride, vPtr, vStride, width, height, 0)
-    }
-}

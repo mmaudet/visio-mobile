@@ -249,7 +249,7 @@ struct PreJoinView: View {
             // Camera preview area
             ZStack {
                 if isCameraOn {
-                    LocalCameraPreviewView(isFront: isFrontCamera)
+                    BlurredCameraPreviewView(isFront: isFrontCamera)
                         .aspectRatio(4.0/3.0, contentMode: .fit)
                         .clipShape(RoundedRectangle(cornerRadius: 12))
                 } else {

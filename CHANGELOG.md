@@ -16,6 +16,7 @@ and this project adheres to
 
 ### Fixed
 
+- Apply background blur/image in pre-join lobby camera preview (#111)
 - Fix video freeze after surface destruction and orientation distortion (#100)
 - Fix 12 SonarCloud reliability issues in desktop frontend (#92)
 - Lobby camera/mic/Bluetooth settings now applied when joining room (#98)

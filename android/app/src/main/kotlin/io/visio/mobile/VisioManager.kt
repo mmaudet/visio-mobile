@@ -379,6 +379,43 @@ object VisioManager : VisioEventListener {
         cameraCapture = null
     }
 
+    /**
+     * Start Camera2 capture in preview mode (blur + local render, no LiveKit).
+     * Used for the pre-join lobby camera preview.
+     */
+    fun startPreviewCapture() {
+        stopCameraCapture() // stop any existing capture
+
+        // Sync BlurProcessor with persisted background mode so the preview
+        // applies the user's last-selected filter immediately.
+        try {
+            val mode = client.getBackgroundMode()
+            Log.i("VisioManager", "startPreviewCapture: syncing blur mode='$mode'")
+            client.setBackgroundMode(mode)
+        } catch (e: Exception) {
+            Log.e("VisioManager", "startPreviewCapture: failed to sync blur mode", e)
+        }
+
+        cameraCapture =
+            CameraCapture(appContext).also {
+                it.previewMode = true
+                it.start()
+            }
+    }
+
+    /**
+     * Stop preview capture and clear the local preview surface.
+     * Only stops if the current capture is actually in preview mode,
+     * to avoid killing a call capture that replaced it.
+     */
+    fun stopPreviewCapture() {
+        val capture = cameraCapture ?: return
+        if (!capture.previewMode) return // already replaced by call capture
+        capture.stop()
+        cameraCapture = null
+        NativeVideo.nativeClearLocalPreviewSurface()
+    }
+
     fun switchCamera(useFront: Boolean) {
         cameraCapture?.switchCamera(useFront)
     }
