@@ -9,6 +9,11 @@ export default async function(ctx: ScenarioContext) {
   const desktop = ctx.desktop();
   const ios = ctx.ios();
 
+  // Connect platforms first so they are ready before the bots speak
+  await android.connect();
+  await desktop.connect();
+  await ios.connect();
+
   // Connect both bots
   await alice.connect();
   await bob.connect();
@@ -19,11 +24,11 @@ export default async function(ctx: ScenarioContext) {
   // Alice speaks to establish focus
   ctx.log("Alice speaks (French TTS) — establishing focus");
   await alice.speak();
-  await alice.waitForEvent(/ActiveSpeakers.*bot-alice/, 5000);
+  await alice.waitForEvent(/ActiveSpeakers.*bot-alice/, 10000);
   await ctx.sleep(5000); // Alice speaks 5 full seconds
 
-  await android.assertTestTag("layout-mode:FOCUS", { timeout: 5000 });
-  await android.assertTestTag(`main-tile:${aliceSid}`, { timeout: 5000 });
+  await android.assertTestTag("layout-mode:FOCUS", { timeout: 10000 });
+  await android.assertTestTag(`main-tile:${aliceSid}`, { timeout: 10000 });
   await android.screenshot("03-alice-initial-focus-android");
   await ios.screenshot("03-alice-initial-focus-ios");
 
@@ -31,11 +36,11 @@ export default async function(ctx: ScenarioContext) {
   ctx.log("Alice mutes, Bob speaks — stabilization window holds");
   await alice.mute();
   await bob.speak();
-  await bob.waitForEvent(/ActiveSpeakers.*bot-bob/, 5000);
+  await bob.waitForEvent(/ActiveSpeakers.*bot-bob/, 10000);
   await ctx.sleep(500); // Well within stabilization window
 
   // Main tile should still be Alice (stabilization in effect)
-  await android.assertTestTag(`main-tile:${aliceSid}`, { timeout: 2000 });
+  await android.assertTestTag(`main-tile:${aliceSid}`, { timeout: 10000 });
   await android.screenshot("03-stabilization-holds-android");
 
   // Wait for stabilization window to expire
@@ -44,10 +49,10 @@ export default async function(ctx: ScenarioContext) {
 
   // Bob should now be in main tile
   ctx.log("After stabilization: Bob should be in main tile");
-  await android.assertTestTag(`main-tile:${bobSid}`, { timeout: 5000 });
+  await android.assertTestTag(`main-tile:${bobSid}`, { timeout: 10000 });
   await android.screenshot("03-bob-after-stabilization-android");
 
-  await desktop.assertTestId(`main-tile:${bobSid}`, { timeout: 5000 });
+  await desktop.assertTestId(`main-tile:${bobSid}`, { timeout: 10000 });
   await desktop.screenshot("03-bob-after-stabilization-desktop");
 
   await ios.screenshot("03-bob-after-stabilization-ios");

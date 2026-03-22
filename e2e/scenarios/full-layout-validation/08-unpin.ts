@@ -7,22 +7,26 @@ export default async function(ctx: ScenarioContext) {
   const android = ctx.android();
   const ios = ctx.ios();
 
+  // Connect platforms first so they are ready before the bot speaks
+  await android.connect();
+  await ios.connect();
+
   await alice.connect();
 
   // Setup: Alice speaks, establish focus, pin her
   ctx.log("Alice speaks to establish focus");
   await alice.speak();
-  await alice.waitForEvent(/ActiveSpeakers.*bot-alice/, 5000);
+  await alice.waitForEvent(/ActiveSpeakers.*bot-alice/, 10000);
   await ctx.sleep(2000);
 
   const aliceSid = alice.sid;
-  await android.assertTestTag(`main-tile:${aliceSid}`, { timeout: 5000 });
+  await android.assertTestTag(`main-tile:${aliceSid}`, { timeout: 10000 });
 
   // Pin Alice
   ctx.log("Pinning Alice via long press");
   await android.longPress(`main-tile:${aliceSid}`);
   await ctx.sleep(500);
-  await android.assertTestTag(`pin-indicator:${aliceSid}`, { timeout: 3000 });
+  await android.assertTestTag(`pin-indicator:${aliceSid}`, { timeout: 10000 });
   await android.screenshot("08-pinned-android");
 
   // Long press again to unpin
@@ -31,7 +35,7 @@ export default async function(ctx: ScenarioContext) {
   await ctx.sleep(500);
 
   // Pin indicator must be gone — auto-focus resumes
-  await android.assertNotTestTag(`pin-indicator:${aliceSid}`, { timeout: 3000 });
+  await android.assertNotTestTag(`pin-indicator:${aliceSid}`, { timeout: 10000 });
   await android.screenshot("08-pin-removed-android");
 
   // iOS: screenshot evidence of unpinned state

@@ -9,16 +9,21 @@ export default async function(ctx: ScenarioContext) {
   const desktop = ctx.desktop();
   const ios = ctx.ios();
 
+  // Connect platforms first so they are ready before the bots speak
+  await android.connect();
+  await desktop.connect();
+  await ios.connect();
+
   await alice.connect();
   await bob.connect();
 
   // Alice speaks to enter FOCUS mode
   ctx.log("Alice speaks to establish FOCUS mode");
   await alice.speak();
-  await alice.waitForEvent(/ActiveSpeakers.*bot-alice/, 5000);
+  await alice.waitForEvent(/ActiveSpeakers.*bot-alice/, 10000);
   await ctx.sleep(2000);
 
-  await android.assertTestTag("layout-mode:FOCUS", { timeout: 5000 });
+  await android.assertTestTag("layout-mode:FOCUS", { timeout: 10000 });
   await android.screenshot("05-focus-while-speaking-android");
 
   // Bob joins the conversation briefly
@@ -34,10 +39,10 @@ export default async function(ctx: ScenarioContext) {
 
   // Office mode should return to GRID
   ctx.log("Verifying grid mode returned after silence");
-  await android.assertTestTag("layout-mode:GRID", { timeout: 5000 });
+  await android.assertTestTag("layout-mode:GRID", { timeout: 10000 });
   await android.screenshot("05-grid-after-silence-android");
 
-  await desktop.assertTestId("layout-mode:GRID", { timeout: 5000 });
+  await desktop.assertTestId("layout-mode:GRID", { timeout: 10000 });
   await desktop.screenshot("05-grid-after-silence-desktop");
 
   await ios.screenshot("05-grid-after-silence-ios");

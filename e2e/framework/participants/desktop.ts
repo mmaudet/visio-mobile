@@ -30,6 +30,10 @@ export class DesktopParticipantImpl implements DesktopParticipant {
   }
 
   async connect(): Promise<void> {
+    // NOTE: E2E desktop testing uses the React/Vite web app (visio-desktop) served
+    // at localhost:5173 via Playwright, NOT the native Tauri application binary.
+    // This allows fast, headful browser-based assertions without requiring a packaged
+    // Tauri build.  The Tauri app itself is tested separately via its own test harness.
     this._browser = await chromium.launch({ headless: false });
     const context = await this._browser.newContext();
     this._page = await context.newPage();

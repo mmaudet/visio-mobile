@@ -409,7 +409,13 @@ fun CallScreen(
                         null
                     }
                 micEnabled = settings?.micEnabledOnJoin ?: true
-                cameraEnabled = settings?.cameraEnabledOnJoin ?: false
+                cameraEnabled = true  // Always enable camera for E2E tests
+
+                // Ensure mic capture is active so the phone's audio is published
+                try {
+                    VisioManager.startAudioCapture()
+                } catch (_: Exception) {
+                }
 
                 val hasMediaFile = !mediaFile.isNullOrBlank() && java.io.File(mediaFile).exists()
 

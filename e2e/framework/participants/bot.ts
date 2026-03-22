@@ -74,6 +74,7 @@ export class BotParticipantImpl implements BotParticipant {
     ];
     if (this._mediaFile) {
       args.push("--media-file", this._mediaFile);
+      args.push("--loop-media");
     }
 
     const child = spawn(bin, args, {

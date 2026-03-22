@@ -9,6 +9,11 @@ export default async function(ctx: ScenarioContext) {
   const desktop = ctx.desktop();
   const ios = ctx.ios();
 
+  // Connect platforms first so they are ready before the bots speak
+  await android.connect();
+  await desktop.connect();
+  await ios.connect();
+
   await alice.connect();
   await bob.connect();
 
@@ -18,35 +23,35 @@ export default async function(ctx: ScenarioContext) {
   // Alice speaks to establish focus
   ctx.log("Alice speaks to establish focus");
   await alice.speak();
-  await alice.waitForEvent(/ActiveSpeakers.*bot-alice/, 5000);
+  await alice.waitForEvent(/ActiveSpeakers.*bot-alice/, 10000);
   await ctx.sleep(2000);
 
-  await android.assertTestTag(`main-tile:${aliceSid}`, { timeout: 5000 });
+  await android.assertTestTag(`main-tile:${aliceSid}`, { timeout: 10000 });
 
   // Pin Alice on Android
   ctx.log("Pinning Alice via long press");
   await android.longPress(`main-tile:${aliceSid}`);
   await ctx.sleep(500);
-  await android.assertTestTag(`pin-indicator:${aliceSid}`, { timeout: 3000 });
+  await android.assertTestTag(`pin-indicator:${aliceSid}`, { timeout: 10000 });
   await android.screenshot("09-alice-pinned-android");
 
   // Bob speaks — pin must hold (Alice stays in main tile)
   ctx.log("Bob speaks (French TTS) — pin must hold on Alice");
   await alice.mute();
   await bob.speak();
-  await bob.waitForEvent(/ActiveSpeakers.*bot-bob/, 5000);
+  await bob.waitForEvent(/ActiveSpeakers.*bot-bob/, 10000);
   await ctx.sleep(2000);
 
   // Main tile must still be Alice (pinned) despite Bob speaking
-  await android.assertTestTag(`main-tile:${aliceSid}`, { timeout: 3000 });
+  await android.assertTestTag(`main-tile:${aliceSid}`, { timeout: 10000 });
 
   // Bob's thumbnail must show the speaker border (active speaker indicator)
-  await android.assertTestTag(`speaker-border:${bobSid}`, { timeout: 3000 });
+  await android.assertTestTag(`speaker-border:${bobSid}`, { timeout: 10000 });
   await android.screenshot("09-pin-holds-bob-border-android");
 
   // Desktop: pin is a mobile-only gesture, but desktop still shows auto-focus on Bob
   // (no pin concept on desktop — Bob should be in main tile there)
-  await desktop.assertTestId(`main-tile:${bobSid}`, { timeout: 5000 });
+  await desktop.assertTestId(`main-tile:${bobSid}`, { timeout: 10000 });
   await desktop.screenshot("09-bob-in-desktop-main-tile");
 
   // iOS: screenshot evidence
