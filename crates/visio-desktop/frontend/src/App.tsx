@@ -3665,7 +3665,11 @@ function useAudioDeviceFallback({
     let unlistenFn: (() => void) | null = null
     listen('audio-devices-changed', () => {
       handleAudioDevicesChanged(
-        setInputs, setOutputs, setSelectedInput, setSelectedOutput, onInputFallback
+        setInputs,
+        setOutputs,
+        setSelectedInput,
+        setSelectedOutput,
+        onInputFallback
       ).catch((e) => {
         console.warn('Failed to re-enumerate audio devices after change:', e)
       })
