@@ -431,6 +431,9 @@ function ParticipantTile({
   return (
     <div
       className={`tile ${isActiveSpeaker && !isScreenShare ? 'tile-active-speaker' : ''}`}
+      {...(isActiveSpeaker && !isScreenShare
+        ? { 'data-testid': `speaker-border:${participant.sid}` }
+        : {})}
     >
       {videoSrc ? (
         <img
@@ -2489,10 +2492,23 @@ function CallView({
         })()}
       <div className="call-body">
         {/* Main video area */}
-        <div className="call-content">
+        <div
+          className="call-content"
+          data-testid={`layout-mode:${focusedDisplayItem ? 'FOCUS' : 'GRID'}`}
+        >
           {focusedDisplayItem ? (
             <div className="focus-layout">
-              <div className="focus-main">
+              <div
+                className="focus-main"
+                data-testid={`main-tile:${focusedDisplayItem.participant.sid}`}
+              >
+                {userPinnedRef.current && (
+                  <span
+                    className="pin-indicator"
+                    data-testid={`pin-indicator:${focusedDisplayItem.participant.sid}`}
+                    aria-hidden="true"
+                  />
+                )}
                 <ParticipantTile
                   participant={focusedDisplayItem.participant}
                   videoFrames={videoFrames}
@@ -2535,12 +2551,13 @@ function CallView({
               </div>
               {showFocusThumbnails && thumbnailItems.length > 0 && (
                 <div className="focus-thumbnails">
-                  {thumbnailItems.map((d) => (
+                  {thumbnailItems.map((d, index) => (
                     <div
                       key={d.key}
                       className="tile"
                       role="button"
                       tabIndex={0}
+                      data-testid={`secondary-tile-${index}:${d.participant.sid}`}
                       onClick={() => {
                         userPinnedRef.current = true
                         setFocusedItem({
@@ -2581,11 +2598,12 @@ function CallView({
               {displayItems.length === 0 ? (
                 <div className="empty-state">{t('call.noParticipants')}</div>
               ) : (
-                displayItems.map((d) => (
+                displayItems.map((d, index) => (
                   <div
                     key={d.key}
                     role="button"
                     tabIndex={0}
+                    data-testid={`grid-tile-${index}:${d.participant.sid}`}
                     onClick={() => {
                       userPinnedRef.current = true
                       setFocusedItem({
@@ -3303,7 +3321,7 @@ function SettingsModal({
     micOnJoin: true,
     cameraOnJoin: false,
     theme: 'light',
-    adaptiveModeEnabled: true,
+    adaptiveModeEnabled: false,
   })
   const [meetInstances, setMeetInstances] = useState<string[]>([
     'meet.numerique.gouv.fr',
@@ -3332,7 +3350,7 @@ function SettingsModal({
           micOnJoin: s.mic_enabled_on_join ?? true,
           cameraOnJoin: s.camera_enabled_on_join ?? false,
           theme: s.theme || 'light',
-          adaptiveModeEnabled: s.adaptive_mode_enabled ?? true,
+          adaptiveModeEnabled: s.adaptive_mode_enabled ?? false,
         }))
       })
       .catch(() => {})
