@@ -321,7 +321,7 @@ interface VisioClient {
     boolean validate_session(string meet_url);
 
     [Throws=VisioError]
-    CreateRoomResult create_room(string meet_url, string access_level);
+    CreateRoomResult create_room(string meet_url, string name, string access_level);
 
     [Throws=VisioError]
     sequence<WaitingParticipant> list_waiting_participants();

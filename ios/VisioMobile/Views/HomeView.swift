@@ -779,6 +779,7 @@ private struct CreateRoomSheet: View {
                                 do {
                                     let result = try manager.client.createRoom(
                                         meetUrl: "https://\(meetInstance)",
+                                        name: "",
                                         accessLevel: accessLevel
                                     )
                                     // Add accesses for invited users

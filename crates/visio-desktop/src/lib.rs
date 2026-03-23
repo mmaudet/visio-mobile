@@ -1798,13 +1798,14 @@ async fn logout_session(
 async fn create_room(
     state: tauri::State<'_, VisioState>,
     meet_url: String,
+    name: String,
     access_level: String,
 ) -> Result<serde_json::Value, String> {
     let session = state.session.lock().await;
     let cookie = session.cookie().ok_or("Not authenticated")?;
     drop(session);
 
-    let result = visio_core::SessionManager::create_room(&meet_url, &cookie, &access_level)
+    let result = visio_core::SessionManager::create_room(&meet_url, &cookie, &name, &access_level)
         .await
         .map_err(|e| e.to_string())?;
 

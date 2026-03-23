@@ -1419,6 +1419,7 @@ impl VisioClient {
     pub fn create_room(
         &self,
         meet_url: String,
+        name: String,
         access_level: String,
     ) -> Result<CreateRoomResult, VisioError> {
         let cookie = {
@@ -1433,6 +1434,7 @@ impl VisioClient {
             .block_on(visio_core::SessionManager::create_room(
                 &meet_url,
                 &cookie,
+                &name,
                 &access_level,
             ))
             .map_err(VisioError::from)?;

@@ -222,6 +222,7 @@ impl SessionManager {
     pub async fn create_room(
         meet_url: &str,
         cookie: &str,
+        name: &str,
         access_level: &str,
     ) -> Result<CreateRoomResponse, VisioError> {
         use rand::Rng;
@@ -243,8 +244,14 @@ impl SessionManager {
             format!("{}-{}-{}", p1, p2, p3)
         };
 
+        let room_name = if name.trim().is_empty() {
+            &slug_name
+        } else {
+            name
+        };
+
         let body = serde_json::json!({
-            "name": slug_name,
+            "name": room_name,
             "access_level": access_level,
         });
 
@@ -385,6 +392,7 @@ mod tests {
         let result = SessionManager::create_room(
             "https://meet.example.com",
             "invalid_cookie",
+            "Test Room",
             "public",
         )
         .await;
