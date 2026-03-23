@@ -1,3 +1,4 @@
+import Combine
 import SwiftUI
 import visioFFI
 
@@ -21,9 +22,21 @@ struct HomeView: View {
     @State private var selectedTab: Int = 0
     @State private var syncToastMessage: String?
     @State private var syncToastIsError: Bool = false
+    @State private var now = Date()
+    private let minuteTimer = Timer.publish(every: 60, on: .main, in: .common).autoconnect()
 
     private var lang: String { manager.currentLang }
     private var isDark: Bool { manager.currentTheme == "dark" }
+
+    private var hasImminentMeeting: Bool {
+        let nowTs = now.timeIntervalSince1970
+        return manager.upcomingMeetings.contains { meeting in
+            let start = TimeInterval(meeting.startTime)
+            let end = TimeInterval(meeting.endTime)
+            let minutesUntil = (start - nowTs) / 60
+            return (minutesUntil >= 0 && minutesUntil < 15) || (start <= nowTs && end > nowTs)
+        }
+    }
 
     private static let slugPattern = /^[a-z]{3}-[a-z]{4}-[a-z]{3}$/
 
@@ -50,7 +63,14 @@ struct HomeView: View {
                         : meetingsBase + " (\(manager.upcomingMeetings.count))"
                 Picker("", selection: $selectedTab) {
                     Text(Strings.t("home.tab.join", lang: lang)).tag(0)
-                    Text(meetingsLabel).tag(1)
+                    HStack(spacing: 4) {
+                        Text(meetingsLabel)
+                        if hasImminentMeeting {
+                            Circle()
+                                .fill(Color.red)
+                                .frame(width: 8, height: 8)
+                        }
+                    }.tag(1)
                 }
                 .pickerStyle(.segmented)
                 .padding(.horizontal, 16)
@@ -349,6 +369,7 @@ struct HomeView: View {
             SettingsView()
                 .environmentObject(manager)
         }
+        .onReceive(minuteTimer) { _ in now = Date() }
         .onAppear {
             // Pre-fill display name from manager (includes OIDC identity)
             let name = manager.displayName

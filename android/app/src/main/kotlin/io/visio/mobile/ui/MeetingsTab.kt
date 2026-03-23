@@ -56,6 +56,7 @@ fun MeetingsTab(
     isLoading: Boolean,
     isDark: Boolean,
     lang: String,
+    nowSeconds: Long = System.currentTimeMillis() / 1000L,
     onSettings: () -> Unit,
     onJoinMeeting: (roomUrl: String, serverName: String) -> Unit,
 ) {
@@ -74,6 +75,7 @@ fun MeetingsTab(
                 meetings = meetings,
                 isDark = isDark,
                 lang = lang,
+                nowSeconds = nowSeconds,
                 onJoinMeeting = onJoinMeeting,
             )
         }
@@ -200,9 +202,10 @@ private fun MeetingsList(
     meetings: List<Meeting>,
     isDark: Boolean,
     lang: String,
+    nowSeconds: Long = System.currentTimeMillis() / 1000L,
     onJoinMeeting: (roomUrl: String, serverName: String) -> Unit,
 ) {
-    val now = System.currentTimeMillis() / 1000L
+    val now = nowSeconds
 
     // Separate in-progress meetings (started) from upcoming
     val inProgress = meetings.filter { it.startTime <= now && it.endTime > now }

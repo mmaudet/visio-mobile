@@ -1,3 +1,4 @@
+import Combine
 import SwiftUI
 import visioFFI
 
@@ -11,16 +12,23 @@ struct MeetingsTabView: View {
     let onRefresh: () -> Void
     let onJoinMeeting: (Meeting) -> Void
 
+    // Fix 3: live-updating date so countdowns and imminent state refresh
+    @State private var now = Date()
+    private let timer = Timer.publish(every: 60, on: .main, in: .common).autoconnect()
+
     var body: some View {
-        if !hasCalendarUrl {
-            onboardingView
-        } else if isLoading && meetings.isEmpty {
-            loadingView
-        } else if meetings.isEmpty {
-            emptyView
-        } else {
-            listView
+        Group {
+            if !hasCalendarUrl {
+                onboardingView
+            } else if isLoading && meetings.isEmpty {
+                loadingView
+            } else if meetings.isEmpty {
+                emptyView
+            } else {
+                listView
+            }
         }
+        .onReceive(timer) { _ in now = Date() }
     }
 
     // MARK: - States
@@ -96,6 +104,7 @@ struct MeetingsTabView: View {
                                 meeting: meeting,
                                 isDark: isDark,
                                 lang: lang,
+                                currentDate: now,
                                 onJoin: { onJoinMeeting(meeting) }
                             )
                             .padding(.horizontal, 16)
@@ -179,9 +188,10 @@ private struct MeetingRow: View {
     let meeting: Meeting
     let isDark: Bool
     let lang: String
+    var currentDate: Date = Date()
     let onJoin: () -> Void
 
-    private var now: Date { Date() }
+    private var now: Date { currentDate }
 
     private var startDate: Date {
         Date(timeIntervalSince1970: TimeInterval(meeting.startTime))

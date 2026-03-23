@@ -150,7 +150,15 @@ fun HomeScreen(
         VisioManager.clearCalendarSyncResult()
     }
 
-    val nowSeconds = System.currentTimeMillis() / 1000L
+    // Fix 3: live-updating "now" so countdowns and imminent badge refresh
+    var nowSeconds by remember { mutableStateOf(System.currentTimeMillis() / 1000L) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            delay(60_000)
+            nowSeconds = System.currentTimeMillis() / 1000L
+        }
+    }
+
     val hasImminentMeeting =
         upcomingMeetings.any { meeting ->
             val minutesUntil = (meeting.startTime - nowSeconds) / 60
@@ -579,6 +587,7 @@ private fun ColumnScope.HomeTabContent(
                 isLoading = calendarLoading,
                 isDark = isDark,
                 lang = lang,
+                nowSeconds = nowSeconds,
                 onSettings = onSettings,
                 onJoinMeeting = { meetingRoomUrl, _ ->
                     onJoin(meetingRoomUrl, username.trim(), null)
