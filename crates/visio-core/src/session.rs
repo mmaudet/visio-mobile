@@ -382,12 +382,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_create_room_without_auth_returns_error() {
-        let result = SessionManager::create_room(
-            "https://meet.example.com",
-            "invalid_cookie",
-            "public",
-        )
-        .await;
+        let result =
+            SessionManager::create_room("https://meet.example.com", "invalid_cookie", "public")
+                .await;
         assert!(result.is_err());
     }
 

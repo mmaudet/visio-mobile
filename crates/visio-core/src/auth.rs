@@ -232,10 +232,8 @@ mod tests {
 
     #[test]
     fn extract_slug_with_query_param() {
-        let slug = AuthService::extract_slug(
-            "https://meet.example.com/abc-defg-hij?visio=Test",
-        )
-        .unwrap();
+        let slug =
+            AuthService::extract_slug("https://meet.example.com/abc-defg-hij?visio=Test").unwrap();
         assert_eq!(slug, "abc-defg-hij");
     }
 }
