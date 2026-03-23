@@ -860,7 +860,9 @@ function HomeView({
     meetUrl: string,
     username: string | null,
     roomId?: string,
-    accessLevel?: string
+    accessLevel?: string,
+    livekitUrl?: string,
+    livekitToken?: string
   ) => void
   onOpenSettings: () => void
   displayName: string
@@ -1465,12 +1467,25 @@ function HomeView({
       {showCreateRoom && authenticatedMeetInstance && (
         <CreateRoomDialog
           meetInstance={authenticatedMeetInstance}
-          onCreated={async (createdUrl, roomId, accessLevel) => {
+          onCreated={async (
+            createdUrl,
+            roomId,
+            accessLevel,
+            livekitUrl,
+            livekitToken
+          ) => {
             setShowCreateRoom(false)
             const uname = displayName.trim() || null
             try {
               await invoke('set_display_name', { name: uname })
-              onJoin(createdUrl, uname, roomId, accessLevel)
+              onJoin(
+                createdUrl,
+                uname,
+                roomId,
+                accessLevel,
+                livekitUrl,
+                livekitToken
+              )
             } catch (e) {
               setError(String(e))
             }
@@ -1493,7 +1508,13 @@ function CreateRoomDialog({
   onCancel,
 }: Readonly<{
   meetInstance: string
-  onCreated: (meetUrl: string, roomId?: string, accessLevel?: string) => void
+  onCreated: (
+    meetUrl: string,
+    roomId?: string,
+    accessLevel?: string,
+    livekitUrl?: string,
+    livekitToken?: string
+  ) => void
   onCancel: () => void
 }>) {
   const t = useT()
@@ -1510,6 +1531,8 @@ function CreateRoomDialog({
   const [invitedUsers, setInvitedUsers] = useState<any[]>([])
   const [searching, setSearching] = useState(false)
   const [createdRoomId, setCreatedRoomId] = useState('')
+  const [createdLivekitUrl, setCreatedLivekitUrl] = useState('')
+  const [createdLivekitToken, setCreatedLivekitToken] = useState('')
 
   const deepLink = createdUrl
     ? `visio://${createdUrl.replace(/^https?:\/\//, '')}`
@@ -1544,13 +1567,20 @@ function CreateRoomDialog({
     setError('')
     const meetUrl = `https://${meetInstance}`
     try {
-      const result = await invoke<{ slug: string; id: string }>('create_room', {
+      const result = await invoke<{
+        slug: string
+        id: string
+        livekit_url?: string
+        livekit_token?: string
+      }>('create_room', {
         meetUrl,
         name: '',
         accessLevel,
       })
       setCreatedUrl(`${meetUrl}/${result.slug}`)
       setCreatedRoomId(result.id)
+      setCreatedLivekitUrl(result.livekit_url ?? '')
+      setCreatedLivekitToken(result.livekit_token ?? '')
       if (accessLevel === 'restricted') {
         for (const user of invitedUsers) {
           try {
@@ -1808,7 +1838,15 @@ function CreateRoomDialog({
             <button
               className="btn btn-primary"
               style={{ width: 'auto' }}
-              onClick={() => onCreated(createdUrl, createdRoomId, accessLevel)}
+              onClick={() =>
+                onCreated(
+                  createdUrl,
+                  createdRoomId,
+                  accessLevel,
+                  createdLivekitUrl,
+                  createdLivekitToken
+                )
+              }
             >
               {t('home.join')}
             </button>
@@ -3833,6 +3871,8 @@ function PreJoinScreen({
   isDark,
   onJoin,
   onCancel,
+  livekitUrl,
+  livekitToken,
 }: Readonly<{
   roomUrl: string
   username: string | null
@@ -3841,6 +3881,8 @@ function PreJoinScreen({
   isDark: boolean
   onJoin: (username: string | null) => void
   onCancel: () => void
+  livekitUrl?: string | null
+  livekitToken?: string | null
 }>) {
   const t = useCallback(
     (key: string) => translations[lang]?.[key] ?? translations.en[key] ?? key,
@@ -4051,6 +4093,21 @@ function PreJoinScreen({
 
     await savePreJoinPreferences(finalName, isMicOn, isCameraOn, audioMode)
     await stopPreviews()
+
+    // When the room creator has LiveKit credentials from room creation,
+    // connect directly using connect_with_token to bypass the lobby.
+    // This avoids the "waiting for authorization" state for public rooms
+    // where the creator would otherwise be stuck waiting for self-approval.
+    if (livekitUrl && livekitToken) {
+      try {
+        await invoke('connect_with_token', { livekitUrl, token: livekitToken })
+        onJoin(finalName)
+      } catch (e) {
+        console.error('connect_with_token failed:', e)
+        setWaitingState('idle')
+      }
+      return
+    }
 
     setWaitingState('waiting')
 
@@ -4444,6 +4501,10 @@ export default function App() {
   const [view, setView] = useState<View>('home')
   const [lobbyRoomUrl, setLobbyRoomUrl] = useState('')
   const [lobbyUsername, setLobbyUsername] = useState<string | null>(null)
+  const [lobbyLivekitUrl, setLobbyLivekitUrl] = useState<string | null>(null)
+  const [lobbyLivekitToken, setLobbyLivekitToken] = useState<string | null>(
+    null
+  )
   const [currentRoomDisplayName, setCurrentRoomDisplayName] = useState<
     string | null
   >(null)
@@ -5049,7 +5110,9 @@ export default function App() {
     meetUrl: string,
     username?: string | null,
     roomId?: string,
-    accessLevel?: string
+    accessLevel?: string,
+    livekitUrl?: string,
+    livekitToken?: string
   ) => {
     // Extract room display name from query param before storing URL
     let displayNameFromUrl: string | null = null
@@ -5068,6 +5131,10 @@ export default function App() {
     if (accessLevel) setCurrentAccessLevel(accessLevel)
     setLobbyRoomUrl(meetUrl)
     setLobbyUsername(username ?? null)
+    setLobbyLivekitUrl(livekitUrl && livekitUrl.length > 0 ? livekitUrl : null)
+    setLobbyLivekitToken(
+      livekitToken && livekitToken.length > 0 ? livekitToken : null
+    )
     setView('lobby')
   }
 
@@ -5290,6 +5357,8 @@ export default function App() {
               setView('call')
             }}
             onCancel={() => setView('home')}
+            livekitUrl={lobbyLivekitUrl}
+            livekitToken={lobbyLivekitToken}
           />
         )}
         {view === 'call' && connectionState !== 'waiting_for_host' && (

@@ -29,6 +29,8 @@ and this project adheres to
 
 ### Fixed
 
+- Desktop: room creator no longer stuck on
+  "waiting for authorization" for public rooms (#140)
 - Align settings toggles by splitting adaptive mode label onto two lines (#135)
 - Show hours and minutes in planned meeting countdown (#136)
 - Preserve Bluetooth audio device selection from lobby to room (#138)
