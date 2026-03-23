@@ -71,6 +71,7 @@ import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import io.visio.mobile.CalendarSyncResult
 import io.visio.mobile.R
 import io.visio.mobile.VisioManager
 import io.visio.mobile.ui.i18n.Strings
@@ -126,6 +127,28 @@ fun HomeScreen(
         onUsernameChange = { username = it },
         onRoomDisplayNameChange = { roomDisplayName = it },
     )
+
+    // Calendar sync result feedback (toast)
+    val calendarSyncResult by VisioManager.calendarSyncResult.collectAsState()
+    LaunchedEffect(calendarSyncResult) {
+        val result = calendarSyncResult ?: return@LaunchedEffect
+        val message =
+            when (result) {
+                is CalendarSyncResult.Success -> {
+                    if (result.count > 0) {
+                        Strings.t("calendar.sync.success", lang)
+                            .replace("{count}", result.count.toString())
+                    } else {
+                        Strings.t("calendar.sync.noMeetings", lang)
+                    }
+                }
+                is CalendarSyncResult.Error -> {
+                    Strings.t("calendar.sync.error", lang)
+                }
+            }
+        android.widget.Toast.makeText(context, message, android.widget.Toast.LENGTH_SHORT).show()
+        VisioManager.clearCalendarSyncResult()
+    }
 
     val nowSeconds = System.currentTimeMillis() / 1000L
     val hasImminentMeeting =

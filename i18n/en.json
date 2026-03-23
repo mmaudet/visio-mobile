@@ -249,5 +249,9 @@
   "call.focus.hideThumbnails": "Hide thumbnails",
   "call.focus.showThumbnails": "Show thumbnails",
   "call.focus.backToGrid": "Back to grid",
-  "transcribe.currentLanguage": "English (en)"
+  "transcribe.currentLanguage": "English (en)",
+  "calendar.sync.started": "Syncing calendar...",
+  "calendar.sync.success": "{count} meetings found",
+  "calendar.sync.error": "Calendar sync failed",
+  "calendar.sync.noMeetings": "No upcoming meetings"
 }

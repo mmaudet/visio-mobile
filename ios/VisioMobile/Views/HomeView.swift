@@ -19,6 +19,8 @@ struct HomeView: View {
     @State private var historyJoinPending: Bool = false
     @State private var showCompactHeader: Bool = false
     @State private var selectedTab: Int = 0
+    @State private var syncToastMessage: String?
+    @State private var syncToastIsError: Bool = false
 
     private var lang: String { manager.currentLang }
     private var isDark: Bool { manager.currentTheme == "dark" }
@@ -396,6 +398,43 @@ struct HomeView: View {
         .onChange(of: manager.pendingTestConnect != nil) { hasTestConnect in
             if hasTestConnect {
                 navigateToCall = true
+            }
+        }
+        .onChange(of: manager.calendarSyncResult) { newResult in
+            guard let result = newResult else { return }
+            switch result {
+            case .success(let count):
+                if count > 0 {
+                    syncToastMessage = Strings.t("calendar.sync.success", lang: lang)
+                        .replacingOccurrences(of: "{count}", with: "\(count)")
+                } else {
+                    syncToastMessage = Strings.t("calendar.sync.noMeetings", lang: lang)
+                }
+                syncToastIsError = false
+            case .error:
+                syncToastMessage = Strings.t("calendar.sync.error", lang: lang)
+                syncToastIsError = true
+            }
+            manager.calendarSyncResult = nil
+            DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+                syncToastMessage = nil
+            }
+        }
+        .overlay(alignment: .bottom) {
+            if let message = syncToastMessage {
+                Text(message)
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
+                    .background(
+                        Capsule()
+                            .fill(syncToastIsError ? Color.red.opacity(0.9) : VisioColors.primary500.opacity(0.9))
+                    )
+                    .padding(.bottom, 24)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                    .animation(.easeInOut(duration: 0.3), value: syncToastMessage)
             }
         }
         .sheet(isPresented: $showCreateRoom) {

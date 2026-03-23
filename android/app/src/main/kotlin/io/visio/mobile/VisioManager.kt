@@ -37,6 +37,12 @@ import uniffi.visio.VisioEvent
 import uniffi.visio.VisioEventListener
 import uniffi.visio.WaitingParticipant
 
+sealed class CalendarSyncResult {
+    data class Success(val count: Int) : CalendarSyncResult()
+
+    data class Error(val message: String) : CalendarSyncResult()
+}
+
 object VisioManager : VisioEventListener {
     const val MEETING_CHANNEL_ID = "meetings"
 
@@ -124,6 +130,15 @@ object VisioManager : VisioEventListener {
     // Calendar: loading state (true while first fetch in progress)
     private val _calendarLoading = MutableStateFlow(false)
     val calendarLoading: StateFlow<Boolean> = _calendarLoading.asStateFlow()
+
+    // Calendar: sync result for UI feedback (snackbar)
+    private val _calendarSyncResult = MutableStateFlow<CalendarSyncResult?>(null)
+    val calendarSyncResult: StateFlow<CalendarSyncResult?> = _calendarSyncResult.asStateFlow()
+
+    /** Clear the calendar sync result after the UI has consumed it. */
+    fun clearCalendarSyncResult() {
+        _calendarSyncResult.value = null
+    }
 
     // Adaptive mode
     private val _adaptiveMode = MutableStateFlow(AdaptiveMode.OFFICE)
@@ -1204,6 +1219,7 @@ object VisioManager : VisioEventListener {
             is VisioEvent.MeetingsUpdated -> {
                 _upcomingMeetings.value = event.meetings
                 _calendarLoading.value = false
+                _calendarSyncResult.value = CalendarSyncResult.Success(event.meetings.size)
             }
             is VisioEvent.MeetingImminent -> {
                 sendMeetingNotification(event.meeting, "imminent")
@@ -1217,6 +1233,7 @@ object VisioManager : VisioEventListener {
             is VisioEvent.CalendarError -> {
                 Log.e("VisioManager", "Calendar error: ${event.message}")
                 _calendarLoading.value = false
+                _calendarSyncResult.value = CalendarSyncResult.Error(event.message)
             }
             is VisioEvent.AdaptiveModeChanged -> {
                 handleAdaptiveModeChanged(event.mode)

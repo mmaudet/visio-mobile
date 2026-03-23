@@ -249,5 +249,9 @@
   "call.focus.hideThumbnails": "Masquer les vignettes",
   "call.focus.showThumbnails": "Afficher les vignettes",
   "call.focus.backToGrid": "Retour à la grille",
-  "transcribe.currentLanguage": "Français (fr)"
+  "transcribe.currentLanguage": "Français (fr)",
+  "calendar.sync.started": "Synchronisation du calendrier...",
+  "calendar.sync.success": "{count} réunions trouvées",
+  "calendar.sync.error": "Échec de la synchronisation du calendrier",
+  "calendar.sync.noMeetings": "Aucune réunion à venir"
 }

@@ -12,6 +12,8 @@ and this project adheres to
 
 - Room display name via `?room-display-name=` URL param
   or manual input (#113)
+- Calendar sync feedback: toast/snackbar on all platforms
+  after sync success or error (#121)
 
 ### Changed
 
