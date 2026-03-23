@@ -25,3 +25,4 @@ ical = "0.11"
 tempfile = "3"
 tokio = { workspace = true }
 livekit-api = { workspace = true }
+mockito = "1"

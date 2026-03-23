@@ -346,6 +346,24 @@ impl CalendarService {
             }
         }
 
+        // Retention guard: if refresh found 0 meetings but the cached
+        // list still has non-expired entries, treat this as a transient
+        // failure rather than silently clearing the UI.
+        if meetings.is_empty() {
+            let guard = self.meetings.lock().unwrap_or_else(|e| e.into_inner());
+            let has_valid_cached = guard.iter().any(|m| m.end_time >= now_ts);
+            if has_valid_cached {
+                tracing::warn!(
+                    "calendar: refresh returned 0 meetings but cache has valid entries — keeping cache"
+                );
+                // Re-emit the existing cached meetings so listeners stay in sync
+                let cached = guard.clone();
+                drop(guard);
+                self.emitter.emit(VisioEvent::MeetingsUpdated(cached));
+                return;
+            }
+        }
+
         {
             let mut guard = self.meetings.lock().unwrap_or_else(|e| e.into_inner());
             *guard = meetings.clone();
@@ -847,6 +865,137 @@ END:VCALENDAR";
         assert_eq!(meetings[0].server_name, "meet.linagora.com");
         assert_eq!(meetings[1].summary, "Point BC");
         assert!(meetings[1].room_url.contains("qay-glwz-xxq"));
+    }
+
+    // -----------------------------------------------------------------------
+    // Retention guard tests (#126)
+    // -----------------------------------------------------------------------
+
+    /// When refresh returns 0 meetings but the cache still holds valid
+    /// (non-expired) entries, the cache must be preserved and re-emitted.
+    #[tokio::test]
+    async fn test_retention_guard_keeps_cache_on_empty_refresh() {
+        let dir = tempfile::tempdir().unwrap();
+        let data_dir = dir.path().to_str().unwrap().to_string();
+        std::mem::forget(dir);
+
+        let store = Arc::new(SettingsStore::new(&data_dir));
+        let emitter = EventEmitter::new();
+        let captured: Arc<Mutex<Vec<VisioEvent>>> = Arc::new(Mutex::new(Vec::new()));
+        emitter.add_listener(Arc::new(EventCapture {
+            events: captured.clone(),
+        }));
+
+        // Configure a calendar URL that will return invalid (non-iCal) content
+        let mut server = mockito::Server::new_async().await;
+        let mock = server
+            .mock("GET", "/cal.ics")
+            .with_status(200)
+            .with_body("<html>Error</html>")
+            .create_async()
+            .await;
+
+        store.set_calendar_url(Some(format!("{}/cal.ics", server.url())));
+        store.set_meet_instances(vec!["meet.linagora.com".to_string()]);
+
+        let svc = CalendarService::new(store, emitter, data_dir);
+
+        // Pre-populate cache with a valid future meeting
+        let now_ts = Utc::now().timestamp();
+        let cached_meeting = Meeting {
+            id: "retain-001".to_string(),
+            summary: "Kept meeting".to_string(),
+            start_time: now_ts + 3600,
+            end_time: now_ts + 7200,
+            room_url: "https://meet.linagora.com/kept".to_string(),
+            deep_link: "visio://meet.linagora.com/kept".to_string(),
+            server_name: "meet.linagora.com".to_string(),
+        };
+        {
+            let mut guard = svc.meetings.lock().unwrap();
+            *guard = vec![cached_meeting.clone()];
+        }
+
+        // Refresh — server returns HTML, parse yields 0 meetings
+        svc.refresh().await;
+        mock.assert_async().await;
+
+        // Cache should still contain the original meeting
+        let meetings = svc.get_meetings();
+        assert_eq!(meetings.len(), 1, "cached meeting must be retained");
+        assert_eq!(meetings[0].id, "retain-001");
+
+        // Should have emitted MeetingsUpdated with the cached list
+        let events = captured.lock().unwrap();
+        let updated = events
+            .iter()
+            .find(|e| matches!(e, VisioEvent::MeetingsUpdated(_)));
+        assert!(updated.is_some(), "should re-emit cached meetings");
+        if let Some(VisioEvent::MeetingsUpdated(m)) = updated {
+            assert_eq!(m.len(), 1);
+            assert_eq!(m[0].id, "retain-001");
+        }
+    }
+
+    /// When refresh returns 0 meetings and the cache is also empty (or all
+    /// expired), the empty result should be accepted normally.
+    #[tokio::test]
+    async fn test_retention_guard_allows_empty_when_cache_expired() {
+        let dir = tempfile::tempdir().unwrap();
+        let data_dir = dir.path().to_str().unwrap().to_string();
+        std::mem::forget(dir);
+
+        let store = Arc::new(SettingsStore::new(&data_dir));
+        let emitter = EventEmitter::new();
+        let captured: Arc<Mutex<Vec<VisioEvent>>> = Arc::new(Mutex::new(Vec::new()));
+        emitter.add_listener(Arc::new(EventCapture {
+            events: captured.clone(),
+        }));
+
+        let mut server = mockito::Server::new_async().await;
+        let mock = server
+            .mock("GET", "/cal.ics")
+            .with_status(200)
+            .with_body("<html>Error</html>")
+            .create_async()
+            .await;
+
+        store.set_calendar_url(Some(format!("{}/cal.ics", server.url())));
+        store.set_meet_instances(vec!["meet.linagora.com".to_string()]);
+
+        let svc = CalendarService::new(store, emitter, data_dir);
+
+        // Pre-populate cache with an expired meeting
+        let now_ts = Utc::now().timestamp();
+        {
+            let mut guard = svc.meetings.lock().unwrap();
+            *guard = vec![Meeting {
+                id: "expired-001".to_string(),
+                summary: "Expired".to_string(),
+                start_time: now_ts - 7200,
+                end_time: now_ts - 3600,
+                room_url: "https://meet.linagora.com/old".to_string(),
+                deep_link: "visio://meet.linagora.com/old".to_string(),
+                server_name: "meet.linagora.com".to_string(),
+            }];
+        }
+
+        svc.refresh().await;
+        mock.assert_async().await;
+
+        // Cache should be cleared (no valid meetings to retain)
+        let meetings = svc.get_meetings();
+        assert_eq!(meetings.len(), 0, "expired cache should be cleared");
+
+        // Should have emitted MeetingsUpdated with empty list
+        let events = captured.lock().unwrap();
+        let updated = events
+            .iter()
+            .find(|e| matches!(e, VisioEvent::MeetingsUpdated(_)));
+        assert!(updated.is_some());
+        if let Some(VisioEvent::MeetingsUpdated(m)) = updated {
+            assert!(m.is_empty());
+        }
     }
 
     /// Past meetings (end_time < now) must be excluded from get_meetings().
