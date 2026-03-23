@@ -24,12 +24,114 @@
   --bg: #161622;
   --bg-secondary: #222234;
   --bg-tertiary: #2d2d46;
-  --border: #2d2d46;
-  --text: #ffffff;
-  --text-secondary: #929292;
-  --text-tertiary: #5a5a8f;
+  --border: #3a3a54;
+  --text: #f0f0f5;
+  --text-secondary: #b0b0b8;
+  --text-tertiary: #8888b8;
+  --accent: #6a6af4;
   --error-bg: #6c302e;
+  --error: #ff6b6b;
   --error-text: #ee6a66;
+  --success: #4ade80;
+  --warning: #fbbf24;
+  --hand-raise: #fde047;
+}
+
+/* -- Dark mode component refinements --------------------------------------- */
+
+[data-theme='dark'] .btn-primary {
+  background: #6a6af4;
+}
+
+[data-theme='dark'] .btn-primary:hover:not(:disabled) {
+  background: #7f7dff;
+}
+
+[data-theme='dark'] .settings-save {
+  background: #6a6af4;
+}
+
+[data-theme='dark'] .settings-save:hover {
+  background: #7f7dff;
+}
+
+[data-theme='dark'] .form-group input {
+  background: #1e1e30;
+  border-color: #3a3a54;
+}
+
+[data-theme='dark'] .form-group input:focus {
+  border-color: #6a6af4;
+  box-shadow: 0 0 0 2px rgba(106, 106, 244, 0.2);
+}
+
+[data-theme='dark'] .settings-input {
+  background: #1e1e30;
+  border-color: #3a3a54;
+}
+
+[data-theme='dark'] .settings-input:focus {
+  border-color: #6a6af4;
+  box-shadow: 0 0 0 2px rgba(106, 106, 244, 0.2);
+}
+
+[data-theme='dark'] .settings-section select {
+  background: #1e1e30;
+  border-color: #3a3a54;
+}
+
+[data-theme='dark'] .room-history-item {
+  background: rgba(106, 106, 244, 0.08);
+}
+
+[data-theme='dark'] .room-history-item:hover {
+  background: rgba(106, 106, 244, 0.16);
+}
+
+[data-theme='dark'] .home-tab-active {
+  color: #6a6af4;
+  background: #1e1e30;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+}
+
+[data-theme='dark'] .settings-modal {
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.6);
+}
+
+[data-theme='dark'] .auth-card {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+[data-theme='dark'] .chat-input {
+  background: #1e1e30;
+  border-color: #3a3a54;
+}
+
+[data-theme='dark'] .chat-input:focus {
+  border-color: #6a6af4;
+}
+
+[data-theme='dark'] .info-link-input {
+  background: #1e1e30;
+  border-color: #3a3a54;
+}
+
+/* Scrollbar dark mode */
+[data-theme='dark'] ::-webkit-scrollbar {
+  width: 8px;
+}
+
+[data-theme='dark'] ::-webkit-scrollbar-track {
+  background: #161622;
+}
+
+[data-theme='dark'] ::-webkit-scrollbar-thumb {
+  background: #3a3a54;
+  border-radius: 4px;
+}
+
+[data-theme='dark'] ::-webkit-scrollbar-thumb:hover {
+  background: #4a4a64;
 }
 
 * {
