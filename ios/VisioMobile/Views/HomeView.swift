@@ -406,7 +406,7 @@ struct HomeView: View {
         }
         .onChange(of: manager.pendingDeepLink) { newValue in
             if let link = newValue {
-                // Extract room-display-name from the URL if present, then strip the param
+                // Extract room display name from the URL if present, then strip the param
                 if let extracted = manager.client.extractRoomDisplayName(url: link) {
                     roomDisplayName = extracted
                 }
@@ -651,6 +651,7 @@ private struct CreateRoomSheet: View {
     let onCreated: (String) -> Void
     let onCancel: () -> Void
 
+    @State private var roomDisplayName: String = ""
     @State private var accessLevel: String = "public"
     @State private var creating: Bool = false
     @State private var error: String? = nil
@@ -673,6 +674,10 @@ private struct CreateRoomSheet: View {
         NavigationStack {
             Form {
                 if createdUrl == nil {
+                    Section {
+                        TextField(Strings.t("home.roomDisplayName", lang: lang), text: $roomDisplayName)
+                    }
+
                     Section {
                         Picker(Strings.t("home.createRoom.access", lang: lang), selection: $accessLevel) {
                             Text(Strings.t("home.createRoom.public", lang: lang)).tag("public")
@@ -779,7 +784,6 @@ private struct CreateRoomSheet: View {
                                 do {
                                     let result = try manager.client.createRoom(
                                         meetUrl: "https://\(meetInstance)",
-                                        name: "",
                                         accessLevel: accessLevel
                                     )
                                     // Add accesses for invited users
@@ -790,7 +794,15 @@ private struct CreateRoomSheet: View {
                                     }
                                     DispatchQueue.main.async {
                                         createdRoomId = result.id
-                                        createdUrl = "https://\(meetInstance)/\(result.slug)"
+                                        let trimmedName = roomDisplayName.trimmingCharacters(in: .whitespacesAndNewlines)
+                                        if !trimmedName.isEmpty {
+                                            var allowed = CharacterSet.urlQueryAllowed
+                                            allowed.remove(charactersIn: " +&=")
+                                            let encoded = trimmedName.addingPercentEncoding(withAllowedCharacters: allowed) ?? trimmedName
+                                            createdUrl = "https://\(meetInstance)/\(result.slug)?visio=\(encoded)"
+                                        } else {
+                                            createdUrl = "https://\(meetInstance)/\(result.slug)"
+                                        }
                                         creating = false
                                     }
                                 } catch {

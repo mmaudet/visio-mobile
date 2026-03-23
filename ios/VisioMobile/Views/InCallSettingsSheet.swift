@@ -220,7 +220,7 @@ struct InCallSettingsSheet: View {
                 var allowed = CharacterSet.urlQueryAllowed
                 allowed.remove(charactersIn: " +&=")
                 let encoded = name.addingPercentEncoding(withAllowedCharacters: allowed) ?? name
-                return "\(roomURL)?room-display-name=\(encoded)"
+                return "\(roomURL)?visio=\(encoded)"
             }
             return roomURL
         }()
@@ -230,7 +230,7 @@ struct InCallSettingsSheet: View {
                 var allowed = CharacterSet.urlQueryAllowed
                 allowed.remove(charactersIn: " +&=")
                 let encoded = name.addingPercentEncoding(withAllowedCharacters: allowed) ?? name
-                return "\(deepLink)?room-display-name=\(encoded)"
+                return "\(deepLink)?visio=\(encoded)"
             }
             return deepLink
         }()

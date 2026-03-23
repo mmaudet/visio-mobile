@@ -1086,7 +1086,7 @@ function HomeView({
     const trimmedDisplayName = roomDisplayName.trim()
     if (trimmedDisplayName) {
       const sep = url.includes('?') ? '&' : '?'
-      url = `${url}${sep}room-display-name=${encodeURIComponent(trimmedDisplayName)}`
+      url = `${url}${sep}visio=${encodeURIComponent(trimmedDisplayName)}`
     }
     setError('')
     setJoining(true)
@@ -1362,7 +1362,7 @@ function HomeView({
                 type="text"
                 placeholder={t('home.roomDisplayNamePlaceholder')}
                 autoComplete="off"
-                data-testid="home-room-display-name-input"
+                data-testid="home-room-input"
                 value={roomDisplayName}
                 onChange={(e) => setRoomDisplayName(e.target.value)}
                 onKeyDown={handleKeyDown}
@@ -1543,6 +1543,7 @@ function CreateRoomDialog({
   const [accessLevel, setAccessLevel] = useState<
     'public' | 'trusted' | 'restricted'
   >('public')
+  const [roomDisplayName, setRoomDisplayName] = useState('')
   const [creating, setCreating] = useState(false)
   const [error, setError] = useState('')
   const [createdUrl, setCreatedUrl] = useState('')
@@ -1596,10 +1597,14 @@ function CreateRoomDialog({
         livekit_token?: string
       }>('create_room', {
         meetUrl,
-        name: '',
         accessLevel,
       })
-      setCreatedUrl(`${meetUrl}/${result.slug}`)
+      const trimmedName = roomDisplayName.trim()
+      setCreatedUrl(
+        trimmedName
+          ? `${meetUrl}/${result.slug}?visio=${encodeURIComponent(trimmedName)}`
+          : `${meetUrl}/${result.slug}`
+      )
       setCreatedRoomId(result.id)
       setCreatedLivekitUrl(result.livekit_url ?? '')
       setCreatedLivekitToken(result.livekit_token ?? '')
@@ -1644,6 +1649,17 @@ function CreateRoomDialog({
         <div className="settings-body">
           {!createdUrl ? (
             <>
+              <div className="form-field">
+                <label>{t('home.roomDisplayName')}</label>
+                <input
+                  type="text"
+                  className="info-link-input"
+                  placeholder={t('home.roomDisplayNamePlaceholder')}
+                  value={roomDisplayName}
+                  onChange={(e) => setRoomDisplayName(e.target.value)}
+                  autoComplete="off"
+                />
+              </div>
               <div className="form-field">
                 <label>{t('home.createRoom.access')}</label>
                 <div className="access-level-options">
@@ -1905,14 +1921,14 @@ function InfoSidebar({
   const shareUrl = (() => {
     if (!roomDisplayName) return meetUrl
     const sep = meetUrl.includes('?') ? '&' : '?'
-    return `${meetUrl}${sep}room-display-name=${encodeURIComponent(roomDisplayName)}`
+    return `${meetUrl}${sep}visio=${encodeURIComponent(roomDisplayName)}`
   })()
 
   // Normalize URL for display (strip scheme)
   const displayUrl = meetUrl.replace(/^https?:\/\//, '')
   const deepLinkBase = `visio://${displayUrl}`
   const deepLink = roomDisplayName
-    ? `${deepLinkBase}?room-display-name=${encodeURIComponent(roomDisplayName)}`
+    ? `${deepLinkBase}?visio=${encodeURIComponent(roomDisplayName)}`
     : deepLinkBase
 
   // Fetch accesses on mount if roomId is provided
@@ -4648,17 +4664,17 @@ export default function App() {
           return
         }
 
-        // Handle room deep links: visio://{host}/{slug}[?room-display-name=...]
+        // Handle room deep links: visio://{host}/{slug}[?visio=...]
         const slug = parsed.pathname.replace(/^\//, '')
         if (!host || !slug) return
 
-        const deepLinkDisplayName = parsed.searchParams.get('room-display-name')
+        const deepLinkDisplayName = parsed.searchParams.get('visio')
         invoke<string[]>('get_meet_instances').then((instances) => {
           if (instances.includes(host)) {
             setView('home')
             let roomUrl = `https://${host}/${slug}`
             if (deepLinkDisplayName) {
-              roomUrl += `?room-display-name=${encodeURIComponent(deepLinkDisplayName)}`
+              roomUrl += `?visio=${encodeURIComponent(deepLinkDisplayName)}`
             }
             setDeepLinkUrl(roomUrl)
             setDeepLinkError(null)
@@ -5119,7 +5135,7 @@ export default function App() {
       const parsed = new URL(
         meetUrl.startsWith('http') ? meetUrl : `https://${meetUrl}`
       )
-      const raw = parsed.searchParams.get('room-display-name')
+      const raw = parsed.searchParams.get('visio')
       if (raw) displayNameFromUrl = decodeURIComponent(raw)
     } catch {
       /* ignore */

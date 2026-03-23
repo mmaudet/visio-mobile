@@ -690,14 +690,14 @@ private fun RoomInfoTab(
     val deepLink =
         if (roomName != null) {
             val encoded = java.net.URLEncoder.encode(roomName, "UTF-8").replace("+", "%20")
-            "visio://$displayUrl?room-display-name=$encoded"
+            "visio://$displayUrl?visio=$encoded"
         } else {
             "visio://$displayUrl"
         }
     val shareHttpUrl =
         if (roomName != null) {
             val encoded = java.net.URLEncoder.encode(roomName, "UTF-8").replace("+", "%20")
-            "$roomUrl?room-display-name=$encoded"
+            "$roomUrl?visio=$encoded"
         } else {
             roomUrl
         }

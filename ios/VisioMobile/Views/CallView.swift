@@ -299,7 +299,7 @@ struct CallView: View {
                     allowed.remove(charactersIn: " +&=")
                     let encoded = rdName.addingPercentEncoding(withAllowedCharacters: allowed) ?? rdName
                     let separator = connectURL.contains("?") ? "&" : "?"
-                    connectURL += "\(separator)room-display-name=\(encoded)"
+                    connectURL += "\(separator)visio=\(encoded)"
                 }
                 manager.connect(url: connectURL, username: name)
             }

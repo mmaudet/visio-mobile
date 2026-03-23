@@ -222,20 +222,17 @@ mod tests {
 
     #[test]
     fn parse_meet_url_strips_display_name_param() {
-        let (instance, slug) = AuthService::parse_meet_url(
-            "https://meet.example.com/abc-defg-hij?room-display-name=Comex",
-        )
-        .unwrap();
+        let (instance, slug) =
+            AuthService::parse_meet_url("https://meet.example.com/abc-defg-hij?visio=Comex")
+                .unwrap();
         assert_eq!(instance, "meet.example.com");
         assert_eq!(slug, "abc-defg-hij");
     }
 
     #[test]
     fn extract_slug_with_query_param() {
-        let slug = AuthService::extract_slug(
-            "https://meet.example.com/abc-defg-hij?room-display-name=Test",
-        )
-        .unwrap();
+        let slug =
+            AuthService::extract_slug("https://meet.example.com/abc-defg-hij?visio=Test").unwrap();
         assert_eq!(slug, "abc-defg-hij");
     }
 }

@@ -1363,7 +1363,6 @@ private fun CreateRoomDialog(
                                 val result =
                                     VisioManager.client.createRoom(
                                         "https://$meetInstance",
-                                        roomDisplayName.trim(),
                                         accessLevel,
                                     )
                                 // Add accesses for invited users
@@ -1378,7 +1377,18 @@ private fun CreateRoomDialog(
                                 }
                                 withContext(Dispatchers.Main) {
                                     createdRoomId = result.id
-                                    createdUrl = "https://$meetInstance/${result.slug}"
+                                    val baseUrl = "https://$meetInstance/${result.slug}"
+                                    createdUrl =
+                                        if (roomDisplayName.trim().isNotBlank()) {
+                                            val encoded =
+                                                java.net.URLEncoder.encode(
+                                                    roomDisplayName.trim(),
+                                                    "UTF-8",
+                                                )
+                                            "$baseUrl?visio=$encoded"
+                                        } else {
+                                            baseUrl
+                                        }
                                     creating = false
                                 }
                             } catch (e: Exception) {

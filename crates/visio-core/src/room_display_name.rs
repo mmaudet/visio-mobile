@@ -37,7 +37,7 @@ pub fn validate_room_display_name(raw: &str) -> Option<String> {
     Some(trimmed)
 }
 
-/// Extracts and validates the `room-display-name` query parameter from a URL.
+/// Extracts and validates the `visio` query parameter from a URL.
 ///
 /// Percent-decodes the value, then passes it through [`validate_room_display_name`].
 /// Returns `None` if the parameter is absent, empty, or fails validation.
@@ -48,7 +48,7 @@ pub fn extract_room_display_name(url: &str) -> Option<String> {
         let mut kv = pair.splitn(2, '=');
         let key = kv.next().unwrap_or("");
         let value = kv.next().unwrap_or("");
-        if key == "room-display-name" {
+        if key == "visio" {
             let decoded = urlencoding::decode(value).ok()?;
             return validate_room_display_name(&decoded);
         }
@@ -56,7 +56,7 @@ pub fn extract_room_display_name(url: &str) -> Option<String> {
     None
 }
 
-/// Removes the `room-display-name` query parameter from a URL.
+/// Removes the `visio` query parameter from a URL.
 ///
 /// All other query parameters are preserved. If removing the parameter
 /// leaves no query string, the `?` is also removed.
@@ -70,7 +70,7 @@ pub fn strip_room_display_name_param(url: &str) -> String {
         .split('&')
         .filter(|pair| {
             let key = pair.split('=').next().unwrap_or("");
-            key != "room-display-name"
+            key != "visio"
         })
         .collect();
     if remaining.is_empty() {
@@ -204,7 +204,7 @@ mod tests {
 
     #[test]
     fn extract_present_percent_encoded() {
-        let url = "https://meet.example.com/room?room-display-name=Hello%20World&token=abc";
+        let url = "https://meet.example.com/room?visio=Hello%20World&token=abc";
         assert_eq!(
             extract_room_display_name(url),
             Some("Hello World".to_string())
@@ -219,19 +219,19 @@ mod tests {
 
     #[test]
     fn extract_empty_value_returns_none() {
-        let url = "https://meet.example.com/room?room-display-name=&token=abc";
+        let url = "https://meet.example.com/room?visio=&token=abc";
         assert_eq!(extract_room_display_name(url), None);
     }
 
     #[test]
     fn extract_invalid_value_xss_returns_none() {
-        let url = "https://meet.example.com/room?room-display-name=%3Cscript%3E";
+        let url = "https://meet.example.com/room?visio=%3Cscript%3E";
         assert_eq!(extract_room_display_name(url), None);
     }
 
     #[test]
     fn extract_with_other_params() {
-        let url = "https://meet.example.com/room?token=abc&room-display-name=Bob&theme=dark";
+        let url = "https://meet.example.com/room?token=abc&visio=Bob&theme=dark";
         assert_eq!(extract_room_display_name(url), Some("Bob".to_string()));
     }
 
@@ -239,7 +239,7 @@ mod tests {
 
     #[test]
     fn strip_removes_param() {
-        let url = "https://meet.example.com/room?room-display-name=Alice&token=abc";
+        let url = "https://meet.example.com/room?visio=Alice&token=abc";
         assert_eq!(
             strip_room_display_name_param(url),
             "https://meet.example.com/room?token=abc"
@@ -248,7 +248,7 @@ mod tests {
 
     #[test]
     fn strip_preserves_other_params() {
-        let url = "https://meet.example.com/room?token=abc&room-display-name=Alice&theme=dark";
+        let url = "https://meet.example.com/room?token=abc&visio=Alice&theme=dark";
         assert_eq!(
             strip_room_display_name_param(url),
             "https://meet.example.com/room?token=abc&theme=dark"
@@ -263,7 +263,7 @@ mod tests {
 
     #[test]
     fn strip_only_param_removes_question_mark() {
-        let url = "https://meet.example.com/room?room-display-name=Alice";
+        let url = "https://meet.example.com/room?visio=Alice";
         assert_eq!(
             strip_room_display_name_param(url),
             "https://meet.example.com/room"
