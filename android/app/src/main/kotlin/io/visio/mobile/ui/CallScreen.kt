@@ -2343,57 +2343,52 @@ private fun ConnectionStateBanner(
     errorMessage: String?,
 ) {
     val lang = VisioManager.currentLang
-    when {
-        errorMessage != null -> {
-            Box(
-                modifier =
-                    Modifier
-                        .fillMaxWidth()
-                        .background(VisioColors.Error200)
-                        .padding(12.dp),
-            ) {
-                Text(
-                    text = "${Strings.t("call.error", lang)}: $errorMessage",
-                    color = VisioColors.Error500,
-                    style = MaterialTheme.typography.bodyMedium,
-                )
-            }
+    if (errorMessage != null) {
+        Box(
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .background(VisioColors.Error200)
+                    .padding(12.dp),
+        ) {
+            Text(
+                text = "${Strings.t("call.error", lang)}: $errorMessage",
+                color = VisioColors.Error500,
+                style = MaterialTheme.typography.bodyMedium,
+            )
         }
-        state is ConnectionState.Connecting -> {
-            Row(
-                modifier = Modifier.padding(12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                CircularProgressIndicator(
-                    modifier = Modifier.size(20.dp),
-                    color = VisioColors.Primary500,
-                )
-                Text(
-                    "${Strings.t("status.connecting", lang)}...",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onBackground,
-                )
-            }
+    } else if (state is ConnectionState.Connecting) {
+        Row(
+            modifier = Modifier.padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            CircularProgressIndicator(
+                modifier = Modifier.size(20.dp),
+                color = VisioColors.Primary500,
+            )
+            Text(
+                "${Strings.t("status.connecting", lang)}...",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onBackground,
+            )
         }
-        state is ConnectionState.Reconnecting -> {
-            Row(
-                modifier = Modifier.padding(12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                CircularProgressIndicator(
-                    modifier = Modifier.size(20.dp),
-                    color = VisioColors.Primary500,
-                )
-                Text(
-                    "${Strings.t("status.reconnecting", lang)} (${state.attempt})...",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onBackground,
-                )
-            }
+    } else if (state is ConnectionState.Reconnecting) {
+        Row(
+            modifier = Modifier.padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            CircularProgressIndicator(
+                modifier = Modifier.size(20.dp),
+                color = VisioColors.Primary500,
+            )
+            Text(
+                "${Strings.t("status.reconnecting", lang)} (${state.attempt})...",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onBackground,
+            )
         }
-        // Connected / Disconnected: no banner
     }
 }
 
