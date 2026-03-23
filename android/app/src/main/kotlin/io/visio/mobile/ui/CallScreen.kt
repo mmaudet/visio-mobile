@@ -2091,11 +2091,13 @@ fun ParticipantTile(
 
     // When bandwidth is degraded, video tracks are paused by the SDK.
     // Show a placeholder instead of a black frame.
-    val videoPausedByBandwidth = hasTrack && !isScreenShare && when (bwMode) {
-        BandwidthMode.AUDIO_ONLY -> true
-        BandwidthMode.REDUCED_VIDEO -> !isActiveSpeaker
-        else -> false
-    }
+    val videoPausedByBandwidth =
+        hasTrack && !isScreenShare &&
+            when (bwMode) {
+                BandwidthMode.AUDIO_ONLY -> true
+                BandwidthMode.REDUCED_VIDEO -> !isActiveSpeaker
+                else -> false
+            }
 
     Box(
         modifier =
@@ -2313,7 +2315,8 @@ private fun ConnectionQualityBars(quality: String) {
 private fun BandwidthBanner(mode: BandwidthMode) {
     if (mode == BandwidthMode.FULL) return
     val lang = VisioManager.currentLang
-    val text = when (mode) {
+    val text =
+        when (mode) {
         BandwidthMode.REDUCED_VIDEO -> Strings.t("bandwidth.reducedVideo", lang)
         BandwidthMode.AUDIO_ONLY -> Strings.t("bandwidth.audioOnly", lang)
         else -> return
