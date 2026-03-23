@@ -25,6 +25,7 @@ and this project adheres to
 
 ### Fixed
 
+- Redesign desktop dark theme colors and contrast (#120)
 - Assert light theme is default on all platforms (#119)
 - Bluetooth device shows real name instead of generic "Bluetooth" (#118)
 - Release Bluetooth SCO audio channel on disconnect (#118)
