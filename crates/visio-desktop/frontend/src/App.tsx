@@ -1467,12 +1467,25 @@ function HomeView({
       {showCreateRoom && authenticatedMeetInstance && (
         <CreateRoomDialog
           meetInstance={authenticatedMeetInstance}
-          onCreated={async (createdUrl, roomId, accessLevel, livekitUrl, livekitToken) => {
+          onCreated={async (
+            createdUrl,
+            roomId,
+            accessLevel,
+            livekitUrl,
+            livekitToken
+          ) => {
             setShowCreateRoom(false)
             const uname = displayName.trim() || null
             try {
               await invoke('set_display_name', { name: uname })
-              onJoin(createdUrl, uname, roomId, accessLevel, livekitUrl, livekitToken)
+              onJoin(
+                createdUrl,
+                uname,
+                roomId,
+                accessLevel,
+                livekitUrl,
+                livekitToken
+              )
             } catch (e) {
               setError(String(e))
             }
@@ -1495,7 +1508,13 @@ function CreateRoomDialog({
   onCancel,
 }: Readonly<{
   meetInstance: string
-  onCreated: (meetUrl: string, roomId?: string, accessLevel?: string, livekitUrl?: string, livekitToken?: string) => void
+  onCreated: (
+    meetUrl: string,
+    roomId?: string,
+    accessLevel?: string,
+    livekitUrl?: string,
+    livekitToken?: string
+  ) => void
   onCancel: () => void
 }>) {
   const t = useT()
@@ -1548,7 +1567,12 @@ function CreateRoomDialog({
     setError('')
     const meetUrl = `https://${meetInstance}`
     try {
-      const result = await invoke<{ slug: string; id: string; livekit_url?: string; livekit_token?: string }>('create_room', {
+      const result = await invoke<{
+        slug: string
+        id: string
+        livekit_url?: string
+        livekit_token?: string
+      }>('create_room', {
         meetUrl,
         name: '',
         accessLevel,
@@ -1814,7 +1838,15 @@ function CreateRoomDialog({
             <button
               className="btn btn-primary"
               style={{ width: 'auto' }}
-              onClick={() => onCreated(createdUrl, createdRoomId, accessLevel, createdLivekitUrl, createdLivekitToken)}
+              onClick={() =>
+                onCreated(
+                  createdUrl,
+                  createdRoomId,
+                  accessLevel,
+                  createdLivekitUrl,
+                  createdLivekitToken
+                )
+              }
             >
               {t('home.join')}
             </button>
@@ -4470,7 +4502,9 @@ export default function App() {
   const [lobbyRoomUrl, setLobbyRoomUrl] = useState('')
   const [lobbyUsername, setLobbyUsername] = useState<string | null>(null)
   const [lobbyLivekitUrl, setLobbyLivekitUrl] = useState<string | null>(null)
-  const [lobbyLivekitToken, setLobbyLivekitToken] = useState<string | null>(null)
+  const [lobbyLivekitToken, setLobbyLivekitToken] = useState<string | null>(
+    null
+  )
   const [currentRoomDisplayName, setCurrentRoomDisplayName] = useState<
     string | null
   >(null)
@@ -5098,7 +5132,9 @@ export default function App() {
     setLobbyRoomUrl(meetUrl)
     setLobbyUsername(username ?? null)
     setLobbyLivekitUrl(livekitUrl && livekitUrl.length > 0 ? livekitUrl : null)
-    setLobbyLivekitToken(livekitToken && livekitToken.length > 0 ? livekitToken : null)
+    setLobbyLivekitToken(
+      livekitToken && livekitToken.length > 0 ? livekitToken : null
+    )
     setView('lobby')
   }
 
