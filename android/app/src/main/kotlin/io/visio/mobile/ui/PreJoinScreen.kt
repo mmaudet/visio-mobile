@@ -2,6 +2,7 @@ package io.visio.mobile.ui
 
 import android.Manifest
 import android.annotation.SuppressLint
+import android.bluetooth.BluetoothManager
 import android.content.Context
 import android.content.pm.PackageManager
 import android.graphics.BitmapFactory
@@ -280,7 +281,7 @@ fun PreJoinScreen(
                             AudioDeviceInfo.TYPE_USB_HEADSET, AudioDeviceInfo.TYPE_USB_DEVICE,
                         )
                 }
-                .distinctBy { it.type }
+                .deduplicateBluetooth()
         }
 
     val audioInputDevices =
@@ -294,7 +295,7 @@ fun PreJoinScreen(
                             AudioDeviceInfo.TYPE_WIRED_HEADSET, AudioDeviceInfo.TYPE_USB_HEADSET,
                         )
                 }
-                .distinctBy { it.type }
+                .deduplicateBluetooth()
         }
 
     var selectedOutputRoute by remember { mutableStateOf<String?>(null) }
@@ -317,11 +318,13 @@ fun PreJoinScreen(
                         AudioDeviceInfo.TYPE_HEARING_AID,
                     )
             }
+        val defaultOutput = externalOutput ?: audioOutputDevices.firstOrNull()
         selectedOutputRoute =
-            audioDeviceTypeLabel(
-                (externalOutput ?: audioOutputDevices.firstOrNull())?.type ?: AudioDeviceInfo.TYPE_BUILTIN_SPEAKER,
-                lang,
-            )
+            if (defaultOutput != null) {
+                audioDeviceLabel(context, defaultOutput, lang)
+            } else {
+                audioDeviceTypeLabel(AudioDeviceInfo.TYPE_BUILTIN_SPEAKER, lang)
+            }
         val externalInput =
             audioInputDevices.firstOrNull {
                 it.type in
@@ -330,11 +333,13 @@ fun PreJoinScreen(
                         AudioDeviceInfo.TYPE_WIRED_HEADSET, AudioDeviceInfo.TYPE_USB_HEADSET,
                     )
             }
+        val defaultInput = externalInput ?: audioInputDevices.firstOrNull()
         selectedInputRoute =
-            audioDeviceTypeLabel(
-                (externalInput ?: audioInputDevices.firstOrNull())?.type ?: AudioDeviceInfo.TYPE_BUILTIN_MIC,
-                lang,
-            )
+            if (defaultInput != null) {
+                audioDeviceLabel(context, defaultInput, lang)
+            } else {
+                audioDeviceTypeLabel(AudioDeviceInfo.TYPE_BUILTIN_MIC, lang)
+            }
     }
 
     // ── Background filter sheet ───────────────────────────────────────────────
@@ -611,11 +616,11 @@ fun PreJoinScreen(
                 onShowOutputRouteMenu = { showOutputRouteMenu = it },
                 onSelectInputRoute = { label ->
                     selectedInputRoute = label
-                    selectedInputDeviceRef = audioInputDevices.firstOrNull { audioDeviceLabel(it, lang) == label }
+                    selectedInputDeviceRef = audioInputDevices.firstOrNull { audioDeviceLabel(context, it, lang) == label }
                 },
                 onSelectOutputRoute = { label ->
                     selectedOutputRoute = label
-                    selectedOutputDeviceRef = audioOutputDevices.firstOrNull { audioDeviceLabel(it, lang) == label }
+                    selectedOutputDeviceRef = audioOutputDevices.firstOrNull { audioDeviceLabel(context, it, lang) == label }
                 },
                 isDark = isDark,
                 lang = lang,
@@ -1176,8 +1181,9 @@ private fun PreJoinAudioRouteSelectors(
                 expanded = showInputRouteMenu,
                 onDismissRequest = { onShowInputRouteMenu(false) },
             ) {
+                val ctx = LocalContext.current
                 audioInputDevices.forEach { device ->
-                    val label = audioDeviceTypeLabel(device.type, lang)
+                    val label = audioDeviceLabel(ctx, device, lang)
                     DropdownMenuItem(
                         text = { Text(label) },
                         onClick = {
@@ -1214,8 +1220,9 @@ private fun PreJoinAudioRouteSelectors(
             expanded = showOutputRouteMenu,
             onDismissRequest = { onShowOutputRouteMenu(false) },
         ) {
+            val ctx2 = LocalContext.current
             audioOutputDevices.forEach { device ->
-                val label = audioDeviceTypeLabel(device.type, lang)
+                val label = audioDeviceLabel(ctx2, device, lang)
                 DropdownMenuItem(
                     text = { Text(label) },
                     onClick = {
@@ -1395,10 +1402,67 @@ private val BUILTIN_TYPES =
         AudioDeviceInfo.TYPE_BUILTIN_MIC,
     )
 
+private val BLUETOOTH_TYPES =
+    listOf(
+        AudioDeviceInfo.TYPE_BLUETOOTH_SCO,
+        AudioDeviceInfo.TYPE_BLUETOOTH_A2DP,
+        AudioDeviceInfo.TYPE_BLE_HEADSET,
+        AudioDeviceInfo.TYPE_BLE_SPEAKER,
+    )
+
+/**
+ * Deduplicate Bluetooth devices: SCO + A2DP + BLE for the same physical device
+ * appear as separate AudioDeviceInfo entries. Keep one per physical device
+ * (prefer SCO for bidirectional audio), plus all non-Bluetooth devices as-is.
+ */
+private fun List<AudioDeviceInfo>.deduplicateBluetooth(): List<AudioDeviceInfo> {
+    val (bt, nonBt) = partition { it.type in BLUETOOTH_TYPES }
+    // Group Bluetooth devices by address (same physical device),
+    // preferring SCO (bidirectional) over A2DP (output-only)
+    val uniqueBt =
+        bt.groupBy { it.address.ifBlank { "bt-${it.id}" } }
+            .values
+            .map { group ->
+                group.firstOrNull { it.type == AudioDeviceInfo.TYPE_BLUETOOTH_SCO }
+                    ?: group.first()
+            }
+    return nonBt.distinctBy { it.type } + uniqueBt
+}
+
+/**
+ * Resolve the Bluetooth device name from BluetoothAdapter.bondedDevices.
+ * AudioDeviceInfo.productName is often empty or generic for BT devices.
+ */
+@SuppressLint("MissingPermission")
+private fun resolveBluetoothName(
+    context: Context,
+    device: AudioDeviceInfo,
+): String? {
+    if (device.type !in BLUETOOTH_TYPES) return null
+    val btManager =
+        context.getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager
+            ?: return null
+    val adapter = btManager.adapter ?: return null
+    // Match by address if available
+    val address = device.address
+    if (address.isNotBlank()) {
+        val bonded = adapter.bondedDevices?.firstOrNull { it.address == address }
+        if (bonded != null) return bonded.name
+    }
+    // Fallback: if only one Bluetooth device is bonded and connected, use its name
+    val bondedBt = adapter.bondedDevices?.toList() ?: return null
+    if (bondedBt.size == 1) return bondedBt.first().name
+    return null
+}
+
 private fun audioDeviceLabel(
+    context: Context,
     device: AudioDeviceInfo,
     lang: String,
 ): String {
+    // Try Bluetooth adapter name first (most reliable for BT devices)
+    resolveBluetoothName(context, device)?.let { return it }
+    // Then try AudioDeviceInfo.productName for non-builtin devices
     if (device.type !in BUILTIN_TYPES) {
         val name = device.productName?.toString()?.ifBlank { null }
         if (name != null) return name

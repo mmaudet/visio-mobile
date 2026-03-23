@@ -526,8 +526,18 @@ object VisioManager : VisioEventListener {
         // Release wake lock
         wakeLock?.let { if (it.isHeld) it.release() }
         wakeLock = null
-        // Restore normal audio mode
+        // Release Bluetooth SCO channel so the car/headset regains audio
         val am = appContext.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            am.clearCommunicationDevice()
+        } else {
+            @Suppress("DEPRECATION")
+            if (am.isBluetoothScoOn) {
+                am.isBluetoothScoOn = false
+                am.stopBluetoothSco()
+            }
+        }
+        // Restore normal audio mode
         am.mode = AudioManager.MODE_NORMAL
     }
 
