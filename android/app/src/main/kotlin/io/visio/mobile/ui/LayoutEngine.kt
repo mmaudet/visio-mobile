@@ -22,9 +22,6 @@ data class LayoutState(
     val lastRemoteSpeakerSid: String? = null,
 )
 
-private const val MIN_HOLD_MS = 2500L
-private const val SILENCE_TO_GRID_MS = 5000L
-
 @Suppress("kotlin:S107")
 fun computeLayout(
     participants: List<ParticipantInfo>,
@@ -45,18 +42,11 @@ fun computeLayout(
         return computePinnedLayout(displayItems, it, activeSpeakers, previousState)
     }
 
-    val speakerResult =
-        computeSpeakerLayout(
-            displayItems,
-            activeSpeakers,
-            localParticipantSid,
-            participants,
-            previousState,
-            nowMs,
-        )
-    if (speakerResult != null) return speakerResult
-
-    return computeFallbackLayout(displayItems, previousState, nowMs, adaptiveMode)
+    // Default: grid layout (no auto-focus on active speaker)
+    return Pair(
+        LayoutDecision(LayoutMode.GRID, null, displayItems, activeSpeakers.firstOrNull(), null),
+        previousState.copy(currentFocus = null, focusHoldStartMs = null),
+    )
 }
 
 private fun computeScreenShareLayout(
@@ -85,103 +75,6 @@ private fun computePinnedLayout(
     return Pair(
         LayoutDecision(LayoutMode.FOCUS, main, secondary, activeSpeakers.firstOrNull(), pinnedItem.participantSid),
         previousState.copy(currentFocus = pinnedItem),
-    )
-}
-
-private fun computeSpeakerLayout(
-    displayItems: List<DisplayItem>,
-    activeSpeakers: List<String>,
-    localParticipantSid: String,
-    participants: List<ParticipantInfo>,
-    previousState: LayoutState,
-    nowMs: Long,
-): Pair<LayoutDecision, LayoutState>? {
-    val currentSpeakerSid = activeSpeakers.firstOrNull() ?: return null
-    val isLocalSpeaking = currentSpeakerSid == localParticipantSid
-    val newLastRemote = if (!isLocalSpeaking) currentSpeakerSid else previousState.lastRemoteSpeakerSid
-
-    val targetSid =
-        resolveTargetSpeaker(isLocalSpeaking, currentSpeakerSid, previousState, participants)
-            ?: return null
-
-    val targetFocus = FocusItem(targetSid, "camera")
-    val shouldSwitch = shouldSwitchFocus(previousState, targetFocus, nowMs)
-
-    return if (shouldSwitch) {
-        val main = findDisplayItem(displayItems, targetSid, "camera")
-        val secondary = displayItems.filter { it.key != main?.key }
-        Pair(
-            LayoutDecision(LayoutMode.FOCUS, main, secondary, currentSpeakerSid, null),
-            LayoutState(targetFocus, nowMs, newLastRemote),
-        )
-    } else {
-        val currentMain =
-            previousState.currentFocus?.let {
-                findDisplayItem(displayItems, it.participantSid, it.source)
-            }
-        val secondary = displayItems.filter { it.key != currentMain?.key }
-        Pair(
-            LayoutDecision(LayoutMode.FOCUS, currentMain, secondary, currentSpeakerSid, null),
-            previousState.copy(lastRemoteSpeakerSid = newLastRemote),
-        )
-    }
-}
-
-private fun resolveTargetSpeaker(
-    isLocalSpeaking: Boolean,
-    currentSpeakerSid: String,
-    previousState: LayoutState,
-    participants: List<ParticipantInfo>,
-): String? =
-    if (isLocalSpeaking) {
-        previousState.lastRemoteSpeakerSid ?: participants.drop(1).firstOrNull()?.sid
-    } else {
-        currentSpeakerSid
-    }
-
-private fun shouldSwitchFocus(
-    previousState: LayoutState,
-    targetFocus: FocusItem,
-    nowMs: Long,
-): Boolean =
-    when {
-        previousState.currentFocus == null -> true
-        previousState.currentFocus == targetFocus -> false
-        else -> {
-            val holdElapsed = previousState.focusHoldStartMs?.let { nowMs - it } ?: Long.MAX_VALUE
-            holdElapsed >= MIN_HOLD_MS
-        }
-    }
-
-private fun computeFallbackLayout(
-    displayItems: List<DisplayItem>,
-    previousState: LayoutState,
-    nowMs: Long,
-    adaptiveMode: AdaptiveMode,
-): Pair<LayoutDecision, LayoutState> {
-    val silenceElapsed = previousState.focusHoldStartMs?.let { nowMs - it } ?: Long.MAX_VALUE
-    if (silenceElapsed > SILENCE_TO_GRID_MS && adaptiveMode == AdaptiveMode.OFFICE) {
-        return Pair(
-            LayoutDecision(LayoutMode.GRID, null, displayItems, null, null),
-            previousState.copy(currentFocus = null, focusHoldStartMs = null),
-        )
-    }
-
-    val currentMain =
-        previousState.currentFocus?.let { focus ->
-            findDisplayItem(displayItems, focus.participantSid, focus.source)
-        }
-    if (currentMain != null) {
-        val secondary = displayItems.filter { it.key != currentMain.key }
-        return Pair(
-            LayoutDecision(LayoutMode.FOCUS, currentMain, secondary, null, null),
-            previousState,
-        )
-    }
-
-    return Pair(
-        LayoutDecision(LayoutMode.GRID, null, displayItems, null, null),
-        previousState.copy(currentFocus = null),
     )
 }
 

@@ -2477,36 +2477,8 @@ function CallView({
     }
   }, [participants, focusedItem, localParticipant, isScreenSharing])
 
-  // Auto-focus on active speaker when there are 3+ participants and user hasn't manually pinned
-  useEffect(() => {
-    // Only auto-focus when there are enough participants to benefit from speaker view
-    const allP: Participant[] = []
-    if (localParticipant) allP.push(localParticipant)
-    allP.push(
-      ...participants.filter(
-        (p) => !localParticipant || p.sid !== localParticipant.sid
-      )
-    )
-    if (allP.length < 3) return
-    if (userPinnedRef.current) return
-    if (activeSpeakers.length === 0) return
-
-    // Find the first active speaker that is NOT the local participant
-    const remoteSpeaker = activeSpeakers.find(
-      (sid) => !localParticipant || sid !== localParticipant.sid
-    )
-    const speakerSid = remoteSpeaker || activeSpeakers[0]
-    if (!speakerSid) return
-
-    // Only switch if the speaker is different from the currently focused participant
-    if (
-      focusedItem?.participantSid === speakerSid &&
-      focusedItem?.source === 'camera'
-    )
-      return
-
-    setFocusedItem({ participantSid: speakerSid, source: 'camera' })
-  }, [activeSpeakers, participants, localParticipant])
+  // Grid is the default layout — no auto-focus on active speaker.
+  // Users must explicitly click a participant to pin them.
 
   const handleSendReaction = async (emojiId: string) => {
     try {
