@@ -1596,7 +1596,6 @@ function CreateRoomDialog({
         livekit_token?: string
       }>('create_room', {
         meetUrl,
-        name: '',
         accessLevel,
       })
       setCreatedUrl(`${meetUrl}/${result.slug}`)

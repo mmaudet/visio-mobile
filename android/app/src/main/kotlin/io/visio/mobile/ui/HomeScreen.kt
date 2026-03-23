@@ -1363,7 +1363,6 @@ private fun CreateRoomDialog(
                                 val result =
                                     VisioManager.client.createRoom(
                                         "https://$meetInstance",
-                                        roomDisplayName.trim(),
                                         accessLevel,
                                     )
                                 // Add accesses for invited users
