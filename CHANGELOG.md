@@ -25,6 +25,7 @@ and this project adheres to
 
 ### Fixed
 
+- macOS camera/mic permission prompts via infoPlist (#124)
 - Timezone-aware iCal parsing with TZID support (#122)
 - Widen desktop meetings list to 640 px (#122)
 - Live countdown updates every 60 s on all platforms (#122)
