@@ -623,6 +623,7 @@ function MeetingsTab({
   const [joining, setJoining] = useState<string | null>(null)
   const [loadingMessage, setLoadingMessage] = useState<string>('')
   const [lastSyncTime, setLastSyncTime] = useState<Date | null>(null)
+  const [refreshing, setRefreshing] = useState(false)
   const [syncToast, setSyncToast] = useState<{
     message: string
     isError: boolean
@@ -698,31 +699,26 @@ function MeetingsTab({
   }, [])
 
   const handleRefresh = async () => {
-    setStatus('loading')
-    setLoadingMessage(t('meetings.calendar.downloading'))
-    const t2 = setTimeout(
-      () => setLoadingMessage(t('meetings.calendar.analyzing')),
-      2000
-    )
-    const t5 = setTimeout(
-      () => setLoadingMessage(t('meetings.calendar.updatingLarge')),
-      5000
-    )
+    // Only show full loading screen on initial load (no meetings yet)
+    if (meetings.length === 0) {
+      setStatus('loading')
+      setLoadingMessage(t('meetings.calendar.downloading'))
+    }
+    setRefreshing(true)
     try {
       await invoke('refresh_calendar_now')
-      clearTimeout(t2)
-      clearTimeout(t5)
-      setLoadingMessage(t('meetings.calendar.updating'))
       const list: Meeting[] = await invoke('get_upcoming_meetings')
       setMeetings(list)
       setLastSyncTime(new Date())
       setStatus(list.length === 0 ? 'empty' : 'list')
     } catch {
-      clearTimeout(t2)
-      clearTimeout(t5)
       setSyncToast({ message: t('calendar.sync.error'), isError: true })
       setTimeout(() => setSyncToast(null), 4000)
-      setStatus(meetings.length > 0 ? 'list' : 'error')
+      if (meetings.length === 0) {
+        setStatus('error')
+      }
+    } finally {
+      setRefreshing(false)
     }
   }
 
@@ -787,8 +783,9 @@ function MeetingsTab({
           {meetings.length} {t('meetings.count')}
         </span>
         <button
-          className="btn-icon"
+          className={`btn-icon${refreshing ? ' refreshing' : ''}`}
           onClick={handleRefresh}
+          disabled={refreshing}
           title={t('meetings.refresh')}
         >
           <RiRefreshLine size={18} />
