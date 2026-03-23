@@ -23,6 +23,7 @@ and this project adheres to
 
 ### Fixed
 
+- Assert light theme is default on all platforms (#119)
 - Apply background blur/image in pre-join lobby camera preview (#111)
 - Fix video freeze after surface destruction and orientation distortion (#100)
 - Fix 12 SonarCloud reliability issues in desktop frontend (#92)
