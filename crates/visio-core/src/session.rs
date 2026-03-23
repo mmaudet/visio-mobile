@@ -244,14 +244,8 @@ impl SessionManager {
             format!("{}-{}-{}", p1, p2, p3)
         };
 
-        let room_name = if name.trim().is_empty() {
-            &slug_name
-        } else {
-            name
-        };
-
         let body = serde_json::json!({
-            "name": room_name,
+            "name": slug_name,
             "access_level": access_level,
         });
 

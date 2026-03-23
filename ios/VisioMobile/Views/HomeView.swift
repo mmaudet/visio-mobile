@@ -406,7 +406,7 @@ struct HomeView: View {
         }
         .onChange(of: manager.pendingDeepLink) { newValue in
             if let link = newValue {
-                // Extract room-display-name from the URL if present, then strip the param
+                // Extract room display name from the URL if present, then strip the param
                 if let extracted = manager.client.extractRoomDisplayName(url: link) {
                     roomDisplayName = extracted
                 }

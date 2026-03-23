@@ -514,14 +514,14 @@ struct PreJoinView: View {
             manager.client.setMicEnabledOnJoin(enabled: isMicOn)
         }
 
-        // Append room-display-name query param so the FFI stores it in history
+        // Append room query param so the FFI stores it in history
         var connectURL = roomURL
         if let rdName = roomDisplayName, !rdName.isEmpty {
             var allowed = CharacterSet.urlQueryAllowed
             allowed.remove(charactersIn: " +&=")
             let encoded = rdName.addingPercentEncoding(withAllowedCharacters: allowed) ?? rdName
             let separator = connectURL.contains("?") ? "&" : "?"
-            connectURL += "\(separator)room-display-name=\(encoded)"
+            connectURL += "\(separator)visio=\(encoded)"
         }
 
         manager.connect(url: connectURL, username: name.isEmpty ? nil : name)

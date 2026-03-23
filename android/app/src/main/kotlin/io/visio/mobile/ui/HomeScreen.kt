@@ -1378,7 +1378,11 @@ private fun CreateRoomDialog(
                                 }
                                 withContext(Dispatchers.Main) {
                                     createdRoomId = result.id
-                                    createdUrl = "https://$meetInstance/${result.slug}"
+                                    createdUrl = if (roomDisplayName.trim().isNotBlank()) {
+                                        "https://$meetInstance/${result.slug}?visio=${java.net.URLEncoder.encode(roomDisplayName.trim(), "UTF-8")}"
+                                    } else {
+                                        "https://$meetInstance/${result.slug}"
+                                    }
                                     creating = false
                                 }
                             } catch (e: Exception) {

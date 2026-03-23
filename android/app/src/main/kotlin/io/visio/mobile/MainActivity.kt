@@ -43,7 +43,7 @@ class MainActivity : ComponentActivity() {
         val slug = uri.path?.trimStart('/') ?: return null
         if (host.isBlank() || slug.isBlank()) return null
 
-        val displayName = uri.getQueryParameter("room-display-name")
+        val displayName = uri.getQueryParameter("visio")
 
         val instances = VisioManager.client.getMeetInstances()
         return if (instances.contains(host)) {
