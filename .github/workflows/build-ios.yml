@@ -34,9 +34,9 @@ jobs:
           rm -f target/aarch64-apple-ios/release/*.dylib
 
       - name: Set up Ruby
-        uses: ruby/setup-ruby@e5517072e87f198d9533967ae13d97c11b604005 # v1
+        uses: ruby/setup-ruby@v1
         with:
-          ruby-version: "3.3.0"
+          ruby-version: "3.2"
           bundler-cache: true
 
       - name: Set up SSH key for Match certificates repo

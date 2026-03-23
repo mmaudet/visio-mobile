@@ -81,9 +81,9 @@ jobs:
           echo "${{ secrets.FIREBASE_SERVICE_ACCOUNT_BASE64 }}" | base64 -d > /tmp/firebase-sa.json
 
       - name: Set up Ruby
-        uses: ruby/setup-ruby@e5517072e87f198d9533967ae13d97c11b604005 # v1
+        uses: ruby/setup-ruby@v1
         with:
-          ruby-version: "3.3.0"
+          ruby-version: "3.2"
           bundler-cache: true
 
       - name: Build & distribute via Fastlane
