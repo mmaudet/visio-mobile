@@ -222,7 +222,6 @@ impl SessionManager {
     pub async fn create_room(
         meet_url: &str,
         cookie: &str,
-        name: &str,
         access_level: &str,
     ) -> Result<CreateRoomResponse, VisioError> {
         use rand::Rng;
@@ -386,7 +385,6 @@ mod tests {
         let result = SessionManager::create_room(
             "https://meet.example.com",
             "invalid_cookie",
-            "Test Room",
             "public",
         )
         .await;

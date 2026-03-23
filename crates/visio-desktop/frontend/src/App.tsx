@@ -1597,7 +1597,6 @@ function CreateRoomDialog({
         livekit_token?: string
       }>('create_room', {
         meetUrl,
-        name: '',
         accessLevel,
       })
       const trimmedName = roomDisplayName.trim()
