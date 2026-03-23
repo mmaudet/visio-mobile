@@ -188,6 +188,8 @@
   "call.screenPermissionHint": "No windows visible. Allow screen recording in System Settings > Privacy > Screen Recording.",
   "bandwidth.reducedVideo": "Low bandwidth — reduced video",
   "bandwidth.audioOnly": "Very low bandwidth — audio only",
+  "bandwidth.recovered": "Connection restored",
+  "bandwidth.videoPaused": "Video paused — weak connection",
   "home.recentRooms": "Recent rooms",
   "home.roomDisplayName": "Room name (optional)",
   "home.roomDisplayNamePlaceholder": "e.g. \"Weekly standup\"",

@@ -99,6 +99,9 @@ struct CallView: View {
                 // Connection state banner
                 connectionBanner
 
+                // Bandwidth degradation banner
+                bandwidthBanner
+
                 // Error banner
                 if let error = manager.errorMessage {
                     Text(error)
@@ -821,6 +824,24 @@ struct CallView: View {
             .background(color)
     }
 
+    @ViewBuilder
+    private var bandwidthBanner: some View {
+        switch manager.bandwidthMode {
+        case .reducedVideo:
+            bannerView(
+                text: Strings.t("bandwidth.reducedVideo", lang: lang),
+                color: .orange
+            )
+        case .audioOnly:
+            bannerView(
+                text: Strings.t("bandwidth.audioOnly", lang: lang),
+                color: VisioColors.error500
+            )
+        case .full:
+            EmptyView()
+        }
+    }
+
     // MARK: - Reaction Emojis
 
     private static let reactionEmojis: [(id: String, emoji: String)] = [
@@ -1145,6 +1166,7 @@ struct CallView: View {
 // MARK: - Participant Tile
 
 struct ParticipantTile: View {
+    @EnvironmentObject private var manager: VisioManager
     let participant: ParticipantInfo
     var trackSidOverride: String? = nil
     var large: Bool = false
@@ -1157,9 +1179,23 @@ struct ParticipantTile: View {
         trackSidOverride ?? participant.videoTrackSid
     }
 
+    /// Video is paused by bandwidth degradation (not by user).
+    private var videoPausedByBandwidth: Bool {
+        guard participant.hasVideo,
+              effectiveTrackSid != nil,
+              trackSidOverride == nil else { return false }
+        switch manager.bandwidthMode {
+        case .audioOnly: return true
+        case .reducedVideo: return !isActiveSpeaker
+        case .full: return false
+        }
+    }
+
     var body: some View {
         ZStack(alignment: .bottom) {
-            if participant.hasVideo, let trackSid = effectiveTrackSid {
+            if videoPausedByBandwidth {
+                videoPausedView
+            } else if participant.hasVideo, let trackSid = effectiveTrackSid {
                 VideoLayerView(
                     trackSid: trackSid,
                     isScreenShare: trackSid == participant.screenShareTrackSid
@@ -1194,6 +1230,27 @@ struct ParticipantTile: View {
                 .stroke(isActiveSpeaker ? VisioColors.primary500 : .clear, lineWidth: 2)
         )
         .shadow(color: isActiveSpeaker ? VisioColors.primary500.opacity(0.5) : .clear, radius: 6)
+    }
+
+    private var videoPausedView: some View {
+        ZStack {
+            Color(red: 0.1, green: 0.1, blue: 0.18)
+
+            VStack(spacing: 8) {
+                Image(systemName: "video.slash")
+                    .font(.title)
+                    .foregroundStyle(Color.orange)
+                Text(participant.name ?? participant.identity)
+                    .font(.caption)
+                    .foregroundStyle(Color(white: 0.53))
+                    .lineLimit(1)
+                Text(Strings.t("bandwidth.videoPaused", lang: manager.currentLang))
+                    .font(.caption2)
+                    .foregroundStyle(Color.orange)
+                    .lineLimit(1)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     private var avatarView: some View {

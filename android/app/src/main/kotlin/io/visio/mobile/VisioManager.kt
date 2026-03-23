@@ -140,6 +140,10 @@ object VisioManager : VisioEventListener {
         _calendarSyncResult.value = null
     }
 
+    // Bandwidth degradation mode
+    private val _bandwidthMode = MutableStateFlow(uniffi.visio.BandwidthMode.FULL)
+    val bandwidthMode: StateFlow<uniffi.visio.BandwidthMode> = _bandwidthMode.asStateFlow()
+
     // Adaptive mode
     private val _adaptiveMode = MutableStateFlow(AdaptiveMode.OFFICE)
     val adaptiveMode: StateFlow<AdaptiveMode> = _adaptiveMode.asStateFlow()
@@ -1193,6 +1197,7 @@ object VisioManager : VisioEventListener {
             }
             is VisioEvent.BandwidthModeChanged -> {
                 Log.d("VISIO", "Bandwidth mode changed: ${event.mode}")
+                _bandwidthMode.value = event.mode
             }
             is VisioEvent.AloneInRoom -> {
                 Log.d("VISIO", "Alone in room")
@@ -1273,6 +1278,7 @@ object VisioManager : VisioEventListener {
                 _isHandRaised.value = false
                 _waitingParticipants.value = emptyList()
                 _lobbyNotification.value = null
+                _bandwidthMode.value = uniffi.visio.BandwidthMode.FULL
                 CallForegroundService.stop(appContext)
             }
             else -> {

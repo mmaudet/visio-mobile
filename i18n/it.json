@@ -188,6 +188,8 @@
   "call.screenPermissionHint": "Nessuna finestra visibile. Consenti la registrazione dello schermo in Impostazioni di Sistema > Privacy > Registrazione schermo.",
   "bandwidth.reducedVideo": "Banda bassa — video ridotto",
   "bandwidth.audioOnly": "Banda molto bassa — solo audio",
+  "bandwidth.recovered": "Connessione ripristinata",
+  "bandwidth.videoPaused": "Video in pausa — connessione debole",
   "home.recentRooms": "Stanze recenti",
   "home.roomDisplayName": "Nome stanza (opzionale)",
   "home.roomDisplayNamePlaceholder": "es. \"Riunione settimanale\"",

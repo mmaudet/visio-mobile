@@ -188,6 +188,8 @@
   "call.screenPermissionHint": "No hay ventanas visibles. Permita la grabación de pantalla en Ajustes del Sistema > Privacidad > Grabación de pantalla.",
   "bandwidth.reducedVideo": "Ancho de banda bajo — video reducido",
   "bandwidth.audioOnly": "Ancho de banda muy bajo — solo audio",
+  "bandwidth.recovered": "Conexion restaurada",
+  "bandwidth.videoPaused": "Video en pausa — conexion debil",
   "home.recentRooms": "Salas recientes",
   "home.roomDisplayName": "Nombre de sala (opcional)",
   "home.roomDisplayNamePlaceholder": "ej. \"Reunión semanal\"",

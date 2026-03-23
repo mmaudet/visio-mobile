@@ -410,6 +410,7 @@ interface ParticipantTileProps {
   handRaisePosition?: number
   displayItem?: DisplayItem
   onExpand?: () => void
+  bandwidthMode?: string
 }
 
 function ParticipantTile({
@@ -419,6 +420,7 @@ function ParticipantTile({
   handRaisePosition,
   displayItem,
   onExpand,
+  bandwidthMode,
 }: Readonly<ParticipantTileProps>) {
   const t = useT()
   const isScreenShare = displayItem?.isScreenShare ?? false
@@ -438,6 +440,14 @@ function ParticipantTile({
 
   const videoSrc = trackSid ? videoFrames.get(trackSid) : undefined
 
+  // Video paused by bandwidth degradation — show placeholder
+  const videoPausedByBw =
+    !isScreenShare &&
+    participant.has_video &&
+    trackSid != null &&
+    (bandwidthMode === 'audio_only' ||
+      (bandwidthMode === 'reduced_video' && !isActiveSpeaker))
+
   return (
     <div
       className={`tile ${isActiveSpeaker && !isScreenShare ? 'tile-active-speaker' : ''}`}
@@ -445,7 +455,7 @@ function ParticipantTile({
         ? { 'data-testid': `speaker-border:${participant.sid}` }
         : {})}
     >
-      {videoSrc && (
+      {videoSrc && !videoPausedByBw && (
         <img
           className={`tile-video${isScreenShare ? ' tile-video-screen' : ''}`}
           src={`data:image/jpeg;base64,${videoSrc}`}
@@ -458,10 +468,16 @@ function ParticipantTile({
           <span>{t('call.screenShare')}</span>
         </div>
       )}
-      {!videoSrc && !isScreenShare && (
+      {((!videoSrc && !isScreenShare) || videoPausedByBw) && (
         <div className="tile-avatar-no-cam">
-          <RiVideoOffLine size={32} />
+          <RiVideoOffLine
+            size={32}
+            color={videoPausedByBw ? '#ff9800' : undefined}
+          />
           <span className="tile-initials-small">{displayName}</span>
+          {videoPausedByBw && (
+            <span className="tile-bw-paused">{t('bandwidth.videoPaused')}</span>
+          )}
         </div>
       )}
       {isScreenShare && onExpand && (
@@ -2346,6 +2362,7 @@ function CallView({
   roomId,
   accessLevel,
   roomDisplayName,
+  bandwidthMode,
 }: Readonly<{
   participants: Participant[]
   localParticipant: Participant | null
@@ -2391,6 +2408,7 @@ function CallView({
   roomId?: string
   accessLevel?: string
   roomDisplayName?: string | null
+  bandwidthMode?: string
 }>) {
   const t = useT()
   const [focusedItem, setFocusedItem] = useState<FocusItem>(null)
@@ -2678,6 +2696,7 @@ function CallView({
                     handRaisedMap[focusedDisplayItem.participant.sid]
                   }
                   displayItem={focusedDisplayItem}
+                  bandwidthMode={bandwidthMode}
                 />
                 <div className="focus-toolbar">
                   <button
@@ -2732,6 +2751,7 @@ function CallView({
                         )}
                         handRaisePosition={handRaisedMap[d.participant.sid]}
                         displayItem={d}
+                        bandwidthMode={bandwidthMode}
                       />
                     </button>
                   ))}
@@ -2768,6 +2788,7 @@ function CallView({
                       )}
                       handRaisePosition={handRaisedMap[d.participant.sid]}
                       displayItem={d}
+                      bandwidthMode={bandwidthMode}
                       onExpand={
                         d.isScreenShare
                           ? () => {
@@ -5197,6 +5218,7 @@ export default function App() {
     setLocalParticipant(null)
     setCurrentMeetUrl('')
     setBandwidthMode('full')
+    setBandwidthMode('full')
   }
 
   const handleToggleHandRaise = async () => {
@@ -5394,6 +5416,7 @@ export default function App() {
             roomId={currentRoomId || undefined}
             accessLevel={currentAccessLevel || undefined}
             roomDisplayName={currentRoomDisplayName}
+            bandwidthMode={bandwidthMode}
           />
         )}
         {connectionState === 'waiting_for_host' && (

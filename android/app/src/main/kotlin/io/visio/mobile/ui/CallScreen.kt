@@ -98,6 +98,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import uniffi.visio.AdaptiveMode
+import uniffi.visio.BandwidthMode
 import uniffi.visio.ConnectionState
 import uniffi.visio.ParticipantInfo
 import uniffi.visio.WaitingParticipant
@@ -521,6 +522,7 @@ fun CallScreen(
     val lobbyNotification by VisioManager.lobbyNotification.collectAsState()
     val waitingParticipants by VisioManager.waitingParticipants.collectAsState()
     val adaptiveMode by VisioManager.adaptiveMode.collectAsState()
+    val bandwidthMode by VisioManager.bandwidthMode.collectAsState()
     val isAdaptiveModeEnabled =
         try {
             VisioManager.client.isAdaptiveModeEnabled()
@@ -808,6 +810,9 @@ fun CallScreen(
         Column(modifier = Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()) {
             // Connection state banner
             ConnectionStateBanner(connectionState, errorMessage)
+
+            // Bandwidth degradation banner
+            BandwidthBanner(bandwidthMode)
 
             // Room display name header
             if (roomDisplayName != null) {
@@ -2048,6 +2053,7 @@ fun ParticipantTile(
     onLongPress: (() -> Unit)? = null,
 ) {
     val lang = VisioManager.currentLang
+    val bwMode by VisioManager.bandwidthMode.collectAsState()
     val name = participant.name ?: participant.identity
     // Deterministic hue from name (reserved for avatar background, currently unused)
 
@@ -2083,6 +2089,16 @@ fun ParticipantTile(
         }
     val trackSid = if (isScreenShare) participant.screenShareTrackSid else participant.videoTrackSid
 
+    // When bandwidth is degraded, video tracks are paused by the SDK.
+    // Show a placeholder instead of a black frame.
+    val videoPausedByBandwidth =
+        hasTrack && !isScreenShare &&
+            when (bwMode) {
+                BandwidthMode.AUDIO_ONLY -> true
+                BandwidthMode.REDUCED_VIDEO -> !isActiveSpeaker
+                else -> false
+            }
+
     Box(
         modifier =
             Modifier
@@ -2096,7 +2112,7 @@ fun ParticipantTile(
                 ),
     ) {
         // Video surface or avatar fallback
-        if (hasTrack && trackSid != null) {
+        if (hasTrack && trackSid != null && !videoPausedByBandwidth) {
             androidx.compose.runtime.key(trackSid) {
                 AndroidView(
                     factory = { ctx -> VideoSurfaceView(ctx, trackSid) },
@@ -2108,6 +2124,42 @@ fun ParticipantTile(
                     },
                     modifier = Modifier.fillMaxSize(),
                 )
+            }
+        } else if (videoPausedByBandwidth) {
+            // Video paused due to bandwidth degradation
+            Box(
+                modifier =
+                    Modifier
+                        .fillMaxSize()
+                        .background(Color(0xFF1A1A2E)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center,
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.VideocamOff,
+                        contentDescription = null,
+                        tint = Color(0xFFFF9800),
+                        modifier = Modifier.size(32.dp),
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = name,
+                        color = Color(0xFF888888),
+                        fontSize = 13.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Text(
+                        text = Strings.t("bandwidth.videoPaused", lang),
+                        color = Color(0xFFFF9800),
+                        fontSize = 10.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
             }
         } else {
             Box(
@@ -2260,62 +2312,83 @@ private fun ConnectionQualityBars(quality: String) {
 }
 
 @Composable
+private fun BandwidthBanner(mode: BandwidthMode) {
+    if (mode == BandwidthMode.FULL) return
+    val lang = VisioManager.currentLang
+    val text =
+        when (mode) {
+            BandwidthMode.REDUCED_VIDEO -> Strings.t("bandwidth.reducedVideo", lang)
+            BandwidthMode.AUDIO_ONLY -> Strings.t("bandwidth.audioOnly", lang)
+            else -> return
+        }
+    Box(
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .background(Color(0xFFFFF3E0))
+                .padding(horizontal = 12.dp, vertical = 8.dp),
+    ) {
+        Text(
+            text = text,
+            color = Color(0xFFE65100),
+            style = MaterialTheme.typography.bodySmall,
+            fontWeight = FontWeight.Medium,
+        )
+    }
+}
+
+@Composable
 private fun ConnectionStateBanner(
     state: ConnectionState,
     errorMessage: String?,
 ) {
     val lang = VisioManager.currentLang
-    when {
-        errorMessage != null -> {
-            Box(
-                modifier =
-                    Modifier
-                        .fillMaxWidth()
-                        .background(VisioColors.Error200)
-                        .padding(12.dp),
-            ) {
-                Text(
-                    text = "${Strings.t("call.error", lang)}: $errorMessage",
-                    color = VisioColors.Error500,
-                    style = MaterialTheme.typography.bodyMedium,
-                )
-            }
+    if (errorMessage != null) {
+        Box(
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .background(VisioColors.Error200)
+                    .padding(12.dp),
+        ) {
+            Text(
+                text = "${Strings.t("call.error", lang)}: $errorMessage",
+                color = VisioColors.Error500,
+                style = MaterialTheme.typography.bodyMedium,
+            )
         }
-        state is ConnectionState.Connecting -> {
-            Row(
-                modifier = Modifier.padding(12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                CircularProgressIndicator(
-                    modifier = Modifier.size(20.dp),
-                    color = VisioColors.Primary500,
-                )
-                Text(
-                    "${Strings.t("status.connecting", lang)}...",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onBackground,
-                )
-            }
+    } else if (state is ConnectionState.Connecting) {
+        Row(
+            modifier = Modifier.padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            CircularProgressIndicator(
+                modifier = Modifier.size(20.dp),
+                color = VisioColors.Primary500,
+            )
+            Text(
+                "${Strings.t("status.connecting", lang)}...",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onBackground,
+            )
         }
-        state is ConnectionState.Reconnecting -> {
-            Row(
-                modifier = Modifier.padding(12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                CircularProgressIndicator(
-                    modifier = Modifier.size(20.dp),
-                    color = VisioColors.Primary500,
-                )
-                Text(
-                    "${Strings.t("status.reconnecting", lang)} (${state.attempt})...",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onBackground,
-                )
-            }
+    } else if (state is ConnectionState.Reconnecting) {
+        Row(
+            modifier = Modifier.padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            CircularProgressIndicator(
+                modifier = Modifier.size(20.dp),
+                color = VisioColors.Primary500,
+            )
+            Text(
+                "${Strings.t("status.reconnecting", lang)} (${state.attempt})...",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onBackground,
+            )
         }
-        // Connected / Disconnected: no banner
     }
 }
 

@@ -188,6 +188,8 @@
   "call.screenPermissionHint": "Aucune fenêtre visible. Autorisez l'enregistrement de l'écran dans Réglages Système > Confidentialité > Enregistrement de l'écran.",
   "bandwidth.reducedVideo": "Faible débit — vidéo réduite",
   "bandwidth.audioOnly": "Très faible débit — audio uniquement",
+  "bandwidth.recovered": "Connexion rétablie",
+  "bandwidth.videoPaused": "Vidéo en pause — connexion faible",
   "home.recentRooms": "Salles récentes",
   "home.roomDisplayName": "Nom de la room (optionnel)",
   "home.roomDisplayNamePlaceholder": "ex. \"Réunion hebdo\"",
