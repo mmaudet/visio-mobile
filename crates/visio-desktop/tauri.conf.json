@@ -45,7 +45,11 @@
         "icons/128x128@2x.png"
       ],
     "macOS": {
-      "entitlements": "entitlements.plist"
+      "entitlements": "entitlements.plist",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Visio needs camera access for video calls",
+        "NSMicrophoneUsageDescription": "Visio needs microphone access for audio calls"
+      }
     }
   }
 }
