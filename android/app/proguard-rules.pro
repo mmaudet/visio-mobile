@@ -14,3 +14,9 @@
 
 # Keep Compose
 -dontwarn androidx.compose.**
+
+# Suppress missing Google Error Prone annotations (used by Tink/Firebase)
+-dontwarn com.google.errorprone.annotations.**
+
+# Suppress missing javax.annotation (used by various Google libs)
+-dontwarn javax.annotation.**
