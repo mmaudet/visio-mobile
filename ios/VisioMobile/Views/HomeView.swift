@@ -43,11 +43,9 @@ struct HomeView: View {
     private func extractSlug(_ input: String) -> String? {
         let trimmed = input.trimmingCharacters(in: .whitespacesAndNewlines)
             .trimmingCharacters(in: CharacterSet(charactersIn: "/"))
-        // Strip query params before extracting slug
-        let withoutQuery = trimmed.components(separatedBy: "?").first ?? trimmed
-        let candidate = withoutQuery.contains("/")
-            ? String(withoutQuery.split(separator: "/").last ?? "")
-            : withoutQuery
+        let candidate = trimmed.contains("/")
+            ? String(trimmed.split(separator: "/").last ?? "")
+            : trimmed
         return candidate.wholeMatch(of: Self.slugPattern) != nil ? candidate : nil
     }
 
