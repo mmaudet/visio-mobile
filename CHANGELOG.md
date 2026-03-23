@@ -25,6 +25,7 @@ and this project adheres to
 
 ### Fixed
 
+- Keep meetings visible during manual refresh (#123)
 - macOS camera/mic permission prompts via infoPlist (#124)
 - Timezone-aware iCal parsing with TZID support (#122)
 - Widen desktop meetings list to 640 px (#122)
