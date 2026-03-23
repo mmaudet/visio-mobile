@@ -249,5 +249,9 @@
   "call.focus.hideThumbnails": "Ocultar miniaturas",
   "call.focus.showThumbnails": "Mostrar miniaturas",
   "call.focus.backToGrid": "Volver a la cuadrícula",
-  "transcribe.currentLanguage": "Español (es)"
+  "transcribe.currentLanguage": "Español (es)",
+  "calendar.sync.started": "Sincronizando calendario...",
+  "calendar.sync.success": "{count} reuniones encontradas",
+  "calendar.sync.error": "Error al sincronizar el calendario",
+  "calendar.sync.noMeetings": "No hay reuniones próximas"
 }

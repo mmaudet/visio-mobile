@@ -249,5 +249,9 @@
   "call.focus.hideThumbnails": "Miniaturen verbergen",
   "call.focus.showThumbnails": "Miniaturen tonen",
   "call.focus.backToGrid": "Terug naar raster",
-  "transcribe.currentLanguage": "Nederlands (nl)"
+  "transcribe.currentLanguage": "Nederlands (nl)",
+  "calendar.sync.started": "Kalender synchroniseren...",
+  "calendar.sync.success": "{count} vergaderingen gevonden",
+  "calendar.sync.error": "Kalender synchronisatie mislukt",
+  "calendar.sync.noMeetings": "Geen aankomende vergaderingen"
 }

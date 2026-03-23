@@ -249,5 +249,9 @@
   "call.focus.hideThumbnails": "Miniaturansichten ausblenden",
   "call.focus.showThumbnails": "Miniaturansichten einblenden",
   "call.focus.backToGrid": "Zurück zum Raster",
-  "transcribe.currentLanguage": "Deutsch (de)"
+  "transcribe.currentLanguage": "Deutsch (de)",
+  "calendar.sync.started": "Kalender wird synchronisiert...",
+  "calendar.sync.success": "{count} Meetings gefunden",
+  "calendar.sync.error": "Kalender-Synchronisation fehlgeschlagen",
+  "calendar.sync.noMeetings": "Keine bevorstehenden Meetings"
 }

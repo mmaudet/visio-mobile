@@ -616,13 +616,17 @@ function MeetingsTab({
 }>) {
   const t = useT()
   const [status, setStatus] = useState<
-    'onboarding' | 'loading' | 'empty' | 'list'
+    'onboarding' | 'loading' | 'empty' | 'list' | 'error'
   >('onboarding')
   const [meetings, setMeetings] = useState<Meeting[]>([])
   const [calendarUrl, setCalendarUrl] = useState<string | null>(null)
   const [joining, setJoining] = useState<string | null>(null)
   const [loadingMessage, setLoadingMessage] = useState<string>('')
   const [lastSyncTime, setLastSyncTime] = useState<Date | null>(null)
+  const [syncToast, setSyncToast] = useState<{
+    message: string
+    isError: boolean
+  } | null>(null)
 
   // Notify parent of meeting count changes
   useEffect(() => {
@@ -652,16 +656,32 @@ function MeetingsTab({
 
   // Listen for meetings-updated events
   useEffect(() => {
-    let unlisten: (() => void) | null = null
+    let unlistenUpdated: (() => void) | null = null
+    let unlistenError: (() => void) | null = null
     listen<Meeting[]>('meetings-updated', (event) => {
       setMeetings(event.payload)
       setLastSyncTime(new Date())
       setStatus(event.payload.length === 0 ? 'empty' : 'list')
+      const count = event.payload.length
+      const msg =
+        count > 0
+          ? t('calendar.sync.success').replace('{count}', String(count))
+          : t('calendar.sync.noMeetings')
+      setSyncToast({ message: msg, isError: false })
+      setTimeout(() => setSyncToast(null), 3000)
     }).then((fn) => {
-      unlisten = fn
+      unlistenUpdated = fn
+    })
+    listen<string>('calendar-error', () => {
+      setSyncToast({ message: t('calendar.sync.error'), isError: true })
+      setTimeout(() => setSyncToast(null), 4000)
+      if (meetings.length === 0) setStatus('error')
+    }).then((fn) => {
+      unlistenError = fn
     })
     return () => {
-      unlisten?.()
+      unlistenUpdated?.()
+      unlistenError?.()
     }
   }, [])
 
@@ -688,7 +708,9 @@ function MeetingsTab({
     } catch {
       clearTimeout(t2)
       clearTimeout(t5)
-      setStatus(meetings.length > 0 ? 'list' : 'empty')
+      setSyncToast({ message: t('calendar.sync.error'), isError: true })
+      setTimeout(() => setSyncToast(null), 4000)
+      setStatus(meetings.length > 0 ? 'list' : 'error')
     }
   }
 
@@ -726,6 +748,17 @@ function MeetingsTab({
     return (
       <div className="meetings-empty">
         <p>{t('meetings.empty')}</p>
+        <button className="btn btn-secondary" onClick={handleRefresh}>
+          {t('meetings.refresh')}
+        </button>
+      </div>
+    )
+  }
+
+  if (status === 'error') {
+    return (
+      <div className="meetings-empty">
+        <p>{t('calendar.sync.error')}</p>
         <button className="btn btn-secondary" onClick={handleRefresh}>
           {t('meetings.refresh')}
         </button>
@@ -784,6 +817,13 @@ function MeetingsTab({
       {lastSyncTime && (
         <div className="meetings-sync-footer">
           {formatSyncTime(lastSyncTime, t)}
+        </div>
+      )}
+      {syncToast && (
+        <div
+          className={`sync-toast ${syncToast.isError ? 'sync-toast-error' : 'sync-toast-success'}`}
+        >
+          {syncToast.message}
         </div>
       )}
     </div>
@@ -3366,6 +3406,8 @@ function SettingsView({
       .catch(() => {})
   }, [])
 
+  const [saveStatus, setSaveStatus] = useState<string | null>(null)
+
   const save = async () => {
     await invoke('set_display_name', { name: form.displayName || null })
     await invoke('set_mic_enabled_on_join', { enabled: form.micOnJoin })
@@ -3377,8 +3419,16 @@ function SettingsView({
     await invoke('set_calendar_refresh_interval', {
       interval: calendarRefreshInterval,
     })
+    if (calendarUrl.trim()) {
+      try {
+        await invoke('refresh_calendar_now')
+      } catch {
+        // calendar refresh is best-effort on save
+      }
+    }
+    setSaveStatus(t('settings.saved'))
     onDisplayNameChange(form.displayName)
-    onClose()
+    setTimeout(() => onClose(), 800)
   }
 
   return (
@@ -3542,6 +3592,9 @@ function SettingsView({
         </div>
       </div>
       <div className="settings-page-footer">
+        {saveStatus && (
+          <span className="settings-save-status">{saveStatus}</span>
+        )}
         <button className="settings-save" onClick={save}>
           {t('settings.save')}
         </button>

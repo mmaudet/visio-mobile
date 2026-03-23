@@ -249,5 +249,9 @@
   "call.focus.hideThumbnails": "Nascondi miniature",
   "call.focus.showThumbnails": "Mostra miniature",
   "call.focus.backToGrid": "Torna alla griglia",
-  "transcribe.currentLanguage": "Italiano (it)"
+  "transcribe.currentLanguage": "Italiano (it)",
+  "calendar.sync.started": "Sincronizzazione del calendario...",
+  "calendar.sync.success": "{count} riunioni trovate",
+  "calendar.sync.error": "Sincronizzazione del calendario fallita",
+  "calendar.sync.noMeetings": "Nessuna riunione in programma"
 }

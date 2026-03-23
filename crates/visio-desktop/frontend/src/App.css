@@ -3145,3 +3145,46 @@ main {
   opacity: 0.8;
   margin-top: 2px;
 }
+
+/* ---------------------------------------------------------------------------
+   Calendar sync toast
+   --------------------------------------------------------------------------- */
+
+.sync-toast {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 8px 20px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 500;
+  color: white;
+  z-index: 9999;
+  animation: sync-toast-in 0.3s ease-out;
+}
+
+.sync-toast-success {
+  background: var(--accent);
+}
+
+.sync-toast-error {
+  background: #ef4444;
+}
+
+@keyframes sync-toast-in {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
+.settings-save-status {
+  font-size: 13px;
+  color: var(--accent);
+  font-weight: 500;
+}

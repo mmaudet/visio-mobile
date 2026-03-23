@@ -10,6 +10,11 @@ struct TestConnectParams: Sendable {
     let mediaFile: String?
 }
 
+enum CalendarSyncResult: Equatable {
+    case success(count: Int)
+    case error(message: String)
+}
+
 /// Central state manager for the Visio app, backed by UniFFI-generated VisioClient.
 /// Conforms to VisioEventListener to receive room events from Rust.
 @MainActor
@@ -58,6 +63,7 @@ class VisioManager: ObservableObject {
     @Published var lastScreenShareParticipantSid: String? = nil
     @Published var upcomingMeetings: [Meeting] = []
     @Published var calendarLoading: Bool = false
+    @Published var calendarSyncResult: CalendarSyncResult?
 
     let authManager = OidcAuthManager()
 
@@ -1177,6 +1183,7 @@ class VisioManager: ObservableObject {
         case .meetingsUpdated(let meetings):
             self.upcomingMeetings = meetings
             self.calendarLoading = false
+            self.calendarSyncResult = .success(count: meetings.count)
 
         case .meetingImminent(let meeting):
             scheduleMeetingNotification(
@@ -1202,6 +1209,7 @@ class VisioManager: ObservableObject {
         case .calendarError(let message):
             NSLog("VisioManager: calendar error: %@", message)
             self.calendarLoading = false
+            self.calendarSyncResult = .error(message: message)
         }
     }
 }
