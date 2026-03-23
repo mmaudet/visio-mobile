@@ -175,7 +175,7 @@
   "call.startShare": "Bildschirm teilen",
   "call.stopShare": "Teilen beenden",
   "call.screenShare": "Bildschirm",
-  "settings.adaptiveMode": "Adaptiver Modus (auto Büro/Fußgänger/Auto)",
+  "settings.adaptiveMode": "Adaptiver Modus\n(auto, Büro, Fußgänger, Auto)",
   "adaptive.office": "Büromodus",
   "adaptive.pedestrian": "Fußgängermodus",
   "adaptive.car": "Automodus",

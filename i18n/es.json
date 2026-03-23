@@ -175,7 +175,7 @@
   "call.startShare": "Compartir pantalla",
   "call.stopShare": "Dejar de compartir",
   "call.screenShare": "Pantalla",
-  "settings.adaptiveMode": "Modo adaptativo (auto oficina/peatón/coche)",
+  "settings.adaptiveMode": "Modo adaptativo\n(auto, oficina, peatón, coche)",
   "adaptive.office": "Modo oficina",
   "adaptive.pedestrian": "Modo peatón",
   "adaptive.car": "Modo coche",
