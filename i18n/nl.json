@@ -234,6 +234,8 @@
   "meetings.onboarding.title": "Verbind je agenda",
   "meetings.onboarding.configure": "Kalender configureren",
   "meetings.empty.subtitle": "Geniet van je vrije tijd!",
+  "meetings.time.inProgress": "Bezig",
+  "meetings.time.startedAgo": "Begonnen {minutes} min geleden",
   "meetings.time.until": "Tot {time}",
   "meetings.time.inMinutes": "Over {minutes} min",
   "meetings.time.inHours": "Over {hours}u",

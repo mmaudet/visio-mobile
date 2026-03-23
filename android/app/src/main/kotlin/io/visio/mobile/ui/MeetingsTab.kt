@@ -371,7 +371,9 @@ private fun MeetingCardDetails(
             horizontalArrangement = Arrangement.spacedBy(6.dp),
         ) {
             if (isImminent || isInProgress) {
-                PulsingDot(color = Color(0xFF4ADE80))
+                PulsingDot(
+                    color = if (isInProgress) VisioColors.Error500 else Color(0xFF4ADE80),
+                )
             }
             Text(
                 text = meeting.summary,
@@ -433,10 +435,13 @@ private fun formatMeetingTime(
 
     return when {
         minutesUntil < 0 -> {
-            // in progress
+            // in progress — show "En cours" + until time
             val endLocal = Instant.ofEpochSecond(meeting.endTime).atZone(zone).toLocalDateTime()
             val timeFormatter = DateTimeFormatter.ofPattern("HH:mm")
-            Strings.t("meetings.time.until", lang).replace("{time}", timeFormatter.format(endLocal))
+            val untilStr =
+                Strings.t("meetings.time.until", lang)
+                    .replace("{time}", timeFormatter.format(endLocal))
+            "${Strings.t("meetings.time.inProgress", lang)} · $untilStr"
         }
         minutesUntil < 60 -> {
             // relative time for imminent meetings (< 1h)

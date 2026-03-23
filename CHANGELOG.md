@@ -33,6 +33,8 @@ and this project adheres to
   "waiting for authorization" for public rooms (#140)
 - Align settings toggles by splitting adaptive mode label onto two lines (#135)
 - Show hours and minutes in planned meeting countdown (#136)
+- Red pulsing dot and "En cours" label for
+  in-progress meetings instead of negative countdown (#136)
 - Preserve Bluetooth audio device selection from lobby to room (#138)
 - Keep meetings visible during manual refresh (#123)
 - macOS camera/mic permission prompts via infoPlist (#124)

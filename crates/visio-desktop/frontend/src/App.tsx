@@ -531,10 +531,11 @@ function formatMeetingRelativeTime(m: Meeting, t: TFunction): string {
 
   if (isMeetingOngoing(m)) {
     const end = new Date(m.end_time * 1000)
-    return t('meetings.time.until').replace(
+    const untilStr = t('meetings.time.until').replace(
       '{time}',
       end.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     )
+    return `${t('meetings.time.inProgress')} \u00B7 ${untilStr}`
   }
   if (minutesUntil < 60) {
     return t('meetings.time.inMinutes').replace(
@@ -795,15 +796,20 @@ function MeetingsTab({
         <div key={group.label} className="meetings-day-group">
           <div className="meetings-day-header">{group.label}</div>
           {group.meetings.map((m) => {
-            const imminent = isMeetingImminent(m) || isMeetingOngoing(m)
+            const ongoing = isMeetingOngoing(m)
+            const imminent = isMeetingImminent(m) || ongoing
             return (
               <div
                 key={m.id}
-                className={`meeting-item${imminent ? ' meeting-imminent' : ''}`}
+                className={`meeting-item${imminent ? ' meeting-imminent' : ''}${ongoing ? ' meeting-ongoing' : ''}`}
               >
                 <div className="meeting-info">
                   <span className="meeting-summary">
-                    {imminent && <span className="meeting-imminent-dot" />}
+                    {imminent && (
+                      <span
+                        className={`meeting-imminent-dot${ongoing ? ' meeting-ongoing-dot' : ''}`}
+                      />
+                    )}
                     {m.summary || t('meetings.noTitle')}
                   </span>
                   <span className="meeting-time">
