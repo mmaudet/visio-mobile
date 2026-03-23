@@ -1,6 +1,9 @@
 # Keep UniFFI generated bindings
 -keep class uniffi.** { *; }
 
+# Keep JNA classes (UniFFI uses JNA; fields accessed via reflection/JNI)
+-keep class com.sun.jna.** { *; }
+
 # Keep JNI native methods
 -keepclasseswithmembernames class * {
     native <methods>;
@@ -12,6 +15,9 @@
 
 # Keep LiveKit SDK classes
 -keep class io.livekit.** { *; }
+
+# Keep app classes used by JNI/native code
+-keep class io.visio.mobile.** { *; }
 
 # Keep Compose
 -dontwarn androidx.compose.**
