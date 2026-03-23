@@ -3,6 +3,7 @@
 
 # Keep JNA classes (UniFFI uses JNA; fields accessed via reflection/JNI)
 -keep class com.sun.jna.** { *; }
+-dontwarn java.awt.**
 
 # Keep JNI native methods
 -keepclasseswithmembernames class * {
