@@ -4070,7 +4070,8 @@ function PreJoinScreen({
       try {
         await invoke('connect_with_token', { livekitUrl, token: livekitToken })
         onJoin(finalName)
-      } catch {
+      } catch (e) {
+        console.error('connect_with_token failed:', e)
         setWaitingState('idle')
       }
       return
