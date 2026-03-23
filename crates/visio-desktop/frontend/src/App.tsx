@@ -659,10 +659,22 @@ function MeetingsTab({
     let unlistenUpdated: (() => void) | null = null
     let unlistenError: (() => void) | null = null
     listen<Meeting[]>('meetings-updated', (event) => {
-      setMeetings(event.payload)
+      const newMeetings = event.payload
+      // Retention guard: if the backend sends an empty list but we had
+      // meetings, keep the existing list (defense-in-depth for #126).
+      setMeetings((prev) => {
+        if (newMeetings.length === 0 && prev.length > 0) {
+          return prev
+        }
+        return newMeetings
+      })
       setLastSyncTime(new Date())
-      setStatus(event.payload.length === 0 ? 'empty' : 'list')
-      const count = event.payload.length
+      if (newMeetings.length > 0) {
+        setStatus('list')
+      } else {
+        setStatus((prev) => (prev === 'list' ? 'list' : 'empty'))
+      }
+      const count = newMeetings.length
       const msg =
         count > 0
           ? t('calendar.sync.success').replace('{count}', String(count))
@@ -891,7 +903,11 @@ function HomeView({
   useEffect(() => {
     let unlisten: (() => void) | null = null
     listen<Meeting[]>('meetings-updated', (event) => {
-      setMeetingCount(event.payload.length)
+      // Only update badge count if we received meetings; keep previous
+      // count when payload is empty (retention guard, #126).
+      if (event.payload.length > 0) {
+        setMeetingCount(event.payload.length)
+      }
     }).then((fn) => {
       unlisten = fn
     })

@@ -25,6 +25,7 @@ and this project adheres to
 
 ### Fixed
 
+- Keep planned meetings during transient sync failures (#126)
 - Redesign desktop dark theme colors and contrast (#120)
 - Assert light theme is default on all platforms (#119)
 - Bluetooth device shows real name instead of generic "Bluetooth" (#118)
