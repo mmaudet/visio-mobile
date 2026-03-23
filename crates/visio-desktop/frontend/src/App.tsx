@@ -885,6 +885,15 @@ function HomeView({
   const [resolvedUrl, setResolvedUrl] = useState('')
   const [roomHistory, setRoomHistory] = useState<RoomHistoryEntry[]>([])
   const [meetingCount, setMeetingCount] = useState(0)
+  const [tick, setTick] = useState(0)
+  const [hasImminentMeeting, setHasImminentMeeting] = useState(false)
+  const [reminderToast, setReminderToast] = useState<string | null>(null)
+
+  // Fix 3: Tick every 60 s so countdown labels and imminent state update live
+  useEffect(() => {
+    const id = setInterval(() => setTick((n) => n + 1), 60_000)
+    return () => clearInterval(id)
+  }, [])
 
   useEffect(() => {
     invoke<RoomHistoryEntry[]>('get_room_history')
@@ -895,11 +904,17 @@ function HomeView({
   // Load meeting count from cache on mount (so badge shows immediately)
   useEffect(() => {
     invoke<Meeting[]>('get_upcoming_meetings')
-      .then((list) => setMeetingCount(list.length))
+      .then((list) => {
+        setMeetingCount(list.length)
+        setHasImminentMeeting(
+          list.some((m) => isMeetingImminent(m) || isMeetingOngoing(m))
+        )
+      })
       .catch(() => {})
   }, [])
 
   // Also listen for meetings-updated to keep badge in sync even when not on meetings tab
+  const meetingsRef = useRef<Meeting[]>([])
   useEffect(() => {
     let unlisten: (() => void) | null = null
     listen<Meeting[]>('meetings-updated', (event) => {
@@ -907,8 +922,55 @@ function HomeView({
       // count when payload is empty (retention guard, #126).
       if (event.payload.length > 0) {
         setMeetingCount(event.payload.length)
+        meetingsRef.current = event.payload
+        setHasImminentMeeting(
+          event.payload.some((m) => isMeetingImminent(m) || isMeetingOngoing(m))
+        )
       }
     }).then((fn) => {
+      unlisten = fn
+    })
+    return () => {
+      unlisten?.()
+    }
+  }, [])
+
+  // Fix 3+4: Recompute imminent state on each tick
+  useEffect(() => {
+    if (meetingsRef.current.length > 0) {
+      setHasImminentMeeting(
+        meetingsRef.current.some(
+          (m) => isMeetingImminent(m) || isMeetingOngoing(m)
+        )
+      )
+    }
+  }, [tick])
+
+  // Fix 5: Listen for meeting-reminder events and show notification
+  useEffect(() => {
+    let unlisten: (() => void) | null = null
+    listen<{ summary: string; start_time: number }>(
+      'meeting-reminder',
+      (event) => {
+        const { summary } = event.payload
+        const msg = summary
+          ? `${summary} — ${t('meetings.time.inMinutes').replace('{minutes}', '15')}`
+          : t('meetings.time.inMinutes').replace('{minutes}', '15')
+        setReminderToast(msg)
+        setTimeout(() => setReminderToast(null), 5000)
+        // Also try system notification if available
+        if ('Notification' in window && Notification.permission === 'granted') {
+          new Notification(summary || t('home.tab.meetings'), {
+            body: t('meetings.time.inMinutes').replace('{minutes}', '15'),
+          })
+        } else if (
+          'Notification' in window &&
+          Notification.permission === 'default'
+        ) {
+          Notification.requestPermission()
+        }
+      }
+    ).then((fn) => {
       unlisten = fn
     })
     return () => {
@@ -1060,7 +1122,11 @@ function HomeView({
           >
             {t('home.tab.meetings')}
             {meetingCount > 0 && (
-              <span className="tab-badge">{meetingCount}</span>
+              <span
+                className={`tab-badge${hasImminentMeeting ? ' tab-badge-imminent' : ''}`}
+              >
+                {meetingCount}
+              </span>
             )}
           </button>
         </div>
@@ -1414,6 +1480,9 @@ function HomeView({
           }}
           onCancel={() => setShowCreateRoom(false)}
         />
+      )}
+      {reminderToast && (
+        <div className="sync-toast sync-toast-success">{reminderToast}</div>
       )}
     </div>
   )

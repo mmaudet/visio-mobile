@@ -25,6 +25,11 @@ and this project adheres to
 
 ### Fixed
 
+- Timezone-aware iCal parsing with TZID support (#122)
+- Widen desktop meetings list to 640 px (#122)
+- Live countdown updates every 60 s on all platforms (#122)
+- Imminent meeting badge turns red on all platforms (#122)
+- Desktop notification on meeting-reminder event (#122)
 - Keep planned meetings during transient sync failures (#126)
 - Redesign desktop dark theme colors and contrast (#120)
 - Assert light theme is default on all platforms (#119)

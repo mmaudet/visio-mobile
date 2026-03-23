@@ -8,7 +8,8 @@ use std::io::BufReader;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-use chrono::{NaiveDateTime, TimeZone, Utc};
+use chrono::{NaiveDate, NaiveDateTime, TimeZone, Utc};
+use chrono_tz::Tz;
 use regex::Regex;
 
 use crate::events::{EventEmitter, Meeting, VisioEvent};
@@ -23,18 +24,68 @@ use crate::settings::{CalendarRefreshInterval, SettingsStore};
 ///
 /// Returns `None` if the string cannot be parsed.
 pub fn parse_ical_timestamp(ts: &str) -> Option<i64> {
-    // Strip trailing 'Z' if present — we always treat as UTC.
-    let ts = ts.trim_end_matches('Z');
-    // Accept both "YYYYMMDDTHHMMSS" and "YYYYMMDDTHHMMSS" variants.
-    let fmt = if ts.contains('T') {
-        "%Y%m%dT%H%M%S"
-    } else {
-        "%Y%m%d"
-    };
-    let ndt = NaiveDateTime::parse_from_str(ts, fmt)
-        .or_else(|_| NaiveDateTime::parse_from_str(&format!("{}T000000", ts), "%Y%m%dT%H%M%S"))
-        .ok()?;
+    parse_ical_datetime(ts, None)
+}
+
+/// Parse an iCal datetime value into a Unix timestamp, with optional TZID.
+///
+/// Rules:
+/// - If the value ends with `Z` → parse as UTC.
+/// - If `tzid` is provided → parse as naive local time in the given timezone.
+/// - Otherwise (floating time) → treat as UTC and log a warning.
+pub fn parse_ical_datetime(value: &str, tzid: Option<&str>) -> Option<i64> {
+    if let Some(bare) = value.strip_suffix('Z') {
+        // Explicit UTC
+        let ndt = parse_naive_datetime(bare)?;
+        return Some(Utc.from_utc_datetime(&ndt).timestamp());
+    }
+
+    if let Some(tz_name) = tzid {
+        let ndt = parse_naive_datetime(value)?;
+        let tz: Tz = match tz_name.parse() {
+            Ok(t) => t,
+            Err(_) => {
+                tracing::warn!("calendar: unknown TZID '{}', treating as UTC", tz_name);
+                return Some(Utc.from_utc_datetime(&ndt).timestamp());
+            }
+        };
+        // Use the earliest valid mapping for ambiguous times (e.g. DST fall-back)
+        return tz
+            .from_local_datetime(&ndt)
+            .earliest()
+            .map(|dt| dt.with_timezone(&Utc).timestamp());
+    }
+
+    // Floating time — no Z, no TZID. Treat as UTC (best-effort).
+    tracing::debug!(
+        "calendar: floating timestamp '{}' with no TZID, treating as UTC",
+        value
+    );
+    let ndt = parse_naive_datetime(value)?;
     Some(Utc.from_utc_datetime(&ndt).timestamp())
+}
+
+/// Parse a naive datetime from common iCal formats.
+fn parse_naive_datetime(ts: &str) -> Option<NaiveDateTime> {
+    if ts.contains('T') {
+        NaiveDateTime::parse_from_str(ts, "%Y%m%dT%H%M%S").ok()
+    } else {
+        // Date-only: treat as midnight
+        NaiveDate::parse_from_str(ts, "%Y%m%d")
+            .ok()
+            .and_then(|d| d.and_hms_opt(0, 0, 0))
+    }
+}
+
+/// Extract the TZID parameter from a named property in an iCal event.
+fn get_tzid(event: &ical::parser::ical::component::IcalEvent, prop_name: &str) -> Option<String> {
+    event
+        .properties
+        .iter()
+        .find(|p| p.name == prop_name)
+        .and_then(|p| p.params.as_ref())
+        .and_then(|params| params.iter().find(|(k, _)| k == "TZID"))
+        .and_then(|(_, values)| values.first().cloned())
 }
 
 // ---------------------------------------------------------------------------
@@ -117,11 +168,13 @@ pub fn parse_meeting_from_vevent(
     };
 
     let dtstart_str = get_prop("DTSTART")?;
-    let start_time = parse_ical_timestamp(&dtstart_str)?;
+    let start_tzid = get_tzid(event, "DTSTART");
+    let start_time = parse_ical_datetime(&dtstart_str, start_tzid.as_deref())?;
     // DURATION (e.g. PT1H30M) is not supported — assume 1h default if DTEND absent.
     // iCal exports from SabreDAV/TwCalendar always expand DTEND, so this is a safe fallback.
+    let end_tzid = get_tzid(event, "DTEND");
     let end_time = get_prop("DTEND")
-        .and_then(|s| parse_ical_timestamp(&s))
+        .and_then(|s| parse_ical_datetime(&s, end_tzid.as_deref()))
         .unwrap_or(start_time + 3600);
 
     // Exclude events that ended before now or start after the cutoff.
@@ -996,6 +1049,118 @@ END:VCALENDAR";
         if let Some(VisioEvent::MeetingsUpdated(m)) = updated {
             assert!(m.is_empty());
         }
+    }
+
+    // -----------------------------------------------------------------------
+    // Timezone-aware parsing tests (#122)
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_parse_ical_datetime_utc_z_suffix() {
+        let ts = parse_ical_datetime("20260623T140000Z", None).unwrap();
+        let dt = Utc.timestamp_opt(ts, 0).unwrap();
+        assert_eq!(
+            dt.format("%Y-%m-%d %H:%M:%S").to_string(),
+            "2026-06-23 14:00:00"
+        );
+    }
+
+    #[test]
+    fn test_parse_ical_datetime_tzid_paris_summer() {
+        // 2026-06-23 is summer time in Paris → UTC+2
+        // 14:00 Europe/Paris = 12:00 UTC
+        let ts = parse_ical_datetime("20260623T140000", Some("Europe/Paris")).unwrap();
+        let dt = Utc.timestamp_opt(ts, 0).unwrap();
+        assert_eq!(
+            dt.format("%Y-%m-%d %H:%M:%S").to_string(),
+            "2026-06-23 12:00:00"
+        );
+    }
+
+    #[test]
+    fn test_parse_ical_datetime_tzid_paris_winter() {
+        // 2026-01-15 is winter time in Paris → UTC+1
+        // 14:00 Europe/Paris = 13:00 UTC
+        let ts = parse_ical_datetime("20260115T140000", Some("Europe/Paris")).unwrap();
+        let dt = Utc.timestamp_opt(ts, 0).unwrap();
+        assert_eq!(
+            dt.format("%Y-%m-%d %H:%M:%S").to_string(),
+            "2026-01-15 13:00:00"
+        );
+    }
+
+    #[test]
+    fn test_parse_ical_datetime_floating_no_tz() {
+        // No Z, no TZID → treated as UTC
+        let ts = parse_ical_datetime("20260323T100000", None).unwrap();
+        let dt = Utc.timestamp_opt(ts, 0).unwrap();
+        assert_eq!(
+            dt.format("%Y-%m-%d %H:%M:%S").to_string(),
+            "2026-03-23 10:00:00"
+        );
+    }
+
+    #[test]
+    fn test_parse_ical_datetime_date_only() {
+        // Date-only → midnight UTC
+        let ts = parse_ical_datetime("20260323", None).unwrap();
+        let dt = Utc.timestamp_opt(ts, 0).unwrap();
+        assert_eq!(
+            dt.format("%Y-%m-%d %H:%M:%S").to_string(),
+            "2026-03-23 00:00:00"
+        );
+    }
+
+    /// Helper: build an event with TZID parameters on DTSTART/DTEND.
+    fn make_event_with_tzid(
+        props: &[(&str, &str)],
+        tzid_start: Option<&str>,
+        tzid_end: Option<&str>,
+    ) -> ical::parser::ical::component::IcalEvent {
+        use ical::property::Property;
+        let mut event = ical::parser::ical::component::IcalEvent::new();
+        for (name, value) in props {
+            let mut p = Property::new();
+            p.name = name.to_string();
+            p.value = Some(value.to_string());
+            let tzid = match *name {
+                "DTSTART" => tzid_start,
+                "DTEND" => tzid_end,
+                _ => None,
+            };
+            if let Some(tz) = tzid {
+                p.params = Some(vec![("TZID".to_string(), vec![tz.to_string()])]);
+            }
+            event.properties.push(p);
+        }
+        event
+    }
+
+    #[test]
+    fn test_parse_meeting_with_tzid_params() {
+        // 14:00 Europe/Paris in summer = 12:00 UTC
+        let event = make_event_with_tzid(
+            &[
+                ("UID", "uid-tz-001"),
+                ("DTSTART", "20260623T140000"),
+                ("DTEND", "20260623T150000"),
+                ("SUMMARY", "Paris meeting"),
+                ("LOCATION", "https://meet.linagora.com/paris-room"),
+            ],
+            Some("Europe/Paris"),
+            Some("Europe/Paris"),
+        );
+
+        // Use a "now" that is well before the meeting in UTC
+        let now_utc = 1_750_000_000; // ~2025-06-15
+        let cutoff = now_utc + 400 * 24 * 3600;
+        let m = parse_meeting_from_vevent(&event, &default_servers(), now_utc, cutoff).unwrap();
+
+        // 2026-06-23T14:00 Europe/Paris = 2026-06-23T12:00 UTC
+        let start_dt = Utc.timestamp_opt(m.start_time, 0).unwrap();
+        assert_eq!(start_dt.format("%H:%M").to_string(), "12:00");
+        let end_dt = Utc.timestamp_opt(m.end_time, 0).unwrap();
+        assert_eq!(end_dt.format("%H:%M").to_string(), "13:00");
     }
 
     /// Past meetings (end_time < now) must be excluded from get_meetings().
