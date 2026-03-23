@@ -220,7 +220,9 @@ private struct MeetingRow: View {
         if isInProgress {
             formatter.dateFormat = "HH:mm"
             let endStr = formatter.string(from: endDate)
-            return Strings.t("meetings.time.until", lang: lang).replacingOccurrences(of: "{time}", with: endStr)
+            let untilStr = Strings.t("meetings.time.until", lang: lang).replacingOccurrences(of: "{time}", with: endStr)
+            let inProgressStr = Strings.t("meetings.time.inProgress", lang: lang)
+            return "\(inProgressStr) \u{00B7} \(untilStr)"
         }
 
         if interval < 4 * 3600 && interval > 0 {
@@ -258,7 +260,11 @@ private struct MeetingRow: View {
             VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 6) {
                     if isAccent {
-                        PulsingDot()
+                        PulsingDot(
+                            color: isInProgress
+                                ? Color(red: 0.94, green: 0.25, blue: 0.24)
+                                : Color(red: 0.29, green: 0.87, blue: 0.5)
+                        )
                     }
                     Text(meeting.summary)
                         .font(.body)
@@ -322,11 +328,12 @@ private struct MeetingRow: View {
 }
 
 private struct PulsingDot: View {
+    var color: Color = Color(red: 0.29, green: 0.87, blue: 0.5)
     @State private var isAnimating = false
 
     var body: some View {
         Circle()
-            .fill(Color(red: 0.29, green: 0.87, blue: 0.5))
+            .fill(color)
             .frame(width: 8, height: 8)
             .opacity(isAnimating ? 0.3 : 1.0)
             .onAppear {

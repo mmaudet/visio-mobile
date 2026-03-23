@@ -234,6 +234,8 @@
   "meetings.onboarding.title": "Conecta tu agenda",
   "meetings.onboarding.configure": "Configurar calendario",
   "meetings.empty.subtitle": "¡Disfruta de tu tiempo libre!",
+  "meetings.time.inProgress": "En curso",
+  "meetings.time.startedAgo": "Comenzó hace {minutes} min",
   "meetings.time.until": "Hasta {time}",
   "meetings.time.inMinutes": "En {minutes} min",
   "meetings.time.inHours": "En {hours}h",

@@ -3231,6 +3231,10 @@ main {
   animation: pulse 1.5s infinite;
 }
 
+.meeting-imminent-dot.meeting-ongoing-dot {
+  background: #ef413d;
+}
+
 @keyframes pulse {
   0%,
   100% {

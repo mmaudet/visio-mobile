@@ -234,6 +234,8 @@
   "meetings.onboarding.title": "Connect your calendar",
   "meetings.onboarding.configure": "Configure calendar",
   "meetings.empty.subtitle": "Enjoy your free time!",
+  "meetings.time.inProgress": "In progress",
+  "meetings.time.startedAgo": "Started {minutes} min ago",
   "meetings.time.until": "Until {time}",
   "meetings.time.inMinutes": "In {minutes} min",
   "meetings.time.inHours": "In {hours}h",

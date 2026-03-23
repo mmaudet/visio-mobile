@@ -234,6 +234,8 @@
   "meetings.onboarding.title": "Kalender verbinden",
   "meetings.onboarding.configure": "Kalender konfigurieren",
   "meetings.empty.subtitle": "Genießen Sie Ihre Freizeit!",
+  "meetings.time.inProgress": "Läuft gerade",
+  "meetings.time.startedAgo": "Begonnen vor {minutes} Min.",
   "meetings.time.until": "Bis {time}",
   "meetings.time.inMinutes": "In {minutes} Min.",
   "meetings.time.inHours": "In {hours} Std.",
