@@ -435,7 +435,7 @@
 					"$(PROJECT_DIR)/../target/aarch64-apple-ios/release",
 					"$(PROJECT_DIR)/../target/aarch64-apple-ios-sim/release",
 				);
-				MARKETING_VERSION = 0.6.0;
+				MARKETING_VERSION = 0.7.0;
 				OTHER_LDFLAGS = (
 					"-lvisio_ffi",
 					"-ObjC",
@@ -472,7 +472,7 @@
 					"$(PROJECT_DIR)/../target/aarch64-apple-ios/release",
 					"$(PROJECT_DIR)/../target/aarch64-apple-ios-sim/release",
 				);
-				MARKETING_VERSION = 0.6.0;
+				MARKETING_VERSION = 0.7.0;
 				OTHER_LDFLAGS = (
 					"-lvisio_ffi",
 					"-ObjC",
