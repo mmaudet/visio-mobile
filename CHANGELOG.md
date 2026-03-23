@@ -10,6 +10,8 @@ and this project adheres to
 
 ### Added
 
+- Default grid layout with pin-to-view for speakers
+  and shared screens on all platforms (#142)
 - Room display name via `?room-display-name=` URL param
   or manual input (#113)
 - Calendar sync feedback: toast/snackbar on all platforms

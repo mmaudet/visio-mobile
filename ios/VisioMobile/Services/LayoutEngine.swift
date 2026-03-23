@@ -24,9 +24,6 @@ struct LayoutState: Equatable {
 
 // MARK: - Layout Engine
 
-private let minHoldMs: Double = 2500  // 2.5 seconds
-private let silenceToGridMs: Double = 5000  // 5 seconds
-
 func computeLayout(
     participants: [ParticipantInfo],
     activeSpeakers: [String],
@@ -52,7 +49,7 @@ func computeLayout(
         )
     }
 
-    // 2. Pin has priority over auto-focus
+    // 2. Pin has priority — user explicitly pinned a participant
     if let pinnedItem = pinnedItem {
         let main = displayItems.first {
             $0.participant.sid == pinnedItem.participantSid && $0.source == pinnedItem.source
@@ -65,76 +62,9 @@ func computeLayout(
         )
     }
 
-    // 3. Active speaker logic with stabilization
-    let currentSpeakerSid = activeSpeakers.first
-    let isLocalSpeaking = currentSpeakerSid == localParticipantSid
-
-    if let currentSpeakerSid = currentSpeakerSid {
-        let newLastRemote = !isLocalSpeaking ? currentSpeakerSid : previousState.lastRemoteSpeakerSid
-
-        let targetSid: String? = isLocalSpeaking
-            ? (previousState.lastRemoteSpeakerSid ?? participants.dropFirst().first?.sid)
-            : currentSpeakerSid
-
-        if let targetSid = targetSid {
-            let targetFocus = FocusItem(participantSid: targetSid, source: .camera)
-
-            let shouldSwitch: Bool
-            if previousState.currentFocus == nil {
-                shouldSwitch = true
-            } else if previousState.currentFocus == targetFocus {
-                shouldSwitch = false
-            } else {
-                let holdElapsed = previousState.focusHoldStartMs.map { nowMs - $0 } ?? Double.greatestFiniteMagnitude
-                shouldSwitch = holdElapsed >= minHoldMs
-            }
-
-            if shouldSwitch {
-                let main = displayItems.first { $0.participant.sid == targetSid && $0.source == .camera }
-                let secondary = displayItems.filter { $0.id != main?.id }
-                return (
-                    LayoutDecision(mode: .focus, mainTile: main, secondaryTiles: secondary, speakerIndicatorSid: currentSpeakerSid, pinnedIndicatorSid: nil),
-                    LayoutState(currentFocus: targetFocus, focusHoldStartMs: nowMs, lastRemoteSpeakerSid: newLastRemote)
-                )
-            } else {
-                let currentMain = displayItems.first {
-                    $0.participant.sid == previousState.currentFocus?.participantSid && $0.source == previousState.currentFocus?.source
-                }
-                let secondary = displayItems.filter { $0.id != currentMain?.id }
-                return (
-                    LayoutDecision(mode: .focus, mainTile: currentMain, secondaryTiles: secondary, speakerIndicatorSid: currentSpeakerSid, pinnedIndicatorSid: nil),
-                    LayoutState(currentFocus: previousState.currentFocus, focusHoldStartMs: previousState.focusHoldStartMs, lastRemoteSpeakerSid: newLastRemote)
-                )
-            }
-        }
-    }
-
-    // 4. No speaker — check silence timeout
-    let silenceElapsed = previousState.focusHoldStartMs.map { nowMs - $0 } ?? Double.greatestFiniteMagnitude
-    if silenceElapsed > silenceToGridMs && adaptiveMode == .office {
-        return (
-            LayoutDecision(mode: .grid, mainTile: nil, secondaryTiles: displayItems, speakerIndicatorSid: nil, pinnedIndicatorSid: nil),
-            LayoutState(currentFocus: nil, focusHoldStartMs: nil, lastRemoteSpeakerSid: previousState.lastRemoteSpeakerSid)
-        )
-    }
-
-    // Keep current state
-    if let focus = previousState.currentFocus {
-        let currentMain = displayItems.first {
-            $0.participant.sid == focus.participantSid && $0.source == focus.source
-        }
-        if let currentMain = currentMain {
-            let secondary = displayItems.filter { $0.id != currentMain.id }
-            return (
-                LayoutDecision(mode: .focus, mainTile: currentMain, secondaryTiles: secondary, speakerIndicatorSid: nil, pinnedIndicatorSid: nil),
-                previousState
-            )
-        }
-    }
-
-    // Default: grid
+    // 3. Default: grid layout (no auto-focus on active speaker)
     return (
-        LayoutDecision(mode: .grid, mainTile: nil, secondaryTiles: displayItems, speakerIndicatorSid: nil, pinnedIndicatorSid: nil),
-        LayoutState(currentFocus: nil, focusHoldStartMs: previousState.focusHoldStartMs, lastRemoteSpeakerSid: previousState.lastRemoteSpeakerSid)
+        LayoutDecision(mode: .grid, mainTile: nil, secondaryTiles: displayItems, speakerIndicatorSid: activeSpeakers.first, pinnedIndicatorSid: nil),
+        LayoutState(currentFocus: nil, focusHoldStartMs: nil, lastRemoteSpeakerSid: previousState.lastRemoteSpeakerSid)
     )
 }
