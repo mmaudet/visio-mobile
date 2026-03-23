@@ -362,6 +362,16 @@ private suspend fun handleNormalConnect(
         return
     }
 
+    // Apply audio device preferences saved from lobby (if any)
+    VisioManager.pendingOutputDevice?.let { device ->
+        try {
+            VisioManager.setAudioOutputDevice(device)
+        } catch (_: Exception) {
+            // No-op
+        }
+    }
+    VisioManager.pendingOutputDevice = null
+
     applyMicOnJoin(context, settings.micEnabledOnJoin)
     onMicState(VisioManager.client.isMicrophoneEnabled())
 
@@ -373,7 +383,10 @@ private fun applyMicOnJoin(
     context: Context,
     micEnabledOnJoin: Boolean,
 ) {
-    if (!micEnabledOnJoin) return
+    if (!micEnabledOnJoin) {
+        VisioManager.pendingInputDevice = null
+        return
+    }
     val hasMicPerm =
         ContextCompat.checkSelfPermission(
             context, Manifest.permission.RECORD_AUDIO,
@@ -381,11 +394,12 @@ private fun applyMicOnJoin(
     if (hasMicPerm) {
         try {
             VisioManager.client.setMicrophoneEnabled(true)
-            VisioManager.startAudioCapture()
+            VisioManager.startAudioCapture(VisioManager.pendingInputDevice)
         } catch (e: Exception) {
             Log.e(TAG, "Failed to enable microphone on join", e)
         }
     }
+    VisioManager.pendingInputDevice = null
 }
 
 private fun applyCameraOnJoin(

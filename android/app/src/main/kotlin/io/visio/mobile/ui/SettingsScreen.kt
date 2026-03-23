@@ -524,6 +524,7 @@ private fun SettingsToggle(
             text = label,
             style = MaterialTheme.typography.bodyLarge,
             color = if (isDark) VisioColors.White else VisioColors.LightOnBackground,
+            modifier = Modifier.weight(1f),
         )
         Switch(
             checked = checked,

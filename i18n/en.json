@@ -175,7 +175,7 @@
   "call.startShare": "Share screen",
   "call.stopShare": "Stop sharing",
   "call.screenShare": "Screen",
-  "settings.adaptiveMode": "Adaptive mode (auto office/pedestrian/car)",
+  "settings.adaptiveMode": "Adaptive mode\n(auto, office, pedestrian, car)",
   "adaptive.office": "Office mode",
   "adaptive.pedestrian": "Pedestrian mode",
   "adaptive.car": "Car mode",

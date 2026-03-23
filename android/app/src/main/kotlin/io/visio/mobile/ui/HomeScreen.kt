@@ -207,7 +207,6 @@ fun HomeScreen(
             selectedTab = selectedTab,
             roomUrl = roomUrl,
             username = username,
-            roomDisplayName = roomDisplayName,
             roomStatus = roomStatus,
             resolvedRoomUrl = resolvedRoomUrl,
             isDark = isDark,
@@ -221,7 +220,6 @@ fun HomeScreen(
             coroutineScope = coroutineScope,
             onRoomUrlChange = { roomUrl = it },
             onUsernameChange = { username = it },
-            onRoomDisplayNameChange = { roomDisplayName = it },
             onJoin = onJoin,
             onShowCreateRoom = { showCreateRoom = true },
             onHistoryJoiningChange = { historyJoining = it },
@@ -233,9 +231,9 @@ fun HomeScreen(
         CreateRoomDialog(
             meetInstance = VisioManager.authenticatedMeetInstance,
             lang = lang,
-            onCreated = { url ->
+            onCreated = { url, displayName ->
                 showCreateRoom = false
-                onJoin(url, username, null)
+                onJoin(url, username, displayName)
             },
             onDismiss = { showCreateRoom = false },
         )
@@ -529,7 +527,6 @@ private fun ColumnScope.HomeTabContent(
     selectedTab: Int,
     roomUrl: String,
     username: String,
-    roomDisplayName: String,
     roomStatus: String,
     resolvedRoomUrl: String,
     isDark: Boolean,
@@ -543,7 +540,6 @@ private fun ColumnScope.HomeTabContent(
     coroutineScope: kotlinx.coroutines.CoroutineScope,
     onRoomUrlChange: (String) -> Unit,
     onUsernameChange: (String) -> Unit,
-    onRoomDisplayNameChange: (String) -> Unit,
     onJoin: (roomUrl: String, username: String, roomDisplayName: String?) -> Unit,
     onShowCreateRoom: () -> Unit,
     onHistoryJoiningChange: (String?) -> Unit,
@@ -556,8 +552,6 @@ private fun ColumnScope.HomeTabContent(
                 onRoomUrlChange = onRoomUrlChange,
                 username = username,
                 onUsernameChange = onUsernameChange,
-                roomDisplayName = roomDisplayName,
-                onRoomDisplayNameChange = onRoomDisplayNameChange,
                 roomStatus = roomStatus,
                 resolvedRoomUrl = resolvedRoomUrl,
                 isDark = isDark,
@@ -726,8 +720,6 @@ private fun JoinTab(
     onRoomUrlChange: (String) -> Unit,
     username: String,
     onUsernameChange: (String) -> Unit,
-    roomDisplayName: String,
-    onRoomDisplayNameChange: (String) -> Unit,
     roomStatus: String,
     resolvedRoomUrl: String,
     isDark: Boolean,
@@ -825,32 +817,10 @@ private fun JoinTab(
             shape = RoundedCornerShape(12.dp),
         )
 
-        Spacer(modifier = Modifier.height(16.dp))
-
-        OutlinedTextField(
-            value = roomDisplayName,
-            onValueChange = onRoomDisplayNameChange,
-            label = {
-                Text(
-                    Strings.t("home.roomDisplayName", lang),
-                    color = if (isDark) VisioColors.Greyscale400 else VisioColors.LightTextSecondary,
-                )
-            },
-            placeholder = {
-                Text(
-                    Strings.t("home.roomDisplayNamePlaceholder", lang),
-                    color = if (isDark) VisioColors.Greyscale400 else VisioColors.LightTextSecondary,
-                )
-            },
-            singleLine = true,
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(12.dp),
-        )
-
         Spacer(modifier = Modifier.height(24.dp))
 
         Button(
-            onClick = { onJoin(resolvedRoomUrl, username.trim(), roomDisplayName.trim().ifBlank { null }) },
+            onClick = { onJoin(resolvedRoomUrl, username.trim(), null) },
             enabled = roomStatus == "valid",
             modifier = Modifier.fillMaxWidth().testTag("home_join_button"),
             colors =
@@ -1122,7 +1092,7 @@ private fun AuthenticatedCard(
 private fun CreateRoomDialog(
     meetInstance: String,
     lang: String,
-    onCreated: (roomUrl: String) -> Unit,
+    onCreated: (roomUrl: String, roomDisplayName: String?) -> Unit,
     onDismiss: () -> Unit,
 ) {
     if (meetInstance.isEmpty()) return
@@ -1130,6 +1100,7 @@ private fun CreateRoomDialog(
     var creating by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var createdUrl by remember { mutableStateOf<String?>(null) }
+    var roomDisplayName by remember { mutableStateOf("") }
     var searchQuery by remember { mutableStateOf("") }
     var searchResults by remember { mutableStateOf<List<UserSearchResult>>(emptyList()) }
     var invitedUsers by remember { mutableStateOf<List<UserSearchResult>>(emptyList()) }
@@ -1161,6 +1132,20 @@ private fun CreateRoomDialog(
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 if (createdUrl == null) {
+                    OutlinedTextField(
+                        value = roomDisplayName,
+                        onValueChange = { roomDisplayName = it },
+                        label = {
+                            Text(Strings.t("home.roomDisplayName", lang))
+                        },
+                        placeholder = {
+                            Text(Strings.t("home.roomDisplayNamePlaceholder", lang))
+                        },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                    )
+
                     Text(
                         text = Strings.t("home.createRoom.access", lang),
                         style = MaterialTheme.typography.labelMedium,
@@ -1378,7 +1363,7 @@ private fun CreateRoomDialog(
                                 val result =
                                     VisioManager.client.createRoom(
                                         "https://$meetInstance",
-                                        "",
+                                        roomDisplayName.trim(),
                                         accessLevel,
                                     )
                                 // Add accesses for invited users
@@ -1415,7 +1400,7 @@ private fun CreateRoomDialog(
                     )
                 }
             } else {
-                Button(onClick = { onCreated(createdUrl!!) }) {
+                Button(onClick = { onCreated(createdUrl!!, roomDisplayName.trim().ifBlank { null }) }) {
                     Text(Strings.t("home.join", lang))
                 }
             }

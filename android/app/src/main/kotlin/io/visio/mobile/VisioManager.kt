@@ -528,6 +528,9 @@ object VisioManager : VisioEventListener {
             }
         if (btOutput != null) {
             Log.i("VisioManager", "Bluetooth output detected at startup: ${btOutput.productName}")
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                am.setCommunicationDevice(btOutput)
+            }
         }
         audioPlayout = AudioPlayout().also { it.start(btOutput) }
     }

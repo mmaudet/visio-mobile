@@ -319,6 +319,7 @@ fun PreJoinScreen(
                     )
             }
         val defaultOutput = externalOutput ?: audioOutputDevices.firstOrNull()
+        selectedOutputDeviceRef = defaultOutput
         selectedOutputRoute =
             if (defaultOutput != null) {
                 audioDeviceLabel(context, defaultOutput, lang)
@@ -334,6 +335,7 @@ fun PreJoinScreen(
                     )
             }
         val defaultInput = externalInput ?: audioInputDevices.firstOrNull()
+        selectedInputDeviceRef = defaultInput
         selectedInputRoute =
             if (defaultInput != null) {
                 audioDeviceLabel(context, defaultInput, lang)

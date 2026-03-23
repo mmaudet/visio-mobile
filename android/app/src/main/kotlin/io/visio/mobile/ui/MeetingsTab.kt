@@ -443,9 +443,16 @@ private fun formatMeetingTime(
             Strings.t("meetings.time.inMinutes", lang).replace("{minutes}", minutesUntil.toString())
         }
         minutesUntil < 240 -> {
-            // relative hours
+            // relative hours + minutes
             val hours = minutesUntil / 60
-            Strings.t("meetings.time.inHours", lang).replace("{hours}", hours.toString())
+            val mins = minutesUntil % 60
+            if (mins > 0) {
+                Strings.t("meetings.time.inHoursMinutes", lang)
+                    .replace("{hours}", hours.toString())
+                    .replace("{minutes}", mins.toString().padStart(2, '0'))
+            } else {
+                Strings.t("meetings.time.inHours", lang).replace("{hours}", hours.toString())
+            }
         }
         startLocal.toLocalDate() == nowLocal -> {
             // same day: show time

@@ -23,8 +23,15 @@ and this project adheres to
 - Resolve all 224 SonarCloud maintainability issues
   across all platforms (#95, #96)
 
+### Changed
+
+- Move room display name field from join tab to create room dialog (#137)
+
 ### Fixed
 
+- Align settings toggles by splitting adaptive mode label onto two lines (#135)
+- Show hours and minutes in planned meeting countdown (#136)
+- Preserve Bluetooth audio device selection from lobby to room (#138)
 - Keep meetings visible during manual refresh (#123)
 - macOS camera/mic permission prompts via infoPlist (#124)
 - Timezone-aware iCal parsing with TZID support (#122)

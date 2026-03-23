@@ -175,7 +175,7 @@
   "call.startShare": "Scherm delen",
   "call.stopShare": "Delen stoppen",
   "call.screenShare": "Scherm",
-  "settings.adaptiveMode": "Adaptieve modus (auto kantoor/voetganger/auto)",
+  "settings.adaptiveMode": "Adaptieve modus\n(auto, kantoor, voetganger, auto)",
   "adaptive.office": "Kantoormodus",
   "adaptive.pedestrian": "Voetgangersmodus",
   "adaptive.car": "Automodus",
