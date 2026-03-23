@@ -1377,11 +1377,18 @@ private fun CreateRoomDialog(
                                 }
                                 withContext(Dispatchers.Main) {
                                     createdRoomId = result.id
-                                    createdUrl = if (roomDisplayName.trim().isNotBlank()) {
-                                        "https://$meetInstance/${result.slug}?visio=${java.net.URLEncoder.encode(roomDisplayName.trim(), "UTF-8")}"
-                                    } else {
-                                        "https://$meetInstance/${result.slug}"
-                                    }
+                                    val baseUrl = "https://$meetInstance/${result.slug}"
+                                    createdUrl =
+                                        if (roomDisplayName.trim().isNotBlank()) {
+                                            val encoded =
+                                                java.net.URLEncoder.encode(
+                                                    roomDisplayName.trim(),
+                                                    "UTF-8",
+                                                )
+                                            "$baseUrl?visio=$encoded"
+                                        } else {
+                                            baseUrl
+                                        }
                                     creating = false
                                 }
                             } catch (e: Exception) {
