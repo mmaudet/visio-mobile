@@ -222,10 +222,9 @@ mod tests {
 
     #[test]
     fn parse_meet_url_strips_display_name_param() {
-        let (instance, slug) = AuthService::parse_meet_url(
-            "https://meet.example.com/abc-defg-hij?visio=Comex",
-        )
-        .unwrap();
+        let (instance, slug) =
+            AuthService::parse_meet_url("https://meet.example.com/abc-defg-hij?visio=Comex")
+                .unwrap();
         assert_eq!(instance, "meet.example.com");
         assert_eq!(slug, "abc-defg-hij");
     }
