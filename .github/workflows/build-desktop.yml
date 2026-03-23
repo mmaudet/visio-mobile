@@ -96,6 +96,17 @@ jobs:
         env:
           APPLE_SIGNING_IDENTITY: "-"
 
+      - name: Inject macOS privacy permissions into Info.plist
+        if: matrix.platform == 'macos'
+        shell: bash
+        run: |
+          APP_BUNDLE=$(find target/release/bundle -name "*.app" -type d | head -1)
+          if [ -n "$APP_BUNDLE" ]; then
+            /usr/libexec/PlistBuddy -c "Add :NSMicrophoneUsageDescription string 'Visio Mobile needs microphone access for video calls'" "$APP_BUNDLE/Contents/Info.plist" 2>/dev/null || true
+            /usr/libexec/PlistBuddy -c "Add :NSCameraUsageDescription string 'Visio Mobile needs camera access for video calls'" "$APP_BUNDLE/Contents/Info.plist" 2>/dev/null || true
+            echo "Injected privacy descriptions into $APP_BUNDLE/Contents/Info.plist"
+          fi
+
       # --- Flatpak build (Linux only, from source in GNOME SDK) ---
       - name: Install Flatpak SDK and runtime
         if: matrix.platform == 'linux'
