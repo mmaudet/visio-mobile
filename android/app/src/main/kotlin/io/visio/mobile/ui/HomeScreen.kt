@@ -364,7 +364,9 @@ private fun extractSlugCandidate(
     if (isSlug) {
         trimmed
     } else {
-        val stripped = trimmed.trimEnd('/')
+        // Strip query params before extracting slug
+        val withoutQuery = trimmed.substringBefore("?")
+        val stripped = withoutQuery.trimEnd('/')
         if ('/' in stripped) stripped.substringAfterLast('/') else stripped
     }
 

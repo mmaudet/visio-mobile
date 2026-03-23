@@ -218,9 +218,11 @@ const SLUG_REGEX = /^[a-z]{3}-[a-z]{4}-[a-z]{3}$/
 
 function extractSlug(input: string): string | null {
   const trimmed = input.trim().replace(/\/$/, '')
-  const candidate = trimmed.includes('/')
-    ? trimmed.split('/').pop() || ''
-    : trimmed
+  // Strip query params before extracting slug
+  const withoutQuery = trimmed.split('?')[0]
+  const candidate = withoutQuery.includes('/')
+    ? withoutQuery.split('/').pop() || ''
+    : withoutQuery
   return SLUG_REGEX.test(candidate) ? candidate : null
 }
 
