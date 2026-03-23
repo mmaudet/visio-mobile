@@ -24,6 +24,9 @@ and this project adheres to
 ### Fixed
 
 - Assert light theme is default on all platforms (#119)
+- Bluetooth device shows real name instead of generic "Bluetooth" (#118)
+- Release Bluetooth SCO audio channel on disconnect (#118)
+- Deduplicate Bluetooth entries in audio device selectors (#118)
 - Apply background blur/image in pre-join lobby camera preview (#111)
 - Fix video freeze after surface destruction and orientation distortion (#100)
 - Fix 12 SonarCloud reliability issues in desktop frontend (#92)
