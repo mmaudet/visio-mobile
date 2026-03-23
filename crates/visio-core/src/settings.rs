@@ -609,6 +609,11 @@ mod tests {
     }
 
     #[test]
+    fn test_default_theme_is_light() {
+        assert_eq!(Settings::default().theme, "light");
+    }
+
+    #[test]
     fn test_set_theme_persists() {
         let dir = temp_dir();
         let path = dir.path().to_str().unwrap();
