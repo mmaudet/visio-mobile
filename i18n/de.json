@@ -188,6 +188,8 @@
   "call.screenPermissionHint": "Keine Fenster sichtbar. Erlauben Sie die Bildschirmaufnahme unter Systemeinstellungen > Datenschutz > Bildschirmaufnahme.",
   "bandwidth.reducedVideo": "Geringe Bandbreite — reduziertes Video",
   "bandwidth.audioOnly": "Sehr geringe Bandbreite — nur Audio",
+  "bandwidth.recovered": "Verbindung wiederhergestellt",
+  "bandwidth.videoPaused": "Video pausiert — schwache Verbindung",
   "home.recentRooms": "Letzte Räume",
   "home.roomDisplayName": "Raumname (optional)",
   "home.roomDisplayNamePlaceholder": "z.B. \"Wöchentliches Meeting\"",

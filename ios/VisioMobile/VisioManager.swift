@@ -59,6 +59,7 @@ class VisioManager: ObservableObject {
     @Published var backgroundMode: String = "off"
     @Published var reactions: [ReactionData] = []
     @Published var adaptiveMode: AdaptiveMode = .office
+    @Published var bandwidthMode: BandwidthMode = .full
     /// Set when a screen share track is subscribed; cleared on disconnect.
     @Published var lastScreenShareParticipantSid: String? = nil
     @Published var upcomingMeetings: [Meeting] = []
@@ -341,6 +342,7 @@ class VisioManager: ObservableObject {
                 self?.lobbyDenied = false
                 self?.reactions = []
                 self?.lastScreenShareParticipantSid = nil
+                self?.bandwidthMode = .full
             }
         }
     }
@@ -1145,8 +1147,8 @@ class VisioManager: ObservableObject {
                 }
             }
 
-        case .bandwidthModeChanged:
-            break
+        case .bandwidthModeChanged(let mode):
+            self.bandwidthMode = mode
 
         case .connectionLost:
             let client = self.client

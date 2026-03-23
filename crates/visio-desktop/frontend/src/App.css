@@ -875,6 +875,10 @@ main {
   font-size: 0.85rem;
   color: #888;
 }
+.tile-bw-paused {
+  font-size: 0.7rem;
+  color: #ff9800;
+}
 .tile-screen-placeholder {
   display: flex;
   flex-direction: column;

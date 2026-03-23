@@ -188,6 +188,8 @@
   "call.screenPermissionHint": "Geen vensters zichtbaar. Sta schermopname toe in Systeeminstellingen > Privacy > Schermopname.",
   "bandwidth.reducedVideo": "Lage bandbreedte — verminderde video",
   "bandwidth.audioOnly": "Zeer lage bandbreedte — alleen audio",
+  "bandwidth.recovered": "Verbinding hersteld",
+  "bandwidth.videoPaused": "Video gepauzeerd — zwakke verbinding",
   "home.recentRooms": "Recente kamers",
   "home.roomDisplayName": "Kamernaam (optioneel)",
   "home.roomDisplayNamePlaceholder": "bijv. \"Wekelijkse vergadering\"",

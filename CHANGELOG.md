@@ -16,6 +16,10 @@ and this project adheres to
   or manual input (#113)
 - Calendar sync feedback: toast/snackbar on all platforms
   after sync success or error (#121)
+- Bandwidth degradation banner on all platforms when
+  connection quality drops (#144)
+- "Video paused" placeholder in participant tiles when
+  video is disabled due to poor bandwidth (#144)
 
 ### Changed
 
