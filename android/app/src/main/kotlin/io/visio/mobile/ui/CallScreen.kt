@@ -2317,10 +2317,10 @@ private fun BandwidthBanner(mode: BandwidthMode) {
     val lang = VisioManager.currentLang
     val text =
         when (mode) {
-        BandwidthMode.REDUCED_VIDEO -> Strings.t("bandwidth.reducedVideo", lang)
-        BandwidthMode.AUDIO_ONLY -> Strings.t("bandwidth.audioOnly", lang)
-        else -> return
-    }
+            BandwidthMode.REDUCED_VIDEO -> Strings.t("bandwidth.reducedVideo", lang)
+            BandwidthMode.AUDIO_ONLY -> Strings.t("bandwidth.audioOnly", lang)
+            else -> return
+        }
     Box(
         modifier =
             Modifier
