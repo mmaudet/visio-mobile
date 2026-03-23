@@ -6,8 +6,9 @@
     native <methods>;
 }
 
-# Keep WebRTC classes
+# Keep WebRTC classes and jni_zero (used by native WebRTC code via FindClass)
 -keep class org.webrtc.** { *; }
+-keep class org.jni_zero.** { *; }
 
 # Keep LiveKit SDK classes
 -keep class io.livekit.** { *; }
