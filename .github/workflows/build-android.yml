@@ -81,7 +81,7 @@ jobs:
           echo "${{ secrets.FIREBASE_SERVICE_ACCOUNT_BASE64 }}" | base64 -d > /tmp/firebase-sa.json
 
       - name: Set up Ruby
-        uses: ruby/setup-ruby@b8d447ba7506ac7e0c8fbc50762276fb3b7df731 # v1
+        uses: ruby/setup-ruby@e5517072e87f198d9533967ae13d97c11b604005 # v1
         with:
           ruby-version: "3.3"
           bundler-cache: true

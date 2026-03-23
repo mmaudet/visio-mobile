@@ -229,7 +229,7 @@ fn pipewire_capture_loop(
 
 /// Dequeue a PipeWire buffer and return a copy of its first data chunk.
 /// Returns `None` if no buffer is available or the buffer has no data.
-fn dequeue_pipewire_data(stream: &pipewire::stream::StreamBox) -> Option<Vec<u8>> {
+fn dequeue_pipewire_data(stream: &pipewire::stream::Stream) -> Option<Vec<u8>> {
     let mut buffer = stream.dequeue_buffer()?;
     let buf = buffer.datas_mut().first_mut()?;
     let data = buf.data()?;
