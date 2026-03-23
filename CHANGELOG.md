@@ -12,8 +12,8 @@ and this project adheres to
 
 - Default grid layout with pin-to-view for speakers
   and shared screens on all platforms (#142)
-- Room display name via `?room-display-name=` URL param
-  or manual input (#113)
+- Room display name via `?visio=` URL param
+  or manual input (#113, #145)
 - Calendar sync feedback: toast/snackbar on all platforms
   after sync success or error (#121)
 - Bandwidth degradation banner on all platforms when
@@ -35,6 +35,9 @@ and this project adheres to
 
 ### Fixed
 
+- Always send slug (not display name) to Meet server API,
+  rename URL param to `?visio=`, add display name to
+  iOS/Desktop create room dialog (#145)
 - Desktop: room creator no longer stuck on
   "waiting for authorization" for public rooms (#140)
 - Align settings toggles by splitting adaptive mode label onto two lines (#135)
