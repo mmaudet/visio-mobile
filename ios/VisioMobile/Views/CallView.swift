@@ -314,7 +314,9 @@ struct CallView: View {
         }
         .onChange(of: scenePhase) { phase in
             if phase == .background {
-                PiPManager.shared.startIfNeeded()
+                if case .connected = manager.connectionState {
+                    PiPManager.shared.startIfNeeded()
+                }
             } else if phase == .active {
                 PiPManager.shared.stop()
             }
