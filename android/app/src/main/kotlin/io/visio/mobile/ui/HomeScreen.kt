@@ -351,9 +351,12 @@ private fun HomeScreenRoomValidationEffect(
         val candidate = extractSlugCandidate(trimmed, isSlug)
         if (!slugRegex.matches(candidate)) {
             // Try alias resolution before giving up
-            val aliasUrl = try {
-                VisioManager.client.resolveVisioAlias(candidate)
-            } catch (_: Exception) { null }
+            val aliasUrl =
+                try {
+                    VisioManager.client.resolveVisioAlias(candidate)
+                } catch (_: Exception) {
+                    null
+                }
             if (aliasUrl != null) {
                 onRoomStatusChange("checking")
                 delay(500)
@@ -1388,7 +1391,14 @@ private fun CreateRoomDialog(
                                 style = MaterialTheme.typography.labelSmall,
                                 modifier = Modifier.weight(1f),
                             )
-                            IconButton(onClick = { clipboardManager.setText(AnnotatedString(simplifiedUrl)) }, modifier = Modifier.size(32.dp)) {
+                            IconButton(
+                                onClick = {
+                                    clipboardManager.setText(
+                                        AnnotatedString(simplifiedUrl),
+                                    )
+                                },
+                                modifier = Modifier.size(32.dp),
+                            ) {
                                 Icon(
                                     Icons.Default.ContentCopy,
                                     contentDescription = Strings.t("settings.incall.copied", lang),
