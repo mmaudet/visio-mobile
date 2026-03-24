@@ -117,10 +117,6 @@ struct HomeView: View {
                         }
                     })
 
-                Text(Strings.t("home.subtitle", lang: lang))
-                    .font(.subheadline)
-                    .foregroundStyle(VisioColors.secondaryText(dark: isDark))
-
                 // Authentication section
                 if manager.isAuthenticated {
                     AuthenticatedCard(

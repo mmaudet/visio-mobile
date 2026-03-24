@@ -8,6 +8,11 @@ and this project adheres to
 
 ## [Unreleased]
 
+### Fixed
+
+- Rename "meeting"/"room" to "visio" in all 6 i18n files
+  and remove obsolete home subtitle (#150)
+
 ### Added
 
 - Default grid layout with pin-to-view for speakers
