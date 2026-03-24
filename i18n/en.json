@@ -258,5 +258,11 @@
   "calendar.sync.started": "Syncing calendar...",
   "calendar.sync.success": "{count} visios found",
   "calendar.sync.error": "Calendar sync failed",
-  "calendar.sync.noMeetings": "No upcoming visios"
+  "calendar.sync.noMeetings": "No upcoming visios",
+  "error.unknownAlias": "Unknown alias: {name}",
+  "alias.conflictTitle": "This name is already linked to a different visio",
+  "alias.conflictReplace": "Replace",
+  "alias.conflictCancel": "Keep existing",
+  "home.createVisio.simplifiedUrl": "Simplified URL",
+  "home.createVisio.simplifiedUrlHint": "Share this short link instead of the full URL"
 }

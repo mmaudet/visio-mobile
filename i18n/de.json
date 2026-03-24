@@ -258,5 +258,11 @@
   "calendar.sync.started": "Kalender wird synchronisiert...",
   "calendar.sync.success": "{count} Visios gefunden",
   "calendar.sync.error": "Kalender-Synchronisation fehlgeschlagen",
-  "calendar.sync.noMeetings": "Keine bevorstehenden Visios"
+  "calendar.sync.noMeetings": "Keine bevorstehenden Visios",
+  "error.unknownAlias": "Unbekannter Alias: {name}",
+  "alias.conflictTitle": "Dieser Name ist bereits mit einer anderen Visio verknüpft",
+  "alias.conflictReplace": "Ersetzen",
+  "alias.conflictCancel": "Bestehende beibehalten",
+  "home.createVisio.simplifiedUrl": "Vereinfachte URL",
+  "home.createVisio.simplifiedUrlHint": "Teilen Sie diesen Kurzlink anstelle der vollständigen URL"
 }
