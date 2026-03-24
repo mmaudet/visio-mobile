@@ -3889,18 +3889,21 @@ function SettingsView({
             </option>
           </select>
         </div>
+        <div className="settings-section">
+          <label className="settings-label">{t('settings.recentVisios')}</label>
+          <button
+            className="settings-clear-history"
+            onClick={async () => {
+              await invoke('clear_visio_history')
+              setSaveStatus(t('settings.historyCleared'))
+              setTimeout(() => setSaveStatus(null), 2000)
+            }}
+          >
+            {t('settings.clearHistory')}
+          </button>
+        </div>
       </div>
       <div className="settings-page-footer">
-        <button
-          className="settings-clear-history"
-          onClick={async () => {
-            await invoke('clear_visio_history')
-            setSaveStatus(t('settings.historyCleared'))
-            setTimeout(() => setSaveStatus(null), 2000)
-          }}
-        >
-          {t('settings.clearHistory')}
-        </button>
         {saveStatus && (
           <span className="settings-save-status">{saveStatus}</span>
         )}
