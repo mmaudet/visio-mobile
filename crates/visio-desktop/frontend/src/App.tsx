@@ -4834,15 +4834,13 @@ export default function App() {
 
   // ---- Device enumeration -------------------------------------------------
   // WORKAROUND: Defer device enumeration to avoid USB blocking at startup.
-  // Enumerate when settings, mic picker, or camera picker is opened.
+  // Enumerate when mic picker or camera picker is opened (in-call only).
+  // NOTE: Do NOT enumerate on the general settings page — on macOS,
+  // cpal's input_devices() triggers a microphone permission request (#161).
   const [devicesEnumerated, setDevicesEnumerated] = useState(false)
 
   useEffect(() => {
-    if (
-      (view !== 'settings' && !showMicPicker && !showCamPicker) ||
-      devicesEnumerated
-    )
-      return
+    if ((!showMicPicker && !showCamPicker) || devicesEnumerated) return
 
     const enumerate = async () => {
       try {
@@ -4895,7 +4893,7 @@ export default function App() {
     return () => {
       unlistenFn?.()
     }
-  }, [view, showMicPicker, showCamPicker, devicesEnumerated])
+  }, [showMicPicker, showCamPicker, devicesEnumerated])
 
   // ---- Click outside to close device pickers ------------------------------
   useEffect(() => {
