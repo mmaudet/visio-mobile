@@ -29,6 +29,8 @@ and this project adheres to
 
 - Lobby mic/camera overrides now correctly applied when
   joining a visio on Desktop (#172)
+- Desktop: record visio in recent history when
+  connecting via `connect_with_token` path (#173)
 - Regenerate UniFFI bindings and fix build errors for
   friendly URLs feature (#156)
 - PiP only activates during an active call; no longer triggers

@@ -4190,6 +4190,12 @@ function PreJoinScreen({
     if (livekitUrl && livekitToken) {
       try {
         await invoke('connect_with_token', { livekitUrl, token: livekitToken })
+        // Record in history (connect_with_token bypasses the event-based
+        // history recording since last_meet_url is not set).
+        invoke('add_visio_to_history', {
+          url: roomUrl,
+          displayName: roomDisplayName ?? null,
+        }).catch(() => {})
         onJoin(finalName, isMicOn, isCameraOn, audioMode)
       } catch (e) {
         console.error('connect_with_token failed:', e)
