@@ -34,6 +34,10 @@ and this project adheres to
 - Resolve all 224 SonarCloud maintainability issues
   across all platforms (#95, #96)
 
+### Added
+
+- Button to clear recent visios history in settings (#152)
+
 ### Changed
 
 - Move room display name field from join tab to create room dialog (#137)
