@@ -2,12 +2,9 @@ package io.visio.mobile.ui
 
 import android.content.Context
 import android.graphics.BitmapFactory
-import android.media.AudioDeviceCallback
 import android.media.AudioDeviceInfo
 import android.media.AudioManager
 import android.os.Build
-import android.os.Handler
-import android.os.Looper
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -55,7 +52,6 @@ import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -271,53 +267,23 @@ private fun MicroTab(
     onSelectAudioOutput: (AudioDeviceInfo) -> Unit,
 ) {
     val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
-
-    var inputDevices by remember { mutableStateOf(getFilteredInputDevices(audioManager)) }
-    var outputDevices by remember { mutableStateOf(getFilteredOutputDevices(audioManager)) }
+    val deviceState = rememberAudioDeviceState(audioManager)
+    val inputDevices = deviceState.inputDevices
+    val outputDevices = deviceState.outputDevices
 
     // Track active input and output devices independently
     var activeInputDeviceId by remember {
-        mutableStateOf(
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                audioManager.communicationDevice?.id
-            } else {
-                null
-            },
-        )
+        mutableStateOf(getActiveCommunicationDeviceId(audioManager))
     }
     var activeOutputDeviceId by remember {
-        mutableStateOf(
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                audioManager.communicationDevice?.id
-            } else {
-                null
-            },
-        )
+        mutableStateOf(getActiveCommunicationDeviceId(audioManager))
     }
 
-    // React to device connect/disconnect events
-    DisposableEffect(audioManager) {
-        val callback =
-            object : AudioDeviceCallback() {
-                override fun onAudioDevicesAdded(addedDevices: Array<out AudioDeviceInfo>?) {
-                    inputDevices = getFilteredInputDevices(audioManager)
-                    outputDevices = getFilteredOutputDevices(audioManager)
-                }
-
-                override fun onAudioDevicesRemoved(removedDevices: Array<out AudioDeviceInfo>?) {
-                    inputDevices = getFilteredInputDevices(audioManager)
-                    outputDevices = getFilteredOutputDevices(audioManager)
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                        val commId = audioManager.communicationDevice?.id
-                        activeInputDeviceId = commId
-                        activeOutputDeviceId = commId
-                    }
-                }
-            }
-        audioManager.registerAudioDeviceCallback(callback, Handler(Looper.getMainLooper()))
-        onDispose {
-            audioManager.unregisterAudioDeviceCallback(callback)
-        }
+    // Update active device IDs when devices change
+    androidx.compose.runtime.LaunchedEffect(deviceState.refreshKey) {
+        val commId = getActiveCommunicationDeviceId(audioManager)
+        activeInputDeviceId = commId
+        activeOutputDeviceId = commId
     }
 
     // Resolve which input is active: match by device ID, or for built-in mic
@@ -949,98 +915,5 @@ private fun SectionHeader(title: String) {
     )
 }
 
-private val BUILTIN_TYPES =
-    setOf(
-        AudioDeviceInfo.TYPE_BUILTIN_MIC,
-        AudioDeviceInfo.TYPE_BUILTIN_SPEAKER,
-        AudioDeviceInfo.TYPE_BUILTIN_EARPIECE,
-    )
-
-private val BLUETOOTH_TYPES =
-    setOf(
-        AudioDeviceInfo.TYPE_BLUETOOTH_A2DP,
-        AudioDeviceInfo.TYPE_BLUETOOTH_SCO,
-    )
-
-private val INPUT_TYPES =
-    listOf(
-        AudioDeviceInfo.TYPE_BUILTIN_MIC,
-        AudioDeviceInfo.TYPE_BLUETOOTH_SCO,
-        AudioDeviceInfo.TYPE_USB_HEADSET,
-        AudioDeviceInfo.TYPE_WIRED_HEADSET,
-    )
-
-private val OUTPUT_TYPES =
-    listOf(
-        AudioDeviceInfo.TYPE_BUILTIN_SPEAKER,
-        AudioDeviceInfo.TYPE_BUILTIN_EARPIECE,
-        AudioDeviceInfo.TYPE_BLUETOOTH_A2DP,
-        AudioDeviceInfo.TYPE_BLUETOOTH_SCO,
-        AudioDeviceInfo.TYPE_WIRED_HEADSET,
-        AudioDeviceInfo.TYPE_WIRED_HEADPHONES,
-        AudioDeviceInfo.TYPE_USB_HEADSET,
-    )
-
-private fun getFilteredInputDevices(audioManager: AudioManager): List<AudioDeviceInfo> {
-    val seenBuiltinTypes = mutableSetOf<Int>()
-    return audioManager.getDevices(AudioManager.GET_DEVICES_INPUTS)
-        .filter { it.type in INPUT_TYPES }
-        .filter { device ->
-            if (device.type in BUILTIN_TYPES) seenBuiltinTypes.add(device.type) else true
-        }
-}
-
-private fun getFilteredOutputDevices(audioManager: AudioManager): List<AudioDeviceInfo> {
-    val seenBuiltinTypes = mutableSetOf<Int>()
-    val seenBtNames = mutableSetOf<String>()
-    return audioManager.getDevices(AudioManager.GET_DEVICES_OUTPUTS)
-        .filter { it.type in OUTPUT_TYPES }
-        // Dedup built-in devices (multiple mics/speakers reported by system)
-        .filter { device ->
-            if (device.type in BUILTIN_TYPES) seenBuiltinTypes.add(device.type) else true
-        }
-        // Dedup Bluetooth: A2DP and SCO often report the same headset.
-        // Keep SCO (communication profile) and drop A2DP duplicates.
-        .filter { device ->
-            if (device.type in BLUETOOTH_TYPES) {
-                val name = device.productName?.toString() ?: ""
-                // SCO always passes; A2DP only if no SCO with same name was seen
-                if (device.type == AudioDeviceInfo.TYPE_BLUETOOTH_SCO) {
-                    seenBtNames.add(name)
-                    true
-                } else {
-                    !seenBtNames.contains(name).also { seenBtNames.add(name) }
-                }
-            } else {
-                true
-            }
-        }
-}
-
-private fun audioDeviceLabel(
-    device: AudioDeviceInfo,
-    lang: String,
-): String {
-    return if (device.type in BUILTIN_TYPES) {
-        audioDeviceTypeName(device.type, lang)
-    } else {
-        device.productName?.toString()?.ifBlank { null }
-            ?: audioDeviceTypeName(device.type, lang)
-    }
-}
-
-private fun audioDeviceTypeName(
-    type: Int,
-    lang: String,
-): String =
-    when (type) {
-        AudioDeviceInfo.TYPE_BUILTIN_MIC -> Strings.t("device.microphone", lang)
-        AudioDeviceInfo.TYPE_BUILTIN_SPEAKER -> Strings.t("audio.speaker", lang)
-        AudioDeviceInfo.TYPE_BUILTIN_EARPIECE -> Strings.t("audio.earpiece", lang)
-        AudioDeviceInfo.TYPE_BLUETOOTH_A2DP -> Strings.t("audio.bluetooth", lang)
-        AudioDeviceInfo.TYPE_BLUETOOTH_SCO -> Strings.t("audio.bluetooth", lang)
-        AudioDeviceInfo.TYPE_WIRED_HEADSET -> Strings.t("audio.wiredHeadset", lang)
-        AudioDeviceInfo.TYPE_WIRED_HEADPHONES -> Strings.t("audio.wiredHeadphones", lang)
-        AudioDeviceInfo.TYPE_USB_HEADSET -> Strings.t("audio.usbHeadset", lang)
-        else -> Strings.t("audio.device", lang)
-    }
+// Type constants, filtering, deduplication, and labeling functions have
+// been moved to AudioDeviceUtils.kt

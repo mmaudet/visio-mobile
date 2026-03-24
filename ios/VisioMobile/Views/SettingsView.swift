@@ -164,7 +164,7 @@ struct SettingsView: View {
 
                 Section {
                     Button(role: .destructive) {
-                        manager.client.clearRoomHistory()
+                        manager.client.clearVisioHistory()
                         historyCleared = true
                     } label: {
                         Text(Strings.t("settings.clearHistory", lang: lang))

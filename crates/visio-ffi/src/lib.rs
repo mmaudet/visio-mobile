@@ -278,13 +278,13 @@ impl From<CalendarRefreshInterval> for CoreCalendarRefreshInterval {
 }
 
 #[derive(Debug, Clone)]
-pub struct RoomHistoryEntry {
+pub struct VisioHistoryEntry {
     pub url: String,
     pub display_name: Option<String>,
 }
 
-impl From<visio_core::settings::RoomHistoryEntry> for RoomHistoryEntry {
-    fn from(e: visio_core::settings::RoomHistoryEntry) -> Self {
+impl From<visio_core::settings::VisioHistoryEntry> for VisioHistoryEntry {
+    fn from(e: visio_core::settings::VisioHistoryEntry) -> Self {
         Self {
             url: e.url,
             display_name: e.display_name,
@@ -801,7 +801,7 @@ impl BridgeListener {
         let settings = self.settings.clone();
         tokio::spawn(async move {
             if let Some((url, _)) = rm.last_connection_info().await {
-                settings.add_room_to_history(url, None);
+                settings.add_visio_to_history(url, None);
             }
         });
     }
@@ -977,7 +977,7 @@ impl VisioClient {
                 }
 
                 self.settings
-                    .add_room_to_history(clean_url.clone(), display_name);
+                    .add_visio_to_history(clean_url.clone(), display_name);
 
                 Ok(())
             }
@@ -1255,20 +1255,20 @@ impl VisioClient {
         self.settings.set_camera_device(name);
     }
 
-    pub fn add_room_to_history(&self, url: String, display_name: Option<String>) {
-        self.settings.add_room_to_history(url, display_name);
+    pub fn add_visio_to_history(&self, url: String, display_name: Option<String>) {
+        self.settings.add_visio_to_history(url, display_name);
     }
 
-    pub fn get_room_history(&self) -> Vec<RoomHistoryEntry> {
+    pub fn get_visio_history(&self) -> Vec<VisioHistoryEntry> {
         self.settings
-            .get_room_history()
+            .get_visio_history()
             .into_iter()
             .map(Into::into)
             .collect()
     }
 
-    pub fn clear_room_history(&self) {
-        self.settings.clear_room_history();
+    pub fn clear_visio_history(&self) {
+        self.settings.clear_visio_history();
     }
 
     pub fn extract_room_display_name(&self, url: String) -> Option<String> {

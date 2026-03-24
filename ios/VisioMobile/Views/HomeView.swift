@@ -16,7 +16,7 @@ struct HomeView: View {
     @State private var customServer: String = ""
     @State private var showCreateRoom: Bool = false
     @State private var roomDisplayName: String = ""
-    @State private var roomHistory: [RoomHistoryEntry] = []
+    @State private var roomHistory: [VisioHistoryEntry] = []
     @State private var historyJoinPending: Bool = false
     @State private var showCompactHeader: Bool = false
     @State private var selectedTab: Int = 0
@@ -375,7 +375,7 @@ struct HomeView: View {
             // Load meet instances
             meetInstances = manager.client.getMeetInstances()
             // Load room history
-            roomHistory = manager.client.getRoomHistory()
+            roomHistory = manager.client.getVisioHistory()
             // Load cached meetings immediately, then refresh from network
             let cached = manager.client.getUpcomingMeetings()
             if !cached.isEmpty {

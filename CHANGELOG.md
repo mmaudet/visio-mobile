@@ -12,6 +12,11 @@ and this project adheres to
 
 - Button to clear recent visios history in settings (#152)
 
+### Changed
+
+- Extract `useDeviceEnumeration` hook to unify device
+  enumeration across lobby and in-call picker (#163)
+
 ### Fixed
 
 - PiP only activates during an active call; no longer triggers

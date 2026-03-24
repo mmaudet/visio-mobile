@@ -207,7 +207,7 @@ dictionary Meeting {
     string server_name;
 };
 
-dictionary RoomHistoryEntry {
+dictionary VisioHistoryEntry {
     string url;
     string? display_name;
 };
@@ -360,11 +360,11 @@ interface VisioClient {
 
     void stop_video_renderer(string track_sid);
 
-    void add_room_to_history(string url, string? display_name);
+    void add_visio_to_history(string url, string? display_name);
 
-    sequence<RoomHistoryEntry> get_room_history();
+    sequence<VisioHistoryEntry> get_visio_history();
 
-    void clear_room_history();
+    void clear_visio_history();
 
     string? extract_room_display_name(string url);
 

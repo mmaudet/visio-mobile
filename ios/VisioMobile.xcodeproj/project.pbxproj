@@ -32,6 +32,7 @@
 		A10001000000000000000016 /* ToolbarFix.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000200000000000000001A /* ToolbarFix.swift */; };
 		A10001000000000000000017 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A1000200000000000000001B /* Assets.xcassets */; };
 		A10001000000000000000018 /* InCallSettingsSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000200000000000000001C /* InCallSettingsSheet.swift */; };
+		A10001000000000000000033 /* AudioDeviceUtils.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10002000000000000000033 /* AudioDeviceUtils.swift */; };
 		A1000100000000000000000B /* libvisio_ffi.a in Frameworks */ = {isa = PBXBuildFile; fileRef = A1000200000000000000000B /* libvisio_ffi.a */; };
 		A1000100000000000000000D /* libresolv.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = A1000200000000000000000D /* libresolv.tbd */; };
 		A10001000000000000000019 /* OidcAuthManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000200000000000000001D /* OidcAuthManager.swift */; };
@@ -81,6 +82,7 @@
 		A10002000000000000000030 /* MediaFileCapture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MediaFileCapture.swift; sourceTree = "<group>"; };
 		A10002000000000000000031 /* NV12Util.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NV12Util.swift; sourceTree = "<group>"; };
 		A10002000000000000000032 /* AudioCapture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioCapture.swift; sourceTree = "<group>"; };
+		A10002000000000000000033 /* AudioDeviceUtils.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioDeviceUtils.swift; sourceTree = "<group>"; };
 		A10003000000000000000001 /* VisioMobile.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = VisioMobile.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		B10002000000000000000001 /* VisioMobileUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VisioMobileUITests.swift; sourceTree = "<group>"; };
 		B10003000000000000000001 /* VisioMobileUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = VisioMobileUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -165,6 +167,7 @@
 				A10002000000000000000022 /* PreJoinView.swift */,
 				A10002000000000000000023 /* AudioRoutePickerButton.swift */,
 				A10002000000000000000024 /* BlurredCameraPreviewView.swift */,
+				A10002000000000000000033 /* AudioDeviceUtils.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -403,6 +406,7 @@
 				A10001000000000000000030 /* MediaFileCapture.swift in Sources */,
 				A10001000000000000000031 /* NV12Util.swift in Sources */,
 				A10001000000000000000032 /* AudioCapture.swift in Sources */,
+				A10001000000000000000033 /* AudioDeviceUtils.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

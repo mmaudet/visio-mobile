@@ -144,7 +144,7 @@
   "home.createRoom.error": "Visio creation failed",
   "settings.incall.roomInfo": "Visio info",
   "settings.incall.roomLink": "Visio link",
-  "settings.incall.deepLink": "App link",
+  "settings.incall.deepLink": "Visio app link",
   "settings.incall.share": "Share link",
   "settings.incall.copied": "Copied!",
   "lobby.waiting": "Waiting for host approval...",

@@ -140,7 +140,7 @@
   "home.createRoom.error": "Error al crear la visio",
   "settings.incall.roomInfo": "Info de visio",
   "settings.incall.roomLink": "Enlace de la visio",
-  "settings.incall.deepLink": "Enlace de app",
+  "settings.incall.deepLink": "Enlace de app Visio",
   "settings.incall.share": "Compartir enlace",
   "settings.incall.copied": "¡Copiado!",
   "lobby.waiting": "Esperando la aprobación del anfitrión...",
