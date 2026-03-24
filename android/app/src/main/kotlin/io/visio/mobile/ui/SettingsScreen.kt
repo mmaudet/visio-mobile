@@ -376,7 +376,7 @@ fun SettingsScreen(onBack: () -> Unit) {
                 onClick = {
                     coroutineScope.launch(Dispatchers.IO) {
                         try {
-                            VisioManager.client.clearRoomHistory()
+                            VisioManager.client.clearVisioHistory()
                         } catch (e: Exception) {
                             Log.e(TAG, "Failed to clear room history", e)
                         }
