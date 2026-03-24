@@ -1800,8 +1800,7 @@ main {
 }
 
 .settings-clear-history {
-  margin: 0 20px 8px;
-  padding: 10px;
+  padding: 8px 16px;
   background: #e1000f;
   color: white;
   border: none;

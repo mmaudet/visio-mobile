@@ -39,6 +39,8 @@ and this project adheres to
   and remove obsolete home subtitle (#150)
 - Only show calendar sync toast when meetings actually
   change, add pull-to-refresh on meetings tab (#151)
+- Move clear-history button from footer into an inline
+  settings row on desktop (#168)
 
 ## [0.7.0] - 2026-03-23
 
