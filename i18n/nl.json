@@ -258,5 +258,11 @@
   "calendar.sync.started": "Kalender synchroniseren...",
   "calendar.sync.success": "{count} visios gevonden",
   "calendar.sync.error": "Kalender synchronisatie mislukt",
-  "calendar.sync.noMeetings": "Geen aankomende visios"
+  "calendar.sync.noMeetings": "Geen aankomende visios",
+  "error.unknownAlias": "Onbekende alias: {name}",
+  "alias.conflictTitle": "Deze naam is al gekoppeld aan een andere visio",
+  "alias.conflictReplace": "Vervangen",
+  "alias.conflictCancel": "Bestaande behouden",
+  "home.createVisio.simplifiedUrl": "Vereenvoudigde URL",
+  "home.createVisio.simplifiedUrlHint": "Deel deze korte link in plaats van de volledige URL"
 }

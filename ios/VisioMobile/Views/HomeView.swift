@@ -186,12 +186,21 @@ struct HomeView: View {
                     if isSlug, !meetInstances.isEmpty {
                         urlsToTry = meetInstances.map { "https://\($0)/\(trimmed)" }
                     } else {
-                        guard extractSlug(trimmed) != nil else {
-                            roomStatus = "idle"
-                            resolvedRoomURL = trimmed
-                            return
+                        if extractSlug(trimmed) != nil {
+                            urlsToTry = [trimmed]
+                        } else {
+                            // Try alias resolution
+                            let candidate = trimmed.contains("/")
+                                ? String(trimmed.trimmingCharacters(in: CharacterSet(charactersIn: "/")).split(separator: "/").last ?? "")
+                                : trimmed
+                            if let aliasUrl = manager.client.resolveVisioAlias(name: candidate) {
+                                urlsToTry = [aliasUrl]
+                            } else {
+                                roomStatus = "idle"
+                                resolvedRoomURL = trimmed
+                                return
+                            }
                         }
-                        urlsToTry = [trimmed]
                     }
 
                     roomStatus = "checking"
@@ -476,6 +485,17 @@ struct HomeView: View {
                 onDismiss: { showServerPicker = false }
             )
         }
+        .alert(
+            Strings.t("call.error", lang: lang),
+            isPresented: Binding(
+                get: { manager.pendingDeepLinkError != nil },
+                set: { if !$0 { manager.pendingDeepLinkError = nil } }
+            )
+        ) {
+            Button("OK") { manager.pendingDeepLinkError = nil }
+        } message: {
+            Text(manager.pendingDeepLinkError ?? "")
+        }
     }
 
     private func launchOidc(meetInstance: String) {
@@ -659,6 +679,9 @@ private struct CreateRoomSheet: View {
     @State private var invitedUsers: [UserSearchResult] = []
     @State private var createdRoomId: String? = nil
     @State private var searchTask: Task<Void, Never>? = nil
+    @State private var pendingAliasConflictName: String? = nil
+    @State private var pendingAliasConflictUrl: String? = nil
+    @State private var showAliasConflict: Bool = false
 
     private var deepLink: String {
         guard let url = createdUrl else { return "" }
@@ -792,13 +815,22 @@ private struct CreateRoomSheet: View {
                                     DispatchQueue.main.async {
                                         createdRoomId = result.id
                                         let trimmedName = roomDisplayName.trimmingCharacters(in: .whitespacesAndNewlines)
+                                        let baseUrl = "https://\(meetInstance)/\(result.slug)"
                                         if !trimmedName.isEmpty {
                                             var allowed = CharacterSet.urlQueryAllowed
                                             allowed.remove(charactersIn: " +&=")
                                             let encoded = trimmedName.addingPercentEncoding(withAllowedCharacters: allowed) ?? trimmedName
-                                            createdUrl = "https://\(meetInstance)/\(result.slug)?visio=\(encoded)"
+                                            createdUrl = "\(baseUrl)?visio=\(encoded)"
+                                            let conflict = manager.client.checkVisioAliasConflict(name: trimmedName, url: baseUrl)
+                                            if conflict == nil {
+                                                manager.client.addVisioAlias(name: trimmedName, url: baseUrl)
+                                            } else {
+                                                pendingAliasConflictName = trimmedName
+                                                pendingAliasConflictUrl = baseUrl
+                                                showAliasConflict = true
+                                            }
                                         } else {
-                                            createdUrl = "https://\(meetInstance)/\(result.slug)"
+                                            createdUrl = baseUrl
                                         }
                                         creating = false
                                     }
@@ -879,6 +911,36 @@ private struct CreateRoomSheet: View {
                         Text(Strings.t("settings.incall.roomInfo", lang: lang))
                     }
 
+                    if !roomDisplayName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        let host = (createdUrl ?? "").replacingOccurrences(of: "https://", with: "").components(separatedBy: "/").first ?? ""
+                        let simplifiedUrl = "visio://\(host)/\(roomDisplayName.trimmingCharacters(in: .whitespacesAndNewlines))"
+                        Section {
+                            VStack(alignment: .leading, spacing: 4) {
+                                HStack {
+                                    Image(systemName: "link")
+                                        .font(.caption)
+                                    Text(Strings.t("home.createVisio.simplifiedUrl", lang: lang))
+                                        .font(.subheadline)
+                                        .fontWeight(.semibold)
+                                    Spacer()
+                                    Button {
+                                        UIPasteboard.general.string = simplifiedUrl
+                                    } label: {
+                                        Image(systemName: "doc.on.doc")
+                                            .font(.caption)
+                                    }
+                                }
+                                TextField("", text: .constant(simplifiedUrl))
+                                    .font(.caption)
+                                    .textFieldStyle(.roundedBorder)
+                                    .disabled(true)
+                                Text(Strings.t("home.createVisio.simplifiedUrlHint", lang: lang))
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                    }
+
                     Section {
                         Button {
                             onCreated(createdUrl!)
@@ -898,6 +960,23 @@ private struct CreateRoomSheet: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button(Strings.t("settings.cancel", lang: lang)) { onCancel() }
+                }
+            }
+            .alert(
+                Strings.t("alias.conflictTitle", lang: lang)
+                    .replacingOccurrences(of: "{name}", with: pendingAliasConflictName ?? ""),
+                isPresented: $showAliasConflict
+            ) {
+                Button(Strings.t("alias.conflictReplace", lang: lang)) {
+                    if let name = pendingAliasConflictName, let url = pendingAliasConflictUrl {
+                        manager.client.addVisioAlias(name: name, url: url)
+                    }
+                    pendingAliasConflictName = nil
+                    pendingAliasConflictUrl = nil
+                }
+                Button(Strings.t("alias.conflictCancel", lang: lang), role: .cancel) {
+                    pendingAliasConflictName = nil
+                    pendingAliasConflictUrl = nil
                 }
             }
         }

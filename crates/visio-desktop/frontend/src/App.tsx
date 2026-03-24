@@ -1039,9 +1039,53 @@ function HomeView({
 
     const slug = extractSlug(urlsToTry[0])
     if (!slug) {
-      setRoomStatus('idle')
-      setResolvedUrl(trimmed)
-      return
+      // Try alias resolution before giving up
+      const candidate = trimmed.includes('/')
+        ? trimmed.replace(/\/$/, '').split('/').pop() || trimmed
+        : trimmed
+      const controller2 = new AbortController()
+      const timer2 = setTimeout(async () => {
+        try {
+          const resolved = await invoke<string | null>('resolve_visio_alias', {
+            name: candidate,
+          })
+          if (controller2.signal.aborted) return
+          if (resolved) {
+            setRoomStatus('checking')
+            const result = await invoke<{
+              status: string
+              livekit_url?: string
+              token?: string
+            }>('validate_room', {
+              url: resolved,
+              username: displayName.trim() || null,
+            })
+            if (controller2.signal.aborted) return
+            if (result.status === 'valid') {
+              setRoomStatus('valid')
+              setResolvedUrl(resolved)
+            } else if (result.status === 'auth_required') {
+              setRoomStatus('auth_required')
+              setResolvedUrl(resolved)
+            } else {
+              setRoomStatus('not_found')
+              setResolvedUrl(resolved)
+            }
+          } else {
+            setRoomStatus('idle')
+            setResolvedUrl(trimmed)
+          }
+        } catch {
+          if (!controller2.signal.aborted) {
+            setRoomStatus('idle')
+            setResolvedUrl(trimmed)
+          }
+        }
+      }, 500)
+      return () => {
+        clearTimeout(timer2)
+        controller2.abort()
+      }
     }
     setRoomStatus('checking')
     const controller = new AbortController()
@@ -1561,6 +1605,8 @@ function CreateRoomDialog({
   const [createdRoomId, setCreatedRoomId] = useState('')
   const [createdLivekitUrl, setCreatedLivekitUrl] = useState('')
   const [createdLivekitToken, setCreatedLivekitToken] = useState('')
+  const [aliasConflictName, setAliasConflictName] = useState('')
+  const [aliasConflictUrl, setAliasConflictUrl] = useState('')
 
   const deepLink = createdUrl
     ? `visio://${createdUrl.replace(/^https?:\/\//, '')}`
@@ -1605,11 +1651,30 @@ function CreateRoomDialog({
         accessLevel,
       })
       const trimmedName = roomDisplayName.trim()
+      const baseUrl = `${meetUrl}/${result.slug}`
       setCreatedUrl(
         trimmedName
-          ? `${meetUrl}/${result.slug}?visio=${encodeURIComponent(trimmedName)}`
-          : `${meetUrl}/${result.slug}`
+          ? `${baseUrl}?visio=${encodeURIComponent(trimmedName)}`
+          : baseUrl
       )
+      if (trimmedName) {
+        const conflict = await invoke<string | null>(
+          'check_visio_alias_conflict',
+          {
+            name: trimmedName,
+            url: baseUrl,
+          }
+        )
+        if (conflict) {
+          setAliasConflictName(trimmedName)
+          setAliasConflictUrl(baseUrl)
+        } else {
+          await invoke('add_visio_alias', {
+            name: trimmedName,
+            url: baseUrl,
+          }).catch(() => {})
+        }
+      }
       setCreatedRoomId(result.id)
       setCreatedLivekitUrl(result.livekit_url ?? '')
       setCreatedLivekitToken(result.livekit_token ?? '')
@@ -1852,6 +1917,47 @@ function CreateRoomDialog({
                 value={deepLink}
                 onClick={(e) => (e.target as HTMLInputElement).select()}
               />
+              {roomDisplayName.trim() &&
+                (() => {
+                  const host = createdUrl
+                    .replace(/^https?:\/\//, '')
+                    .split('/')[0]
+                  const simplifiedUrl = `visio://${host}/${roomDisplayName.trim()}`
+                  return (
+                    <>
+                      <div
+                        className="info-link-header"
+                        style={{ marginTop: '8px' }}
+                      >
+                        <RiGlobalLine size={16} />
+                        <span>{t('home.createVisio.simplifiedUrl')}</span>
+                        <button
+                          className="info-copy-icon"
+                          onClick={() =>
+                            handleCopy(simplifiedUrl, setCopiedDeep)
+                          }
+                          title={t('settings.incall.copied')}
+                        >
+                          <RiFileCopyLine size={16} />
+                        </button>
+                      </div>
+                      <input
+                        className="info-link-input"
+                        readOnly
+                        value={simplifiedUrl}
+                        onClick={(e) => (e.target as HTMLInputElement).select()}
+                      />
+                      <span
+                        style={{
+                          fontSize: '0.75rem',
+                          color: 'var(--text-secondary)',
+                        }}
+                      >
+                        {t('home.createVisio.simplifiedUrlHint')}
+                      </span>
+                    </>
+                  )
+                })()}
             </div>
           )}
         </div>
@@ -1896,6 +2002,59 @@ function CreateRoomDialog({
           )}
         </div>
       </div>
+      {aliasConflictName && (
+        <div
+          className="modal-overlay"
+          onClick={() => {
+            setAliasConflictName('')
+            setAliasConflictUrl('')
+          }}
+        >
+          <div
+            className="settings-modal"
+            onClick={(e) => e.stopPropagation()}
+            style={{ maxWidth: 400 }}
+          >
+            <div className="settings-header">
+              <span>
+                {t('alias.conflictTitle').replace('{name}', aliasConflictName)}
+              </span>
+            </div>
+            <div
+              className="settings-footer"
+              style={{
+                display: 'flex',
+                gap: 8,
+                justifyContent: 'flex-end',
+                padding: '16px',
+              }}
+            >
+              <button
+                className="btn"
+                onClick={() => {
+                  setAliasConflictName('')
+                  setAliasConflictUrl('')
+                }}
+              >
+                {t('alias.conflictCancel')}
+              </button>
+              <button
+                className="btn btn-primary"
+                onClick={() => {
+                  invoke('add_visio_alias', {
+                    name: aliasConflictName,
+                    url: aliasConflictUrl,
+                  }).catch(() => {})
+                  setAliasConflictName('')
+                  setAliasConflictUrl('')
+                }}
+              >
+                {t('alias.conflictReplace')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -4572,22 +4731,52 @@ export default function App() {
         }
 
         // Handle room deep links: visio://{host}/{slug}[?visio=...]
-        const slug = parsed.pathname.replace(/^\//, '')
-        if (!host || !slug) return
+        const pathSegment = parsed.pathname.replace(/^\//, '')
+        if (!host || !pathSegment) return
 
         const deepLinkDisplayName = parsed.searchParams.get('visio')
-        invoke<string[]>('get_meet_instances').then((instances) => {
-          if (instances.includes(host)) {
+        invoke<string[]>('get_meet_instances').then(async (instances) => {
+          if (!instances.includes(host)) {
+            setDeepLinkError(
+              t('deepLink.unknownInstance').replace('{host}', host)
+            )
+            return
+          }
+
+          // If path is a valid slug, use directly
+          if (SLUG_REGEX.test(pathSegment)) {
             setView('home')
-            let roomUrl = `https://${host}/${slug}`
+            let roomUrl = `https://${host}/${pathSegment}`
             if (deepLinkDisplayName) {
               roomUrl += `?visio=${encodeURIComponent(deepLinkDisplayName)}`
             }
             setDeepLinkUrl(roomUrl)
             setDeepLinkError(null)
-          } else {
+            return
+          }
+
+          // Otherwise try alias resolution
+          try {
+            const resolved = await invoke<string | null>(
+              'resolve_visio_alias',
+              { name: pathSegment }
+            )
+            if (resolved) {
+              setView('home')
+              let roomUrl = resolved
+              if (deepLinkDisplayName) {
+                roomUrl += `?visio=${encodeURIComponent(deepLinkDisplayName)}`
+              }
+              setDeepLinkUrl(roomUrl)
+              setDeepLinkError(null)
+            } else {
+              setDeepLinkError(
+                t('error.unknownAlias').replace('{name}', pathSegment)
+              )
+            }
+          } catch {
             setDeepLinkError(
-              t('deepLink.unknownInstance').replace('{host}', host)
+              t('error.unknownAlias').replace('{name}', pathSegment)
             )
           }
         })

@@ -30,6 +30,8 @@ import kotlinx.coroutines.launch
 import uniffi.visio.ConnectionState
 
 class MainActivity : ComponentActivity() {
+    private val slugRegex = Regex("^[a-z]{3}-[a-z]{4}-[a-z]{3}$")
+
     private fun parseDeepLink(intent: Intent?): String? {
         val uri = intent?.data ?: return null
         if (uri.scheme != "visio") return null
@@ -41,18 +43,32 @@ class MainActivity : ComponentActivity() {
             return null
         }
 
-        val slug = uri.path?.trimStart('/') ?: return null
-        if (host.isBlank() || slug.isBlank()) return null
+        val pathSegment = uri.path?.trimStart('/') ?: return null
+        if (host.isBlank() || pathSegment.isBlank()) return null
 
         val displayName = uri.getQueryParameter("visio")
 
         val instances = VisioManager.client.getMeetInstances()
-        return if (instances.contains(host)) {
+        if (!instances.contains(host)) return null
+
+        // If path is a valid slug, use it directly
+        if (slugRegex.matches(pathSegment)) {
             VisioManager.pendingDeepLinkDisplayName = displayName
-            "https://$host/$slug"
-        } else {
-            null
+            return "https://$host/$pathSegment"
         }
+
+        // Otherwise treat as alias: try to resolve it
+        val resolved = VisioManager.client.resolveVisioAlias(pathSegment)
+        if (resolved != null) {
+            VisioManager.pendingDeepLinkDisplayName = displayName
+            return resolved
+        }
+
+        // Unknown alias
+        VisioManager.pendingDeepLinkError =
+            io.visio.mobile.i18n.Strings.t("error.unknownAlias", VisioManager.currentLang)
+                .replace("{name}", pathSegment)
+        return null
     }
 
     /**

@@ -238,6 +238,20 @@ fun HomeScreen(
             onDismiss = { showCreateRoom = false },
         )
     }
+
+    val deepLinkError = VisioManager.pendingDeepLinkError
+    if (deepLinkError != null) {
+        AlertDialog(
+            onDismissRequest = { VisioManager.pendingDeepLinkError = null },
+            title = { Text(Strings.t("call.error", lang)) },
+            text = { Text(deepLinkError) },
+            confirmButton = {
+                TextButton(onClick = { VisioManager.pendingDeepLinkError = null }) {
+                    Text("OK")
+                }
+            },
+        )
+    }
 }
 
 @Suppress("kotlin:S107", "kotlin:S3776", "kotlin:S6615")
@@ -336,6 +350,24 @@ private fun HomeScreenRoomValidationEffect(
         val isSlug = slugRegex.matches(trimmed)
         val candidate = extractSlugCandidate(trimmed, isSlug)
         if (!slugRegex.matches(candidate)) {
+            // Try alias resolution before giving up
+            val aliasUrl =
+                try {
+                    VisioManager.client.resolveVisioAlias(candidate)
+                } catch (_: Exception) {
+                    null
+                }
+            if (aliasUrl != null) {
+                onRoomStatusChange("checking")
+                delay(500)
+                validateRoomUrls(
+                    listOf(aliasUrl),
+                    username,
+                    onRoomStatusChange,
+                    onResolvedRoomUrlChange,
+                )
+                return@LaunchedEffect
+            }
             onRoomStatusChange("idle")
             onResolvedRoomUrlChange(trimmed)
             return@LaunchedEffect
@@ -1095,6 +1127,8 @@ private fun CreateRoomDialog(
     var error by remember { mutableStateOf<String?>(null) }
     var createdUrl by remember { mutableStateOf<String?>(null) }
     var roomDisplayName by remember { mutableStateOf("") }
+    var pendingAliasConflictName by remember { mutableStateOf<String?>(null) }
+    var pendingAliasConflictUrl by remember { mutableStateOf<String?>(null) }
     var searchQuery by remember { mutableStateOf("") }
     var searchResults by remember { mutableStateOf<List<UserSearchResult>>(emptyList()) }
     var invitedUsers by remember { mutableStateOf<List<UserSearchResult>>(emptyList()) }
@@ -1343,6 +1377,49 @@ private fun CreateRoomDialog(
                         textStyle = MaterialTheme.typography.bodySmall,
                         modifier = Modifier.fillMaxWidth(),
                     )
+
+                    if (roomDisplayName.trim().isNotBlank()) {
+                        Spacer(Modifier.height(8.dp))
+                        val host = createdUrl!!.removePrefix("https://").substringBefore("/")
+                        val simplifiedUrl = "visio://$host/${roomDisplayName.trim()}"
+
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.Link, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.width(6.dp))
+                            Text(
+                                Strings.t("home.createVisio.simplifiedUrl", lang),
+                                style = MaterialTheme.typography.labelSmall,
+                                modifier = Modifier.weight(1f),
+                            )
+                            IconButton(
+                                onClick = {
+                                    clipboardManager.setText(
+                                        AnnotatedString(simplifiedUrl),
+                                    )
+                                },
+                                modifier = Modifier.size(32.dp),
+                            ) {
+                                Icon(
+                                    Icons.Default.ContentCopy,
+                                    contentDescription = Strings.t("settings.incall.copied", lang),
+                                    modifier = Modifier.size(16.dp),
+                                )
+                            }
+                        }
+                        OutlinedTextField(
+                            value = simplifiedUrl,
+                            onValueChange = {},
+                            readOnly = true,
+                            singleLine = true,
+                            textStyle = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                        Text(
+                            Strings.t("home.createVisio.simplifiedUrlHint", lang),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                 }
             }
         },
@@ -1372,13 +1449,29 @@ private fun CreateRoomDialog(
                                 withContext(Dispatchers.Main) {
                                     createdRoomId = result.id
                                     val baseUrl = "https://$meetInstance/${result.slug}"
+                                    val trimmedName = roomDisplayName.trim()
                                     createdUrl =
-                                        if (roomDisplayName.trim().isNotBlank()) {
+                                        if (trimmedName.isNotBlank()) {
                                             val encoded =
                                                 java.net.URLEncoder.encode(
-                                                    roomDisplayName.trim(),
+                                                    trimmedName,
                                                     "UTF-8",
                                                 )
+                                            val conflict =
+                                                try {
+                                                    VisioManager.client.checkVisioAliasConflict(
+                                                        trimmedName,
+                                                        baseUrl,
+                                                    )
+                                                } catch (_: Exception) {
+                                                    null
+                                                }
+                                            if (conflict == null) {
+                                                VisioManager.client.addVisioAlias(trimmedName, baseUrl)
+                                            } else {
+                                                pendingAliasConflictName = trimmedName
+                                                pendingAliasConflictUrl = baseUrl
+                                            }
                                             "$baseUrl?visio=$encoded"
                                         } else {
                                             baseUrl
@@ -1415,6 +1508,44 @@ private fun CreateRoomDialog(
             }
         },
     )
+
+    if (pendingAliasConflictName != null) {
+        AlertDialog(
+            onDismissRequest = {
+                pendingAliasConflictName = null
+                pendingAliasConflictUrl = null
+            },
+            title = {
+                Text(
+                    Strings.t("alias.conflictTitle", lang)
+                        .replace("{name}", pendingAliasConflictName ?: ""),
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    try {
+                        VisioManager.client.addVisioAlias(
+                            pendingAliasConflictName!!,
+                            pendingAliasConflictUrl!!,
+                        )
+                    } catch (_: Exception) {
+                    }
+                    pendingAliasConflictName = null
+                    pendingAliasConflictUrl = null
+                }) {
+                    Text(Strings.t("alias.conflictReplace", lang))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    pendingAliasConflictName = null
+                    pendingAliasConflictUrl = null
+                }) {
+                    Text(Strings.t("alias.conflictCancel", lang))
+                }
+            },
+        )
+    }
 }
 
 @Composable
