@@ -3663,15 +3663,15 @@ function SettingsView({
     theme: 'light',
     adaptiveModeEnabled: false,
   })
-  const [meetInstances, setMeetInstances] = useState<string[]>([
-    'meet.numerique.gouv.fr',
-  ])
+  const [meetInstances, setMeetInstances] = useState<string[]>([])
+  const [meetInstancesLoaded, setMeetInstancesLoaded] = useState(false)
   const [newInstance, setNewInstance] = useState('')
   const [calendarUrl, setCalendarUrl] = useState('')
   const [calendarRefreshInterval, setCalendarRefreshInterval] =
     useState('Minutes15')
 
   const addInstance = () => {
+    if (!meetInstancesLoaded) return
     const val = newInstance.trim().toLowerCase()
     if (val && !meetInstances.includes(val)) {
       const next = [...meetInstances, val]
@@ -3695,8 +3695,13 @@ function SettingsView({
       })
       .catch(() => {})
     invoke<string[]>('get_meet_instances')
-      .then(setMeetInstances)
-      .catch(() => {})
+      .then((instances) => {
+        setMeetInstances(instances)
+        setMeetInstancesLoaded(true)
+      })
+      .catch(() => {
+        setMeetInstancesLoaded(true)
+      })
     invoke<string | null>('get_calendar_url')
       .then((url) => setCalendarUrl(url ?? ''))
       .catch(() => {})
@@ -3825,6 +3830,7 @@ function SettingsView({
                 className="btn-icon"
                 aria-label={t('action.remove')}
                 onClick={() => {
+                  if (!meetInstancesLoaded) return
                   const next = meetInstances.filter((x) => x !== inst)
                   setMeetInstances(next)
                   invoke('set_meet_instances', { instances: next })
@@ -3844,12 +3850,13 @@ function SettingsView({
               onKeyDown={(e) => {
                 if (e.key === 'Enter') addInstance()
               }}
+              disabled={!meetInstancesLoaded}
             />
             <button
               className="btn-icon"
               aria-label={t('action.add')}
               onClick={addInstance}
-              disabled={!newInstance.trim()}
+              disabled={!meetInstancesLoaded || !newInstance.trim()}
             >
               <RiAddLine size={16} />
             </button>
@@ -4731,11 +4738,17 @@ export default function App() {
                 if (result.display_name && !displayName.trim()) {
                   setDisplayName(result.display_name)
                 }
-                if (!meetInstances.includes(meetInstance)) {
-                  const next = [...meetInstances, meetInstance]
-                  setMeetInstances(next)
-                  invoke('set_meet_instances', { instances: next })
-                }
+                invoke<string[]>('get_meet_instances')
+                  .then((current) => {
+                    if (!current.includes(meetInstance)) {
+                      const next = [...current, meetInstance]
+                      setMeetInstances(next)
+                      invoke('set_meet_instances', { instances: next })
+                    } else {
+                      setMeetInstances(current)
+                    }
+                  })
+                  .catch(() => {})
               })
               .catch((e) => {
                 console.error('OIDC code exchange failed:', e)
