@@ -8,6 +8,11 @@ and this project adheres to
 
 ## [Unreleased]
 
+### Fixed
+
+- Desktop: prevent meet instances list from being overwritten when
+  adding a new instance (#169)
+
 ### Added
 
 - Friendly URLs: alias names (e.g. "COMEX") can be used as shortcuts
