@@ -40,6 +40,8 @@ and this project adheres to
 
 ### Fixed
 
+- Only show calendar sync toast when meetings actually
+  change, add pull-to-refresh on meetings tab (#151)
 - Always send slug (not display name) to Meet server API,
   rename URL param to `?visio=`, add display name to
   iOS/Desktop create room dialog (#145)

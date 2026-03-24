@@ -26,9 +26,11 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -49,6 +51,7 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MeetingsTab(
     meetings: List<Meeting>,
@@ -71,13 +74,18 @@ fun MeetingsTab(
             MeetingsEmpty(isDark = isDark, lang = lang, onRefresh = { VisioManager.refreshCalendarNow() })
         }
         else -> {
-            MeetingsList(
-                meetings = meetings,
-                isDark = isDark,
-                lang = lang,
-                nowSeconds = nowSeconds,
-                onJoinMeeting = onJoinMeeting,
-            )
+            PullToRefreshBox(
+                isRefreshing = isLoading,
+                onRefresh = { VisioManager.refreshCalendarNow() },
+            ) {
+                MeetingsList(
+                    meetings = meetings,
+                    isDark = isDark,
+                    lang = lang,
+                    nowSeconds = nowSeconds,
+                    onJoinMeeting = onJoinMeeting,
+                )
+            }
         }
     }
 }
