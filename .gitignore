@@ -75,3 +75,6 @@ crates/visio-desktop/frontend/test-results/
 # E2E test reports
 e2e/reports/
 e2e/node_modules/
+
+# Private docs (not public)
+docs/nginx-deep-links.md
