@@ -10,6 +10,8 @@ and this project adheres to
 
 ### Fixed
 
+- Clarify display name labels on home and pre-join
+  screens with "Your" prefix in all 6 locales (#153)
 - Rename "meeting"/"room" to "visio" in all 6 i18n files
   and remove obsolete home subtitle (#150)
 

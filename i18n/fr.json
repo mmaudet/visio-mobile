@@ -195,7 +195,7 @@
   "participant.pin": "Épingler",
   "participant.unpin": "Désépingler",
   "participant.mute": "Couper le micro",
-  "prejoin.displayName": "Nom d'affichage",
+  "prejoin.displayName": "Votre nom d'affichage (optionnel)",
   "prejoin.microphone": "Micro",
   "prejoin.camera": "Caméra",
   "prejoin.backgroundFilters": "Filtres d'arrière-plan",
