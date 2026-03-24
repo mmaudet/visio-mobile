@@ -10,6 +10,8 @@ and this project adheres to
 
 ### Fixed
 
+- PiP only activates during an active call; no longer triggers
+  when backgrounding from home or other non-call screens (#154)
 - Stop spurious microphone permission request when
   opening desktop settings (#161)
 - Clarify display name labels on home and pre-join
