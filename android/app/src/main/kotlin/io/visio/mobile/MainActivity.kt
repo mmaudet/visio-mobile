@@ -3,6 +3,7 @@ package io.visio.mobile
 import android.app.PictureInPictureParams
 import android.content.BroadcastReceiver
 import android.content.Context
+import android.content.res.Configuration
 import android.content.Intent
 import android.content.IntentFilter
 import android.os.Build
@@ -192,6 +193,21 @@ class MainActivity : ComponentActivity() {
             unregisterReceiver(pipActionReceiver)
         } catch (e: Exception) {
             Log.e(TAG, "Failed to unregister PiP broadcast receiver", e)
+        }
+    }
+
+    override fun onPictureInPictureModeChanged(
+        isInPictureInPictureMode: Boolean,
+        newConfig: Configuration,
+    ) {
+        super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig)
+        if (isInPictureInPictureMode) {
+            val state = VisioManager.connectionState.value
+            if (state !is ConnectionState.Connected) {
+                // PiP was entered without an active call (e.g. OEM auto-PiP).
+                // Move back to normal mode.
+                moveTaskToBack(true)
+            }
         }
     }
 
