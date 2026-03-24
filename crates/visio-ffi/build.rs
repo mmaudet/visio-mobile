@@ -1,4 +1,5 @@
 fn main() {
+    println!("cargo::rerun-if-changed=src/visio.udl");
     uniffi::generate_scaffolding("src/visio.udl").unwrap();
 
     // Preserve Java_org_webrtc_* JNI symbols in the .so so that

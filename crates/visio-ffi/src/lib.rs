@@ -1,5 +1,8 @@
 //! UniFFI bindings for visio-core.
 //!
+//! Exposes VisioClient, VisioHistoryEntry, VisioAlias, and all room/alias
+//! management functions to Kotlin (Android) and Swift (iOS) via UniFFI.
+//!
 //! Provides a VisioClient object that wraps RoomManager, MeetingControls,
 //! and ChatService into a single FFI-safe interface.
 
