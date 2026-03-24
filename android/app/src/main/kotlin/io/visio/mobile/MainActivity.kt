@@ -66,7 +66,7 @@ class MainActivity : ComponentActivity() {
 
         // Unknown alias
         VisioManager.pendingDeepLinkError =
-            io.visio.mobile.i18n.Strings.t("error.unknownAlias", VisioManager.currentLang)
+            io.visio.mobile.ui.i18n.Strings.t("error.unknownAlias", VisioManager.currentLang)
                 .replace("{name}", pathSegment)
         return null
     }

@@ -27,6 +27,8 @@ and this project adheres to
 
 ### Fixed
 
+- Regenerate UniFFI bindings and fix build errors for
+  friendly URLs feature (#156)
 - PiP only activates during an active call; no longer triggers
   when backgrounding from home or other non-call screens (#154)
 - Stop spurious microphone permission request when
