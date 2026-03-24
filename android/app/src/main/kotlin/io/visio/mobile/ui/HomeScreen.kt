@@ -1124,6 +1124,8 @@ private fun CreateRoomDialog(
     var error by remember { mutableStateOf<String?>(null) }
     var createdUrl by remember { mutableStateOf<String?>(null) }
     var roomDisplayName by remember { mutableStateOf("") }
+    var pendingAliasConflictName by remember { mutableStateOf<String?>(null) }
+    var pendingAliasConflictUrl by remember { mutableStateOf<String?>(null) }
     var searchQuery by remember { mutableStateOf("") }
     var searchResults by remember { mutableStateOf<List<UserSearchResult>>(emptyList()) }
     var invitedUsers by remember { mutableStateOf<List<UserSearchResult>>(emptyList()) }
@@ -1445,7 +1447,21 @@ private fun CreateRoomDialog(
                                                     trimmedName,
                                                     "UTF-8",
                                                 )
-                                            VisioManager.client.addVisioAlias(trimmedName, baseUrl)
+                                            val conflict =
+                                                try {
+                                                    VisioManager.client.checkVisioAliasConflict(
+                                                        trimmedName,
+                                                        baseUrl,
+                                                    )
+                                                } catch (_: Exception) {
+                                                    null
+                                                }
+                                            if (conflict == null) {
+                                                VisioManager.client.addVisioAlias(trimmedName, baseUrl)
+                                            } else {
+                                                pendingAliasConflictName = trimmedName
+                                                pendingAliasConflictUrl = baseUrl
+                                            }
                                             "$baseUrl?visio=$encoded"
                                         } else {
                                             baseUrl
@@ -1482,6 +1498,43 @@ private fun CreateRoomDialog(
             }
         },
     )
+
+    if (pendingAliasConflictName != null) {
+        AlertDialog(
+            onDismissRequest = {
+                pendingAliasConflictName = null
+                pendingAliasConflictUrl = null
+            },
+            title = {
+                Text(
+                    Strings.t("alias.conflictTitle", lang)
+                        .replace("{name}", pendingAliasConflictName ?: ""),
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    try {
+                        VisioManager.client.addVisioAlias(
+                            pendingAliasConflictName!!,
+                            pendingAliasConflictUrl!!,
+                        )
+                    } catch (_: Exception) {}
+                    pendingAliasConflictName = null
+                    pendingAliasConflictUrl = null
+                }) {
+                    Text(Strings.t("alias.conflictReplace", lang))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    pendingAliasConflictName = null
+                    pendingAliasConflictUrl = null
+                }) {
+                    Text(Strings.t("alias.conflictCancel", lang))
+                }
+            },
+        )
+    }
 }
 
 @Composable

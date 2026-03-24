@@ -1600,6 +1600,8 @@ function CreateRoomDialog({
   const [createdRoomId, setCreatedRoomId] = useState('')
   const [createdLivekitUrl, setCreatedLivekitUrl] = useState('')
   const [createdLivekitToken, setCreatedLivekitToken] = useState('')
+  const [aliasConflictName, setAliasConflictName] = useState('')
+  const [aliasConflictUrl, setAliasConflictUrl] = useState('')
 
   const deepLink = createdUrl
     ? `visio://${createdUrl.replace(/^https?:\/\//, '')}`
@@ -1651,7 +1653,16 @@ function CreateRoomDialog({
           : baseUrl
       )
       if (trimmedName) {
-        invoke('add_visio_alias', { name: trimmedName, url: baseUrl }).catch(() => {})
+        const conflict = await invoke<string | null>('check_visio_alias_conflict', {
+          name: trimmedName,
+          url: baseUrl,
+        })
+        if (conflict) {
+          setAliasConflictName(trimmedName)
+          setAliasConflictUrl(baseUrl)
+        } else {
+          await invoke('add_visio_alias', { name: trimmedName, url: baseUrl }).catch(() => {})
+        }
       }
       setCreatedRoomId(result.id)
       setCreatedLivekitUrl(result.livekit_url ?? '')
@@ -1967,6 +1978,27 @@ function CreateRoomDialog({
           )}
         </div>
       </div>
+      {aliasConflictName && (
+        <div className="modal-overlay" onClick={() => { setAliasConflictName(''); setAliasConflictUrl('') }}>
+          <div className="settings-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 400 }}>
+            <div className="settings-header">
+              <span>{t('alias.conflictTitle').replace('{name}', aliasConflictName)}</span>
+            </div>
+            <div className="settings-footer" style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', padding: '16px' }}>
+              <button className="btn" onClick={() => { setAliasConflictName(''); setAliasConflictUrl('') }}>
+                {t('alias.conflictCancel')}
+              </button>
+              <button className="btn btn-primary" onClick={() => {
+                invoke('add_visio_alias', { name: aliasConflictName, url: aliasConflictUrl }).catch(() => {})
+                setAliasConflictName('')
+                setAliasConflictUrl('')
+              }}>
+                {t('alias.conflictReplace')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

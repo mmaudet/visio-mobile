@@ -679,6 +679,9 @@ private struct CreateRoomSheet: View {
     @State private var invitedUsers: [UserSearchResult] = []
     @State private var createdRoomId: String? = nil
     @State private var searchTask: Task<Void, Never>? = nil
+    @State private var pendingAliasConflictName: String? = nil
+    @State private var pendingAliasConflictUrl: String? = nil
+    @State private var showAliasConflict: Bool = false
 
     private var deepLink: String {
         guard let url = createdUrl else { return "" }
@@ -818,7 +821,14 @@ private struct CreateRoomSheet: View {
                                             allowed.remove(charactersIn: " +&=")
                                             let encoded = trimmedName.addingPercentEncoding(withAllowedCharacters: allowed) ?? trimmedName
                                             createdUrl = "\(baseUrl)?visio=\(encoded)"
-                                            manager.client.addVisioAlias(name: trimmedName, url: baseUrl)
+                                            let conflict = manager.client.checkVisioAliasConflict(name: trimmedName, url: baseUrl)
+                                            if conflict == nil {
+                                                manager.client.addVisioAlias(name: trimmedName, url: baseUrl)
+                                            } else {
+                                                pendingAliasConflictName = trimmedName
+                                                pendingAliasConflictUrl = baseUrl
+                                                showAliasConflict = true
+                                            }
                                         } else {
                                             createdUrl = baseUrl
                                         }
@@ -950,6 +960,23 @@ private struct CreateRoomSheet: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button(Strings.t("settings.cancel", lang: lang)) { onCancel() }
+                }
+            }
+            .alert(
+                Strings.t("alias.conflictTitle", lang: lang)
+                    .replacingOccurrences(of: "{name}", with: pendingAliasConflictName ?? ""),
+                isPresented: $showAliasConflict
+            ) {
+                Button(Strings.t("alias.conflictReplace", lang: lang)) {
+                    if let name = pendingAliasConflictName, let url = pendingAliasConflictUrl {
+                        manager.client.addVisioAlias(name: name, url: url)
+                    }
+                    pendingAliasConflictName = nil
+                    pendingAliasConflictUrl = nil
+                }
+                Button(Strings.t("alias.conflictCancel", lang: lang), role: .cancel) {
+                    pendingAliasConflictName = nil
+                    pendingAliasConflictUrl = nil
                 }
             }
         }
