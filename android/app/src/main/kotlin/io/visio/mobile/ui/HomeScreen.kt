@@ -1518,7 +1518,8 @@ private fun CreateRoomDialog(
                             pendingAliasConflictName!!,
                             pendingAliasConflictUrl!!,
                         )
-                    } catch (_: Exception) {}
+                    } catch (_: Exception) {
+                    }
                     pendingAliasConflictName = null
                     pendingAliasConflictUrl = null
                 }) {
