@@ -15,6 +15,7 @@ struct SettingsView: View {
     @State private var newInstance: String = ""
     @State private var calendarUrl: String = ""
     @State private var calendarRefreshInterval: CalendarRefreshInterval = .minutes15
+    @State private var historyCleared: Bool = false
 
     private var lang: String { manager.currentLang }
     private var isDark: Bool { theme == "dark" }
@@ -160,6 +161,16 @@ struct SettingsView: View {
                         .listRowBackground(VisioColors.surface(dark: isDark))
                     }
                 }
+
+                Section {
+                    Button(role: .destructive) {
+                        manager.client.clearRoomHistory()
+                        historyCleared = true
+                    } label: {
+                        Text(Strings.t("settings.clearHistory", lang: lang))
+                    }
+                    .listRowBackground(VisioColors.surface(dark: isDark))
+                }
             }
             .scrollContentBackground(.hidden)
             .background(VisioColors.background(dark: isDark))
@@ -178,6 +189,26 @@ struct SettingsView: View {
             }
         }
         .preferredColorScheme(isDark ? .dark : .light)
+        .overlay(alignment: .bottom) {
+            if historyCleared {
+                Text(Strings.t("settings.historyCleared", lang: lang))
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
+                    .background(
+                        RoundedRectangle(cornerRadius: 10)
+                            .fill(VisioColors.primary500.opacity(0.9))
+                    )
+                    .foregroundStyle(.white)
+                    .padding(.bottom, 40)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                    .onAppear {
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                            withAnimation { historyCleared = false }
+                        }
+                    }
+            }
+        }
+        .animation(.easeInOut(duration: 0.3), value: historyCleared)
         .onDisappear { save() }
         .onAppear { load() }
     }

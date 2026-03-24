@@ -3734,6 +3734,16 @@ function SettingsView({
         </div>
       </div>
       <div className="settings-page-footer">
+        <button
+          className="settings-clear-history"
+          onClick={async () => {
+            await invoke('clear_room_history')
+            setSaveStatus(t('settings.historyCleared'))
+            setTimeout(() => setSaveStatus(null), 2000)
+          }}
+        >
+          {t('settings.clearHistory')}
+        </button>
         {saveStatus && (
           <span className="settings-save-status">{saveStatus}</span>
         )}
