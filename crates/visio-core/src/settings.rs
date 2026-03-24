@@ -7,25 +7,25 @@ use serde_json::Value;
 
 use crate::room_display_name::strip_room_display_name_param;
 
-/// A single entry in the room join history.
+/// A single entry in the visio join history.
 ///
 /// Supports backward-compatible deserialization: old format stores bare strings,
 /// new format stores `{"url": "...", "display_name": "..."}` objects.
 #[derive(Debug, Clone, Serialize, PartialEq)]
-pub struct RoomHistoryEntry {
+pub struct VisioHistoryEntry {
     pub url: String,
     pub display_name: Option<String>,
 }
 
-impl<'de> Deserialize<'de> for RoomHistoryEntry {
+impl<'de> Deserialize<'de> for VisioHistoryEntry {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: Deserializer<'de>,
     {
-        struct RoomHistoryEntryVisitor;
+        struct VisioHistoryEntryVisitor;
 
-        impl<'de> Visitor<'de> for RoomHistoryEntryVisitor {
-            type Value = RoomHistoryEntry;
+        impl<'de> Visitor<'de> for VisioHistoryEntryVisitor {
+            type Value = VisioHistoryEntry;
 
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 formatter.write_str("a string URL or an object with url and optional display_name")
@@ -35,7 +35,7 @@ impl<'de> Deserialize<'de> for RoomHistoryEntry {
             where
                 E: de::Error,
             {
-                Ok(RoomHistoryEntry {
+                Ok(VisioHistoryEntry {
                     url: v.to_string(),
                     display_name: None,
                 })
@@ -45,7 +45,7 @@ impl<'de> Deserialize<'de> for RoomHistoryEntry {
             where
                 E: de::Error,
             {
-                Ok(RoomHistoryEntry {
+                Ok(VisioHistoryEntry {
                     url: v,
                     display_name: None,
                 })
@@ -74,11 +74,11 @@ impl<'de> Deserialize<'de> for RoomHistoryEntry {
                 }
 
                 let url = url.ok_or_else(|| de::Error::missing_field("url"))?;
-                Ok(RoomHistoryEntry { url, display_name })
+                Ok(VisioHistoryEntry { url, display_name })
             }
         }
 
-        deserializer.deserialize_any(RoomHistoryEntryVisitor)
+        deserializer.deserialize_any(VisioHistoryEntryVisitor)
     }
 }
 
@@ -90,6 +90,17 @@ pub enum CalendarRefreshInterval {
     Hour1,
     Hours4,
     Manual,
+}
+
+/// A friendly alias mapping a human-readable name to a room slug.
+///
+/// Stored case-preserving but resolved case-insensitively.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct VisioAlias {
+    /// Human-readable alias (e.g. "COMEX").
+    pub name: String,
+    /// Full canonical URL (e.g. "https://meet.example.com/abc-defg-hij").
+    pub url: String,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
@@ -118,8 +129,8 @@ pub struct Settings {
     pub audio_mode: String,
     #[serde(default)]
     pub adaptive_mode_enabled: bool,
-    #[serde(default)]
-    pub room_history: Vec<RoomHistoryEntry>,
+    #[serde(default, alias = "room_history")]
+    pub visio_history: Vec<VisioHistoryEntry>,
     #[serde(default = "default_true")]
     pub noise_reduction_enabled: bool,
     /// Preferred audio input device name.
@@ -140,6 +151,9 @@ pub struct Settings {
     /// How often to refresh the calendar feed.
     #[serde(default)]
     pub calendar_refresh_interval: CalendarRefreshInterval,
+    /// Friendly URL aliases mapping display names to room slugs.
+    #[serde(default)]
+    pub visio_aliases: Vec<VisioAlias>,
 }
 
 fn default_video_resolution() -> String {
@@ -184,7 +198,7 @@ impl Default for Settings {
             background_mode: "off".to_string(),
             audio_mode: "computer".to_string(),
             adaptive_mode_enabled: false,
-            room_history: Vec::new(),
+            visio_history: Vec::new(),
             noise_reduction_enabled: true,
             audio_input_device: None,
             audio_output_device: None,
@@ -192,6 +206,7 @@ impl Default for Settings {
             video_resolution: "720p".to_string(),
             calendar_url: None,
             calendar_refresh_interval: CalendarRefreshInterval::Minutes15,
+            visio_aliases: Vec::new(),
         }
     }
 }
@@ -345,39 +360,39 @@ impl SettingsStore {
         self.save();
     }
 
-    pub fn add_room_to_history(&self, url: String, display_name: Option<String>) {
+    pub fn add_visio_to_history(&self, url: String, display_name: Option<String>) {
         let canonical = strip_room_display_name_param(&url);
         let mut s = self.settings.lock().unwrap_or_else(|e| e.into_inner());
-        if let Some(pos) = s.room_history.iter().position(|e| e.url == canonical) {
-            let existing_name = s.room_history[pos].display_name.take();
+        if let Some(pos) = s.visio_history.iter().position(|e| e.url == canonical) {
+            let existing_name = s.visio_history[pos].display_name.take();
             let merged_name = display_name.or(existing_name);
-            s.room_history.remove(pos);
-            s.room_history.insert(
+            s.visio_history.remove(pos);
+            s.visio_history.insert(
                 0,
-                RoomHistoryEntry {
+                VisioHistoryEntry {
                     url: canonical,
                     display_name: merged_name,
                 },
             );
         } else {
-            s.room_history.insert(
+            s.visio_history.insert(
                 0,
-                RoomHistoryEntry {
+                VisioHistoryEntry {
                     url: canonical,
                     display_name,
                 },
             );
         }
-        s.room_history.truncate(10);
+        s.visio_history.truncate(10);
         drop(s);
         self.save();
     }
 
-    pub fn get_room_history(&self) -> Vec<RoomHistoryEntry> {
+    pub fn get_visio_history(&self) -> Vec<VisioHistoryEntry> {
         self.settings
             .lock()
             .unwrap_or_else(|e| e.into_inner())
-            .room_history
+            .visio_history
             .clone()
     }
 
@@ -493,13 +508,73 @@ impl SettingsStore {
         self.save();
     }
 
-    pub fn clear_room_history(&self) {
+    pub fn clear_visio_history(&self) {
         self.settings
             .lock()
             .unwrap_or_else(|e| e.into_inner())
-            .room_history
+            .visio_history
             .clear();
         self.save();
+    }
+
+    /// Store or update a friendly alias mapping a display name to a canonical URL.
+    ///
+    /// If an alias with the same name (case-insensitive) already exists, its URL
+    /// is updated to the new value.
+    pub fn add_visio_alias(&self, name: String, url: String) {
+        let canonical = strip_room_display_name_param(&url);
+        let mut s = self.settings.lock().unwrap_or_else(|e| e.into_inner());
+        if let Some(existing) = s
+            .visio_aliases
+            .iter_mut()
+            .find(|a| a.name.eq_ignore_ascii_case(&name))
+        {
+            existing.url = canonical;
+            existing.name = name;
+        } else {
+            s.visio_aliases.push(VisioAlias {
+                name,
+                url: canonical,
+            });
+        }
+        drop(s);
+        self.save();
+    }
+
+    /// Resolve a friendly alias to its canonical URL.
+    ///
+    /// Matching is case-insensitive.
+    pub fn resolve_visio_alias(&self, name: &str) -> Option<String> {
+        self.settings
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .visio_aliases
+            .iter()
+            .find(|a| a.name.eq_ignore_ascii_case(name))
+            .map(|a| a.url.clone())
+    }
+
+    /// Check whether an alias name already maps to a different URL.
+    ///
+    /// Returns `Some(existing_url)` when a conflict exists, `None` otherwise.
+    pub fn check_visio_alias_conflict(&self, name: &str, url: &str) -> Option<String> {
+        let canonical = strip_room_display_name_param(url);
+        self.settings
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .visio_aliases
+            .iter()
+            .find(|a| a.name.eq_ignore_ascii_case(name) && a.url != canonical)
+            .map(|a| a.url.clone())
+    }
+
+    /// Return all stored aliases.
+    pub fn get_visio_aliases(&self) -> Vec<VisioAlias> {
+        self.settings
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .visio_aliases
+            .clone()
     }
 
     fn save(&self) {
@@ -754,17 +829,17 @@ mod tests {
         let dir = temp_dir();
         let store = SettingsStore::new(dir.path().to_str().unwrap());
 
-        store.add_room_to_history("https://meet.example.com/room1".to_string(), None);
-        store.add_room_to_history("https://meet.example.com/room2".to_string(), None);
-        store.add_room_to_history("https://meet.example.com/room1".to_string(), None); // dedup, moves to front
+        store.add_visio_to_history("https://meet.example.com/room1".to_string(), None);
+        store.add_visio_to_history("https://meet.example.com/room2".to_string(), None);
+        store.add_visio_to_history("https://meet.example.com/room1".to_string(), None); // dedup, moves to front
 
-        let history = store.get_room_history();
+        let history = store.get_visio_history();
         assert_eq!(history.len(), 2);
         assert_eq!(history[0].url, "https://meet.example.com/room1");
         assert_eq!(history[1].url, "https://meet.example.com/room2");
 
-        store.clear_room_history();
-        assert!(store.get_room_history().is_empty());
+        store.clear_visio_history();
+        assert!(store.get_visio_history().is_empty());
     }
 
     #[test]
@@ -773,10 +848,10 @@ mod tests {
         let store = SettingsStore::new(dir.path().to_str().unwrap());
 
         for i in 0..15 {
-            store.add_room_to_history(format!("https://meet.example.com/room{i}"), None);
+            store.add_visio_to_history(format!("https://meet.example.com/room{i}"), None);
         }
 
-        let history = store.get_room_history();
+        let history = store.get_visio_history();
         assert_eq!(history.len(), 10);
         assert_eq!(history[0].url, "https://meet.example.com/room14");
     }
@@ -787,10 +862,10 @@ mod tests {
         let path = dir.path().to_str().unwrap();
         {
             let store = SettingsStore::new(path);
-            store.add_room_to_history("https://meet.example.com/room1".to_string(), None);
+            store.add_visio_to_history("https://meet.example.com/room1".to_string(), None);
         }
         let store = SettingsStore::new(path);
-        let history = store.get_room_history();
+        let history = store.get_visio_history();
         assert_eq!(history.len(), 1);
         assert_eq!(history[0].url, "https://meet.example.com/room1");
     }
@@ -957,28 +1032,28 @@ mod tests {
         );
     }
 
-    // --- RoomHistoryEntry and migration tests ---
+    // --- VisioHistoryEntry and migration tests ---
 
     #[test]
     fn room_history_entry_round_trip() {
-        let entry = RoomHistoryEntry {
+        let entry = VisioHistoryEntry {
             url: "https://meet.example.com/room".to_string(),
             display_name: Some("My Room".to_string()),
         };
         let json = serde_json::to_string(&entry).unwrap();
-        let decoded: RoomHistoryEntry = serde_json::from_str(&json).unwrap();
+        let decoded: VisioHistoryEntry = serde_json::from_str(&json).unwrap();
         assert_eq!(decoded.url, "https://meet.example.com/room");
         assert_eq!(decoded.display_name, Some("My Room".to_string()));
     }
 
     #[test]
     fn room_history_entry_without_name() {
-        let entry = RoomHistoryEntry {
+        let entry = VisioHistoryEntry {
             url: "https://meet.example.com/room".to_string(),
             display_name: None,
         };
         let json = serde_json::to_string(&entry).unwrap();
-        let decoded: RoomHistoryEntry = serde_json::from_str(&json).unwrap();
+        let decoded: VisioHistoryEntry = serde_json::from_str(&json).unwrap();
         assert_eq!(decoded.url, "https://meet.example.com/room");
         assert_eq!(decoded.display_name, None);
     }
@@ -993,7 +1068,7 @@ mod tests {
         )
         .unwrap();
         let store = SettingsStore::new(path);
-        let history = store.get_room_history();
+        let history = store.get_visio_history();
         assert_eq!(history.len(), 2);
         assert_eq!(history[0].url, "https://meet.example.com/room1");
         assert_eq!(history[0].display_name, None);
@@ -1011,7 +1086,7 @@ mod tests {
         )
         .unwrap();
         let store = SettingsStore::new(path);
-        let history = store.get_room_history();
+        let history = store.get_visio_history();
         assert_eq!(history.len(), 1);
         assert_eq!(history[0].url, "https://meet.example.com/room");
         assert_eq!(history[0].display_name, Some("My Room".to_string()));
@@ -1027,7 +1102,7 @@ mod tests {
         )
         .unwrap();
         let store = SettingsStore::new(path);
-        let history = store.get_room_history();
+        let history = store.get_visio_history();
         assert_eq!(history.len(), 2);
         assert_eq!(history[0].url, "https://meet.example.com/room1");
         assert_eq!(history[0].display_name, None);
@@ -1039,15 +1114,15 @@ mod tests {
     fn add_room_updates_display_name() {
         let dir = temp_dir();
         let store = SettingsStore::new(dir.path().to_str().unwrap());
-        store.add_room_to_history(
+        store.add_visio_to_history(
             "https://meet.example.com/room".to_string(),
             Some("Old Name".to_string()),
         );
-        store.add_room_to_history(
+        store.add_visio_to_history(
             "https://meet.example.com/room".to_string(),
             Some("New Name".to_string()),
         );
-        let history = store.get_room_history();
+        let history = store.get_visio_history();
         assert_eq!(history.len(), 1);
         assert_eq!(history[0].url, "https://meet.example.com/room");
         assert_eq!(history[0].display_name, Some("New Name".to_string()));
@@ -1057,12 +1132,12 @@ mod tests {
     fn add_room_without_name_preserves_existing() {
         let dir = temp_dir();
         let store = SettingsStore::new(dir.path().to_str().unwrap());
-        store.add_room_to_history(
+        store.add_visio_to_history(
             "https://meet.example.com/room".to_string(),
             Some("Keep Me".to_string()),
         );
-        store.add_room_to_history("https://meet.example.com/room".to_string(), None);
-        let history = store.get_room_history();
+        store.add_visio_to_history("https://meet.example.com/room".to_string(), None);
+        let history = store.get_visio_history();
         assert_eq!(history.len(), 1);
         assert_eq!(history[0].url, "https://meet.example.com/room");
         assert_eq!(history[0].display_name, Some("Keep Me".to_string()));
@@ -1073,14 +1148,104 @@ mod tests {
         let dir = temp_dir();
         let store = SettingsStore::new(dir.path().to_str().unwrap());
         for i in 0..12 {
-            store.add_room_to_history(
+            store.add_visio_to_history(
                 format!("https://meet.example.com/room{i}"),
                 Some(format!("Room {i}")),
             );
         }
-        let history = store.get_room_history();
+        let history = store.get_visio_history();
         assert_eq!(history.len(), 10);
         assert_eq!(history[0].url, "https://meet.example.com/room11");
         assert_eq!(history[0].display_name, Some("Room 11".to_string()));
+    }
+
+    // --- VisioAlias tests ---
+
+    #[test]
+    fn alias_add_and_resolve() {
+        let dir = temp_dir();
+        let store = SettingsStore::new(dir.path().to_str().unwrap());
+        store.add_visio_alias(
+            "COMEX".to_string(),
+            "https://meet.example.com/abc-defg-hij".to_string(),
+        );
+        assert_eq!(
+            store.resolve_visio_alias("COMEX"),
+            Some("https://meet.example.com/abc-defg-hij".to_string())
+        );
+    }
+
+    #[test]
+    fn alias_case_insensitive_resolve() {
+        let dir = temp_dir();
+        let store = SettingsStore::new(dir.path().to_str().unwrap());
+        store.add_visio_alias(
+            "COMEX".to_string(),
+            "https://meet.example.com/abc-defg-hij".to_string(),
+        );
+        assert_eq!(
+            store.resolve_visio_alias("comex"),
+            Some("https://meet.example.com/abc-defg-hij".to_string())
+        );
+        assert_eq!(
+            store.resolve_visio_alias("Comex"),
+            Some("https://meet.example.com/abc-defg-hij".to_string())
+        );
+    }
+
+    #[test]
+    fn alias_update_existing() {
+        let dir = temp_dir();
+        let store = SettingsStore::new(dir.path().to_str().unwrap());
+        store.add_visio_alias(
+            "COMEX".to_string(),
+            "https://meet.example.com/old-slug-xxx".to_string(),
+        );
+        store.add_visio_alias(
+            "comex".to_string(),
+            "https://meet.example.com/new-slug-yyy".to_string(),
+        );
+        let aliases = store.get_visio_aliases();
+        assert_eq!(aliases.len(), 1);
+        assert_eq!(aliases[0].name, "comex");
+        assert_eq!(aliases[0].url, "https://meet.example.com/new-slug-yyy");
+    }
+
+    #[test]
+    fn alias_conflict_detection() {
+        let dir = temp_dir();
+        let store = SettingsStore::new(dir.path().to_str().unwrap());
+        store.add_visio_alias(
+            "COMEX".to_string(),
+            "https://meet.example.com/abc-defg-hij".to_string(),
+        );
+        // Same name, same URL => no conflict
+        assert_eq!(
+            store.check_visio_alias_conflict("COMEX", "https://meet.example.com/abc-defg-hij"),
+            None
+        );
+        // Same name, different URL => conflict
+        assert_eq!(
+            store.check_visio_alias_conflict("comex", "https://meet.example.com/xyz-abcd-efg"),
+            Some("https://meet.example.com/abc-defg-hij".to_string())
+        );
+    }
+
+    #[test]
+    fn alias_persists_across_reload() {
+        let dir = temp_dir();
+        let path = dir.path().to_str().unwrap();
+        {
+            let store = SettingsStore::new(path);
+            store.add_visio_alias(
+                "Weekly".to_string(),
+                "https://meet.example.com/abc-defg-hij".to_string(),
+            );
+        }
+        let store = SettingsStore::new(path);
+        assert_eq!(
+            store.resolve_visio_alias("weekly"),
+            Some("https://meet.example.com/abc-defg-hij".to_string())
+        );
     }
 }

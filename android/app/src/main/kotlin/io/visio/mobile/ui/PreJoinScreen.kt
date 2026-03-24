@@ -2,7 +2,6 @@ package io.visio.mobile.ui
 
 import android.Manifest
 import android.annotation.SuppressLint
-import android.bluetooth.BluetoothManager
 import android.content.Context
 import android.content.pm.PackageManager
 import android.graphics.BitmapFactory
@@ -244,59 +243,12 @@ fun PreJoinScreen(
         }
     }
 
-    // ── Audio device state ────────────────────────────────────────────────────
+    // ── Audio device state (shared via AudioDeviceUtils) ────────────────────
     val audioManager = remember { context.getSystemService(Context.AUDIO_SERVICE) as AudioManager }
-    var audioDeviceRefreshKey by remember { mutableStateOf(0) }
-
-    DisposableEffect(Unit) {
-        val listener =
-            object : android.media.AudioDeviceCallback() {
-                override fun onAudioDevicesAdded(
-                    @Suppress("kotlin:S1172") addedDevices: Array<out AudioDeviceInfo>,
-                ) {
-                    audioDeviceRefreshKey++
-                }
-
-                override fun onAudioDevicesRemoved(
-                    @Suppress("kotlin:S1172") removedDevices: Array<out AudioDeviceInfo>,
-                ) {
-                    audioDeviceRefreshKey++
-                }
-            }
-        audioManager.registerAudioDeviceCallback(listener, null)
-        onDispose { audioManager.unregisterAudioDeviceCallback(listener) }
-    }
-
-    val audioOutputDevices =
-        remember(audioDeviceRefreshKey) {
-            audioManager.getDevices(AudioManager.GET_DEVICES_OUTPUTS)
-                .filter {
-                    it.type in
-                        listOf(
-                            AudioDeviceInfo.TYPE_BUILTIN_SPEAKER,
-                            AudioDeviceInfo.TYPE_BLUETOOTH_SCO, AudioDeviceInfo.TYPE_BLUETOOTH_A2DP,
-                            AudioDeviceInfo.TYPE_BLE_HEADSET, AudioDeviceInfo.TYPE_BLE_SPEAKER,
-                            AudioDeviceInfo.TYPE_HEARING_AID,
-                            AudioDeviceInfo.TYPE_WIRED_HEADSET, AudioDeviceInfo.TYPE_WIRED_HEADPHONES,
-                            AudioDeviceInfo.TYPE_USB_HEADSET, AudioDeviceInfo.TYPE_USB_DEVICE,
-                        )
-                }
-                .deduplicateBluetooth()
-        }
-
-    val audioInputDevices =
-        remember(audioDeviceRefreshKey) {
-            audioManager.getDevices(AudioManager.GET_DEVICES_INPUTS)
-                .filter {
-                    it.type in
-                        listOf(
-                            AudioDeviceInfo.TYPE_BUILTIN_MIC,
-                            AudioDeviceInfo.TYPE_BLUETOOTH_SCO, AudioDeviceInfo.TYPE_BLE_HEADSET,
-                            AudioDeviceInfo.TYPE_WIRED_HEADSET, AudioDeviceInfo.TYPE_USB_HEADSET,
-                        )
-                }
-                .deduplicateBluetooth()
-        }
+    val deviceState = rememberAudioDeviceState(audioManager)
+    val audioOutputDevices = deviceState.outputDevices
+    val audioInputDevices = deviceState.inputDevices
+    val audioDeviceRefreshKey = deviceState.refreshKey
 
     var selectedOutputRoute by remember { mutableStateOf<String?>(null) }
     var selectedInputRoute by remember { mutableStateOf<String?>(null) }
@@ -1397,93 +1349,5 @@ private fun PreJoinSectionLabel(
     )
 }
 
-private val BUILTIN_TYPES =
-    listOf(
-        AudioDeviceInfo.TYPE_BUILTIN_SPEAKER,
-        AudioDeviceInfo.TYPE_BUILTIN_EARPIECE,
-        AudioDeviceInfo.TYPE_BUILTIN_MIC,
-    )
-
-private val BLUETOOTH_TYPES =
-    listOf(
-        AudioDeviceInfo.TYPE_BLUETOOTH_SCO,
-        AudioDeviceInfo.TYPE_BLUETOOTH_A2DP,
-        AudioDeviceInfo.TYPE_BLE_HEADSET,
-        AudioDeviceInfo.TYPE_BLE_SPEAKER,
-    )
-
-/**
- * Deduplicate Bluetooth devices: SCO + A2DP + BLE for the same physical device
- * appear as separate AudioDeviceInfo entries. Keep one per physical device
- * (prefer SCO for bidirectional audio), plus all non-Bluetooth devices as-is.
- */
-private fun List<AudioDeviceInfo>.deduplicateBluetooth(): List<AudioDeviceInfo> {
-    val (bt, nonBt) = partition { it.type in BLUETOOTH_TYPES }
-    // Group Bluetooth devices by address (same physical device),
-    // preferring SCO (bidirectional) over A2DP (output-only)
-    val uniqueBt =
-        bt.groupBy { it.address.ifBlank { "bt-${it.id}" } }
-            .values
-            .map { group ->
-                group.firstOrNull { it.type == AudioDeviceInfo.TYPE_BLUETOOTH_SCO }
-                    ?: group.first()
-            }
-    return nonBt.distinctBy { it.type } + uniqueBt
-}
-
-/**
- * Resolve the Bluetooth device name from BluetoothAdapter.bondedDevices.
- * AudioDeviceInfo.productName is often empty or generic for BT devices.
- */
-@SuppressLint("MissingPermission")
-private fun resolveBluetoothName(
-    context: Context,
-    device: AudioDeviceInfo,
-): String? {
-    if (device.type !in BLUETOOTH_TYPES) return null
-    val btManager =
-        context.getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager
-            ?: return null
-    val adapter = btManager.adapter ?: return null
-    // Match by address if available
-    val address = device.address
-    if (address.isNotBlank()) {
-        val bonded = adapter.bondedDevices?.firstOrNull { it.address == address }
-        if (bonded != null) return bonded.name
-    }
-    // Fallback: if only one Bluetooth device is bonded and connected, use its name
-    val bondedBt = adapter.bondedDevices?.toList() ?: return null
-    if (bondedBt.size == 1) return bondedBt.first().name
-    return null
-}
-
-private fun audioDeviceLabel(
-    context: Context,
-    device: AudioDeviceInfo,
-    lang: String,
-): String {
-    // Try Bluetooth adapter name first (most reliable for BT devices)
-    resolveBluetoothName(context, device)?.let { return it }
-    // Then try AudioDeviceInfo.productName for non-builtin devices
-    if (device.type !in BUILTIN_TYPES) {
-        val name = device.productName?.toString()?.ifBlank { null }
-        if (name != null) return name
-    }
-    return audioDeviceTypeLabel(device.type, lang)
-}
-
-private fun audioDeviceTypeLabel(
-    type: Int,
-    lang: String,
-): String =
-    when (type) {
-        AudioDeviceInfo.TYPE_BUILTIN_SPEAKER -> Strings.t("audio.speaker", lang)
-        AudioDeviceInfo.TYPE_BUILTIN_EARPIECE -> Strings.t("audio.earpiece", lang)
-        AudioDeviceInfo.TYPE_BUILTIN_MIC -> Strings.t(KEY_DEVICE_MICROPHONE, lang)
-        AudioDeviceInfo.TYPE_BLUETOOTH_SCO, AudioDeviceInfo.TYPE_BLUETOOTH_A2DP -> Strings.t("audio.bluetooth", lang)
-        AudioDeviceInfo.TYPE_BLE_HEADSET, AudioDeviceInfo.TYPE_BLE_SPEAKER -> Strings.t("audio.bluetooth", lang)
-        AudioDeviceInfo.TYPE_HEARING_AID -> Strings.t("audio.hearingAid", lang)
-        AudioDeviceInfo.TYPE_WIRED_HEADSET, AudioDeviceInfo.TYPE_WIRED_HEADPHONES -> Strings.t("audio.wiredHeadset", lang)
-        AudioDeviceInfo.TYPE_USB_HEADSET, AudioDeviceInfo.TYPE_USB_DEVICE -> Strings.t("audio.usbHeadset", lang)
-        else -> "Audio"
-    }
+// Type constants, filtering, deduplication, labeling, and Bluetooth name
+// resolution have been moved to AudioDeviceUtils.kt

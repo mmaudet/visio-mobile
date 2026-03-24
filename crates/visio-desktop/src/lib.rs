@@ -130,7 +130,7 @@ fn handle_connection_state_changed(
             if let Some((url, _)) = room.lock().await.last_connection_info().await {
                 let display_name = visio_core::extract_room_display_name(&url);
                 let clean_url = visio_core::strip_room_display_name_param(&url);
-                settings.add_room_to_history(clean_url, display_name);
+                settings.add_visio_to_history(clean_url, display_name);
             }
         });
     }
@@ -929,18 +929,18 @@ fn set_meet_instances(state: tauri::State<'_, VisioState>, instances: Vec<String
 }
 
 #[derive(serde::Serialize)]
-struct RoomHistoryEntryJs {
+struct VisioHistoryEntryJs {
     url: String,
     display_name: Option<String>,
 }
 
 #[tauri::command]
-fn get_room_history(state: tauri::State<'_, VisioState>) -> Result<Vec<RoomHistoryEntryJs>, String> {
+fn get_visio_history(state: tauri::State<'_, VisioState>) -> Result<Vec<VisioHistoryEntryJs>, String> {
     Ok(state
         .settings
-        .get_room_history()
+        .get_visio_history()
         .into_iter()
-        .map(|e| RoomHistoryEntryJs {
+        .map(|e| VisioHistoryEntryJs {
             url: e.url,
             display_name: e.display_name,
         })
@@ -953,8 +953,8 @@ fn validate_room_display_name_cmd(name: String) -> Option<String> {
 }
 
 #[tauri::command]
-fn clear_room_history(state: tauri::State<'_, VisioState>) {
-    state.settings.clear_room_history();
+fn clear_visio_history(state: tauri::State<'_, VisioState>) {
+    state.settings.clear_visio_history();
 }
 
 // ---------------------------------------------------------------------------
@@ -2154,8 +2154,8 @@ pub fn run() {
             play_speaker_test,
             set_adaptive_mode_enabled,
             check_media_permissions,
-            get_room_history,
-            clear_room_history,
+            get_visio_history,
+            clear_visio_history,
             validate_room_display_name_cmd,
             get_calendar_url,
             set_calendar_url,

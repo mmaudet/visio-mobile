@@ -96,7 +96,7 @@ fun HomeScreen(
     var resolvedRoomUrl by remember { mutableStateOf("") }
     var username by remember { mutableStateOf("") }
     var roomDisplayName by remember { mutableStateOf("") }
-    var roomHistory by remember { mutableStateOf(listOf<uniffi.visio.RoomHistoryEntry>()) }
+    var roomHistory by remember { mutableStateOf(listOf<uniffi.visio.VisioHistoryEntry>()) }
     val lang = VisioManager.currentLang
     val isDark = VisioManager.currentTheme == "dark"
     var roomStatus by remember { mutableStateOf("idle") }
@@ -248,7 +248,7 @@ private fun HomeScreenEffects(
     username: String,
     slugRegex: Regex,
     meetInstances: List<String>,
-    onRoomHistoryLoaded: (List<uniffi.visio.RoomHistoryEntry>) -> Unit,
+    onRoomHistoryLoaded: (List<uniffi.visio.VisioHistoryEntry>) -> Unit,
     onHasCalendarUrlChange: (Boolean) -> Unit,
     onRoomUrlChange: (String) -> Unit,
     onMeetInstancesLoaded: (List<String>) -> Unit,
@@ -259,7 +259,7 @@ private fun HomeScreenEffects(
 ) {
     LaunchedEffect(Unit) {
         try {
-            onRoomHistoryLoaded(VisioManager.client.getRoomHistory())
+            onRoomHistoryLoaded(VisioManager.client.getVisioHistory())
             val hasCal = VisioManager.client.getCalendarUrl() != null
             onHasCalendarUrlChange(hasCal)
             if (hasCal) VisioManager.refreshCalendarNow()
@@ -525,7 +525,7 @@ private fun ColumnScope.HomeTabContent(
     resolvedRoomUrl: String,
     isDark: Boolean,
     lang: String,
-    roomHistory: List<uniffi.visio.RoomHistoryEntry>,
+    roomHistory: List<uniffi.visio.VisioHistoryEntry>,
     historyJoining: String?,
     upcomingMeetings: List<uniffi.visio.Meeting>,
     hasCalendarUrl: Boolean,
@@ -719,11 +719,11 @@ private fun JoinTab(
     isDark: Boolean,
     lang: String,
     isAuthenticated: Boolean,
-    roomHistory: List<uniffi.visio.RoomHistoryEntry>,
+    roomHistory: List<uniffi.visio.VisioHistoryEntry>,
     historyJoining: String?,
     onJoin: (roomUrl: String, username: String, roomDisplayName: String?) -> Unit,
     onShowCreateRoom: () -> Unit,
-    onHistoryClick: (uniffi.visio.RoomHistoryEntry) -> Unit,
+    onHistoryClick: (uniffi.visio.VisioHistoryEntry) -> Unit,
 ) {
     Column(
         modifier =
@@ -896,11 +896,11 @@ private fun RoomStatusIndicator(
 
 @Composable
 private fun RoomHistoryList(
-    roomHistory: List<uniffi.visio.RoomHistoryEntry>,
+    roomHistory: List<uniffi.visio.VisioHistoryEntry>,
     historyJoining: String?,
     isDark: Boolean,
     lang: String,
-    onHistoryClick: (uniffi.visio.RoomHistoryEntry) -> Unit,
+    onHistoryClick: (uniffi.visio.VisioHistoryEntry) -> Unit,
 ) {
     Spacer(modifier = Modifier.height(24.dp))
     Text(
@@ -925,12 +925,12 @@ private fun RoomHistoryList(
 
 @Composable
 private fun RoomHistoryItem(
-    entry: uniffi.visio.RoomHistoryEntry,
+    entry: uniffi.visio.VisioHistoryEntry,
     index: Int,
     isJoining: Boolean,
     isEnabled: Boolean,
     isDark: Boolean,
-    onHistoryClick: (uniffi.visio.RoomHistoryEntry) -> Unit,
+    onHistoryClick: (uniffi.visio.VisioHistoryEntry) -> Unit,
 ) {
     val url = entry.url
     val slug = if ('/' in url) url.substringAfterLast('/') else url

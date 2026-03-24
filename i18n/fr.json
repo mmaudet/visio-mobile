@@ -144,7 +144,7 @@
   "home.createRoom.error": "Échec de la création de la visio",
   "settings.incall.roomInfo": "Infos visio",
   "settings.incall.roomLink": "Lien de la visio",
-  "settings.incall.deepLink": "Lien application",
+  "settings.incall.deepLink": "Lien Visio application",
   "settings.incall.share": "Partager le lien",
   "settings.incall.copied": "Copié !",
   "lobby.waiting": "En attente d'approbation de l'hôte...",

@@ -47,6 +47,11 @@ import {
   RiVolumeMuteLine,
   RiAddLine,
 } from '@remixicon/react'
+import {
+  useDeviceEnumeration,
+  type NativeAudioDevice,
+  type NativeVideoDevice,
+} from './useDeviceEnumeration'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -155,7 +160,7 @@ interface Meeting {
   server_name: string
 }
 
-interface RoomHistoryEntry {
+interface VisioHistoryEntry {
   url: string
   display_name: string | null
 }
@@ -204,15 +209,8 @@ const translations: Record<string, Record<string, string>> = {
 }
 const SUPPORTED_LANGS = Object.keys(translations)
 
-interface NativeAudioDevice {
-  name: string
-  is_default: boolean
-}
-interface NativeVideoDevice {
-  name: string
-  unique_id: string
-  is_default: boolean
-}
+// NativeAudioDevice and NativeVideoDevice are imported from
+// useDeviceEnumeration.ts
 
 const SLUG_REGEX = /^[a-z]{3}-[a-z]{4}-[a-z]{3}$/
 
@@ -912,7 +910,7 @@ function HomeView({
   const [meetUrl, setMeetUrl] = useState('')
   const [roomDisplayName, setRoomDisplayName] = useState('')
   const [resolvedUrl, setResolvedUrl] = useState('')
-  const [roomHistory, setRoomHistory] = useState<RoomHistoryEntry[]>([])
+  const [visioHistory, setRoomHistory] = useState<VisioHistoryEntry[]>([])
   const [meetingCount, setMeetingCount] = useState(0)
   const [tick, setTick] = useState(0)
   const [hasImminentMeeting, setHasImminentMeeting] = useState(false)
@@ -925,7 +923,7 @@ function HomeView({
   }, [])
 
   useEffect(() => {
-    invoke<RoomHistoryEntry[]>('get_room_history')
+    invoke<VisioHistoryEntry[]>('get_visio_history')
       .then(setRoomHistory)
       .catch(() => {})
   }, [])
@@ -1425,10 +1423,10 @@ function HomeView({
               </div>
             )}
             <div className="error-msg">{error}</div>
-            {roomHistory.length > 0 && (
+            {visioHistory.length > 0 && (
               <div className="room-history">
                 <h4>{t('home.recentRooms')}</h4>
-                {roomHistory.map((entry) => {
+                {visioHistory.map((entry) => {
                   const { url, display_name } = entry
                   const slug = url.includes('/') ? url.split('/').pop() : url
                   let host: string
@@ -3737,7 +3735,7 @@ function SettingsView({
         <button
           className="settings-clear-history"
           onClick={async () => {
-            await invoke('clear_room_history')
+            await invoke('clear_visio_history')
             setSaveStatus(t('settings.historyCleared'))
             setTimeout(() => setSaveStatus(null), 2000)
           }}
@@ -3759,108 +3757,15 @@ function SettingsView({
 // Shared hook: audio device fallback on Bluetooth connect/disconnect
 // ---------------------------------------------------------------------------
 
-/**
- * Returns a fallback device name when the currently selected device disappears.
- * If the current selection is still present, returns it unchanged.
- */
-function resolveAudioFallback(
-  prev: string,
-  devices: NativeAudioDevice[],
-  selectCommand: string
-): string {
-  if (!prev || devices.some((d) => d.name === prev)) return prev
-  const def = devices.find((d) => d.is_default)
-  const fallback = def ? def.name : (devices[0]?.name ?? '')
-  invoke(selectCommand, { deviceName: fallback }).catch(() => {})
-  return fallback
-}
-
-/**
- * Handles the audio-devices-changed event by re-enumerating devices
- * and falling back to defaults when the selected device disappears.
- */
-async function handleAudioDevicesChanged(
-  setInputs: (devices: NativeAudioDevice[]) => void,
-  setOutputs: (devices: NativeAudioDevice[]) => void,
-  setSelectedInput: (updater: (prev: string) => string) => void,
-  setSelectedOutput: (updater: (prev: string) => string) => void,
-  onInputFallback?: () => void
-) {
-  const [inputs, outputs] = await Promise.all([
-    invoke<NativeAudioDevice[]>('list_audio_input_devices'),
-    invoke<NativeAudioDevice[]>('list_audio_output_devices'),
-  ])
-  setInputs(inputs)
-  setOutputs(outputs)
-
-  setSelectedInput((prev) => {
-    const result = resolveAudioFallback(prev, inputs, 'select_audio_input')
-    if (result !== prev) onInputFallback?.()
-    return result
-  })
-
-  setSelectedOutput((prev) =>
-    resolveAudioFallback(prev, outputs, 'select_audio_output')
-  )
-}
-
-/**
- * Subscribes to the `audio-devices-changed` Tauri event and:
- *  1. Re-enumerates input/output audio devices.
- *  2. Falls back to the default device if the currently selected one disappears.
- *
- * @param setInputs   - Setter for the input device list state.
- * @param setOutputs  - Setter for the output device list state.
- * @param setSelected - Setters for the currently selected device names.
- * @param onInputFallback - Optional callback invoked after an input fallback
- *                          (e.g. to restart a mic preview).
- */
-function useAudioDeviceFallback({
-  setInputs,
-  setOutputs,
-  setSelectedInput,
-  setSelectedOutput,
-  onInputFallback,
-}: {
-  setInputs: (devices: NativeAudioDevice[]) => void
-  setOutputs: (devices: NativeAudioDevice[]) => void
-  setSelectedInput: (updater: (prev: string) => string) => void
-  setSelectedOutput: (updater: (prev: string) => string) => void
-  onInputFallback?: () => void
-}) {
-  useEffect(() => {
-    let unlistenFn: (() => void) | null = null
-    listen('audio-devices-changed', () => {
-      handleAudioDevicesChanged(
-        setInputs,
-        setOutputs,
-        setSelectedInput,
-        setSelectedOutput,
-        onInputFallback
-      ).catch((e) => {
-        console.warn('Failed to re-enumerate audio devices after change:', e)
-      })
-    }).then((fn) => {
-      unlistenFn = fn
-    })
-    return () => {
-      unlistenFn?.()
-    }
-  }, [])
-}
+// resolveAudioFallback, handleAudioDevicesChanged, and
+// useAudioDeviceFallback have been moved into useDeviceEnumeration.ts
 
 // ---------------------------------------------------------------------------
 // Pre-Join Screen
 // ---------------------------------------------------------------------------
 
-// AudioDeviceInfo is an alias for NativeAudioDevice (same shape, local name).
-type AudioDeviceInfo = NativeAudioDevice
-
-interface VideoDeviceInfo {
-  name: string
-  unique_id: string
-  is_default: boolean
-}
+// NativeAudioDevice and NativeVideoDevice aliases removed — using
+// NativeAudioDevice and NativeVideoDevice from useDeviceEnumeration.ts
 
 /** Save user preferences (display name, mic/camera state, audio mode) before joining. */
 async function savePreJoinPreferences(
@@ -3932,12 +3837,26 @@ function PreJoinScreen({
   const [isMicOn, setIsMicOn] = useState(true)
   const [audioMode, setAudioMode] = useState<'computer' | 'none'>('computer')
   const [previewFrame, setPreviewFrame] = useState<string | null>(null)
-  const [videoDevices, setVideoDevices] = useState<VideoDeviceInfo[]>([])
-  const [inputDevices, setInputDevices] = useState<AudioDeviceInfo[]>([])
-  const [outputDevices, setOutputDevices] = useState<AudioDeviceInfo[]>([])
-  const [selectedCamera, setSelectedCamera] = useState('')
-  const [selectedInput, setSelectedInput] = useState('')
-  const [selectedOutput, setSelectedOutput] = useState('')
+  // Unified device enumeration (lobby context — enumerates on mount)
+  const devices = useDeviceEnumeration({
+    onInputFallback: () => {
+      invoke('stop_mic_preview')
+        .catch(() => {})
+        .then(() => invoke('start_mic_preview'))
+        .catch(() => {})
+    },
+  })
+  const {
+    audioInputs: inputDevices,
+    audioOutputs: outputDevices,
+    videoInputs: videoDevices,
+    selectedAudioInput: selectedInput,
+    selectedAudioOutput: selectedOutput,
+    selectedVideoInput: selectedCamera,
+    setSelectedAudioInput: setSelectedInput,
+    setSelectedAudioOutput: setSelectedOutput,
+    setSelectedVideoInput: setSelectedCamera,
+  } = devices
   const [micLevel, setMicLevel] = useState(0)
   const [showFilters, setShowFilters] = useState(false)
   const [backgroundMode, setBackgroundMode] = useState('off')
@@ -3972,24 +3891,8 @@ function PreJoinScreen({
       })
       .catch(() => {})
 
-    // Load device lists
-    Promise.all([
-      invoke<AudioDeviceInfo[]>('list_audio_input_devices'),
-      invoke<AudioDeviceInfo[]>('list_audio_output_devices'),
-      invoke<VideoDeviceInfo[]>('list_video_input_devices'),
-    ])
-      .then(([inputs, outputs, cameras]) => {
-        setInputDevices(inputs)
-        setOutputDevices(outputs)
-        setVideoDevices(cameras)
-        const defInput = inputs.find((d) => d.is_default)
-        const defOutput = outputs.find((d) => d.is_default)
-        const defCam = cameras.find((d) => d.is_default)
-        if (defInput) setSelectedInput(defInput.name)
-        if (defOutput) setSelectedOutput(defOutput.name)
-        if (defCam) setSelectedCamera(defCam.unique_id)
-      })
-      .catch(() => {})
+    // Load device lists via unified hook
+    devices.enumerate()
 
     // Subscribe to video frame events
     listen<{ track_sid: string; data: string; width: number; height: number }>(
@@ -4051,20 +3954,7 @@ function PreJoinScreen({
     }
   }, [isMicOn, audioMode])
 
-  // ---- Effect: audio device changes (Bluetooth connect/disconnect) ---------
-  // Restart mic preview when the input falls back to a new device.
-  useAudioDeviceFallback({
-    setInputs: setInputDevices,
-    setOutputs: setOutputDevices,
-    setSelectedInput,
-    setSelectedOutput,
-    onInputFallback: () => {
-      invoke('stop_mic_preview')
-        .catch(() => {})
-        .then(() => invoke('start_mic_preview'))
-        .catch(() => {})
-    },
-  })
+  // Audio device fallback is now handled by useDeviceEnumeration hook.
 
   // ---- Handlers -----------------------------------------------------------
   const handleSelectCamera = async (uniqueId: string) => {
@@ -4810,90 +4700,32 @@ export default function App() {
     document.documentElement.dataset.theme = theme
   }, [theme])
 
-  // Device enumeration
-  const [audioInputs, setAudioInputs] = useState<NativeAudioDevice[]>([])
-  const [audioOutputs, setAudioOutputs] = useState<NativeAudioDevice[]>([])
-  const [videoInputs, setVideoInputs] = useState<NativeVideoDevice[]>([])
-  const [selectedAudioInput, setSelectedAudioInput] = useState('')
-  const [selectedAudioOutput, setSelectedAudioOutput] = useState('')
-  const [selectedVideoInput, setSelectedVideoInput] = useState('')
+  // ---- Unified device enumeration (in-call context) -----------------------
+  // Lazy: does NOT enumerate until a picker is opened (avoids macOS mic
+  // permission issue #161). Fallback + audio-devices-changed handled by hook.
+  const inCallDevices = useDeviceEnumeration()
+  const {
+    audioInputs,
+    audioOutputs,
+    videoInputs,
+    selectedAudioInput,
+    selectedAudioOutput,
+    selectedVideoInput,
+    setSelectedAudioInput,
+    setSelectedAudioOutput,
+    setSelectedVideoInput,
+    devicesEnumerated,
+    enumerate: enumerateDevices,
+  } = inCallDevices
 
   const viewRef = useRef(view)
   viewRef.current = view
 
-  // ---- Audio device change listener (in-call) -----------------------------
-  // Handles Bluetooth headset connect/disconnect during an active call.
-  // Re-enumerates devices and falls back to default if the selected device
-  // is no longer available.
-  useAudioDeviceFallback({
-    setInputs: setAudioInputs,
-    setOutputs: setAudioOutputs,
-    setSelectedInput: setSelectedAudioInput,
-    setSelectedOutput: setSelectedAudioOutput,
-  })
-
-  // ---- Device enumeration -------------------------------------------------
-  // WORKAROUND: Defer device enumeration to avoid USB blocking at startup.
-  // Enumerate when mic picker or camera picker is opened (in-call only).
-  // NOTE: Do NOT enumerate on the general settings page — on macOS,
-  // cpal's input_devices() triggers a microphone permission request (#161).
-  const [devicesEnumerated, setDevicesEnumerated] = useState(false)
-
+  // Trigger enumeration lazily when a device picker is first opened.
   useEffect(() => {
     if ((!showMicPicker && !showCamPicker) || devicesEnumerated) return
-
-    const enumerate = async () => {
-      try {
-        console.log('Enumerating audio/video devices...')
-        const inputs: NativeAudioDevice[] = await invoke(
-          'list_audio_input_devices'
-        )
-        const outputs: NativeAudioDevice[] = await invoke(
-          'list_audio_output_devices'
-        )
-        const cameras: NativeVideoDevice[] = await invoke(
-          'list_video_input_devices'
-        )
-        setAudioInputs(inputs)
-        setAudioOutputs(outputs)
-        setVideoInputs(cameras)
-        setDevicesEnumerated(true)
-
-        // Auto-select defaults on first load
-        setSelectedAudioInput((prev) => {
-          if (prev) return prev
-          const def = inputs.find((d) => d.is_default)
-          return def ? def.name : ''
-        })
-        setSelectedAudioOutput((prev) => {
-          if (prev) return prev
-          const def = outputs.find((d) => d.is_default)
-          return def ? def.name : ''
-        })
-        setSelectedVideoInput((prev) => {
-          if (prev) return prev
-          const def = cameras.find((d) => d.is_default)
-          return def ? def.unique_id : ''
-        })
-      } catch (e) {
-        console.warn('Device enumeration failed:', e)
-      }
-    }
-    enumerate()
-
-    // Listen for audio device errors (e.g. USB unplug) to re-enumerate
-    let unlistenFn: (() => void) | null = null
-    listen('audio-device-error', (event) => {
-      console.warn('Audio device error:', event.payload)
-      enumerate()
-    }).then((fn_) => {
-      unlistenFn = fn_
-    })
-
-    return () => {
-      unlistenFn?.()
-    }
-  }, [showMicPicker, showCamPicker, devicesEnumerated])
+    enumerateDevices()
+  }, [showMicPicker, showCamPicker, devicesEnumerated, enumerateDevices])
 
   // ---- Click outside to close device pickers ------------------------------
   useEffect(() => {
