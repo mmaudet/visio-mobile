@@ -958,6 +958,21 @@ fn validate_room_display_name_cmd(name: String) -> Option<String> {
 }
 
 #[tauri::command]
+fn add_visio_to_history(
+    state: tauri::State<'_, VisioState>,
+    url: String,
+    display_name: Option<String>,
+) {
+    let clean_url = visio_core::strip_room_display_name_param(&url);
+    let extracted_name = visio_core::extract_room_display_name(&url);
+    let name = display_name.or(extracted_name);
+    state.settings.add_visio_to_history(clean_url.clone(), name.clone());
+    if let Some(n) = name {
+        state.settings.add_visio_alias(n, clean_url);
+    }
+}
+
+#[tauri::command]
 fn clear_visio_history(state: tauri::State<'_, VisioState>) {
     state.settings.clear_visio_history();
 }
@@ -2183,6 +2198,7 @@ pub fn run() {
             set_adaptive_mode_enabled,
             check_media_permissions,
             get_visio_history,
+            add_visio_to_history,
             clear_visio_history,
             add_visio_alias,
             resolve_visio_alias,
