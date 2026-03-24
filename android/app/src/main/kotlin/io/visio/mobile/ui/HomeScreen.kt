@@ -445,12 +445,6 @@ private fun HomeHeader(
                 )
             }
         }
-        Spacer(modifier = Modifier.height(8.dp))
-        Text(
-            text = Strings.t("home.subtitle", lang),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f),
-        )
         Spacer(modifier = Modifier.height(16.dp))
 
         HomeAuthSection(

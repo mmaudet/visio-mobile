@@ -1170,7 +1170,6 @@ function HomeView({
           <div className="join-form">
             <img src="/logo.png?v=2" alt="Visio Mobile" className="home-logo" />
             <h2>{t('app.title')}</h2>
-            <p>{t('home.subtitle')}</p>
             {isAuthenticated ? (
               <div className="auth-card">
                 <div className="auth-avatar">
