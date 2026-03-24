@@ -1402,21 +1402,23 @@ function HomeView({
                 onKeyDown={handleKeyDown}
               />
             </div>
-            <div className="form-group">
-              <label htmlFor="roomDisplayName">
-                {t('home.roomDisplayName')}
-              </label>
-              <input
-                id="roomDisplayName"
-                type="text"
-                placeholder={t('home.roomDisplayNamePlaceholder')}
-                autoComplete="off"
-                data-testid="home-room-input"
-                value={roomDisplayName}
-                onChange={(e) => setRoomDisplayName(e.target.value)}
-                onKeyDown={handleKeyDown}
-              />
-            </div>
+            {!isAuthenticated && (
+              <div className="form-group">
+                <label htmlFor="roomDisplayName">
+                  {t('home.roomDisplayName')}
+                </label>
+                <input
+                  id="roomDisplayName"
+                  type="text"
+                  placeholder={t('home.roomDisplayNamePlaceholder')}
+                  autoComplete="off"
+                  data-testid="home-room-input"
+                  value={roomDisplayName}
+                  onChange={(e) => setRoomDisplayName(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                />
+              </div>
+            )}
             {roomStatus === 'auth_required' ? (
               <button className="btn btn-primary" onClick={handleAuth}>
                 {t('home.signIn')}

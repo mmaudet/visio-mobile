@@ -12,6 +12,8 @@ and this project adheres to
 
 - Desktop: prevent meet instances list from being overwritten when
   adding a new instance (#169)
+- Desktop: hide optional room name field on home page when
+  authenticated via OIDC (#171)
 
 ### Added
 
