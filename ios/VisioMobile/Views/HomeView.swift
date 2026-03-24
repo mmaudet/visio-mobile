@@ -812,13 +812,15 @@ private struct CreateRoomSheet: View {
                                     DispatchQueue.main.async {
                                         createdRoomId = result.id
                                         let trimmedName = roomDisplayName.trimmingCharacters(in: .whitespacesAndNewlines)
+                                        let baseUrl = "https://\(meetInstance)/\(result.slug)"
                                         if !trimmedName.isEmpty {
                                             var allowed = CharacterSet.urlQueryAllowed
                                             allowed.remove(charactersIn: " +&=")
                                             let encoded = trimmedName.addingPercentEncoding(withAllowedCharacters: allowed) ?? trimmedName
-                                            createdUrl = "https://\(meetInstance)/\(result.slug)?visio=\(encoded)"
+                                            createdUrl = "\(baseUrl)?visio=\(encoded)"
+                                            manager.client.addVisioAlias(name: trimmedName, url: baseUrl)
                                         } else {
-                                            createdUrl = "https://\(meetInstance)/\(result.slug)"
+                                            createdUrl = baseUrl
                                         }
                                         creating = false
                                     }
@@ -897,6 +899,36 @@ private struct CreateRoomSheet: View {
                         }
                     } header: {
                         Text(Strings.t("settings.incall.roomInfo", lang: lang))
+                    }
+
+                    if !roomDisplayName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        let host = (createdUrl ?? "").replacingOccurrences(of: "https://", with: "").components(separatedBy: "/").first ?? ""
+                        let simplifiedUrl = "visio://\(host)/\(roomDisplayName.trimmingCharacters(in: .whitespacesAndNewlines))"
+                        Section {
+                            VStack(alignment: .leading, spacing: 4) {
+                                HStack {
+                                    Image(systemName: "link")
+                                        .font(.caption)
+                                    Text(Strings.t("home.createVisio.simplifiedUrl", lang: lang))
+                                        .font(.subheadline)
+                                        .fontWeight(.semibold)
+                                    Spacer()
+                                    Button {
+                                        UIPasteboard.general.string = simplifiedUrl
+                                    } label: {
+                                        Image(systemName: "doc.on.doc")
+                                            .font(.caption)
+                                    }
+                                }
+                                TextField("", text: .constant(simplifiedUrl))
+                                    .font(.caption)
+                                    .textFieldStyle(.roundedBorder)
+                                    .disabled(true)
+                                Text(Strings.t("home.createVisio.simplifiedUrlHint", lang: lang))
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
                     }
 
                     Section {

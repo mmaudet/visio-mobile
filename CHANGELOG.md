@@ -10,12 +10,20 @@ and this project adheres to
 
 ### Added
 
+- Friendly URLs: alias names (e.g. "COMEX") can be used as shortcuts
+  to visio rooms on all platforms (#156)
+- Simplified URL shown after room creation when a display name is
+  provided (e.g. `visio://server/COMEX`) (#156)
+- Alias resolution in deep links and URL validation on Android, iOS,
+  and Desktop (#156)
 - Button to clear recent visios history in settings (#152)
 
 ### Changed
 
 - Extract `useDeviceEnumeration` hook to unify device
   enumeration across lobby and in-call picker (#163)
+- Rename `RoomHistoryEntry` to `VisioHistoryEntry` across core, FFI,
+  and all platforms for consistency (#156)
 
 ### Fixed
 

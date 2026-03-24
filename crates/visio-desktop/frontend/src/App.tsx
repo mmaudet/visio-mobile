@@ -1644,11 +1644,15 @@ function CreateRoomDialog({
         accessLevel,
       })
       const trimmedName = roomDisplayName.trim()
+      const baseUrl = `${meetUrl}/${result.slug}`
       setCreatedUrl(
         trimmedName
-          ? `${meetUrl}/${result.slug}?visio=${encodeURIComponent(trimmedName)}`
-          : `${meetUrl}/${result.slug}`
+          ? `${baseUrl}?visio=${encodeURIComponent(trimmedName)}`
+          : baseUrl
       )
+      if (trimmedName) {
+        invoke('add_visio_alias', { name: trimmedName, url: baseUrl }).catch(() => {})
+      }
       setCreatedRoomId(result.id)
       setCreatedLivekitUrl(result.livekit_url ?? '')
       setCreatedLivekitToken(result.livekit_token ?? '')
@@ -1891,6 +1895,34 @@ function CreateRoomDialog({
                 value={deepLink}
                 onClick={(e) => (e.target as HTMLInputElement).select()}
               />
+              {roomDisplayName.trim() && (() => {
+                const host = createdUrl.replace(/^https?:\/\//, '').split('/')[0]
+                const simplifiedUrl = `visio://${host}/${roomDisplayName.trim()}`
+                return (
+                  <>
+                    <div className="info-link-header" style={{ marginTop: '8px' }}>
+                      <RiGlobalLine size={16} />
+                      <span>{t('home.createVisio.simplifiedUrl')}</span>
+                      <button
+                        className="info-copy-icon"
+                        onClick={() => handleCopy(simplifiedUrl, setCopiedDeep)}
+                        title={t('settings.incall.copied')}
+                      >
+                        <RiFileCopyLine size={16} />
+                      </button>
+                    </div>
+                    <input
+                      className="info-link-input"
+                      readOnly
+                      value={simplifiedUrl}
+                      onClick={(e) => (e.target as HTMLInputElement).select()}
+                    />
+                    <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                      {t('home.createVisio.simplifiedUrlHint')}
+                    </span>
+                  </>
+                )
+              })()}
             </div>
           )}
         </div>

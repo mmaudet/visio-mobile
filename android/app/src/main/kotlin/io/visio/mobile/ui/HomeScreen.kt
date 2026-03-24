@@ -1372,6 +1372,42 @@ private fun CreateRoomDialog(
                         textStyle = MaterialTheme.typography.bodySmall,
                         modifier = Modifier.fillMaxWidth(),
                     )
+
+                    if (roomDisplayName.trim().isNotBlank()) {
+                        Spacer(Modifier.height(8.dp))
+                        val host = createdUrl!!.removePrefix("https://").substringBefore("/")
+                        val simplifiedUrl = "visio://$host/${roomDisplayName.trim()}"
+
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.Link, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.width(6.dp))
+                            Text(
+                                Strings.t("home.createVisio.simplifiedUrl", lang),
+                                style = MaterialTheme.typography.labelSmall,
+                                modifier = Modifier.weight(1f),
+                            )
+                            IconButton(onClick = { clipboardManager.setText(AnnotatedString(simplifiedUrl)) }, modifier = Modifier.size(32.dp)) {
+                                Icon(
+                                    Icons.Default.ContentCopy,
+                                    contentDescription = Strings.t("settings.incall.copied", lang),
+                                    modifier = Modifier.size(16.dp),
+                                )
+                            }
+                        }
+                        OutlinedTextField(
+                            value = simplifiedUrl,
+                            onValueChange = {},
+                            readOnly = true,
+                            singleLine = true,
+                            textStyle = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                        Text(
+                            Strings.t("home.createVisio.simplifiedUrlHint", lang),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                 }
             }
         },
@@ -1401,13 +1437,15 @@ private fun CreateRoomDialog(
                                 withContext(Dispatchers.Main) {
                                     createdRoomId = result.id
                                     val baseUrl = "https://$meetInstance/${result.slug}"
+                                    val trimmedName = roomDisplayName.trim()
                                     createdUrl =
-                                        if (roomDisplayName.trim().isNotBlank()) {
+                                        if (trimmedName.isNotBlank()) {
                                             val encoded =
                                                 java.net.URLEncoder.encode(
-                                                    roomDisplayName.trim(),
+                                                    trimmedName,
                                                     "UTF-8",
                                                 )
+                                            VisioManager.client.addVisioAlias(trimmedName, baseUrl)
                                             "$baseUrl?visio=$encoded"
                                         } else {
                                             baseUrl
