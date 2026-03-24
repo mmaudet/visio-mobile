@@ -293,6 +293,21 @@ impl From<visio_core::settings::VisioHistoryEntry> for VisioHistoryEntry {
 }
 
 #[derive(Debug, Clone)]
+pub struct VisioAlias {
+    pub name: String,
+    pub url: String,
+}
+
+impl From<visio_core::settings::VisioAlias> for VisioAlias {
+    fn from(a: visio_core::settings::VisioAlias) -> Self {
+        Self {
+            name: a.name,
+            url: a.url,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
 pub struct Meeting {
     pub id: String,
     pub summary: String,
@@ -977,7 +992,11 @@ impl VisioClient {
                 }
 
                 self.settings
-                    .add_visio_to_history(clean_url.clone(), display_name);
+                    .add_visio_to_history(clean_url.clone(), display_name.clone());
+
+                if let Some(name) = display_name {
+                    self.settings.add_visio_alias(name, clean_url);
+                }
 
                 Ok(())
             }
@@ -1269,6 +1288,26 @@ impl VisioClient {
 
     pub fn clear_visio_history(&self) {
         self.settings.clear_visio_history();
+    }
+
+    pub fn add_visio_alias(&self, name: String, url: String) {
+        self.settings.add_visio_alias(name, url);
+    }
+
+    pub fn resolve_visio_alias(&self, name: String) -> Option<String> {
+        self.settings.resolve_visio_alias(&name)
+    }
+
+    pub fn check_visio_alias_conflict(&self, name: String, url: String) -> Option<String> {
+        self.settings.check_visio_alias_conflict(&name, &url)
+    }
+
+    pub fn get_visio_aliases(&self) -> Vec<VisioAlias> {
+        self.settings
+            .get_visio_aliases()
+            .into_iter()
+            .map(Into::into)
+            .collect()
     }
 
     pub fn extract_room_display_name(&self, url: String) -> Option<String> {

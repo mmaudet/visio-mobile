@@ -130,7 +130,10 @@ fn handle_connection_state_changed(
             if let Some((url, _)) = room.lock().await.last_connection_info().await {
                 let display_name = visio_core::extract_room_display_name(&url);
                 let clean_url = visio_core::strip_room_display_name_param(&url);
-                settings.add_visio_to_history(clean_url, display_name);
+                settings.add_visio_to_history(clean_url.clone(), display_name.clone());
+                if let Some(name) = display_name {
+                    settings.add_visio_alias(name, clean_url);
+                }
             }
         });
     }
@@ -955,6 +958,29 @@ fn validate_room_display_name_cmd(name: String) -> Option<String> {
 #[tauri::command]
 fn clear_visio_history(state: tauri::State<'_, VisioState>) {
     state.settings.clear_visio_history();
+}
+
+// ---------------------------------------------------------------------------
+// Alias commands
+// ---------------------------------------------------------------------------
+
+#[tauri::command]
+fn add_visio_alias(state: tauri::State<'_, VisioState>, name: String, url: String) {
+    state.settings.add_visio_alias(name, url);
+}
+
+#[tauri::command]
+fn resolve_visio_alias(state: tauri::State<'_, VisioState>, name: String) -> Option<String> {
+    state.settings.resolve_visio_alias(&name)
+}
+
+#[tauri::command]
+fn check_visio_alias_conflict(
+    state: tauri::State<'_, VisioState>,
+    name: String,
+    url: String,
+) -> Option<String> {
+    state.settings.check_visio_alias_conflict(&name, &url)
 }
 
 // ---------------------------------------------------------------------------
@@ -2156,6 +2182,9 @@ pub fn run() {
             check_media_permissions,
             get_visio_history,
             clear_visio_history,
+            add_visio_alias,
+            resolve_visio_alias,
+            check_visio_alias_conflict,
             validate_room_display_name_cmd,
             get_calendar_url,
             set_calendar_url,

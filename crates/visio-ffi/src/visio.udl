@@ -212,6 +212,11 @@ dictionary VisioHistoryEntry {
     string? display_name;
 };
 
+dictionary VisioAlias {
+    string name;
+    string url;
+};
+
 interface VisioClient {
     constructor(string data_dir);
 
@@ -365,6 +370,14 @@ interface VisioClient {
     sequence<VisioHistoryEntry> get_visio_history();
 
     void clear_visio_history();
+
+    void add_visio_alias(string name, string url);
+
+    string? resolve_visio_alias(string name);
+
+    string? check_visio_alias_conflict(string name, string url);
+
+    sequence<VisioAlias> get_visio_aliases();
 
     string? extract_room_display_name(string url);
 
