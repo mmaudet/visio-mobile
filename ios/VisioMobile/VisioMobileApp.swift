@@ -35,15 +35,18 @@ struct VisioMobileApp: App {
 
                 guard url.scheme == "visio",
                       let host = url.host,
-                      let slug = url.pathComponents.dropFirst().first
+                      let pathSegment = url.pathComponents.dropFirst().first
                 else { return }
 
                 let instances = manager.client.getMeetInstances()
-                if instances.contains(host) {
-                    // Preserve room query param if present
-                    let components = URLComponents(url: url, resolvingAgainstBaseURL: false)
-                    let rdName = components?.queryItems?.first(where: { $0.name == "visio" })?.value
-                    var pendingURL = "https://\(host)/\(slug)"
+                guard instances.contains(host) else { return }
+
+                let slugPattern = /^[a-z]{3}-[a-z]{4}-[a-z]{3}$/
+                let components = URLComponents(url: url, resolvingAgainstBaseURL: false)
+                let rdName = components?.queryItems?.first(where: { $0.name == "visio" })?.value
+
+                if pathSegment.wholeMatch(of: slugPattern) != nil {
+                    var pendingURL = "https://\(host)/\(pathSegment)"
                     if let name = rdName, !name.isEmpty {
                         var allowed = CharacterSet.urlQueryAllowed
                         allowed.remove(charactersIn: " +&=")
@@ -51,6 +54,18 @@ struct VisioMobileApp: App {
                         pendingURL += "?visio=\(encoded)"
                     }
                     manager.pendingDeepLink = pendingURL
+                } else if let resolved = manager.client.resolveVisioAlias(name: pathSegment) {
+                    if let name = rdName, !name.isEmpty {
+                        var allowed = CharacterSet.urlQueryAllowed
+                        allowed.remove(charactersIn: " +&=")
+                        let encoded = name.addingPercentEncoding(withAllowedCharacters: allowed) ?? name
+                        manager.pendingDeepLink = "\(resolved)?visio=\(encoded)"
+                    } else {
+                        manager.pendingDeepLink = resolved
+                    }
+                } else {
+                    manager.pendingDeepLinkError = Strings.t("error.unknownAlias", lang: manager.currentLang)
+                        .replacingOccurrences(of: "{name}", with: pathSegment)
                 }
             }
             .onChange(of: scenePhase) { phase in

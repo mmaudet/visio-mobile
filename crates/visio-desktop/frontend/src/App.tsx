@@ -1039,9 +1039,48 @@ function HomeView({
 
     const slug = extractSlug(urlsToTry[0])
     if (!slug) {
-      setRoomStatus('idle')
-      setResolvedUrl(trimmed)
-      return
+      // Try alias resolution before giving up
+      const candidate = trimmed.includes('/')
+        ? trimmed.replace(/\/$/, '').split('/').pop() || trimmed
+        : trimmed
+      const controller2 = new AbortController()
+      const timer2 = setTimeout(async () => {
+        try {
+          const resolved = await invoke<string | null>('resolve_visio_alias', { name: candidate })
+          if (controller2.signal.aborted) return
+          if (resolved) {
+            setRoomStatus('checking')
+            const result = await invoke<{
+              status: string
+              livekit_url?: string
+              token?: string
+            }>('validate_room', { url: resolved, username: displayName.trim() || null })
+            if (controller2.signal.aborted) return
+            if (result.status === 'valid') {
+              setRoomStatus('valid')
+              setResolvedUrl(resolved)
+            } else if (result.status === 'auth_required') {
+              setRoomStatus('auth_required')
+              setResolvedUrl(resolved)
+            } else {
+              setRoomStatus('not_found')
+              setResolvedUrl(resolved)
+            }
+          } else {
+            setRoomStatus('idle')
+            setResolvedUrl(trimmed)
+          }
+        } catch {
+          if (!controller2.signal.aborted) {
+            setRoomStatus('idle')
+            setResolvedUrl(trimmed)
+          }
+        }
+      }, 500)
+      return () => {
+        clearTimeout(timer2)
+        controller2.abort()
+      }
     }
     setRoomStatus('checking')
     const controller = new AbortController()
@@ -4572,22 +4611,49 @@ export default function App() {
         }
 
         // Handle room deep links: visio://{host}/{slug}[?visio=...]
-        const slug = parsed.pathname.replace(/^\//, '')
-        if (!host || !slug) return
+        const pathSegment = parsed.pathname.replace(/^\//, '')
+        if (!host || !pathSegment) return
 
         const deepLinkDisplayName = parsed.searchParams.get('visio')
-        invoke<string[]>('get_meet_instances').then((instances) => {
-          if (instances.includes(host)) {
+        invoke<string[]>('get_meet_instances').then(async (instances) => {
+          if (!instances.includes(host)) {
+            setDeepLinkError(
+              t('deepLink.unknownInstance').replace('{host}', host)
+            )
+            return
+          }
+
+          // If path is a valid slug, use directly
+          if (SLUG_REGEX.test(pathSegment)) {
             setView('home')
-            let roomUrl = `https://${host}/${slug}`
+            let roomUrl = `https://${host}/${pathSegment}`
             if (deepLinkDisplayName) {
               roomUrl += `?visio=${encodeURIComponent(deepLinkDisplayName)}`
             }
             setDeepLinkUrl(roomUrl)
             setDeepLinkError(null)
-          } else {
+            return
+          }
+
+          // Otherwise try alias resolution
+          try {
+            const resolved = await invoke<string | null>('resolve_visio_alias', { name: pathSegment })
+            if (resolved) {
+              setView('home')
+              let roomUrl = resolved
+              if (deepLinkDisplayName) {
+                roomUrl += `?visio=${encodeURIComponent(deepLinkDisplayName)}`
+              }
+              setDeepLinkUrl(roomUrl)
+              setDeepLinkError(null)
+            } else {
+              setDeepLinkError(
+                t('error.unknownAlias').replace('{name}', pathSegment)
+              )
+            }
+          } catch {
             setDeepLinkError(
-              t('deepLink.unknownInstance').replace('{host}', host)
+              t('error.unknownAlias').replace('{name}', pathSegment)
             )
           }
         })

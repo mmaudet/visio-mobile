@@ -175,6 +175,9 @@ object VisioManager : VisioEventListener {
     // Room display name from deep link (e.g. ?visio=...)
     var pendingDeepLinkDisplayName: String? by mutableStateOf(null)
 
+    // Error from deep link alias resolution
+    var pendingDeepLinkError: String? by mutableStateOf(null)
+
     // Test deep link: connect directly with LiveKit URL + token (debug builds only)
     var pendingTestConnect: Triple<String, String, String?>? = null // (livekitUrl, token, mediaFile?)
 

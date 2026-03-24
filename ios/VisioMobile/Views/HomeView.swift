@@ -186,12 +186,21 @@ struct HomeView: View {
                     if isSlug, !meetInstances.isEmpty {
                         urlsToTry = meetInstances.map { "https://\($0)/\(trimmed)" }
                     } else {
-                        guard extractSlug(trimmed) != nil else {
-                            roomStatus = "idle"
-                            resolvedRoomURL = trimmed
-                            return
+                        if extractSlug(trimmed) != nil {
+                            urlsToTry = [trimmed]
+                        } else {
+                            // Try alias resolution
+                            let candidate = trimmed.contains("/")
+                                ? String(trimmed.trimmingCharacters(in: CharacterSet(charactersIn: "/")).split(separator: "/").last ?? "")
+                                : trimmed
+                            if let aliasUrl = manager.client.resolveVisioAlias(name: candidate) {
+                                urlsToTry = [aliasUrl]
+                            } else {
+                                roomStatus = "idle"
+                                resolvedRoomURL = trimmed
+                                return
+                            }
                         }
-                        urlsToTry = [trimmed]
                     }
 
                     roomStatus = "checking"
@@ -475,6 +484,17 @@ struct HomeView: View {
                 lang: lang,
                 onDismiss: { showServerPicker = false }
             )
+        }
+        .alert(
+            Strings.t("call.error", lang: lang),
+            isPresented: Binding(
+                get: { manager.pendingDeepLinkError != nil },
+                set: { if !$0 { manager.pendingDeepLinkError = nil } }
+            )
+        ) {
+            Button("OK") { manager.pendingDeepLinkError = nil }
+        } message: {
+            Text(manager.pendingDeepLinkError ?? "")
         }
     }
 

@@ -238,6 +238,20 @@ fun HomeScreen(
             onDismiss = { showCreateRoom = false },
         )
     }
+
+    val deepLinkError = VisioManager.pendingDeepLinkError
+    if (deepLinkError != null) {
+        AlertDialog(
+            onDismissRequest = { VisioManager.pendingDeepLinkError = null },
+            title = { Text(Strings.t("call.error", lang)) },
+            text = { Text(deepLinkError) },
+            confirmButton = {
+                TextButton(onClick = { VisioManager.pendingDeepLinkError = null }) {
+                    Text("OK")
+                }
+            },
+        )
+    }
 }
 
 @Suppress("kotlin:S107", "kotlin:S3776", "kotlin:S6615")
@@ -336,6 +350,21 @@ private fun HomeScreenRoomValidationEffect(
         val isSlug = slugRegex.matches(trimmed)
         val candidate = extractSlugCandidate(trimmed, isSlug)
         if (!slugRegex.matches(candidate)) {
+            // Try alias resolution before giving up
+            val aliasUrl = try {
+                VisioManager.client.resolveVisioAlias(candidate)
+            } catch (_: Exception) { null }
+            if (aliasUrl != null) {
+                onRoomStatusChange("checking")
+                delay(500)
+                validateRoomUrls(
+                    listOf(aliasUrl),
+                    username,
+                    onRoomStatusChange,
+                    onResolvedRoomUrlChange,
+                )
+                return@LaunchedEffect
+            }
             onRoomStatusChange("idle")
             onResolvedRoomUrlChange(trimmed)
             return@LaunchedEffect

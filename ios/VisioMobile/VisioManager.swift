@@ -42,6 +42,8 @@ class VisioManager: ObservableObject {
     @Published var currentTheme: String = "light"
     @Published var displayName: String = ""
     @Published var pendingDeepLink: String? = nil
+    /// Error from deep link alias resolution.
+    @Published var pendingDeepLinkError: String? = nil
     /// For E2E testing: (livekitUrl, token, mediaFile?) from visio-test:// deep link.
     /// Only used in DEBUG builds.
     @Published var pendingTestConnect: TestConnectParams? = nil
