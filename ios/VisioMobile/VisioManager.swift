@@ -1183,9 +1183,14 @@ class VisioManager: ObservableObject {
             }
 
         case .meetingsUpdated(let meetings):
+            let prevIds = Set(self.upcomingMeetings.map { $0.id })
             self.upcomingMeetings = meetings
             self.calendarLoading = false
-            self.calendarSyncResult = .success(count: meetings.count)
+            // Only show sync toast when meetings actually changed
+            let newIds = Set(meetings.map { $0.id })
+            if prevIds != newIds {
+                self.calendarSyncResult = .success(count: meetings.count)
+            }
 
         case .meetingImminent(let meeting):
             scheduleMeetingNotification(

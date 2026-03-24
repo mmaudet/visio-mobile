@@ -1225,9 +1225,16 @@ object VisioManager : VisioEventListener {
                 }
             }
             is VisioEvent.MeetingsUpdated -> {
+                val prev = _upcomingMeetings.value
                 _upcomingMeetings.value = event.meetings
                 _calendarLoading.value = false
-                _calendarSyncResult.value = CalendarSyncResult.Success(event.meetings.size)
+                // Only show sync toast when meetings actually changed
+                val prevIds = prev.map { it.id }.toSet()
+                val newIds = event.meetings.map { it.id }.toSet()
+                if (prevIds != newIds) {
+                    _calendarSyncResult.value =
+                        CalendarSyncResult.Success(event.meetings.size)
+                }
             }
             is VisioEvent.MeetingImminent -> {
                 sendMeetingNotification(event.meeting, "imminent")

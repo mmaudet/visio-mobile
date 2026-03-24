@@ -132,6 +132,11 @@ struct MeetingsTabView: View {
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 12)
         }
+        .refreshable {
+            onRefresh()
+            // Allow the refresh indicator to show briefly
+            try? await Task.sleep(nanoseconds: 500_000_000)
+        }
     }
 
     // MARK: - Grouping

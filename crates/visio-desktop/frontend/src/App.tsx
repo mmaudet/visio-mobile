@@ -684,6 +684,21 @@ function MeetingsTab({
         if (newMeetings.length === 0 && prev.length > 0) {
           return prev
         }
+        // Only show sync toast when meetings actually changed
+        const prevIds = new Set(prev.map((m) => m.id))
+        const newIds = new Set(newMeetings.map((m) => m.id))
+        const changed =
+          prevIds.size !== newIds.size ||
+          [...prevIds].some((id) => !newIds.has(id))
+        if (changed) {
+          const count = newMeetings.length
+          const msg =
+            count > 0
+              ? t('calendar.sync.success').replace('{count}', String(count))
+              : t('calendar.sync.noMeetings')
+          setSyncToast({ message: msg, isError: false })
+          setTimeout(() => setSyncToast(null), 3000)
+        }
         return newMeetings
       })
       setLastSyncTime(new Date())
@@ -692,13 +707,6 @@ function MeetingsTab({
       } else {
         setStatus((prev) => (prev === 'list' ? 'list' : 'empty'))
       }
-      const count = newMeetings.length
-      const msg =
-        count > 0
-          ? t('calendar.sync.success').replace('{count}', String(count))
-          : t('calendar.sync.noMeetings')
-      setSyncToast({ message: msg, isError: false })
-      setTimeout(() => setSyncToast(null), 3000)
     }).then((fn) => {
       unlistenUpdated = fn
     })
