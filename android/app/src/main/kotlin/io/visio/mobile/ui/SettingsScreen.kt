@@ -371,6 +371,35 @@ fun SettingsScreen(onBack: () -> Unit) {
                     )
                 }
             }
+            // Clear history button
+            Button(
+                onClick = {
+                    coroutineScope.launch(Dispatchers.IO) {
+                        try {
+                            VisioManager.client.clearRoomHistory()
+                        } catch (e: Exception) {
+                            Log.e(TAG, "Failed to clear room history", e)
+                        }
+                    }
+                    android.widget.Toast.makeText(
+                        context,
+                        Strings.t("settings.historyCleared", lang),
+                        android.widget.Toast.LENGTH_SHORT,
+                    ).show()
+                },
+                modifier = Modifier.fillMaxWidth(),
+                colors =
+                    ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFFE1000F),
+                        contentColor = VisioColors.White,
+                    ),
+                shape = RoundedCornerShape(12.dp),
+            ) {
+                Text(
+                    Strings.t("settings.clearHistory", lang),
+                    modifier = Modifier.padding(vertical = 4.dp),
+                )
+            }
         }
 
         SettingsSaveButton(

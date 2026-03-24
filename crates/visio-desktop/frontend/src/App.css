@@ -1799,6 +1799,23 @@ main {
   cursor: pointer;
 }
 
+.settings-clear-history {
+  margin: 0 20px 8px;
+  padding: 10px;
+  background: #e1000f;
+  color: white;
+  border: none;
+  border-radius: var(--radius);
+  cursor: pointer;
+  font-size: 0.9rem;
+  font-weight: 500;
+  transition: background 0.2s;
+}
+
+.settings-clear-history:hover {
+  background: #c5000d;
+}
+
 .settings-save {
   margin: 0 20px 20px;
   padding: 10px;

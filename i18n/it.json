@@ -247,6 +247,8 @@
   "meetings.calendar.updatingLarge": "Aggiornamento... (file grande)",
   "settings.calendar": "Calendario",
   "settings.calendarRemove": "Rimuovi calendario",
+  "settings.clearHistory": "Cancella cronologia visio recenti",
+  "settings.historyCleared": "Cronologia cancellata",
   "settings.saved": "Impostazioni salvate",
   "call.fullscreen": "Schermo intero",
   "call.focus.hideThumbnails": "Nascondi miniature",
