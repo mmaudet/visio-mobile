@@ -693,6 +693,42 @@ private struct CreateRoomSheet: View {
         NavigationStack {
             Form {
                 if createdUrl == nil {
+                    createFormContent
+                } else {
+                    resultFormContent
+                }
+            }
+            .navigationTitle(Strings.t("home.createRoom", lang: lang))
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button(Strings.t("settings.cancel", lang: lang)) { onCancel() }
+                }
+            }
+            .alert(
+                Strings.t("alias.conflictTitle", lang: lang)
+                    .replacingOccurrences(of: "{name}", with: pendingAliasConflictName ?? ""),
+                isPresented: $showAliasConflict
+            ) {
+                Button(Strings.t("alias.conflictReplace", lang: lang)) {
+                    if let name = pendingAliasConflictName, let url = pendingAliasConflictUrl {
+                        manager.client.addVisioAlias(name: name, url: url)
+                    }
+                    pendingAliasConflictName = nil
+                    pendingAliasConflictUrl = nil
+                }
+                Button(Strings.t("alias.conflictCancel", lang: lang), role: .cancel) {
+                    pendingAliasConflictName = nil
+                    pendingAliasConflictUrl = nil
+                }
+            }
+        }
+    }
+
+    // MARK: - Create form (before room is created)
+
+    @ViewBuilder
+    private var createFormContent: some View {
                     Section {
                         TextField(Strings.t("home.roomDisplayName", lang: lang), text: $roomDisplayName)
                     }
@@ -853,7 +889,12 @@ private struct CreateRoomSheet: View {
                         }
                         .disabled(creating)
                     }
-                } else {
+    }
+
+    // MARK: - Result form (after room is created)
+
+    @ViewBuilder
+    private var resultFormContent: some View {
                     Section {
                         VStack(alignment: .leading, spacing: 4) {
                             HStack {
@@ -953,33 +994,6 @@ private struct CreateRoomSheet: View {
                             }
                         }
                     }
-                }
-            }
-            .navigationTitle(Strings.t("home.createRoom", lang: lang))
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button(Strings.t("settings.cancel", lang: lang)) { onCancel() }
-                }
-            }
-            .alert(
-                Strings.t("alias.conflictTitle", lang: lang)
-                    .replacingOccurrences(of: "{name}", with: pendingAliasConflictName ?? ""),
-                isPresented: $showAliasConflict
-            ) {
-                Button(Strings.t("alias.conflictReplace", lang: lang)) {
-                    if let name = pendingAliasConflictName, let url = pendingAliasConflictUrl {
-                        manager.client.addVisioAlias(name: name, url: url)
-                    }
-                    pendingAliasConflictName = nil
-                    pendingAliasConflictUrl = nil
-                }
-                Button(Strings.t("alias.conflictCancel", lang: lang), role: .cancel) {
-                    pendingAliasConflictName = nil
-                    pendingAliasConflictUrl = nil
-                }
-            }
-        }
     }
 }
 
