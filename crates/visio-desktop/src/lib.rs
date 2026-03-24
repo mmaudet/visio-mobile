@@ -938,7 +938,9 @@ struct VisioHistoryEntryJs {
 }
 
 #[tauri::command]
-fn get_visio_history(state: tauri::State<'_, VisioState>) -> Result<Vec<VisioHistoryEntryJs>, String> {
+fn get_visio_history(
+    state: tauri::State<'_, VisioState>,
+) -> Result<Vec<VisioHistoryEntryJs>, String> {
     Ok(state
         .settings
         .get_visio_history()
