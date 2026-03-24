@@ -10,6 +10,8 @@ and this project adheres to
 
 ### Fixed
 
+- Stop spurious microphone permission request when
+  opening desktop settings (#161)
 - Clarify display name labels on home and pre-join
   screens with "Your" prefix in all 6 locales (#153)
 - Rename "meeting"/"room" to "visio" in all 6 i18n files
