@@ -3978,7 +3978,12 @@ function PreJoinScreen({
   roomDisplayName?: string | null
   lang: string
   isDark: boolean
-  onJoin: (username: string | null) => void
+  onJoin: (
+    username: string | null,
+    micOn: boolean,
+    camOn: boolean,
+    audioMode: string
+  ) => void
   onCancel: () => void
   livekitUrl?: string | null
   livekitToken?: string | null
@@ -4185,7 +4190,7 @@ function PreJoinScreen({
     if (livekitUrl && livekitToken) {
       try {
         await invoke('connect_with_token', { livekitUrl, token: livekitToken })
-        onJoin(finalName)
+        onJoin(finalName, isMicOn, isCameraOn, audioMode)
       } catch (e) {
         console.error('connect_with_token failed:', e)
         setWaitingState('idle')
@@ -4225,7 +4230,7 @@ function PreJoinScreen({
     listen<string>('connection-state-changed', (event) => {
       if (event.payload === 'connected') {
         if (timeoutRef.current) clearTimeout(timeoutRef.current)
-        onJoin(finalName)
+        onJoin(finalName, isMicOn, isCameraOn, audioMode)
       }
     })
       .then((unlisten) => chainUnlisten(unlistenVideoRef, unlisten))
@@ -5408,7 +5413,27 @@ export default function App() {
             roomDisplayName={currentRoomDisplayName}
             lang={lang}
             isDark={theme === 'dark'}
-            onJoin={() => {
+            onJoin={async (_username, micOn, camOn, lobbyAudioMode) => {
+              // Apply lobby mic/camera overrides before showing the call view.
+              // Without this, micEnabled/camEnabled stay at their initial false
+              // values and the lobby toggles are silently ignored (#172).
+              const wantMic = micOn && lobbyAudioMode !== 'none'
+              if (wantMic) {
+                try {
+                  await invoke('toggle_mic', { enabled: true })
+                  setMicEnabled(true)
+                } catch (e) {
+                  console.error('Failed to enable mic on join:', e)
+                }
+              }
+              if (camOn) {
+                try {
+                  await invoke('toggle_camera', { enabled: true })
+                  setCamEnabled(true)
+                } catch (e) {
+                  console.error('Failed to enable camera on join:', e)
+                }
+              }
               setView('call')
             }}
             onCancel={() => setView('home')}

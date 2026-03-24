@@ -27,6 +27,8 @@ and this project adheres to
 
 ### Fixed
 
+- Lobby mic/camera overrides now correctly applied when
+  joining a visio on Desktop (#172)
 - Regenerate UniFFI bindings and fix build errors for
   friendly URLs feature (#156)
 - PiP only activates during an active call; no longer triggers
