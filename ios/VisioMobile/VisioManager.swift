@@ -55,7 +55,6 @@ class VisioManager: ObservableObject {
     @Published var reactions: [ReactionData] = []
     @Published var adaptiveMode: AdaptiveMode = .office
     /// Set when a screen share track is subscribed; cleared on disconnect.
-    @Published var bandwidthMode: BandwidthMode = .full
     @Published var lastScreenShareParticipantSid: String? = nil
 
     let authManager = OidcAuthManager()
@@ -1047,10 +1046,8 @@ class VisioManager: ObservableObject {
                 }
             }
 
-        case .bandwidthModeChanged(let mode):
-            DispatchQueue.main.async { [weak self] in
-                self?.bandwidthMode = mode
-            }
+        case .bandwidthModeChanged:
+            break
 
         case .connectionLost:
             let client = self.client
