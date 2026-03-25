@@ -22,7 +22,6 @@ and this project adheres to
   OIDC login (#179)
 - iOS: fix 5 compilation errors (private access, missing API,
   type-checker timeouts, missing bandwidthMode property)
-- iOS: migrate onChange(of:) to iOS 17+ no-param syntax
 
 ### Added
 

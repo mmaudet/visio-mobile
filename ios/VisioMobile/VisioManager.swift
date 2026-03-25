@@ -37,7 +37,6 @@ class VisioManager: ObservableObject {
     @Published var currentTheme: String = "light"
     @Published var displayName: String = ""
     @Published var pendingDeepLink: String? = nil
-    @Published var pendingDeepLinkError: String? = nil
     /// For E2E testing: (livekitUrl, token, mediaFile?) from visio-test:// deep link.
     /// Only used in DEBUG builds.
     @Published var pendingTestConnect: TestConnectParams? = nil
@@ -740,19 +739,6 @@ class VisioManager: ObservableObject {
         displayName = name
     }
 
-    /// Start camera capture in preview mode (lobby / blur preview).
-    func startPreviewCapture(isFront: Bool) {
-        if cameraCapture == nil {
-            let capture = CameraCapture()
-            capture.start()
-            if isFront != isFrontCamera {
-                capture.switchCamera(toFront: isFront)
-            }
-            cameraCapture = capture
-            isFrontCamera = isFront
-        }
-    }
-
     func switchCamera(toFront: Bool) {
         cameraCapture?.switchCamera(toFront: toFront)
         isFrontCamera = toFront
@@ -1097,11 +1083,6 @@ class VisioManager: ObservableObject {
             if self.isMicEnabled {
                 self.toggleMic()
             }
-
-        case .meetingsUpdated, .meetingImminent, .meetingStartingSoon,
-             .meetingStarted, .calendarError:
-            // Calendar events are handled by the calendar service; no UI action needed here.
-            break
         }
     }
 }
