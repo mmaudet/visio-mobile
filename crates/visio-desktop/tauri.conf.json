@@ -6,7 +6,7 @@
   "build": {
     "devUrl": "http://localhost:5173",
     "frontendDist": "frontend/dist",
-    "beforeDevCommand": "cd visio-desktop/frontend && npm run dev",
+    "beforeDevCommand": "",
     "beforeBuildCommand": ""
   },
   "app": {

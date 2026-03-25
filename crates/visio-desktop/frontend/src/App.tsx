@@ -1402,23 +1402,8 @@ function HomeView({
                 onKeyDown={handleKeyDown}
               />
             </div>
-            {!isAuthenticated && (
-              <div className="form-group">
-                <label htmlFor="roomDisplayName">
-                  {t('home.roomDisplayName')}
-                </label>
-                <input
-                  id="roomDisplayName"
-                  type="text"
-                  placeholder={t('home.roomDisplayNamePlaceholder')}
-                  autoComplete="off"
-                  data-testid="home-room-input"
-                  value={roomDisplayName}
-                  onChange={(e) => setRoomDisplayName(e.target.value)}
-                  onKeyDown={handleKeyDown}
-                />
-              </div>
-            )}
+            {/* Room display name removed from join form — only relevant
+                when creating a room (CreateRoomView handles it). */}
             {roomStatus === 'auth_required' ? (
               <button className="btn btn-primary" onClick={handleAuth}>
                 {t('home.signIn')}
@@ -4054,6 +4039,10 @@ function PreJoinScreen({
   const micPollRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const unlistenVideoRef = useRef<UnlistenFn | null>(null)
+  // When true, the component is transitioning to the call view — skip
+  // stopping camera/mic in the cleanup to avoid killing the capture that
+  // toggle_camera(true) just started in onJoin.
+  const joiningRef = useRef(false)
 
   // ---- Effect: load settings and device lists on mount --------------------
   useEffect(() => {
@@ -4086,9 +4075,12 @@ function PreJoinScreen({
       unlistenVideoRef.current?.()
       if (micPollRef.current) clearInterval(micPollRef.current)
       if (timeoutRef.current) clearTimeout(timeoutRef.current)
-      // Stop previews on unmount
-      invoke('stop_camera_preview').catch(() => {})
-      invoke('stop_mic_preview').catch(() => {})
+      // Only stop previews if we're NOT transitioning to the call view.
+      // Otherwise this kills the camera/mic that onJoin just started.
+      if (!joiningRef.current) {
+        invoke('stop_camera_preview').catch(() => {})
+        invoke('stop_mic_preview').catch(() => {})
+      }
     }
   }, [])
 
@@ -4205,6 +4197,7 @@ function PreJoinScreen({
           url: roomUrl,
           displayName: roomDisplayName ?? null,
         }).catch(() => {})
+        joiningRef.current = true
         onJoin(finalName, isMicOn, isCameraOn, audioMode)
       } catch (e) {
         console.error('connect_with_token failed:', e)
@@ -4220,20 +4213,32 @@ function PreJoinScreen({
       setWaitingState((prev) => (prev === 'waiting' ? 'timeout' : prev))
     }, 60_000)
 
-    // Listen for lobby denied event
-    listen<string>('lobby-denied', () => {
+    // Register event listeners BEFORE calling connect() to avoid a race
+    // condition: for public rooms (no lobby), connect() obtains the token,
+    // connects to LiveKit, and emits "connected" synchronously before
+    // returning. If listeners are registered after await connect(), they miss
+    // the event and the UI stays stuck on "waiting for authorization".
+    const unlistenDenied = await listen<string>('lobby-denied', () => {
       if (timeoutRef.current) clearTimeout(timeoutRef.current)
       setWaitingState('denied')
     })
-      .then((unlisten) => chainUnlisten(unlistenVideoRef, unlisten))
-      .catch(() => {})
+    chainUnlisten(unlistenVideoRef, unlistenDenied)
+
+    const unlistenState = await listen<string>(
+      'connection-state-changed',
+      (event) => {
+        if (event.payload === 'connected') {
+          if (timeoutRef.current) clearTimeout(timeoutRef.current)
+          joiningRef.current = true
+          onJoin(finalName, isMicOn, isCameraOn, audioMode)
+        }
+      }
+    )
+    chainUnlisten(unlistenVideoRef, unlistenState)
 
     // Connect to the room. For lobby-gated rooms, connect() returns Ok
-    // immediately while the user is still waiting_for_host. We listen for the
-    // connection-state-changed event and only call onJoin once the backend
-    // transitions to "connected", avoiding a duplicate connect call from the
-    // parent and preventing the blank-screen caused by setView("call") firing
-    // before admission.
+    // immediately while the user is still waiting_for_host. The listeners
+    // above will call onJoin once the backend transitions to "connected".
     try {
       await invoke('connect', { meetUrl: roomUrl, username: finalName })
     } catch {
@@ -4241,15 +4246,6 @@ function PreJoinScreen({
       setWaitingState('idle')
       return
     }
-
-    listen<string>('connection-state-changed', (event) => {
-      if (event.payload === 'connected') {
-        if (timeoutRef.current) clearTimeout(timeoutRef.current)
-        onJoin(finalName, isMicOn, isCameraOn, audioMode)
-      }
-    })
-      .then((unlisten) => chainUnlisten(unlistenVideoRef, unlisten))
-      .catch(() => {})
   }
 
   const handleBack = () => {
