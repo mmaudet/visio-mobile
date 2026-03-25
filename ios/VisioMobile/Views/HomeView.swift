@@ -48,8 +48,8 @@ struct HomeView: View {
                     }
                     .padding(.top, 16)
                     .background(GeometryReader { geo in
-                        Color.clear.onChange(of: geo.frame(in: .named("scroll")).minY) { value in
-                            showCompactHeader = value < -20
+                        Color.clear.onChange(of: geo.frame(in: .named("scroll")).minY) {
+                            showCompactHeader = geo.frame(in: .named("scroll")).minY < -20
                         }
                     })
 
@@ -296,29 +296,28 @@ struct HomeView: View {
             // Load room history
             roomHistory = manager.client.getVisioHistory()
         }
-        .onChange(of: manager.authenticatedDisplayName) { newValue in
-            if !newValue.isEmpty && displayName.isEmpty {
-                displayName = newValue
+        .onChange(of: manager.authenticatedDisplayName) {
+            if !manager.authenticatedDisplayName.isEmpty && displayName.isEmpty {
+                displayName = manager.authenticatedDisplayName
             }
         }
-        .onChange(of: roomStatus) { newStatus in
+        .onChange(of: roomStatus) {
             guard historyJoinPending else { return }
-            if newStatus == "valid" {
+            if roomStatus == "valid" {
                 historyJoinPending = false
                 navigateToCall = true
-            } else if newStatus == "not_found" || newStatus == "idle" {
-                // Validation failed — fall back to just showing the URL in the field
+            } else if roomStatus == "not_found" || roomStatus == "idle" {
                 historyJoinPending = false
             }
         }
-        .onChange(of: manager.pendingDeepLink) { newValue in
-            if let link = newValue {
+        .onChange(of: manager.pendingDeepLink) {
+            if let link = manager.pendingDeepLink {
                 roomURL = link
                 manager.pendingDeepLink = nil
             }
         }
-        .onChange(of: manager.pendingTestConnect != nil) { hasTestConnect in
-            if hasTestConnect {
+        .onChange(of: manager.pendingTestConnect) {
+            if manager.pendingTestConnect != nil {
                 navigateToCall = true
             }
         }
@@ -706,16 +705,16 @@ private struct CreateRoomSheet: View {
         if accessLevel == "restricted" {
             Section(header: Text(Strings.t("restricted.invite", lang: lang))) {
                 TextField(Strings.t("restricted.searchUsers", lang: lang), text: $searchQuery)
-                    .onChange(of: searchQuery) { newValue in
+                    .onChange(of: searchQuery) {
                         searchTask?.cancel()
-                        guard newValue.count >= 3 else {
+                        guard searchQuery.count >= 3 else {
                             searchResults = []
                             return
                         }
                         searchTask = Task {
                             try? await Task.sleep(nanoseconds: 300_000_000)
                             guard !Task.isCancelled else { return }
-                            let query = newValue
+                            let query = searchQuery
                             let client = manager.client
                             let currentInvited = invitedUsers
                             do {
@@ -793,7 +792,6 @@ private struct CreateRoomSheet: View {
                         let result = try await Task.detached {
                             try client.createRoom(
                                 meetUrl: "https://\(meetInstance)",
-                                name: "",
                                 accessLevel: level
                             )
                         }.value

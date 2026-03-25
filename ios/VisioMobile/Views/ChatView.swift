@@ -39,7 +39,7 @@ struct ChatView: View {
                             }
                             .padding()
                         }
-                        .onChange(of: manager.chatMessages.count) { _ in
+                        .onChange(of: manager.chatMessages.count) {
                             if let last = manager.chatMessages.last {
                                 withAnimation {
                                     proxy.scrollTo(last.id, anchor: .bottom)
