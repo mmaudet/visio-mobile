@@ -169,6 +169,7 @@ struct PreJoinView: View {
     let roomURL: String
     let initialDisplayName: String
     var roomDisplayName: String? = nil
+    var isPresented: Binding<Bool>? = nil
 
     @EnvironmentObject private var manager: VisioManager
     @Environment(\.dismiss) private var dismiss
@@ -247,7 +248,8 @@ struct PreJoinView: View {
             CallView(
                 roomURL: roomURL,
                 displayName: displayName.trimmingCharacters(in: .whitespacesAndNewlines),
-                roomDisplayName: roomDisplayName
+                roomDisplayName: roomDisplayName,
+                isPresented: isPresented
             )
         }
         .sheet(isPresented: $showFilterSheet) {

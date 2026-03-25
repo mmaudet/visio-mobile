@@ -61,6 +61,7 @@ struct CallView: View {
     let roomURL: String
     let displayName: String
     var roomDisplayName: String? = nil
+    var isPresented: Binding<Bool>? = nil
 
     @State private var showChat: Bool = false
     @State private var showAudioDevices: Bool = false
@@ -129,7 +130,7 @@ struct CallView: View {
                                 manager.cancelLobby()
                                 manager.disconnect()
                                 CallKitManager.shared.reportCallEnded()
-                                dismiss()
+                                isPresented?.wrappedValue = false
                             }) {
                                 Text(Strings.t("lobby.cancel", lang: lang))
                             }
@@ -326,7 +327,7 @@ struct CallView: View {
                 manager.lobbyDenied = false
                 manager.disconnect()
                 CallKitManager.shared.reportCallEnded()
-                dismiss()
+                isPresented?.wrappedValue = false
             }
         }
         .onChange(of: manager.lastScreenShareParticipantSid) { _ in
@@ -1115,7 +1116,7 @@ struct CallView: View {
                 Button {
                     manager.disconnect()
                     CallKitManager.shared.reportCallEnded()
-                    dismiss()
+                    isPresented?.wrappedValue = false
                 } label: {
                     Image(systemName: "phone.down.fill")
                         .font(.system(size: buttonIconSize, weight: .medium))

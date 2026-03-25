@@ -361,15 +361,16 @@ struct HomeView: View {
                 }
             }
         }
-        .navigationDestination(isPresented: $navigateToCall) {
-            PreJoinView(
-                roomURL: resolvedRoomURL,
-                initialDisplayName: displayName.trimmingCharacters(in: .whitespacesAndNewlines),
-                roomDisplayName: roomDisplayName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                    ? nil
-                    : roomDisplayName.trimmingCharacters(in: .whitespacesAndNewlines)
-            )
-        }
+         .navigationDestination(isPresented: $navigateToCall) {
+             PreJoinView(
+                 roomURL: resolvedRoomURL,
+                 initialDisplayName: displayName.trimmingCharacters(in: .whitespacesAndNewlines),
+                 roomDisplayName: roomDisplayName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                     ? nil
+                     : roomDisplayName.trimmingCharacters(in: .whitespacesAndNewlines),
+                 isPresented: $navigateToCall
+             )
+         }
         .sheet(isPresented: $showSettings) {
             SettingsView()
                 .environmentObject(manager)
