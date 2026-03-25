@@ -20,6 +20,8 @@ and this project adheres to
 - Desktop: fix camera not showing on join from lobby (#180)
 - iOS: replace ASWebAuthenticationSession with WKWebView for
   OIDC login (#179)
+- iOS: fix 5 compilation errors (private access, missing API,
+  type-checker timeouts, missing bandwidthMode property)
 
 ### Added
 

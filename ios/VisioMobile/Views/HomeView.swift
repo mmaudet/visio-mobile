@@ -15,7 +15,7 @@ struct HomeView: View {
     @State private var showServerPicker: Bool = false
     @State private var customServer: String = ""
     @State private var showCreateRoom: Bool = false
-    @State private var roomHistory: [String] = []
+    @State private var roomHistory: [VisioHistoryEntry] = []
     @State private var historyJoinPending: Bool = false
     @State private var showCompactHeader: Bool = false
 
@@ -191,8 +191,9 @@ struct HomeView: View {
                             .fontWeight(.medium)
                             .foregroundStyle(VisioColors.secondaryText(dark: isDark))
 
-                        ForEach(Array(roomHistory.enumerated()), id: \.offset) { index, url in
-                            let slug = url.contains("/") ? String(url.split(separator: "/").last ?? "") : url
+                        ForEach(Array(roomHistory.enumerated()), id: \.offset) { index, entry in
+                            let url = entry.url
+                            let slug = entry.displayName ?? (url.contains("/") ? String(url.split(separator: "/").last ?? "") : url)
                             let host = URL(string: url)?.host ?? ""
 
                             Button {
@@ -293,7 +294,7 @@ struct HomeView: View {
             // Load meet instances
             meetInstances = manager.client.getMeetInstances()
             // Load room history
-            roomHistory = manager.client.getRoomHistory()
+            roomHistory = manager.client.getVisioHistory()
         }
         .onChange(of: manager.authenticatedDisplayName) { newValue in
             if !newValue.isEmpty && displayName.isEmpty {
@@ -648,219 +649,13 @@ private struct CreateRoomSheet: View {
         NavigationStack {
             Form {
                 if createdUrl == nil {
-                    Section {
-                        Picker(Strings.t("home.createRoom.access", lang: lang), selection: $accessLevel) {
-                            Text(Strings.t("home.createRoom.public", lang: lang)).tag("public")
-                            Text(Strings.t("home.createRoom.trusted", lang: lang)).tag("trusted")
-                            Text(Strings.t("home.createRoom.restricted", lang: lang)).tag("restricted")
-                        }
-                        .pickerStyle(.inline)
-                        .labelsHidden()
-
-                        if accessLevel == "public" {
-                            Text(Strings.t("home.createRoom.publicDesc", lang: lang))
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        } else if accessLevel == "trusted" {
-                            Text(Strings.t("home.createRoom.trustedDesc", lang: lang))
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        } else {
-                            Text(Strings.t("home.createRoom.restrictedDesc", lang: lang))
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                    } header: {
-                        Text(Strings.t("home.createRoom.access", lang: lang))
-                    }
-
-                    if accessLevel == "restricted" {
-                        Section(header: Text(Strings.t("restricted.invite", lang: lang))) {
-                            TextField(Strings.t("restricted.searchUsers", lang: lang), text: $searchQuery)
-                                .onChange(of: searchQuery) { newValue in
-                                    searchTask?.cancel()
-                                    guard newValue.count >= 3 else {
-                                        searchResults = []
-                                        return
-                                    }
-                                    searchTask = Task {
-                                        try? await Task.sleep(nanoseconds: 300_000_000)
-                                        guard !Task.isCancelled else { return }
-                                        let query = newValue
-                                        let client = manager.client
-                                        let currentInvited = invitedUsers
-                                        do {
-                                            let results = try await Task.detached {
-                                                try client.searchUsers(query: query)
-                                            }.value
-                                            searchResults = results.filter { user in
-                                                !currentInvited.contains(where: { $0.id == user.id })
-                                            }
-                                        } catch {
-                                            searchResults = []
-                                        }
-                                    }
-                                }
-
-                            ForEach(searchResults, id: \.id) { user in
-                                Button {
-                                    invitedUsers.append(user)
-                                    searchQuery = ""
-                                    searchResults = []
-                                } label: {
-                                    VStack(alignment: .leading) {
-                                        Text(user.fullName ?? user.email)
-                                        Text(user.email)
-                                            .font(.caption)
-                                            .foregroundStyle(.secondary)
-                                    }
-                                }
-                            }
-                        }
-
-                        if !invitedUsers.isEmpty {
-                            Section(header: Text(Strings.t("restricted.members", lang: lang))) {
-                                ForEach(invitedUsers, id: \.id) { user in
-                                    HStack {
-                                        Text(user.fullName ?? user.email)
-                                        Spacer()
-                                        Button {
-                                            invitedUsers.removeAll { $0.id == user.id }
-                                        } label: {
-                                            Image(systemName: "xmark.circle.fill")
-                                                .foregroundStyle(.secondary)
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    if let error {
-                        Section {
-                            Text(error)
-                                .foregroundStyle(.red)
-                                .font(.caption)
-                        }
-                    }
-
-                    Section {
-                        Button {
-                            let meetInstance = manager.authenticatedMeetInstance
-                            guard !meetInstance.isEmpty else { return }
-                            creating = true
-                            error = nil
-                            let client = manager.client
-                            let level = accessLevel
-                            let users = invitedUsers
-                            Task {
-                                do {
-                                    let result = try await Task.detached {
-                                        try client.createRoom(
-                                            meetUrl: "https://\(meetInstance)",
-                                            name: "",
-                                            accessLevel: level
-                                        )
-                                    }.value
-                                    // Add accesses for invited users
-                                    if level == "restricted" {
-                                        let roomId = result.id
-                                        await Task.detached {
-                                            for user in users {
-                                                _ = try? client.addAccess(userId: user.id, roomId: roomId)
-                                            }
-                                        }.value
-                                    }
-                                    createdRoomId = result.id
-                                    createdUrl = "https://\(meetInstance)/\(result.slug)"
-                                    creating = false
-                                } catch {
-                                    self.error = error.localizedDescription
-                                    creating = false
-                                }
-                            }
-                        } label: {
-                            HStack {
-                                Spacer()
-                                Text(creating
-                                    ? Strings.t("home.createRoom.creating", lang: lang)
-                                    : Strings.t("home.createRoom.create", lang: lang))
-                                    .fontWeight(.semibold)
-                                Spacer()
-                            }
-                        }
-                        .disabled(creating)
-                    }
+                    accessLevelSection
+                    restrictedUsersSection
+                    errorSection
+                    createButtonSection
                 } else {
-                    Section {
-                        VStack(alignment: .leading, spacing: 4) {
-                            HStack {
-                                Image(systemName: "globe")
-                                    .font(.caption)
-                                Text(Strings.t("settings.incall.roomLink", lang: lang))
-                                    .font(.subheadline)
-                                    .fontWeight(.semibold)
-                                Spacer()
-                                Button {
-                                    UIPasteboard.general.string = createdUrl
-                                    copiedHttp = true
-                                    Task { try? await Task.sleep(for: .seconds(2)); copiedHttp = false }
-                                } label: {
-                                    Image(systemName: copiedHttp ? "checkmark" : "doc.on.doc")
-                                        .font(.caption)
-                                }
-                                ShareLink(item: createdUrl!) {
-                                    Image(systemName: "square.and.arrow.up")
-                                        .font(.caption)
-                                }
-                            }
-                            TextField("", text: .constant(createdUrl!))
-                                .font(.caption)
-                                .textFieldStyle(.roundedBorder)
-                                .disabled(true)
-                        }
-                        VStack(alignment: .leading, spacing: 4) {
-                            HStack {
-                                Image(systemName: "iphone")
-                                    .font(.caption)
-                                Text(Strings.t("settings.incall.deepLink", lang: lang))
-                                    .font(.subheadline)
-                                    .fontWeight(.semibold)
-                                Spacer()
-                                Button {
-                                    UIPasteboard.general.string = deepLink
-                                    copiedDeep = true
-                                    Task { try? await Task.sleep(for: .seconds(2)); copiedDeep = false }
-                                } label: {
-                                    Image(systemName: copiedDeep ? "checkmark" : "doc.on.doc")
-                                        .font(.caption)
-                                }
-                                ShareLink(item: createdUrl!) {
-                                    Image(systemName: "square.and.arrow.up")
-                                        .font(.caption)
-                                }
-                            }
-                            TextField("", text: .constant(deepLink))
-                                .font(.caption)
-                                .textFieldStyle(.roundedBorder)
-                                .disabled(true)
-                        }
-                    } header: {
-                        Text(Strings.t("settings.incall.roomInfo", lang: lang))
-                    }
-
-                    Section {
-                        Button {
-                            onCreated(createdUrl!)
-                        } label: {
-                            HStack {
-                                Spacer()
-                                Label(Strings.t("home.join", lang: lang), systemImage: "phone.fill")
-                                    .fontWeight(.semibold)
-                                Spacer()
-                            }
-                        }
-                    }
+                    createdRoomSection
+                    joinButtonSection
                 }
             }
             .navigationTitle(Strings.t("home.createRoom", lang: lang))
@@ -868,6 +663,229 @@ private struct CreateRoomSheet: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button(Strings.t("settings.cancel", lang: lang)) { onCancel() }
+                }
+            }
+        }
+    }
+
+    // MARK: - Sub-views (broken out to help the Swift type-checker)
+
+    @ViewBuilder
+    private var accessLevelSection: some View {
+        Section {
+            Picker(Strings.t("home.createRoom.access", lang: lang), selection: $accessLevel) {
+                Text(Strings.t("home.createRoom.public", lang: lang)).tag("public")
+                Text(Strings.t("home.createRoom.trusted", lang: lang)).tag("trusted")
+                Text(Strings.t("home.createRoom.restricted", lang: lang)).tag("restricted")
+            }
+            .pickerStyle(.inline)
+            .labelsHidden()
+
+            accessLevelDescription
+        } header: {
+            Text(Strings.t("home.createRoom.access", lang: lang))
+        }
+    }
+
+    @ViewBuilder
+    private var accessLevelDescription: some View {
+        if accessLevel == "public" {
+            Text(Strings.t("home.createRoom.publicDesc", lang: lang))
+                .font(.caption).foregroundStyle(.secondary)
+        } else if accessLevel == "trusted" {
+            Text(Strings.t("home.createRoom.trustedDesc", lang: lang))
+                .font(.caption).foregroundStyle(.secondary)
+        } else {
+            Text(Strings.t("home.createRoom.restrictedDesc", lang: lang))
+                .font(.caption).foregroundStyle(.secondary)
+        }
+    }
+
+    @ViewBuilder
+    private var restrictedUsersSection: some View {
+        if accessLevel == "restricted" {
+            Section(header: Text(Strings.t("restricted.invite", lang: lang))) {
+                TextField(Strings.t("restricted.searchUsers", lang: lang), text: $searchQuery)
+                    .onChange(of: searchQuery) { newValue in
+                        searchTask?.cancel()
+                        guard newValue.count >= 3 else {
+                            searchResults = []
+                            return
+                        }
+                        searchTask = Task {
+                            try? await Task.sleep(nanoseconds: 300_000_000)
+                            guard !Task.isCancelled else { return }
+                            let query = newValue
+                            let client = manager.client
+                            let currentInvited = invitedUsers
+                            do {
+                                let results = try await Task.detached {
+                                    try client.searchUsers(query: query)
+                                }.value
+                                searchResults = results.filter { user in
+                                    !currentInvited.contains(where: { $0.id == user.id })
+                                }
+                            } catch {
+                                searchResults = []
+                            }
+                        }
+                    }
+
+                ForEach(searchResults, id: \.id) { user in
+                    Button {
+                        invitedUsers.append(user)
+                        searchQuery = ""
+                        searchResults = []
+                    } label: {
+                        VStack(alignment: .leading) {
+                            Text(user.fullName ?? user.email)
+                            Text(user.email)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+            }
+
+            if !invitedUsers.isEmpty {
+                Section(header: Text(Strings.t("restricted.members", lang: lang))) {
+                    ForEach(invitedUsers, id: \.id) { user in
+                        HStack {
+                            Text(user.fullName ?? user.email)
+                            Spacer()
+                            Button {
+                                invitedUsers.removeAll { $0.id == user.id }
+                            } label: {
+                                Image(systemName: "xmark.circle.fill")
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var errorSection: some View {
+        if let error {
+            Section {
+                Text(error)
+                    .foregroundStyle(.red)
+                    .font(.caption)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var createButtonSection: some View {
+        Section {
+            Button {
+                let meetInstance = manager.authenticatedMeetInstance
+                guard !meetInstance.isEmpty else { return }
+                creating = true
+                error = nil
+                let client = manager.client
+                let level = accessLevel
+                let users = invitedUsers
+                Task {
+                    do {
+                        let result = try await Task.detached {
+                            try client.createRoom(
+                                meetUrl: "https://\(meetInstance)",
+                                name: "",
+                                accessLevel: level
+                            )
+                        }.value
+                        if level == "restricted" {
+                            let roomId = result.id
+                            await Task.detached {
+                                for user in users {
+                                    _ = try? client.addAccess(userId: user.id, roomId: roomId)
+                                }
+                            }.value
+                        }
+                        createdRoomId = result.id
+                        createdUrl = "https://\(meetInstance)/\(result.slug)"
+                        creating = false
+                    } catch {
+                        self.error = error.localizedDescription
+                        creating = false
+                    }
+                }
+            } label: {
+                HStack {
+                    Spacer()
+                    Text(creating
+                        ? Strings.t("home.createRoom.creating", lang: lang)
+                        : Strings.t("home.createRoom.create", lang: lang))
+                        .fontWeight(.semibold)
+                    Spacer()
+                }
+            }
+            .disabled(creating)
+        }
+    }
+
+    @ViewBuilder
+    private var createdRoomSection: some View {
+        Section {
+            VStack(alignment: .leading, spacing: 4) {
+                HStack {
+                    Image(systemName: "globe").font(.caption)
+                    Text(Strings.t("settings.incall.roomLink", lang: lang))
+                        .font(.subheadline).fontWeight(.semibold)
+                    Spacer()
+                    Button {
+                        UIPasteboard.general.string = createdUrl
+                        copiedHttp = true
+                        Task { try? await Task.sleep(for: .seconds(2)); copiedHttp = false }
+                    } label: {
+                        Image(systemName: copiedHttp ? "checkmark" : "doc.on.doc").font(.caption)
+                    }
+                    ShareLink(item: createdUrl!) {
+                        Image(systemName: "square.and.arrow.up").font(.caption)
+                    }
+                }
+                TextField("", text: .constant(createdUrl!))
+                    .font(.caption).textFieldStyle(.roundedBorder).disabled(true)
+            }
+            VStack(alignment: .leading, spacing: 4) {
+                HStack {
+                    Image(systemName: "iphone").font(.caption)
+                    Text(Strings.t("settings.incall.deepLink", lang: lang))
+                        .font(.subheadline).fontWeight(.semibold)
+                    Spacer()
+                    Button {
+                        UIPasteboard.general.string = deepLink
+                        copiedDeep = true
+                        Task { try? await Task.sleep(for: .seconds(2)); copiedDeep = false }
+                    } label: {
+                        Image(systemName: copiedDeep ? "checkmark" : "doc.on.doc").font(.caption)
+                    }
+                    ShareLink(item: createdUrl!) {
+                        Image(systemName: "square.and.arrow.up").font(.caption)
+                    }
+                }
+                TextField("", text: .constant(deepLink))
+                    .font(.caption).textFieldStyle(.roundedBorder).disabled(true)
+            }
+        } header: {
+            Text(Strings.t("settings.incall.roomInfo", lang: lang))
+        }
+    }
+
+    @ViewBuilder
+    private var joinButtonSection: some View {
+        Section {
+            Button {
+                onCreated(createdUrl!)
+            } label: {
+                HStack {
+                    Spacer()
+                    Label(Strings.t("home.join", lang: lang), systemImage: "phone.fill")
+                        .fontWeight(.semibold)
+                    Spacer()
                 }
             }
         }
