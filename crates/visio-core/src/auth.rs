@@ -45,7 +45,11 @@ impl AuthService {
             api_url.push_str(&format!("?username={encoded}"));
         }
 
-        tracing::info!("requesting token from Meet API: {}", api_url);
+        tracing::info!(
+            "requesting token from Meet API: instance={}, slug={}",
+            instance,
+            slug
+        );
 
         // Disable auto-redirect so we can detect auth redirects (302 → /authenticate/)
         let client = reqwest::Client::builder()
@@ -80,11 +84,10 @@ impl AuthService {
             .await
             .map_err(|e| VisioError::Http(e.to_string()))?;
 
-        tracing::info!("Meet API response body: {}", body);
+        tracing::debug!("Meet API response received ({} bytes)", body.len());
 
-        let data: MeetApiResponse = serde_json::from_str(&body).map_err(|e| {
-            VisioError::Auth(format!("invalid Meet API response: {e} — body: {body}"))
-        })?;
+        let data: MeetApiResponse = serde_json::from_str(&body)
+            .map_err(|e| VisioError::Auth(format!("invalid Meet API response: {e}")))?;
 
         let lk = data.livekit.ok_or(VisioError::WaitingForHost)?;
 
@@ -150,11 +153,37 @@ impl AuthService {
         let url = crate::strip_room_display_name_param(url.trim().trim_end_matches('/'));
         let url = url.replace("https://", "").replace("http://", "");
 
+        // Reject dangerous schemes that might have slipped through
+        let lower = url.to_lowercase();
+        if lower.starts_with("javascript:")
+            || lower.starts_with("data:")
+            || lower.starts_with("file:")
+            || lower.starts_with("vbscript:")
+        {
+            return Err(VisioError::InvalidUrl(format!(
+                "invalid scheme in URL: {}",
+                url.split(':').next().unwrap_or("")
+            )));
+        }
+
+        // Reject null bytes
+        if url.contains('\0') {
+            return Err(VisioError::InvalidUrl("null byte in URL".into()));
+        }
+
+        // Reject path traversal attempts in the slug part
         let parts: Vec<&str> = url.splitn(2, '/').collect();
         if parts.len() != 2 || parts[0].is_empty() || parts[1].is_empty() {
             return Err(VisioError::InvalidUrl(format!(
                 "expected 'instance/room-slug', got '{url}'"
             )));
+        }
+
+        // Check for path traversal in slug
+        if parts[1].contains("..") {
+            return Err(VisioError::InvalidUrl(
+                "path traversal detected in room slug".into(),
+            ));
         }
 
         Ok((parts[0].to_string(), parts[1].to_string()))

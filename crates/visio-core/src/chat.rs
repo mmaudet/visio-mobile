@@ -43,16 +43,7 @@ impl ChatService {
     /// Send a chat message to all participants using the Stream API (lk.chat topic).
     /// Messages are limited to 2000 characters (matching Meet web client).
     pub async fn send_message(&self, text: &str) -> Result<ChatMessage, VisioError> {
-        let text = text.trim();
-        if text.is_empty() {
-            return Err(VisioError::Room("message is empty".into()));
-        }
-        if text.len() > MAX_MESSAGE_LENGTH {
-            return Err(VisioError::Room(format!(
-                "message too long ({} chars, max {MAX_MESSAGE_LENGTH})",
-                text.len()
-            )));
-        }
+        let text = Self::validate_message(text)?;
 
         let room = self.room.lock().await;
         let room = room
@@ -67,7 +58,7 @@ impl ChatService {
         };
 
         let info = local
-            .send_text(text, options)
+            .send_text(&text, options)
             .await
             .map_err(|e| VisioError::Room(format!("send chat: {e}")))?;
 
@@ -75,7 +66,7 @@ impl ChatService {
             id: info.id,
             sender_sid: local.sid().to_string(),
             sender_name: local.name().to_string(),
-            text: text.to_string(),
+            text,
             timestamp_ms: info.timestamp.timestamp_millis() as u64,
         };
 
@@ -124,7 +115,7 @@ impl ChatService {
     }
 
     /// Validate message text before sending. Returns trimmed text or error.
-    pub fn validate_message(text: &str) -> Result<&str, VisioError> {
+    pub fn validate_message(text: &str) -> Result<String, VisioError> {
         let trimmed = text.trim();
         if trimmed.is_empty() {
             return Err(VisioError::Room("message is empty".into()));
@@ -135,7 +126,33 @@ impl ChatService {
                 trimmed.len()
             )));
         }
-        Ok(trimmed)
+
+        // Basic XSS sanitization: strip HTML tags and script-like patterns
+        let sanitized = Self::sanitize_xss(trimmed);
+        if sanitized.len() > MAX_MESSAGE_LENGTH {
+            return Err(VisioError::Room(format!(
+                "message too long after sanitization ({} chars, max {MAX_MESSAGE_LENGTH})",
+                sanitized.len()
+            )));
+        }
+
+        Ok(sanitized)
+    }
+
+    /// Strip potentially dangerous HTML/script patterns from message text.
+    fn sanitize_xss(text: &str) -> String {
+        use regex::Regex;
+        use std::sync::OnceLock;
+
+        static HTML_TAG_RE: OnceLock<Regex> = OnceLock::new();
+        static SCRIPT_RE: OnceLock<Regex> = OnceLock::new();
+
+        let html_re = HTML_TAG_RE.get_or_init(|| Regex::new(r"<[^>]+>").unwrap());
+        let script_re =
+            SCRIPT_RE.get_or_init(|| Regex::new(r"(?i)(javascript|vbscript|on\w+\s*=)").unwrap());
+
+        let without_tags = html_re.replace_all(text, "");
+        script_re.replace_all(&without_tags, "").to_string()
     }
 }
 
@@ -165,5 +182,28 @@ mod tests {
     fn message_trimmed() {
         let result = ChatService::validate_message("  hello  ").unwrap();
         assert_eq!(result, "hello");
+    }
+
+    #[test]
+    fn html_tags_stripped() {
+        let result =
+            ChatService::validate_message("hello <script>alert('xss')</script> world").unwrap();
+        assert!(!result.contains("<script>"));
+        assert!(!result.contains("</script>"));
+        assert!(result.contains("hello"));
+        assert!(result.contains("world"));
+    }
+
+    #[test]
+    fn javascript_pattern_stripped() {
+        let result =
+            ChatService::validate_message("click here javascript:void(0) to continue").unwrap();
+        assert!(!result.to_lowercase().contains("javascript:"));
+    }
+
+    #[test]
+    fn event_handler_stripped() {
+        let result = ChatService::validate_message("<img onclick='evil()' src='x'>").unwrap();
+        assert!(!result.to_lowercase().contains("onclick"));
     }
 }
