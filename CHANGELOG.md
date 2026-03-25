@@ -24,6 +24,8 @@ and this project adheres to
   on TestConnectParams (#185)
 - iOS: return to home screen immediately after hanging up a call,
   instead of landing on the pre-join setup page
+- iOS: opening a visio:// deep link now navigates directly to the
+  pre-join setup page instead of just filling in the URL field
 
 ### Added
 

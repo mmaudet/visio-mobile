@@ -402,7 +402,10 @@ struct HomeView: View {
                 // Strip the query param from the URL shown in the field
                 let cleanURL = link.components(separatedBy: "?").first ?? link
                 roomURL = cleanURL
+                resolvedRoomURL = cleanURL
                 manager.pendingDeepLink = nil
+                // Navigate directly to the pre-join setup page
+                navigateToCall = true
             }
         }
         .onChange(of: manager.pendingTestConnect != nil) { _ in
