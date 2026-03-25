@@ -16,7 +16,7 @@ struct BlurredCameraPreviewView: UIViewRepresentable {
     }
 
     func updateUIView(_ uiView: VideoDisplayView, context: Context) {
-        manager.switchCamera(toFront: isFront)
+        manager.cameraCapture?.switchCamera(toFront: isFront)
     }
 
     static func dismantleUIView(_ uiView: VideoDisplayView, coordinator: ()) {
