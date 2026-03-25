@@ -48,6 +48,7 @@ android/app/src/main/assets/i18n/
 CLAUDE.md
 docs/plans/
 .claude/
+.opencode/
 
 # Ruby / Fastlane
 vendor/bundle/
