@@ -1,5 +1,5 @@
+import Combine
 import SwiftUI
-import WebKit
 import visioFFI
 
 struct HomeView: View {
@@ -15,12 +15,28 @@ struct HomeView: View {
     @State private var showServerPicker: Bool = false
     @State private var customServer: String = ""
     @State private var showCreateRoom: Bool = false
-    @State private var roomHistory: [String] = []
+    @State private var roomDisplayName: String = ""
+    @State private var roomHistory: [VisioHistoryEntry] = []
     @State private var historyJoinPending: Bool = false
     @State private var showCompactHeader: Bool = false
+    @State private var selectedTab: Int = 0
+    @State private var syncToastMessage: String?
+    @State private var syncToastIsError: Bool = false
+    @State private var now = Date()
+    private let minuteTimer = Timer.publish(every: 60, on: .main, in: .common).autoconnect()
 
     private var lang: String { manager.currentLang }
     private var isDark: Bool { manager.currentTheme == "dark" }
+
+    private var hasImminentMeeting: Bool {
+        let nowTs = now.timeIntervalSince1970
+        return manager.upcomingMeetings.contains { meeting in
+            let start = TimeInterval(meeting.startTime)
+            let end = TimeInterval(meeting.endTime)
+            let minutesUntil = (start - nowTs) / 60
+            return (minutesUntil >= 0 && minutesUntil < 15) || (start <= nowTs && end > nowTs)
+        }
+    }
 
     private static let slugPattern = /^[a-z]{3}-[a-z]{4}-[a-z]{3}$/
 
@@ -37,7 +53,55 @@ struct HomeView: View {
         ZStack {
             VisioColors.background(dark: isDark).ignoresSafeArea()
 
-            ScrollView {
+            VStack(spacing: 0) {
+                // Tab segment control (Rejoindre / Réunions)
+                let meetingsBase = Strings.t("home.tab.meetings", lang: lang)
+                let meetingsLabel = manager.calendarLoading && manager.upcomingMeetings.isEmpty
+                    ? meetingsBase + " …"
+                    : manager.upcomingMeetings.isEmpty
+                        ? meetingsBase
+                        : meetingsBase + " (\(manager.upcomingMeetings.count))"
+                Picker("", selection: $selectedTab) {
+                    Text(Strings.t("home.tab.join", lang: lang)).tag(0)
+                    HStack(spacing: 4) {
+                        Text(meetingsLabel)
+                        if hasImminentMeeting {
+                            Circle()
+                                .fill(Color.red)
+                                .frame(width: 8, height: 8)
+                        }
+                    }.tag(1)
+                }
+                .pickerStyle(.segmented)
+                .padding(.horizontal, 16)
+                .padding(.top, 8)
+                .padding(.bottom, 16)
+                .onChange(of: selectedTab) { newTab in
+                    if newTab == 1 {
+                        manager.refreshCalendarNow()
+                    }
+                }
+
+                if selectedTab == 1 {
+                    MeetingsTabView(
+                        meetings: manager.upcomingMeetings,
+                        hasCalendarUrl: manager.client.getCalendarUrl() != nil,
+                        isLoading: manager.calendarLoading,
+                        isDark: isDark,
+                        lang: lang,
+                        onSettings: { showSettings = true },
+                        onRefresh: { manager.refreshCalendarNow() },
+                        onJoinMeeting: { meeting in
+                            roomURL = meeting.roomUrl
+                            resolvedRoomURL = meeting.roomUrl
+                            roomStatus = "valid"
+                            selectedTab = 0
+                            navigateToCall = true
+                        }
+                    )
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else {
+                ScrollView {
                 VStack(spacing: 32) {
                     VStack(spacing: 8) {
                         VisioLogo(size: 96)
@@ -52,10 +116,6 @@ struct HomeView: View {
                             showCompactHeader = value < -20
                         }
                     })
-
-                Text(Strings.t("home.subtitle", lang: lang))
-                    .font(.subheadline)
-                    .foregroundStyle(VisioColors.secondaryText(dark: isDark))
 
                 // Authentication section
                 if manager.isAuthenticated {
@@ -109,6 +169,9 @@ struct HomeView: View {
                             .foregroundStyle(.red)
                     }
 
+                    TextField(Strings.t("home.roomDisplayName", lang: lang), text: $roomDisplayName)
+                        .textFieldStyle(.roundedBorder)
+
                     TextField(Strings.t("home.displayName", lang: lang), text: $displayName)
                         .textFieldStyle(.roundedBorder)
                         .textInputAutocapitalization(.words)
@@ -123,12 +186,21 @@ struct HomeView: View {
                     if isSlug, !meetInstances.isEmpty {
                         urlsToTry = meetInstances.map { "https://\($0)/\(trimmed)" }
                     } else {
-                        guard extractSlug(trimmed) != nil else {
-                            roomStatus = "idle"
-                            resolvedRoomURL = trimmed
-                            return
+                        if extractSlug(trimmed) != nil {
+                            urlsToTry = [trimmed]
+                        } else {
+                            // Try alias resolution
+                            let candidate = trimmed.contains("/")
+                                ? String(trimmed.trimmingCharacters(in: CharacterSet(charactersIn: "/")).split(separator: "/").last ?? "")
+                                : trimmed
+                            if let aliasUrl = manager.client.resolveVisioAlias(name: candidate) {
+                                urlsToTry = [aliasUrl]
+                            } else {
+                                roomStatus = "idle"
+                                resolvedRoomURL = trimmed
+                                return
+                            }
                         }
-                        urlsToTry = [trimmed]
                     }
 
                     roomStatus = "checking"
@@ -191,13 +263,16 @@ struct HomeView: View {
                             .fontWeight(.medium)
                             .foregroundStyle(VisioColors.secondaryText(dark: isDark))
 
-                        ForEach(Array(roomHistory.enumerated()), id: \.offset) { index, url in
-                            let slug = url.contains("/") ? String(url.split(separator: "/").last ?? "") : url
-                            let host = URL(string: url)?.host ?? ""
+                        ForEach(Array(roomHistory.enumerated()), id: \.offset) { index, entry in
+                            let slug = entry.url.contains("/") ? String(entry.url.split(separator: "/").last ?? "") : entry.url
+                            let host = URL(string: entry.url)?.host ?? ""
 
                             Button {
-                                roomURL = url
-                                resolvedRoomURL = url
+                                roomURL = entry.url
+                                resolvedRoomURL = entry.url
+                                if let name = entry.displayName {
+                                    roomDisplayName = name
+                                }
                                 // If already validated, navigate immediately
                                 if roomStatus == "valid" {
                                     navigateToCall = true
@@ -206,7 +281,7 @@ struct HomeView: View {
                                 }
                             } label: {
                                 HStack(spacing: 10) {
-                                    if historyJoinPending && roomURL == url {
+                                    if historyJoinPending && roomURL == entry.url {
                                         ProgressView()
                                             .scaleEffect(0.7)
                                             .frame(width: 14, height: 14)
@@ -217,14 +292,24 @@ struct HomeView: View {
                                     }
 
                                     VStack(alignment: .leading, spacing: 2) {
-                                        Text(slug)
-                                            .font(.body)
-                                            .fontWeight(.medium)
-                                            .foregroundStyle(VisioColors.onBackground(dark: isDark))
-                                        if !host.isEmpty {
-                                            Text(host)
+                                        if let name = entry.displayName {
+                                            Text(name)
+                                                .font(.body)
+                                                .fontWeight(.bold)
+                                                .foregroundStyle(VisioColors.onBackground(dark: isDark))
+                                            Text("\(slug) · \(host)")
                                                 .font(.caption)
                                                 .foregroundStyle(VisioColors.secondaryText(dark: isDark))
+                                        } else {
+                                            Text(slug)
+                                                .font(.body)
+                                                .fontWeight(.medium)
+                                                .foregroundStyle(VisioColors.onBackground(dark: isDark))
+                                            if !host.isEmpty {
+                                                Text(host)
+                                                    .font(.caption)
+                                                    .foregroundStyle(VisioColors.secondaryText(dark: isDark))
+                                            }
                                         }
                                     }
 
@@ -235,8 +320,8 @@ struct HomeView: View {
                                 .background(
                                     RoundedRectangle(cornerRadius: 8)
                                         .fill(isDark
-                                            ? VisioColors.primary500.opacity(0.12)
-                                            : VisioColors.primary500.opacity(0.08))
+                                            ? Color(red: 0.12, green: 0.12, blue: 0.18)
+                                            : Color(red: 0.95, green: 0.95, blue: 0.97))
                                 )
                             }
                             .disabled(historyJoinPending)
@@ -249,6 +334,8 @@ struct HomeView: View {
                 .padding(.bottom, 32)
             }
             .coordinateSpace(name: "scroll")
+            } // end else (join tab)
+            } // end VStack tabs
         }
         .navigationBarTitleDisplayMode(.inline)
         .toolbarColorScheme(isDark ? .dark : .light, for: .navigationBar)
@@ -275,15 +362,19 @@ struct HomeView: View {
             }
         }
         .navigationDestination(isPresented: $navigateToCall) {
-            CallView(
+            PreJoinView(
                 roomURL: resolvedRoomURL,
-                displayName: displayName.trimmingCharacters(in: .whitespacesAndNewlines)
+                initialDisplayName: displayName.trimmingCharacters(in: .whitespacesAndNewlines),
+                roomDisplayName: roomDisplayName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                    ? nil
+                    : roomDisplayName.trimmingCharacters(in: .whitespacesAndNewlines)
             )
         }
         .sheet(isPresented: $showSettings) {
             SettingsView()
                 .environmentObject(manager)
         }
+        .onReceive(minuteTimer) { _ in now = Date() }
         .onAppear {
             // Pre-fill display name from manager (includes OIDC identity)
             let name = manager.displayName
@@ -293,7 +384,15 @@ struct HomeView: View {
             // Load meet instances
             meetInstances = manager.client.getMeetInstances()
             // Load room history
-            roomHistory = manager.client.getRoomHistory()
+            roomHistory = manager.client.getVisioHistory()
+            // Load cached meetings immediately, then refresh from network
+            let cached = manager.client.getUpcomingMeetings()
+            if !cached.isEmpty {
+                manager.upcomingMeetings = cached
+            }
+            if manager.client.getCalendarUrl() != nil {
+                manager.refreshCalendarNow()
+            }
         }
         .onChange(of: manager.authenticatedDisplayName) { newValue in
             if !newValue.isEmpty && displayName.isEmpty {
@@ -312,13 +411,56 @@ struct HomeView: View {
         }
         .onChange(of: manager.pendingDeepLink) { newValue in
             if let link = newValue {
-                roomURL = link
+                // Extract room display name from the URL if present, then strip the param
+                if let extracted = manager.client.extractRoomDisplayName(url: link) {
+                    roomDisplayName = extracted
+                }
+                // Strip the query param from the URL shown in the field
+                let cleanURL = link.components(separatedBy: "?").first ?? link
+                roomURL = cleanURL
                 manager.pendingDeepLink = nil
             }
         }
         .onChange(of: manager.pendingTestConnect != nil) { hasTestConnect in
             if hasTestConnect {
                 navigateToCall = true
+            }
+        }
+        .onChange(of: manager.calendarSyncResult) { newResult in
+            guard let result = newResult else { return }
+            switch result {
+            case .success(let count):
+                if count > 0 {
+                    syncToastMessage = Strings.t("calendar.sync.success", lang: lang)
+                        .replacingOccurrences(of: "{count}", with: "\(count)")
+                } else {
+                    syncToastMessage = Strings.t("calendar.sync.noMeetings", lang: lang)
+                }
+                syncToastIsError = false
+            case .error:
+                syncToastMessage = Strings.t("calendar.sync.error", lang: lang)
+                syncToastIsError = true
+            }
+            manager.calendarSyncResult = nil
+            DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+                syncToastMessage = nil
+            }
+        }
+        .overlay(alignment: .bottom) {
+            if let message = syncToastMessage {
+                Text(message)
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
+                    .background(
+                        Capsule()
+                            .fill(syncToastIsError ? Color.red.opacity(0.9) : VisioColors.primary500.opacity(0.9))
+                    )
+                    .padding(.bottom, 24)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                    .animation(.easeInOut(duration: 0.3), value: syncToastMessage)
             }
         }
         .sheet(isPresented: $showCreateRoom) {
@@ -342,146 +484,32 @@ struct HomeView: View {
                 lang: lang,
                 onDismiss: { showServerPicker = false }
             )
-            .environmentObject(manager)
         }
-        .sheet(isPresented: Binding(
-            get: { manager.authManager.pendingInstance != nil },
-            set: { if !$0 { manager.authManager.onWebViewCookie(nil, meetInstance: "") } }
-        )) {
-            if let instance = manager.authManager.pendingInstance {
-                OidcAuthSheet(meetInstance: instance, lang: lang) { cookie in
-                    manager.authManager.onWebViewCookie(cookie, meetInstance: instance)
-                    if let cookie {
-                        manager.onAuthCookieReceived(cookie, meetInstance: instance)
-                    }
-                }
-            }
+        .alert(
+            Strings.t("call.error", lang: lang),
+            isPresented: Binding(
+                get: { manager.pendingDeepLinkError != nil },
+                set: { if !$0 { manager.pendingDeepLinkError = nil } }
+            )
+        ) {
+            Button("OK") { manager.pendingDeepLinkError = nil }
+        } message: {
+            Text(manager.pendingDeepLinkError ?? "")
         }
     }
 
     private func launchOidc(meetInstance: String) {
-        manager.authManager.launchOidcFlow(meetInstance: meetInstance)
-    }
-}
-
-// MARK: - OIDC Auth Sheet
-
-/// Wraps OidcAuthWebView in a NavigationStack with title, cancel button, and progress bar.
-private struct OidcAuthSheet: View {
-    let meetInstance: String
-    let lang: String
-    let onCookie: (String?) -> Void
-
-    @State private var progress: Double = 0
-
-    var body: some View {
-        NavigationStack {
-            ZStack(alignment: .top) {
-                OidcAuthWebView(meetInstance: meetInstance, progress: $progress, onCookie: onCookie)
-                    .ignoresSafeArea(edges: .bottom)
-                if progress > 0 && progress < 1.0 {
-                    ProgressView(value: progress)
-                        .tint(.accentColor)
+        manager.authManager.launchOidcFlow(meetInstance: meetInstance) { [weak manager] code in
+            guard let code, let manager else { return }
+            DispatchQueue.global(qos: .userInitiated).async {
+                do {
+                    let sessionId = try manager.client.exchangeOidcCode(meetInstance: meetInstance, code: code)
+                    DispatchQueue.main.async {
+                        manager.onAuthCookieReceived(sessionId, meetInstance: meetInstance)
+                    }
+                } catch {
+                    NSLog("[HomeView] OIDC code exchange failed: \(error)")
                 }
-            }
-            .navigationTitle(meetInstance)
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button(Strings.t("settings.cancel", lang: lang)) { onCookie(nil) }
-                }
-            }
-        }
-    }
-}
-
-// MARK: - OIDC Auth WebView
-
-/// WKWebView-based OIDC auth. Opens the server's authenticate endpoint with
-/// `returnTo=visio://auth-callback`. Intercepts that redirect to attempt code
-/// exchange; falls back to reading cookies from the WKWebView store if no code
-/// is present (or on servers that redirect to the homepage instead).
-private struct OidcAuthWebView: UIViewRepresentable {
-    let meetInstance: String
-    @Binding var progress: Double
-    let onCookie: (String?) -> Void
-
-    func makeCoordinator() -> Coordinator { Coordinator(self) }
-
-    func makeUIView(context: Context) -> WKWebView {
-        let config = WKWebViewConfiguration()
-        let webView = WKWebView(frame: .zero, configuration: config)
-        webView.navigationDelegate = context.coordinator
-        context.coordinator.progressObservation = webView.observe(\.estimatedProgress) { wv, _ in
-            DispatchQueue.main.async { context.coordinator.parent.progress = wv.estimatedProgress }
-        }
-        var components = URLComponents()
-        components.scheme = "https"
-        components.host = meetInstance
-        components.path = "/api/v1.0/authenticate/"
-        components.queryItems = [URLQueryItem(name: "returnTo", value: "visio://auth-callback")]
-        if let url = components.url {
-            webView.load(URLRequest(url: url))
-        }
-        return webView
-    }
-
-    func updateUIView(_ uiView: WKWebView, context: Context) {}
-
-    class Coordinator: NSObject, WKNavigationDelegate {
-        var parent: OidcAuthWebView
-        var progressObservation: NSKeyValueObservation?
-        init(_ parent: OidcAuthWebView) { self.parent = parent }
-
-        // Intercept visio://auth-callback to extract the code (or fall back to cookies).
-        func webView(
-            _ webView: WKWebView,
-            decidePolicyFor navigationAction: WKNavigationAction,
-            decisionHandler: @escaping (WKNavigationActionPolicy) -> Void
-        ) {
-            guard let url = navigationAction.request.url, url.scheme == "visio" else {
-                decisionHandler(.allow)
-                return
-            }
-            decisionHandler(.cancel)
-
-            let instance = parent.meetInstance
-            if let code = URLComponents(url: url, resolvingAgainstBaseURL: false)?
-                .queryItems?.first(where: { $0.name == "code" })?.value,
-               !code.isEmpty {
-                // Exchange the one-time code for a session cookie.
-                OidcAuthManager.exchangeCode(meetInstance: instance, code: code) { [weak self] cookie in
-                    self?.parent.onCookie(cookie)
-                } onFailure: { [weak self, weak webView] in
-                    guard let self else { return }
-                    Self.extractCookie(from: webView, instance: instance, onCookie: self.parent.onCookie)
-                }
-            } else {
-                // No code in redirect — read cookies from the WKWebView store directly.
-                Self.extractCookie(from: webView, instance: instance, onCookie: parent.onCookie)
-            }
-        }
-
-        // Secondary detection: servers that redirect to the instance homepage.
-        func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
-            guard let url = webView.url,
-                  url.host == parent.meetInstance,
-                  !url.path.contains("/authenticate"),
-                  !url.path.contains("/oauth2/"),
-                  !url.path.contains("/callback") else { return }
-            Self.extractCookie(from: webView, instance: parent.meetInstance, onCookie: parent.onCookie)
-        }
-
-        private static func extractCookie(
-            from webView: WKWebView?,
-            instance: String,
-            onCookie: @escaping (String?) -> Void
-        ) {
-            webView?.configuration.websiteDataStore.httpCookieStore.getAllCookies { cookies in
-                let value = cookies.first(where: {
-                    OidcAuthManager.cookieNames.contains($0.name) && $0.domain.contains(instance)
-                })?.value
-                Task { @MainActor in onCookie(value) }
             }
         }
     }
@@ -489,7 +517,7 @@ private struct OidcAuthWebView: UIViewRepresentable {
 
 // MARK: - Server Picker
 
-/// Server picker — user selects an instance, then the WKWebView auth sheet opens.
+/// Server picker that navigates to the OIDC web view within the same sheet.
 private struct ServerPickerWithOidc: View {
     let instances: [String]
     @Binding var customServer: String
@@ -516,7 +544,20 @@ private struct ServerPickerWithOidc: View {
 
     private func selectInstance(_ instance: String) {
         onDismiss()
-        manager.authManager.launchOidcFlow(meetInstance: instance)
+        // Use ASWebAuthenticationSession + exchange code
+        manager.authManager.launchOidcFlow(meetInstance: instance) { [weak manager] code in
+            guard let code, let manager else { return }
+            DispatchQueue.global(qos: .userInitiated).async {
+                do {
+                    let sessionId = try manager.client.exchangeOidcCode(meetInstance: instance, code: code)
+                    DispatchQueue.main.async {
+                        manager.onAuthCookieReceived(sessionId, meetInstance: instance)
+                    }
+                } catch {
+                    NSLog("[ServerPicker] OIDC code exchange failed: \(error)")
+                }
+            }
+        }
     }
 
     var body: some View {
@@ -626,6 +667,7 @@ private struct CreateRoomSheet: View {
     let onCreated: (String) -> Void
     let onCancel: () -> Void
 
+    @State private var roomDisplayName: String = ""
     @State private var accessLevel: String = "public"
     @State private var creating: Bool = false
     @State private var error: String? = nil
@@ -637,6 +679,9 @@ private struct CreateRoomSheet: View {
     @State private var invitedUsers: [UserSearchResult] = []
     @State private var createdRoomId: String? = nil
     @State private var searchTask: Task<Void, Never>? = nil
+    @State private var pendingAliasConflictName: String? = nil
+    @State private var pendingAliasConflictUrl: String? = nil
+    @State private var showAliasConflict: Bool = false
 
     private var deepLink: String {
         guard let url = createdUrl else { return "" }
@@ -648,6 +693,46 @@ private struct CreateRoomSheet: View {
         NavigationStack {
             Form {
                 if createdUrl == nil {
+                    createFormContent
+                } else {
+                    resultFormContent
+                }
+            }
+            .navigationTitle(Strings.t("home.createRoom", lang: lang))
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button(Strings.t("settings.cancel", lang: lang)) { onCancel() }
+                }
+            }
+            .alert(
+                Strings.t("alias.conflictTitle", lang: lang)
+                    .replacingOccurrences(of: "{name}", with: pendingAliasConflictName ?? ""),
+                isPresented: $showAliasConflict
+            ) {
+                Button(Strings.t("alias.conflictReplace", lang: lang)) {
+                    if let name = pendingAliasConflictName, let url = pendingAliasConflictUrl {
+                        manager.client.addVisioAlias(name: name, url: url)
+                    }
+                    pendingAliasConflictName = nil
+                    pendingAliasConflictUrl = nil
+                }
+                Button(Strings.t("alias.conflictCancel", lang: lang), role: .cancel) {
+                    pendingAliasConflictName = nil
+                    pendingAliasConflictUrl = nil
+                }
+            }
+        }
+    }
+
+    // MARK: - Create form (before room is created)
+
+    @ViewBuilder
+    private var createFormContent: some View {
+                    Section {
+                        TextField(Strings.t("home.roomDisplayName", lang: lang), text: $roomDisplayName)
+                    }
+
                     Section {
                         Picker(Strings.t("home.createRoom.access", lang: lang), selection: $accessLevel) {
                             Text(Strings.t("home.createRoom.public", lang: lang)).tag("public")
@@ -687,17 +772,17 @@ private struct CreateRoomSheet: View {
                                         try? await Task.sleep(nanoseconds: 300_000_000)
                                         guard !Task.isCancelled else { return }
                                         let query = newValue
-                                        let client = manager.client
-                                        let currentInvited = invitedUsers
-                                        do {
-                                            let results = try await Task.detached {
-                                                try client.searchUsers(query: query)
-                                            }.value
-                                            searchResults = results.filter { user in
-                                                !currentInvited.contains(where: { $0.id == user.id })
+                                        DispatchQueue.global(qos: .userInitiated).async {
+                                            do {
+                                                let results = try manager.client.searchUsers(query: query)
+                                                DispatchQueue.main.async {
+                                                    searchResults = results.filter { user in
+                                                        !invitedUsers.contains(where: { $0.id == user.id })
+                                                    }
+                                                }
+                                            } catch {
+                                                DispatchQueue.main.async { searchResults = [] }
                                             }
-                                        } catch {
-                                            searchResults = []
                                         }
                                     }
                                 }
@@ -750,33 +835,45 @@ private struct CreateRoomSheet: View {
                             guard !meetInstance.isEmpty else { return }
                             creating = true
                             error = nil
-                            let client = manager.client
-                            let level = accessLevel
-                            let users = invitedUsers
-                            Task {
+                            DispatchQueue.global(qos: .userInitiated).async {
                                 do {
-                                    let result = try await Task.detached {
-                                        try client.createRoom(
-                                            meetUrl: "https://\(meetInstance)",
-                                            name: "",
-                                            accessLevel: level
-                                        )
-                                    }.value
+                                    let result = try manager.client.createRoom(
+                                        meetUrl: "https://\(meetInstance)",
+                                        accessLevel: accessLevel
+                                    )
                                     // Add accesses for invited users
-                                    if level == "restricted" {
-                                        let roomId = result.id
-                                        await Task.detached {
-                                            for user in users {
-                                                _ = try? client.addAccess(userId: user.id, roomId: roomId)
-                                            }
-                                        }.value
+                                    if accessLevel == "restricted" {
+                                        for user in invitedUsers {
+                                            _ = try? manager.client.addAccess(userId: user.id, roomId: result.id)
+                                        }
                                     }
-                                    createdRoomId = result.id
-                                    createdUrl = "https://\(meetInstance)/\(result.slug)"
-                                    creating = false
+                                    DispatchQueue.main.async {
+                                        createdRoomId = result.id
+                                        let trimmedName = roomDisplayName.trimmingCharacters(in: .whitespacesAndNewlines)
+                                        let baseUrl = "https://\(meetInstance)/\(result.slug)"
+                                        if !trimmedName.isEmpty {
+                                            var allowed = CharacterSet.urlQueryAllowed
+                                            allowed.remove(charactersIn: " +&=")
+                                            let encoded = trimmedName.addingPercentEncoding(withAllowedCharacters: allowed) ?? trimmedName
+                                            createdUrl = "\(baseUrl)?visio=\(encoded)"
+                                            let conflict = manager.client.checkVisioAliasConflict(name: trimmedName, url: baseUrl)
+                                            if conflict == nil {
+                                                manager.client.addVisioAlias(name: trimmedName, url: baseUrl)
+                                            } else {
+                                                pendingAliasConflictName = trimmedName
+                                                pendingAliasConflictUrl = baseUrl
+                                                showAliasConflict = true
+                                            }
+                                        } else {
+                                            createdUrl = baseUrl
+                                        }
+                                        creating = false
+                                    }
                                 } catch {
-                                    self.error = error.localizedDescription
-                                    creating = false
+                                    DispatchQueue.main.async {
+                                        self.error = error.localizedDescription
+                                        creating = false
+                                    }
                                 }
                             }
                         } label: {
@@ -791,7 +888,12 @@ private struct CreateRoomSheet: View {
                         }
                         .disabled(creating)
                     }
-                } else {
+    }
+
+    // MARK: - Result form (after room is created)
+
+    @ViewBuilder
+    private var resultFormContent: some View {
                     Section {
                         VStack(alignment: .leading, spacing: 4) {
                             HStack {
@@ -804,7 +906,7 @@ private struct CreateRoomSheet: View {
                                 Button {
                                     UIPasteboard.general.string = createdUrl
                                     copiedHttp = true
-                                    Task { try? await Task.sleep(for: .seconds(2)); copiedHttp = false }
+                                    DispatchQueue.main.asyncAfter(deadline: .now() + 2) { copiedHttp = false }
                                 } label: {
                                     Image(systemName: copiedHttp ? "checkmark" : "doc.on.doc")
                                         .font(.caption)
@@ -830,7 +932,7 @@ private struct CreateRoomSheet: View {
                                 Button {
                                     UIPasteboard.general.string = deepLink
                                     copiedDeep = true
-                                    Task { try? await Task.sleep(for: .seconds(2)); copiedDeep = false }
+                                    DispatchQueue.main.asyncAfter(deadline: .now() + 2) { copiedDeep = false }
                                 } label: {
                                     Image(systemName: copiedDeep ? "checkmark" : "doc.on.doc")
                                         .font(.caption)
@@ -849,6 +951,36 @@ private struct CreateRoomSheet: View {
                         Text(Strings.t("settings.incall.roomInfo", lang: lang))
                     }
 
+                    if !roomDisplayName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        let host = (createdUrl ?? "").replacingOccurrences(of: "https://", with: "").components(separatedBy: "/").first ?? ""
+                        let simplifiedUrl = "visio://\(host)/\(roomDisplayName.trimmingCharacters(in: .whitespacesAndNewlines))"
+                        Section {
+                            VStack(alignment: .leading, spacing: 4) {
+                                HStack {
+                                    Image(systemName: "link")
+                                        .font(.caption)
+                                    Text(Strings.t("home.createVisio.simplifiedUrl", lang: lang))
+                                        .font(.subheadline)
+                                        .fontWeight(.semibold)
+                                    Spacer()
+                                    Button {
+                                        UIPasteboard.general.string = simplifiedUrl
+                                    } label: {
+                                        Image(systemName: "doc.on.doc")
+                                            .font(.caption)
+                                    }
+                                }
+                                TextField("", text: .constant(simplifiedUrl))
+                                    .font(.caption)
+                                    .textFieldStyle(.roundedBorder)
+                                    .disabled(true)
+                                Text(Strings.t("home.createVisio.simplifiedUrlHint", lang: lang))
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                    }
+
                     Section {
                         Button {
                             onCreated(createdUrl!)
@@ -861,16 +993,6 @@ private struct CreateRoomSheet: View {
                             }
                         }
                     }
-                }
-            }
-            .navigationTitle(Strings.t("home.createRoom", lang: lang))
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button(Strings.t("settings.cancel", lang: lang)) { onCancel() }
-                }
-            }
-        }
     }
 }
 

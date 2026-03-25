@@ -18,8 +18,6 @@ and this project adheres to
   on public rooms (#180)
 - Desktop: remove room name field from join form (#180)
 - Desktop: fix camera not showing on join from lobby (#180)
-- iOS: replace ASWebAuthenticationSession with WKWebView for
-  OIDC login (#179)
 
 ### Added
 

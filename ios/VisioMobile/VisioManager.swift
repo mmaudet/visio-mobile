@@ -1,13 +1,18 @@
 import AVFoundation
-import Combine
 import Foundation
 import SwiftUI
+import UserNotifications
 import visioFFI
 
 struct TestConnectParams: Sendable {
     let livekitUrl: String
     let token: String
     let mediaFile: String?
+}
+
+enum CalendarSyncResult: Equatable {
+    case success(count: Int)
+    case error(message: String)
 }
 
 /// Central state manager for the Visio app, backed by UniFFI-generated VisioClient.
@@ -37,6 +42,8 @@ class VisioManager: ObservableObject {
     @Published var currentTheme: String = "light"
     @Published var displayName: String = ""
     @Published var pendingDeepLink: String? = nil
+    /// Error from deep link alias resolution.
+    @Published var pendingDeepLinkError: String? = nil
     /// For E2E testing: (livekitUrl, token, mediaFile?) from visio-test:// deep link.
     /// Only used in DEBUG builds.
     @Published var pendingTestConnect: TestConnectParams? = nil
@@ -54,18 +61,21 @@ class VisioManager: ObservableObject {
     @Published var backgroundMode: String = "off"
     @Published var reactions: [ReactionData] = []
     @Published var adaptiveMode: AdaptiveMode = .office
+    @Published var bandwidthMode: BandwidthMode = .full
     /// Set when a screen share track is subscribed; cleared on disconnect.
     @Published var lastScreenShareParticipantSid: String? = nil
+    @Published var upcomingMeetings: [Meeting] = []
+    @Published var calendarLoading: Bool = false
+    @Published var calendarSyncResult: CalendarSyncResult?
 
     let authManager = OidcAuthManager()
-    private var authCancellable: AnyCancellable?
 
     // MARK: - Private
 
     nonisolated let client: VisioClient
     private var audioPlayout: AudioPlayout?
     private var audioCapture: AudioCapture?
-    private var cameraCapture: CameraCapture?
+    var cameraCapture: CameraCapture?
     private var syntheticAudio: SyntheticAudioCapture?
     private var mediaFileCapture: MediaFileCapture?
     private var contextDetector: ContextDetector?
@@ -119,9 +129,19 @@ class VisioManager: ObservableObject {
             NSLog("VisioManager: selfie_segmentation.onnx not found in bundle")
         }
 
-        // Forward authManager changes so SwiftUI picks up pendingInstance.
-        authCancellable = authManager.objectWillChange.sink { [weak self] _ in
-            self?.objectWillChange.send()
+        // Observe Bluetooth audio device disconnection so we can log the
+        // iOS automatic fallback to built-in speaker.
+        NotificationCenter.default.addObserver(
+            forName: AVAudioSession.routeChangeNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] notification in
+            guard let reason = notification.userInfo?[AVAudioSessionRouteChangeReasonKey] as? UInt,
+                  reason == AVAudioSession.RouteChangeReason.oldDeviceUnavailable.rawValue else {
+                return
+            }
+            _ = self  // capture self to silence unused-capture warning
+            print("Audio route changed: Bluetooth device disconnected, iOS auto-fallback to built-in")
         }
     }
 
@@ -166,6 +186,13 @@ class VisioManager: ObservableObject {
                     let capture = AudioCapture()
                     capture.start()
                     audioCapture = capture
+                }
+
+                // Stop preview capture before starting call capture
+                // (releases the physical camera device)
+                await MainActor.run { [weak self] in
+                    self?.cameraCapture?.stop()
+                    self?.cameraCapture = nil
                 }
 
                 var cameraCapture: CameraCapture?
@@ -231,6 +258,13 @@ class VisioManager: ObservableObject {
                     let capture = AudioCapture()
                     capture.start()
                     audioCapture = capture
+                }
+
+                // Stop preview capture before starting call capture
+                // (releases the physical camera device)
+                await MainActor.run { [weak self] in
+                    self?.cameraCapture?.stop()
+                    self?.cameraCapture = nil
                 }
 
                 var cameraCapture: CameraCapture?
@@ -310,6 +344,7 @@ class VisioManager: ObservableObject {
                 self?.lobbyDenied = false
                 self?.reactions = []
                 self?.lastScreenShareParticipantSid = nil
+                self?.bandwidthMode = .full
             }
         }
     }
@@ -405,12 +440,21 @@ class VisioManager: ObservableObject {
     }
 
     /// Configure AVAudioSession for voice chat (play + record).
+    /// Preserves the current Bluetooth route if one is active.
     nonisolated static func configureAudioSession() {
         let session = AVAudioSession.sharedInstance()
+        let previousBtInput = session.currentRoute.inputs.first {
+            [.bluetoothHFP, .bluetoothA2DP, .bluetoothLE].contains($0.portType)
+        }
         do {
-            try session.setCategory(.playAndRecord, mode: .voiceChat, options: [.defaultToSpeaker, .allowBluetooth])
+            try session.setCategory(.playAndRecord, mode: .voiceChat, options: [.defaultToSpeaker, .allowBluetooth, .allowBluetoothA2DP])
             try session.setPreferredSampleRate(48_000)
             try session.setActive(true)
+            if let btInput = previousBtInput,
+               let matchingInput = session.availableInputs?.first(where: { $0.portType == btInput.portType }) {
+                try session.setPreferredInput(matchingInput)
+                NSLog("VisioManager: restored Bluetooth input: %@", matchingInput.portName)
+            }
             NSLog("VisioManager: audio session configured (.playAndRecord)")
         } catch {
             NSLog("VisioManager: audio session config failed: %@", error.localizedDescription)
@@ -743,6 +787,65 @@ class VisioManager: ObservableObject {
         isFrontCamera = toFront
     }
 
+    /// Start camera capture for the pre-join lobby preview.
+    /// Frames go through the Rust blur pipeline and are delivered via
+    /// VideoFrameRouter with track SID "local-camera".
+    func startPreviewCapture(isFront: Bool) {
+        cameraCapture?.stop()
+
+        // Sync BlurProcessor with persisted background mode so the preview
+        // applies the user's last-selected filter immediately.
+        let mode = client.getBackgroundMode()
+        NSLog("VisioManager: startPreviewCapture syncing blur mode='%@'", mode)
+        client.setBackgroundMode(mode: mode)
+
+        let capture = CameraCapture()
+        capture.start()
+        if !isFront {
+            capture.switchCamera(toFront: false)
+        }
+        cameraCapture = capture
+    }
+
+    /// Stop the preview camera capture.
+    func stopPreviewCapture() {
+        cameraCapture?.stop()
+        cameraCapture = nil
+    }
+
+    func refreshCalendarNow() {
+        let client = self.client
+        calendarLoading = true
+        Task.detached {
+            client.refreshCalendarNow()
+        }
+    }
+
+    func requestNotificationPermissionIfNeeded() {
+        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { granted, error in
+            if let error {
+                NSLog("VisioManager: notification permission error: %@", error.localizedDescription)
+            } else {
+                NSLog("VisioManager: notification permission %@", granted ? "granted" : "denied")
+            }
+        }
+    }
+
+    private func scheduleMeetingNotification(title: String, body: String, identifier: String) {
+        let content = UNMutableNotificationContent()
+        content.title = title
+        content.body = body
+        content.sound = .default
+
+        let trigger = UNTimeIntervalNotificationTrigger(timeInterval: 1, repeats: false)
+        let request = UNNotificationRequest(identifier: identifier, content: content, trigger: trigger)
+        UNUserNotificationCenter.current().add(request) { error in
+            if let error {
+                NSLog("VisioManager: notification scheduling failed: %@", error.localizedDescription)
+            }
+        }
+    }
+
     func setNotificationParticipantJoin(_ enabled: Bool) {
         client.setNotificationParticipantJoin(enabled: enabled)
     }
@@ -1046,8 +1149,8 @@ class VisioManager: ObservableObject {
                 }
             }
 
-        case .bandwidthModeChanged:
-            break
+        case .bandwidthModeChanged(let mode):
+            self.bandwidthMode = mode
 
         case .connectionLost:
             let client = self.client
@@ -1080,6 +1183,42 @@ class VisioManager: ObservableObject {
             if self.isMicEnabled {
                 self.toggleMic()
             }
+
+        case .meetingsUpdated(let meetings):
+            let prevIds = Set(self.upcomingMeetings.map { $0.id })
+            self.upcomingMeetings = meetings
+            self.calendarLoading = false
+            // Only show sync toast when meetings actually changed
+            let newIds = Set(meetings.map { $0.id })
+            if prevIds != newIds {
+                self.calendarSyncResult = .success(count: meetings.count)
+            }
+
+        case .meetingImminent(let meeting):
+            scheduleMeetingNotification(
+                title: "Réunion bientôt",
+                body: "\(meeting.summary) commence dans 15 minutes",
+                identifier: "meeting-imminent-\(meeting.id)"
+            )
+
+        case .meetingStartingSoon(let meeting):
+            scheduleMeetingNotification(
+                title: "Réunion imminente",
+                body: "\(meeting.summary) commence dans moins de 5 minutes",
+                identifier: "meeting-soon-\(meeting.id)"
+            )
+
+        case .meetingStarted(let meeting):
+            scheduleMeetingNotification(
+                title: "Réunion en cours",
+                body: "\(meeting.summary) a commencé",
+                identifier: "meeting-started-\(meeting.id)"
+            )
+
+        case .calendarError(let message):
+            NSLog("VisioManager: calendar error: %@", message)
+            self.calendarLoading = false
+            self.calendarSyncResult = .error(message: message)
         }
     }
 }
