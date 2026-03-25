@@ -128,31 +128,26 @@ impl ChatService {
         }
 
         // Basic XSS sanitization: strip HTML tags and script-like patterns
-        let sanitized = Self::sanitize_xss(trimmed);
-        if sanitized.len() > MAX_MESSAGE_LENGTH {
-            return Err(VisioError::Room(format!(
-                "message too long after sanitization ({} chars, max {MAX_MESSAGE_LENGTH})",
-                sanitized.len()
-            )));
-        }
-
-        Ok(sanitized)
+        Ok(Self::sanitize_xss(trimmed))
     }
 
-    /// Strip potentially dangerous HTML/script patterns from message text.
+    /// Strip potentially dangerous script patterns from message text.
+    /// Only removes dangerous patterns (javascript:, vbscript:, event handlers),
+    /// preserves safe content like URLs in angle brackets.
     fn sanitize_xss(text: &str) -> String {
         use regex::Regex;
         use std::sync::OnceLock;
 
-        static HTML_TAG_RE: OnceLock<Regex> = OnceLock::new();
         static SCRIPT_RE: OnceLock<Regex> = OnceLock::new();
 
-        let html_re = HTML_TAG_RE.get_or_init(|| Regex::new(r"<[^>]+>").unwrap());
-        let script_re =
-            SCRIPT_RE.get_or_init(|| Regex::new(r"(?i)(javascript|vbscript|on\w+\s*=)").unwrap());
+        let script_re = SCRIPT_RE.get_or_init(|| {
+            Regex::new(
+                r"(?i)(^|\s)(javascript|vbscript):|data:text/html|<script[^>]*>.*?</script>|<script[^>]*/?\s*>|on\w+\s*=|&#\d+;|&#x[0-9a-f]+;",
+            )
+            .expect("invalid regex pattern for XSS filtering")
+        });
 
-        let without_tags = html_re.replace_all(text, "");
-        script_re.replace_all(&without_tags, "").to_string()
+        script_re.replace_all(text, "").to_string()
     }
 }
 
@@ -185,16 +180,6 @@ mod tests {
     }
 
     #[test]
-    fn html_tags_stripped() {
-        let result =
-            ChatService::validate_message("hello <script>alert('xss')</script> world").unwrap();
-        assert!(!result.contains("<script>"));
-        assert!(!result.contains("</script>"));
-        assert!(result.contains("hello"));
-        assert!(result.contains("world"));
-    }
-
-    #[test]
     fn javascript_pattern_stripped() {
         let result =
             ChatService::validate_message("click here javascript:void(0) to continue").unwrap();
@@ -203,7 +188,27 @@ mod tests {
 
     #[test]
     fn event_handler_stripped() {
-        let result = ChatService::validate_message("<img onclick='evil()' src='x'>").unwrap();
+        let result = ChatService::validate_message("user onclick='evil()' clicked").unwrap();
         assert!(!result.to_lowercase().contains("onclick"));
+    }
+
+    #[test]
+    fn compact_event_handler_stripped() {
+        // Test event handlers without spaces before =
+        let result = ChatService::validate_message("<img onerror=alert(1) src=x>").unwrap();
+        assert!(!result.to_lowercase().contains("onerror"));
+    }
+
+    #[test]
+    fn script_tags_stripped() {
+        let result = ChatService::validate_message("<script>alert('xss')</script>").unwrap();
+        assert!(!result.to_lowercase().contains("<script"));
+        assert!(!result.to_lowercase().contains("</script>"));
+    }
+
+    #[test]
+    fn urls_in_angle_brackets_preserved() {
+        let result = ChatService::validate_message("Check <https://example.com> for info").unwrap();
+        assert!(result.contains("https://example.com"));
     }
 }

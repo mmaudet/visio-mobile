@@ -10,6 +10,10 @@ and this project adheres to
 
 ### Fixed
 
+- Security: remove sensitive data (tokens, cookies) from API logs
+- Security: add XSS sanitization to chat messages
+- Security: reject dangerous URL schemes (javascript:, data:, file:)
+- Security: update rustls-webpki to 0.103.10 (RUSTSEC-2026-0049)
 - Desktop: prevent meet instances list from being overwritten when
   adding a new instance (#169)
 - Desktop: hide optional room name field on home page when
