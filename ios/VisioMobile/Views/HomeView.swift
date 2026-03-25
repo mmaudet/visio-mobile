@@ -53,54 +53,8 @@ struct HomeView: View {
         ZStack {
             VisioColors.background(dark: isDark).ignoresSafeArea()
 
-            VStack(spacing: 0) {
-                // Tab segment control (Rejoindre / Réunions)
-                let meetingsBase = Strings.t("home.tab.meetings", lang: lang)
-                let meetingsLabel = manager.calendarLoading && manager.upcomingMeetings.isEmpty
-                    ? meetingsBase + " …"
-                    : manager.upcomingMeetings.isEmpty
-                        ? meetingsBase
-                        : meetingsBase + " (\(manager.upcomingMeetings.count))"
-                Picker("", selection: $selectedTab) {
-                    Text(Strings.t("home.tab.join", lang: lang)).tag(0)
-                    HStack(spacing: 4) {
-                        Text(meetingsLabel)
-                        if hasImminentMeeting {
-                            Circle()
-                                .fill(Color.red)
-                                .frame(width: 8, height: 8)
-                        }
-                    }.tag(1)
-                }
-                .pickerStyle(.segmented)
-                .padding(.horizontal, 16)
-                .padding(.top, 8)
-                .padding(.bottom, 16)
-                .onChange(of: selectedTab) { _ in
-                    if selectedTab == 1 {
-                        manager.refreshCalendarNow()
-                    }
-                }
-
-                if selectedTab == 1 {
-                    MeetingsTabView(
-                        meetings: manager.upcomingMeetings,
-                        hasCalendarUrl: manager.client.getCalendarUrl() != nil,
-                        isLoading: manager.calendarLoading,
-                        isDark: isDark,
-                        lang: lang,
-                        onSettings: { showSettings = true },
-                        onRefresh: { manager.refreshCalendarNow() },
-                        onJoinMeeting: { meeting in
-                            roomURL = meeting.roomUrl
-                            resolvedRoomURL = meeting.roomUrl
-                            roomStatus = "valid"
-                            selectedTab = 0
-                            navigateToCall = true
-                        }
-                    )
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                } else {
+            TabView(selection: $selectedTab) {
+                // Tab 0: Join
                 ScrollView {
                 VStack(spacing: 32) {
                     VStack(spacing: 8) {
@@ -334,8 +288,37 @@ struct HomeView: View {
                 .padding(.bottom, 32)
             }
             .coordinateSpace(name: "scroll")
-            } // end else (join tab)
-            } // end VStack tabs
+            .tag(0)
+            .tabItem {
+                Label(Strings.t("home.tab.join", lang: lang), systemImage: "video.fill")
+            }
+
+                // Tab 1: Meetings
+                MeetingsTabView(
+                    meetings: manager.upcomingMeetings,
+                    hasCalendarUrl: manager.client.getCalendarUrl() != nil,
+                    isLoading: manager.calendarLoading,
+                    isDark: isDark,
+                    lang: lang,
+                    onSettings: { showSettings = true },
+                    onRefresh: { manager.refreshCalendarNow() },
+                    onJoinMeeting: { meeting in
+                        roomURL = meeting.roomUrl
+                        resolvedRoomURL = meeting.roomUrl
+                        roomStatus = "valid"
+                        selectedTab = 0
+                        navigateToCall = true
+                    }
+                )
+                .tag(1)
+                .tabItem {
+                    Label(Strings.t("home.tab.meetings", lang: lang), systemImage: "calendar")
+                }
+                .badge(hasImminentMeeting ? 1 : 0)
+            }
+            .onChange(of: selectedTab) { _ in
+                if selectedTab == 1 { manager.refreshCalendarNow() }
+            }
         }
         .navigationBarTitleDisplayMode(.inline)
         .toolbarColorScheme(isDark ? .dark : .light, for: .navigationBar)
@@ -361,15 +344,16 @@ struct HomeView: View {
                 }
             }
         }
-        .navigationDestination(isPresented: $navigateToCall) {
-            PreJoinView(
-                roomURL: resolvedRoomURL,
-                initialDisplayName: displayName.trimmingCharacters(in: .whitespacesAndNewlines),
-                roomDisplayName: roomDisplayName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                    ? nil
-                    : roomDisplayName.trimmingCharacters(in: .whitespacesAndNewlines)
-            )
-        }
+         .navigationDestination(isPresented: $navigateToCall) {
+             PreJoinView(
+                 roomURL: resolvedRoomURL,
+                 initialDisplayName: displayName.trimmingCharacters(in: .whitespacesAndNewlines),
+                 roomDisplayName: roomDisplayName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                     ? nil
+                     : roomDisplayName.trimmingCharacters(in: .whitespacesAndNewlines),
+                 isPresented: $navigateToCall
+             )
+         }
         .sheet(isPresented: $showSettings) {
             SettingsView()
                 .environmentObject(manager)
@@ -418,7 +402,10 @@ struct HomeView: View {
                 // Strip the query param from the URL shown in the field
                 let cleanURL = link.components(separatedBy: "?").first ?? link
                 roomURL = cleanURL
+                resolvedRoomURL = cleanURL
                 manager.pendingDeepLink = nil
+                // Navigate directly to the pre-join setup page
+                navigateToCall = true
             }
         }
         .onChange(of: manager.pendingTestConnect != nil) { _ in

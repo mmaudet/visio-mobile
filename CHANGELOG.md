@@ -22,6 +22,10 @@ and this project adheres to
   to the iOS 16-compatible perform: closure form, adding missing
   requestNotificationPermissionIfNeeded() and Equatable conformance
   on TestConnectParams (#185)
+- iOS: return to home screen immediately after hanging up a call,
+  instead of landing on the pre-join setup page
+- iOS: opening a visio:// deep link now navigates directly to the
+  pre-join setup page instead of just filling in the URL field
 
 ### Added
 
@@ -37,6 +41,9 @@ and this project adheres to
 
 ### Changed
 
+- iOS: replace segmented picker on home screen with native bottom tab bar
+- iOS: simplify pre-join screen — camera controls overlaid on preview,
+  audio settings collapsed by default
 - Extract `useDeviceEnumeration` hook to unify device
   enumeration across lobby and in-call picker (#163)
 - Rename `RoomHistoryEntry` to `VisioHistoryEntry` across core, FFI,
