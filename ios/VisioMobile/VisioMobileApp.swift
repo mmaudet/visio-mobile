@@ -68,8 +68,8 @@ struct VisioMobileApp: App {
                         .replacingOccurrences(of: "{name}", with: pathSegment)
                 }
             }
-            .onChange(of: scenePhase) {
-                switch scenePhase {
+            .onChange(of: scenePhase) { phase in
+                switch phase {
                 case .background:
                     manager.onAppBackgrounded()
                 case .active:

@@ -41,13 +41,136 @@ struct SettingsView: View {
     var body: some View {
         NavigationStack {
             Form {
-                profileSection
-                joinMeetingSection
-                themeSection
-                languageSection
-                meetInstancesSection
-                calendarSection
-                historySection
+                Section(Strings.t("settings.profile", lang: lang)) {
+                    TextField(Strings.t("settings.displayName", lang: lang), text: $displayName)
+                        .autocorrectionDisabled()
+                        .foregroundStyle(VisioColors.onSurface(dark: isDark))
+                        .listRowBackground(VisioColors.surface(dark: isDark))
+                }
+
+                Section(Strings.t("settings.joinMeeting", lang: lang)) {
+                    Toggle(Strings.t("settings.micOnJoin", lang: lang), isOn: $micOnJoin)
+                        .foregroundStyle(VisioColors.onSurface(dark: isDark))
+                        .listRowBackground(VisioColors.surface(dark: isDark))
+                    Toggle(Strings.t("settings.camOnJoin", lang: lang), isOn: $cameraOnJoin)
+                        .foregroundStyle(VisioColors.onSurface(dark: isDark))
+                        .listRowBackground(VisioColors.surface(dark: isDark))
+                    Toggle(Strings.t("settings.adaptiveMode", lang: lang), isOn: $adaptiveModeEnabled)
+                        .foregroundStyle(VisioColors.onSurface(dark: isDark))
+                        .listRowBackground(VisioColors.surface(dark: isDark))
+                }
+
+                Section(Strings.t("settings.theme", lang: lang)) {
+                    ForEach(["light", "dark"], id: \.self) { option in
+                        ThemeOptionRow(
+                            label: Strings.t("settings.theme.\(option)", lang: lang),
+                            isSelected: theme == option,
+                            isDark: isDark,
+                            onTap: {
+                                theme = option
+                                manager.setTheme(option)
+                            }
+                        )
+                    }
+                }
+
+                Section(Strings.t("settings.language", lang: lang)) {
+                    Picker(Strings.t("settings.language", lang: lang), selection: $language) {
+                        ForEach(Strings.supportedLangs, id: \.self) { code in
+                            Text(Strings.t("lang.\(code)", lang: code)).tag(code)
+                        }
+                    }
+                    .pickerStyle(.menu)
+                    .foregroundStyle(VisioColors.onSurface(dark: isDark))
+                    .listRowBackground(VisioColors.surface(dark: isDark))
+                    .onChange(of: language) { newLang in
+                        manager.setLanguage(newLang)
+                    }
+                }
+
+                Section(Strings.t("settings.meetInstances", lang: lang)) {
+                    ForEach(meetInstances, id: \.self) { instance in
+                        HStack {
+                            Text(instance)
+                                .foregroundStyle(VisioColors.onSurface(dark: isDark))
+                            Spacer()
+                            Button {
+                                meetInstances.removeAll { $0 == instance }
+                            } label: {
+                                Image(systemName: "minus.circle.fill")
+                                    .foregroundStyle(.red)
+                            }
+                        }
+                        .listRowBackground(VisioColors.surface(dark: isDark))
+                    }
+                    HStack {
+                        TextField(Strings.t("settings.instancePlaceholder", lang: lang), text: $newInstance)
+                            .textInputAutocapitalization(.never)
+                            .autocorrectionDisabled()
+                            .keyboardType(.URL)
+                            .foregroundStyle(VisioColors.onSurface(dark: isDark))
+                        Button {
+                            let normalized = normalizeInstance(newInstance)
+                            if !normalized.isEmpty && !meetInstances.contains(normalized) {
+                                meetInstances.append(normalized)
+                                newInstance = ""
+                            }
+                        } label: {
+                            Image(systemName: "plus.circle.fill")
+                                .foregroundStyle(VisioColors.primary500)
+                        }
+                        .disabled(newInstance.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    }
+                    .listRowBackground(VisioColors.surface(dark: isDark))
+                }
+                Section(Strings.t("settings.calendar", lang: lang)) {
+                    TextField(Strings.t("settings.calendarUrl", lang: lang), text: $calendarUrl)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .keyboardType(.URL)
+                        .foregroundStyle(VisioColors.onSurface(dark: isDark))
+                        .listRowBackground(VisioColors.surface(dark: isDark))
+                        .onChange(of: calendarUrl) { newUrl in
+                            let trimmed = newUrl.trimmingCharacters(in: .whitespacesAndNewlines)
+                            manager.client.setCalendarUrl(url: trimmed.isEmpty ? nil : trimmed)
+                            if !trimmed.isEmpty {
+                                manager.requestNotificationPermissionIfNeeded()
+                            }
+                        }
+
+                    Picker(Strings.t("settings.calendarRefresh", lang: lang), selection: $calendarRefreshInterval) {
+                        Text(Strings.t("settings.calendarRefresh.5min", lang: lang)).tag(CalendarRefreshInterval.minutes5)
+                        Text(Strings.t("settings.calendarRefresh.15min", lang: lang)).tag(CalendarRefreshInterval.minutes15)
+                        Text(Strings.t("settings.calendarRefresh.1h", lang: lang)).tag(CalendarRefreshInterval.hour1)
+                        Text(Strings.t("settings.calendarRefresh.4h", lang: lang)).tag(CalendarRefreshInterval.hours4)
+                        Text(Strings.t("settings.calendarRefresh.manual", lang: lang)).tag(CalendarRefreshInterval.manual)
+                    }
+                    .foregroundStyle(VisioColors.onSurface(dark: isDark))
+                    .listRowBackground(VisioColors.surface(dark: isDark))
+                    .onChange(of: calendarRefreshInterval) { newInterval in
+                        manager.client.setCalendarRefreshInterval(interval: newInterval)
+                    }
+
+                    if !calendarUrl.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        Button(role: .destructive) {
+                            calendarUrl = ""
+                            manager.client.setCalendarUrl(url: nil)
+                        } label: {
+                            Text(Strings.t("settings.calendarRemove", lang: lang))
+                        }
+                        .listRowBackground(VisioColors.surface(dark: isDark))
+                    }
+                }
+
+                Section {
+                    Button(role: .destructive) {
+                        manager.client.clearVisioHistory()
+                        historyCleared = true
+                    } label: {
+                        Text(Strings.t("settings.clearHistory", lang: lang))
+                    }
+                    .listRowBackground(VisioColors.surface(dark: isDark))
+                }
             }
             .scrollContentBackground(.hidden)
             .background(VisioColors.background(dark: isDark))
@@ -88,161 +211,6 @@ struct SettingsView: View {
         .animation(.easeInOut(duration: 0.3), value: historyCleared)
         .onDisappear { save() }
         .onAppear { load() }
-    }
-
-    // MARK: - Sub-views (broken out to help the Swift type-checker)
-
-    @ViewBuilder
-    private var profileSection: some View {
-        Section(Strings.t("settings.profile", lang: lang)) {
-            TextField(Strings.t("settings.displayName", lang: lang), text: $displayName)
-                .autocorrectionDisabled()
-                .foregroundStyle(VisioColors.onSurface(dark: isDark))
-                .listRowBackground(VisioColors.surface(dark: isDark))
-        }
-    }
-
-    @ViewBuilder
-    private var joinMeetingSection: some View {
-        Section(Strings.t("settings.joinMeeting", lang: lang)) {
-            Toggle(Strings.t("settings.micOnJoin", lang: lang), isOn: $micOnJoin)
-                .foregroundStyle(VisioColors.onSurface(dark: isDark))
-                .listRowBackground(VisioColors.surface(dark: isDark))
-            Toggle(Strings.t("settings.camOnJoin", lang: lang), isOn: $cameraOnJoin)
-                .foregroundStyle(VisioColors.onSurface(dark: isDark))
-                .listRowBackground(VisioColors.surface(dark: isDark))
-            Toggle(Strings.t("settings.adaptiveMode", lang: lang), isOn: $adaptiveModeEnabled)
-                .foregroundStyle(VisioColors.onSurface(dark: isDark))
-                .listRowBackground(VisioColors.surface(dark: isDark))
-        }
-    }
-
-    @ViewBuilder
-    private var themeSection: some View {
-        Section(Strings.t("settings.theme", lang: lang)) {
-            ForEach(["light", "dark"], id: \.self) { option in
-                ThemeOptionRow(
-                    label: Strings.t("settings.theme.\(option)", lang: lang),
-                    isSelected: theme == option,
-                    isDark: isDark,
-                    onTap: {
-                        theme = option
-                        manager.setTheme(option)
-                    }
-                )
-            }
-        }
-    }
-
-    @ViewBuilder
-    private var languageSection: some View {
-        Section(Strings.t("settings.language", lang: lang)) {
-            Picker(Strings.t("settings.language", lang: lang), selection: $language) {
-                ForEach(Strings.supportedLangs, id: \.self) { code in
-                    Text(Strings.t("lang.\(code)", lang: code)).tag(code)
-                }
-            }
-            .pickerStyle(.menu)
-            .foregroundStyle(VisioColors.onSurface(dark: isDark))
-            .listRowBackground(VisioColors.surface(dark: isDark))
-            .onChange(of: language) {
-                manager.setLanguage(language)
-            }
-        }
-    }
-
-    @ViewBuilder
-    private var meetInstancesSection: some View {
-        Section(Strings.t("settings.meetInstances", lang: lang)) {
-            ForEach(meetInstances, id: \.self) { instance in
-                HStack {
-                    Text(instance)
-                        .foregroundStyle(VisioColors.onSurface(dark: isDark))
-                    Spacer()
-                    Button {
-                        meetInstances.removeAll { $0 == instance }
-                    } label: {
-                        Image(systemName: "minus.circle.fill")
-                            .foregroundStyle(.red)
-                    }
-                }
-                .listRowBackground(VisioColors.surface(dark: isDark))
-            }
-            HStack {
-                TextField(Strings.t("settings.instancePlaceholder", lang: lang), text: $newInstance)
-                    .textInputAutocapitalization(.never)
-                    .autocorrectionDisabled()
-                    .keyboardType(.URL)
-                    .foregroundStyle(VisioColors.onSurface(dark: isDark))
-                Button {
-                    let normalized = normalizeInstance(newInstance)
-                    if !normalized.isEmpty && !meetInstances.contains(normalized) {
-                        meetInstances.append(normalized)
-                        newInstance = ""
-                    }
-                } label: {
-                    Image(systemName: "plus.circle.fill")
-                        .foregroundStyle(VisioColors.primary500)
-                }
-                .disabled(newInstance.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-            }
-            .listRowBackground(VisioColors.surface(dark: isDark))
-        }
-    }
-
-    @ViewBuilder
-    private var calendarSection: some View {
-        Section(Strings.t("settings.calendar", lang: lang)) {
-            TextField(Strings.t("settings.calendarUrl", lang: lang), text: $calendarUrl)
-                .textInputAutocapitalization(.never)
-                .autocorrectionDisabled()
-                .keyboardType(.URL)
-                .foregroundStyle(VisioColors.onSurface(dark: isDark))
-                .listRowBackground(VisioColors.surface(dark: isDark))
-                .onChange(of: calendarUrl) {
-                    let trimmed = calendarUrl.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines)
-                    manager.client.setCalendarUrl(url: trimmed.isEmpty ? nil : trimmed)
-                    if !trimmed.isEmpty {
-                        manager.requestNotificationPermissionIfNeeded()
-                    }
-                }
-
-            Picker(Strings.t("settings.calendarRefresh", lang: lang), selection: $calendarRefreshInterval) {
-                Text(Strings.t("settings.calendarRefresh.5min", lang: lang)).tag(CalendarRefreshInterval.minutes5)
-                Text(Strings.t("settings.calendarRefresh.15min", lang: lang)).tag(CalendarRefreshInterval.minutes15)
-                Text(Strings.t("settings.calendarRefresh.1h", lang: lang)).tag(CalendarRefreshInterval.hour1)
-                Text(Strings.t("settings.calendarRefresh.4h", lang: lang)).tag(CalendarRefreshInterval.hours4)
-                Text(Strings.t("settings.calendarRefresh.manual", lang: lang)).tag(CalendarRefreshInterval.manual)
-            }
-            .foregroundStyle(VisioColors.onSurface(dark: isDark))
-            .listRowBackground(VisioColors.surface(dark: isDark))
-            .onChange(of: calendarRefreshInterval) {
-                manager.client.setCalendarRefreshInterval(interval: calendarRefreshInterval)
-            }
-
-            if !calendarUrl.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                Button(role: .destructive) {
-                    calendarUrl = ""
-                    manager.client.setCalendarUrl(url: nil)
-                } label: {
-                    Text(Strings.t("settings.calendarRemove", lang: lang))
-                }
-                .listRowBackground(VisioColors.surface(dark: isDark))
-            }
-        }
-    }
-
-    @ViewBuilder
-    private var historySection: some View {
-        Section {
-            Button(role: .destructive) {
-                manager.client.clearVisioHistory()
-                historyCleared = true
-            } label: {
-                Text(Strings.t("settings.clearHistory", lang: lang))
-            }
-            .listRowBackground(VisioColors.surface(dark: isDark))
-        }
     }
 
     private func load() {

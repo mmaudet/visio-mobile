@@ -312,33 +312,33 @@ struct CallView: View {
             UIApplication.shared.isIdleTimerDisabled = false
             PiPManager.shared.tearDown()
         }
-        .onChange(of: scenePhase) {
-            if scenePhase == .background {
+        .onChange(of: scenePhase) { phase in
+            if phase == .background {
                 if case .connected = manager.connectionState {
                     PiPManager.shared.startIfNeeded()
                 }
-            } else if scenePhase == .active {
+            } else if phase == .active {
                 PiPManager.shared.stop()
             }
         }
-        .onChange(of: manager.lobbyDenied) {
-            if manager.lobbyDenied {
+        .onChange(of: manager.lobbyDenied) { denied in
+            if denied {
                 manager.lobbyDenied = false
                 manager.disconnect()
                 CallKitManager.shared.reportCallEnded()
                 dismiss()
             }
         }
-        .onChange(of: manager.lastScreenShareParticipantSid) {
-            if let sid = manager.lastScreenShareParticipantSid {
+        .onChange(of: manager.lastScreenShareParticipantSid) { newSid in
+            if let sid = newSid {
                 withAnimation(.easeInOut(duration: 0.2)) {
                     focusedItem = FocusItem(participantSid: sid, source: .screenShare)
                 }
             }
         }
-        .onChange(of: manager.participants) {
+        .onChange(of: manager.participants) { newParticipants in
             if let fi = focusedItem, fi.source == .screenShare {
-                let p = manager.participants.first(where: { $0.sid == fi.participantSid })
+                let p = newParticipants.first(where: { $0.sid == fi.participantSid })
                 if p?.hasScreenShare != true {
                     withAnimation(.easeInOut(duration: 0.2)) {
                         userPinned = false
@@ -348,7 +348,7 @@ struct CallView: View {
             }
             // Clear pin if the focused participant left the room
             if let fi = focusedItem {
-                let stillPresent = manager.participants.contains(where: { $0.sid == fi.participantSid })
+                let stillPresent = newParticipants.contains(where: { $0.sid == fi.participantSid })
                 if !stillPresent {
                     withAnimation(.easeInOut(duration: 0.2)) {
                         userPinned = false
@@ -357,10 +357,10 @@ struct CallView: View {
                 }
             }
         }
-        .onChange(of: manager.activeSpeakers) {
+        .onChange(of: manager.activeSpeakers) { _ in
             updateLayout()
         }
-        .onChange(of: manager.participants.count) {
+        .onChange(of: manager.participants.count) { _ in
             updateLayout()
         }
         .task {
