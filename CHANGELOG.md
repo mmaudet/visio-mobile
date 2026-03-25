@@ -32,6 +32,8 @@ and this project adheres to
 - Alias resolution in deep links and URL validation on Android, iOS,
   and Desktop (#156)
 - Button to clear recent visios history in settings (#152)
+- AGENTS.md with build, test, lint, and code style guide for all
+  platforms to assist agentic coding tools (#183)
 
 ### Changed
 
