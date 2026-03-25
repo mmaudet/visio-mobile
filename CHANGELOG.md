@@ -41,6 +41,7 @@ and this project adheres to
 
 ### Changed
 
+- CI: iOS build now uses Xcode 26.3 (previously defaulted to 16.4)
 - iOS: replace segmented picker on home screen with native bottom tab bar
 - iOS: simplify pre-join screen — camera controls overlaid on preview,
   audio settings collapsed by default
