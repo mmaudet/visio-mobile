@@ -195,7 +195,7 @@ struct PreJoinView: View {
         let slug = roomURL.contains("/") ? String(roomURL.split(separator: "/").last ?? "") : roomURL
 
         ScrollView {
-            VStack(spacing: 20) {
+            VStack(spacing: 16) {
                 // Room name
                 if let name = roomDisplayName {
                     Text(name)
@@ -220,13 +220,11 @@ struct PreJoinView: View {
                 // Camera preview section
                 cameraPreviewSection
 
-                // Audio config section (Task 15)
+                // Audio config section
                 audioConfigSection
-                    .padding(.horizontal, 32)
 
-                // Actions (Task 17)
+                // Actions
                 actionsSection
-                    .padding(.horizontal, 32)
             }
             .padding(24)
         }
@@ -262,17 +260,13 @@ struct PreJoinView: View {
     // MARK: - Camera Preview Section
 
     private var cameraPreviewSection: some View {
-        VStack(spacing: 8) {
-            // Camera preview area
-            ZStack {
+        ZStack(alignment: .bottomLeading) {
+            // Preview
+            Group {
                 if isCameraOn {
                     BlurredCameraPreviewView(isFront: isFrontCamera)
-                        .aspectRatio(4.0/3.0, contentMode: .fit)
-                        .clipShape(RoundedRectangle(cornerRadius: 12))
                 } else {
-                    RoundedRectangle(cornerRadius: 12)
-                        .fill(Color.black)
-                        .aspectRatio(4.0/3.0, contentMode: .fit)
+                    Color.black
                         .overlay(
                             Text(String((displayName.first ?? Character("?")).uppercased()))
                                 .font(.system(size: 40, weight: .semibold))
@@ -283,62 +277,75 @@ struct PreJoinView: View {
                         )
                 }
             }
+            .aspectRatio(16.0/9.0, contentMode: .fit)
+            .clipShape(RoundedRectangle(cornerRadius: 16))
 
-            // Camera controls: front/back toggle + on/off
-            HStack {
+            // Bottom-left: flip button (only when camera on)
+            if isCameraOn {
                 Button {
                     isFrontCamera.toggle()
                 } label: {
                     Image(systemName: "arrow.triangle.2.circlepath.camera")
-                        .foregroundStyle(VisioColors.primary500)
+                        .font(.system(size: 18))
+                        .foregroundStyle(.white)
+                        .padding(8)
+                        .background(.black.opacity(0.45))
+                        .clipShape(Circle())
                 }
-
-                Spacer()
-
-                Toggle(isOn: Binding(
-                    get: { isCameraOn },
-                    set: { newValue in
-                        if newValue {
-                            let status = AVCaptureDevice.authorizationStatus(for: .video)
-                            switch status {
-                            case .authorized:
-                                isCameraOn = true
-                            case .notDetermined:
-                                AVCaptureDevice.requestAccess(for: .video) { granted in
-                                    DispatchQueue.main.async { isCameraOn = granted }
-                                }
-                            default:
-                                isCameraOn = false
-                            }
-                        } else {
-                            isCameraOn = false
-                        }
-                    }
-                )) {
-                    Text(Strings.t("prejoin.camera", lang: lang))
-                        .font(.subheadline)
-                }
-                .toggleStyle(.switch)
-                .tint(VisioColors.primary500)
+                .padding(10)
             }
-            .padding(.horizontal, 12)
 
-            // Background filters button (Task 16)
+            // Bottom-right: camera on/off toggle
+            HStack {
+                Spacer()
+                Button {
+                    if !isCameraOn {
+                        let status = AVCaptureDevice.authorizationStatus(for: .video)
+                        switch status {
+                        case .authorized:
+                            isCameraOn = true
+                        case .notDetermined:
+                            AVCaptureDevice.requestAccess(for: .video) { granted in
+                                DispatchQueue.main.async { isCameraOn = granted }
+                            }
+                        default:
+                            break
+                        }
+                    } else {
+                        isCameraOn = false
+                    }
+                } label: {
+                    Image(systemName: isCameraOn ? "video.fill" : "video.slash.fill")
+                        .font(.system(size: 18))
+                        .foregroundStyle(isCameraOn ? .white : VisioColors.error500)
+                        .padding(8)
+                        .background(.black.opacity(0.45))
+                        .clipShape(Circle())
+                }
+                .padding(10)
+            }
+        }
+        // Top-right: background filters
+        .overlay(alignment: .topTrailing) {
             Button {
                 showFilterSheet = true
             } label: {
-                Label(Strings.t("prejoin.backgroundFilters", lang: lang), systemImage: "camera.filters")
-                    .font(.subheadline)
-                    .foregroundStyle(VisioColors.primary500)
+                Image(systemName: "camera.filters")
+                    .font(.system(size: 16))
+                    .foregroundStyle(.white)
+                    .padding(8)
+                    .background(.black.opacity(0.45))
+                    .clipShape(Circle())
             }
+            .padding(10)
         }
     }
 
-    // MARK: - Audio Config Section (Task 15)
+    // MARK: - Audio Config Section
 
     private var audioConfigSection: some View {
         VStack(spacing: 8) {
-            // Computer audio option
+            // Computer audio radio
             Button {
                 audioMode = .computer
             } label: {
@@ -357,73 +364,76 @@ struct PreJoinView: View {
             }
 
             if audioMode == .computer {
-                // Mic toggle
-                HStack {
-                    Image(systemName: "mic.fill")
-                        .foregroundStyle(VisioColors.primary500)
-                        .frame(width: 20)
-                    Text(Strings.t("prejoin.microphone", lang: lang))
-                        .font(.subheadline)
-                    Spacer()
-                    Toggle("", isOn: Binding(
-                        get: { isMicOn },
-                        set: { newValue in
-                            if newValue {
-                                let status = AVCaptureDevice.authorizationStatus(for: .audio)
-                                switch status {
-                                case .authorized:
-                                    isMicOn = true
-                                case .notDetermined:
-                                    AVCaptureDevice.requestAccess(for: .audio) { granted in
-                                        DispatchQueue.main.async { isMicOn = granted }
+                DisclosureGroup(Strings.t("prejoin.audioSettings", lang: lang)) {
+                    VStack(spacing: 10) {
+                        // Mic toggle
+                        HStack {
+                            Image(systemName: "mic.fill")
+                                .foregroundStyle(VisioColors.primary500)
+                                .frame(width: 20)
+                            Text(Strings.t("prejoin.microphone", lang: lang))
+                                .font(.subheadline)
+                            Spacer()
+                            Toggle("", isOn: Binding(
+                                get: { isMicOn },
+                                set: { newValue in
+                                    if newValue {
+                                        let status = AVCaptureDevice.authorizationStatus(for: .audio)
+                                        switch status {
+                                        case .authorized:
+                                            isMicOn = true
+                                        case .notDetermined:
+                                            AVCaptureDevice.requestAccess(for: .audio) { granted in
+                                                DispatchQueue.main.async { isMicOn = granted }
+                                            }
+                                        default:
+                                            isMicOn = false
+                                        }
+                                    } else {
+                                        isMicOn = false
                                     }
-                                default:
-                                    isMicOn = false
                                 }
-                            } else {
-                                isMicOn = false
-                            }
+                            ))
+                            .toggleStyle(.switch)
+                            .tint(VisioColors.primary500)
+                            .labelsHidden()
                         }
-                    ))
-                        .toggleStyle(.switch)
-                        .tint(VisioColors.primary500)
-                        .labelsHidden()
-                }
-                .padding(.horizontal, 12)
 
-                // VU meter
-                if isMicOn {
-                    MicLevelView()
-                        .frame(height: 4)
-                        .padding(.horizontal, 36)
-                }
+                        // VU meter
+                        if isMicOn {
+                            MicLevelView()
+                                .frame(height: 4)
+                        }
 
-                // Speaker test
-                Button {
-                    playSpeakerTest()
-                } label: {
-                    Label(Strings.t("prejoin.testSpeaker", lang: lang), systemImage: "speaker.wave.2")
-                        .font(.subheadline)
-                        .foregroundStyle(VisioColors.primary500)
-                }
-                .padding(.horizontal, 12)
+                        // Speaker test
+                        Button {
+                            playSpeakerTest()
+                        } label: {
+                            Label(Strings.t("prejoin.testSpeaker", lang: lang), systemImage: "speaker.wave.2")
+                                .font(.subheadline)
+                                .foregroundStyle(VisioColors.primary500)
+                        }
 
-                // Audio route picker
-                HStack(spacing: 8) {
-                    Image(systemName: "speaker.wave.2")
-                        .foregroundStyle(VisioColors.primary500)
-                        .frame(width: 20)
-                    Text(Strings.t("prejoin.audioRoute", lang: lang))
-                        .font(.subheadline)
-                        .foregroundStyle(VisioColors.onBackground(dark: isDark))
-                    Spacer()
-                    AudioRoutePickerButton(tintColor: UIColor(VisioColors.primary500))
-                        .frame(width: 32, height: 32)
+                        // Audio route picker
+                        HStack(spacing: 8) {
+                            Image(systemName: "speaker.wave.2")
+                                .foregroundStyle(VisioColors.primary500)
+                                .frame(width: 20)
+                            Text(Strings.t("prejoin.audioRoute", lang: lang))
+                                .font(.subheadline)
+                                .foregroundStyle(VisioColors.onBackground(dark: isDark))
+                            Spacer()
+                            AudioRoutePickerButton(tintColor: UIColor(VisioColors.primary500))
+                                .frame(width: 32, height: 32)
+                        }
+                    }
+                    .padding(.top, 8)
                 }
+                .tint(VisioColors.primary500)
                 .padding(.horizontal, 12)
             }
 
-            // No audio option
+            // No audio radio
             Button {
                 audioMode = .none
             } label: {
