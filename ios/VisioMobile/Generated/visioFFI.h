@@ -303,7 +303,7 @@ void uniffi_visio_ffi_fn_method_visioclient_add_listener(void*_Nonnull ptr, uint
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_FN_METHOD_VISIOCLIENT_ADD_ROOM_TO_HISTORY
 #define UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_FN_METHOD_VISIOCLIENT_ADD_ROOM_TO_HISTORY
-void uniffi_visio_ffi_fn_method_visioclient_add_room_to_history(void*_Nonnull ptr, RustBuffer url, RustCallStatus *_Nonnull out_status
+void uniffi_visio_ffi_fn_method_visioclient_add_room_to_history(void*_Nonnull ptr, RustBuffer url, RustBuffer name, RustCallStatus *_Nonnull out_status
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_FN_METHOD_VISIOCLIENT_ADMIT_PARTICIPANT
@@ -359,6 +359,11 @@ void uniffi_visio_ffi_fn_method_visioclient_deny_participant(void*_Nonnull ptr, 
 #ifndef UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_FN_METHOD_VISIOCLIENT_DISCONNECT
 #define UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_FN_METHOD_VISIOCLIENT_DISCONNECT
 void uniffi_visio_ffi_fn_method_visioclient_disconnect(void*_Nonnull ptr, RustCallStatus *_Nonnull out_status
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_FN_METHOD_VISIOCLIENT_EXTRACT_ROOM_NAME
+#define UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_FN_METHOD_VISIOCLIENT_EXTRACT_ROOM_NAME
+RustBuffer uniffi_visio_ffi_fn_method_visioclient_extract_room_name(void*_Nonnull ptr, RustBuffer url, RustCallStatus *_Nonnull out_status
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_FN_METHOD_VISIOCLIENT_GET_BACKGROUND_MODE
@@ -986,6 +991,12 @@ uint16_t uniffi_visio_ffi_checksum_method_visioclient_deny_participant(void
 #ifndef UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_CHECKSUM_METHOD_VISIOCLIENT_DISCONNECT
 #define UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_CHECKSUM_METHOD_VISIOCLIENT_DISCONNECT
 uint16_t uniffi_visio_ffi_checksum_method_visioclient_disconnect(void
+    
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_CHECKSUM_METHOD_VISIOCLIENT_EXTRACT_ROOM_NAME
+#define UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_CHECKSUM_METHOD_VISIOCLIENT_EXTRACT_ROOM_NAME
+uint16_t uniffi_visio_ffi_checksum_method_visioclient_extract_room_name(void
     
 );
 #endif

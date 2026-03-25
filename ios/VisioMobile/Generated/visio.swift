@@ -529,7 +529,7 @@ public protocol VisioClientProtocol: AnyObject, Sendable {
     
     func addListener(listener: VisioEventListener) 
     
-    func addRoomToHistory(url: String) 
+    func addRoomToHistory(url: String, name: String?) 
     
     func admitParticipant(participantId: String) throws 
     
@@ -553,11 +553,13 @@ public protocol VisioClientProtocol: AnyObject, Sendable {
     
     func disconnect() 
     
+    func extractRoomName(url: String)  -> String?
+    
     func getBackgroundMode()  -> String
     
     func getMeetInstances()  -> [String]
     
-    func getRoomHistory()  -> [String]
+    func getRoomHistory()  -> [RoomHistoryEntry]
     
     func getSessionState()  -> SessionState
     
@@ -738,9 +740,10 @@ open func addListener(listener: VisioEventListener)  {try! rustCall() {
 }
 }
     
-open func addRoomToHistory(url: String)  {try! rustCall() {
+open func addRoomToHistory(url: String, name: String?)  {try! rustCall() {
     uniffi_visio_ffi_fn_method_visioclient_add_room_to_history(self.uniffiClonePointer(),
-        FfiConverterString.lower(url),$0
+        FfiConverterString.lower(url),
+        FfiConverterOptionString.lower(name),$0
     )
 }
 }
@@ -825,6 +828,14 @@ open func disconnect()  {try! rustCall() {
 }
 }
     
+open func extractRoomName(url: String) -> String?  {
+    return try!  FfiConverterOptionString.lift(try! rustCall() {
+    uniffi_visio_ffi_fn_method_visioclient_extract_room_name(self.uniffiClonePointer(),
+        FfiConverterString.lower(url),$0
+    )
+})
+}
+    
 open func getBackgroundMode() -> String  {
     return try!  FfiConverterString.lift(try! rustCall() {
     uniffi_visio_ffi_fn_method_visioclient_get_background_mode(self.uniffiClonePointer(),$0
@@ -839,8 +850,8 @@ open func getMeetInstances() -> [String]  {
 })
 }
     
-open func getRoomHistory() -> [String]  {
-    return try!  FfiConverterSequenceString.lift(try! rustCall() {
+open func getRoomHistory() -> [RoomHistoryEntry]  {
+    return try!  FfiConverterSequenceTypeRoomHistoryEntry.lift(try! rustCall() {
     uniffi_visio_ffi_fn_method_visioclient_get_room_history(self.uniffiClonePointer(),$0
     )
 })
@@ -1633,6 +1644,76 @@ public func FfiConverterTypeRoomAccess_lift(_ buf: RustBuffer) throws -> RoomAcc
 #endif
 public func FfiConverterTypeRoomAccess_lower(_ value: RoomAccess) -> RustBuffer {
     return FfiConverterTypeRoomAccess.lower(value)
+}
+
+
+public struct RoomHistoryEntry {
+    public var url: String
+    public var name: String?
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(url: String, name: String?) {
+        self.url = url
+        self.name = name
+    }
+}
+
+#if compiler(>=6)
+extension RoomHistoryEntry: Sendable {}
+#endif
+
+
+extension RoomHistoryEntry: Equatable, Hashable {
+    public static func ==(lhs: RoomHistoryEntry, rhs: RoomHistoryEntry) -> Bool {
+        if lhs.url != rhs.url {
+            return false
+        }
+        if lhs.name != rhs.name {
+            return false
+        }
+        return true
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(url)
+        hasher.combine(name)
+    }
+}
+
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeRoomHistoryEntry: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> RoomHistoryEntry {
+        return
+            try RoomHistoryEntry(
+                url: FfiConverterString.read(from: &buf), 
+                name: FfiConverterOptionString.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: RoomHistoryEntry, into buf: inout [UInt8]) {
+        FfiConverterString.write(value.url, into: &buf)
+        FfiConverterOptionString.write(value.name, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeRoomHistoryEntry_lift(_ buf: RustBuffer) throws -> RoomHistoryEntry {
+    return try FfiConverterTypeRoomHistoryEntry.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeRoomHistoryEntry_lower(_ value: RoomHistoryEntry) -> RustBuffer {
+    return FfiConverterTypeRoomHistoryEntry.lower(value)
 }
 
 
@@ -3439,6 +3520,31 @@ fileprivate struct FfiConverterSequenceTypeRoomAccess: FfiConverterRustBuffer {
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
+fileprivate struct FfiConverterSequenceTypeRoomHistoryEntry: FfiConverterRustBuffer {
+    typealias SwiftType = [RoomHistoryEntry]
+
+    public static func write(_ value: [RoomHistoryEntry], into buf: inout [UInt8]) {
+        let len = Int32(value.count)
+        writeInt(&buf, len)
+        for item in value {
+            FfiConverterTypeRoomHistoryEntry.write(item, into: &buf)
+        }
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [RoomHistoryEntry] {
+        let len: Int32 = try readInt(&buf)
+        var seq = [RoomHistoryEntry]()
+        seq.reserveCapacity(Int(len))
+        for _ in 0 ..< len {
+            seq.append(try FfiConverterTypeRoomHistoryEntry.read(from: &buf))
+        }
+        return seq
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
 fileprivate struct FfiConverterSequenceTypeUserSearchResult: FfiConverterRustBuffer {
     typealias SwiftType = [UserSearchResult]
 
@@ -3521,7 +3627,7 @@ private let initializationResult: InitializationResult = {
     if (uniffi_visio_ffi_checksum_method_visioclient_add_listener() != 29296) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_visio_ffi_checksum_method_visioclient_add_room_to_history() != 37487) {
+    if (uniffi_visio_ffi_checksum_method_visioclient_add_room_to_history() != 27916) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_visio_ffi_checksum_method_visioclient_admit_participant() != 6663) {
@@ -3557,13 +3663,16 @@ private let initializationResult: InitializationResult = {
     if (uniffi_visio_ffi_checksum_method_visioclient_disconnect() != 52651) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_visio_ffi_checksum_method_visioclient_extract_room_name() != 44160) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_visio_ffi_checksum_method_visioclient_get_background_mode() != 47158) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_visio_ffi_checksum_method_visioclient_get_meet_instances() != 1312) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_visio_ffi_checksum_method_visioclient_get_room_history() != 62961) {
+    if (uniffi_visio_ffi_checksum_method_visioclient_get_room_history() != 9831) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_visio_ffi_checksum_method_visioclient_get_session_state() != 38004) {

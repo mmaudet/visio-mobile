@@ -2,39 +2,31 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-    <key>CFBundleIconName</key>
-    <string>AppIcon</string>
-    <key>CFBundleDisplayName</key>
-    <string>Visio Mobile</string>
-    <key>NSCameraUsageDescription</key>
-    <string>Visio needs camera access for video calls.</string>
-    <key>NSMicrophoneUsageDescription</key>
-    <string>Visio needs microphone access for audio calls.</string>
-    <key>NSMotionUsageDescription</key>
-    <string>Visio uses motion detection to adapt the interface when you are walking or in a vehicle.</string>
-    <key>CFBundleURLTypes</key>
-    <array>
-        <dict>
-            <key>CFBundleURLName</key>
-            <string>io.visio.mobile</string>
-            <key>CFBundleURLSchemes</key>
-            <array>
-                <string>visio</string>
-            </array>
-        </dict>
-        <dict>
-            <key>CFBundleURLName</key>
-            <string>io.visio.mobile.test</string>
-            <key>CFBundleURLSchemes</key>
-            <array>
-                <string>visio-test</string>
-            </array>
-        </dict>
-    </array>
-    <key>UIBackgroundModes</key>
-    <array>
-        <string>audio</string>
-        <string>voip</string>
-    </array>
+	<key>CFBundleIconName</key>
+	<string>AppIcon</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>io.visio.mobile</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>visio</string>
+			</array>
+		</dict>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>io.visio.mobile.test</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>visio-test</string>
+			</array>
+		</dict>
+	</array>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>audio</string>
+		<string>voip</string>
+	</array>
 </dict>
 </plist>

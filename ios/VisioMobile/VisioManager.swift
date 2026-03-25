@@ -1,4 +1,5 @@
 import AVFoundation
+import Combine
 import Foundation
 import SwiftUI
 import visioFFI
@@ -57,6 +58,7 @@ class VisioManager: ObservableObject {
     @Published var lastScreenShareParticipantSid: String? = nil
 
     let authManager = OidcAuthManager()
+    private var authCancellable: AnyCancellable?
 
     // MARK: - Private
 
@@ -115,6 +117,11 @@ class VisioManager: ObservableObject {
             }
         } else {
             NSLog("VisioManager: selfie_segmentation.onnx not found in bundle")
+        }
+
+        // Forward authManager changes so SwiftUI picks up pendingInstance.
+        authCancellable = authManager.objectWillChange.sink { [weak self] _ in
+            self?.objectWillChange.send()
         }
     }
 

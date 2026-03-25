@@ -23,6 +23,7 @@ struct HomeView: View {
     private var lang: String { manager.currentLang }
     private var isDark: Bool { manager.currentTheme == "dark" }
 
+    
     private static let slugPattern = /^[a-z]{3}-[a-z]{4}-[a-z]{3}$/
 
     private func extractSlug(_ input: String) -> String? {
@@ -391,21 +392,16 @@ struct HomeView: View {
                 instances: meetInstances,
                 customServer: $customServer,
                 lang: lang,
-                onComplete: { cookie, instance in
-                    showServerPicker = false
-                    if let cookie {
-                        manager.onAuthCookieReceived(cookie, meetInstance: instance)
-                    }
-                },
                 onDismiss: { showServerPicker = false }
             )
+            .environmentObject(manager)
         }
         .sheet(isPresented: Binding(
             get: { manager.authManager.pendingInstance != nil },
             set: { if !$0 { manager.authManager.onWebViewCookie(nil, meetInstance: "") } }
         )) {
             if let instance = manager.authManager.pendingInstance {
-                OidcFallbackWebView(meetInstance: instance) { cookie in
+                OidcAuthSheet(meetInstance: instance) { cookie in
                     manager.authManager.onWebViewCookie(cookie, meetInstance: instance)
                     if let cookie {
                         manager.onAuthCookieReceived(cookie, meetInstance: instance)
@@ -416,22 +412,50 @@ struct HomeView: View {
     }
 
     private func launchOidc(meetInstance: String) {
-        manager.authManager.launchOidcFlow(meetInstance: meetInstance) { [weak manager] cookie in
-            if let cookie, let manager {
-                manager.onAuthCookieReceived(cookie, meetInstance: meetInstance)
+        manager.authManager.launchOidcFlow(meetInstance: meetInstance)
+    }
+}
+
+// MARK: - OIDC Auth Sheet
+
+/// Wraps OidcAuthWebView in a NavigationStack with title, cancel button, and progress bar.
+private struct OidcAuthSheet: View {
+    let meetInstance: String
+    let onCookie: (String?) -> Void
+
+    @State private var progress: Double = 0
+
+    var body: some View {
+        NavigationStack {
+            ZStack(alignment: .top) {
+                OidcAuthWebView(meetInstance: meetInstance, progress: $progress, onCookie: onCookie)
+                    .ignoresSafeArea(edges: .bottom)
+                if progress > 0 && progress < 1.0 {
+                    ProgressView(value: progress)
+                        .tint(.accentColor)
+                }
+            }
+            .navigationTitle(meetInstance)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Annuler") { onCookie(nil) }
+                }
             }
         }
     }
 }
 
-// MARK: - OIDC Fallback WebView
+// MARK: - OIDC Auth WebView
 
-/// WKWebView-based OIDC fallback for servers that don't support custom scheme returnTo.
-private struct OidcFallbackWebView: UIViewRepresentable {
+/// WKWebView-based OIDC auth. Opens the server's authenticate endpoint with
+/// `returnTo=visio://auth-callback`. Intercepts that redirect to attempt code
+/// exchange; falls back to reading cookies from the WKWebView store if no code
+/// is present (or on servers that redirect to the homepage instead).
+private struct OidcAuthWebView: UIViewRepresentable {
     let meetInstance: String
+    @Binding var progress: Double
     let onCookie: (String?) -> Void
-
-    private static let cookieNames = ["meet_sessionid", "sessionid"]
 
     func makeCoordinator() -> Coordinator { Coordinator(self) }
 
@@ -439,9 +463,15 @@ private struct OidcFallbackWebView: UIViewRepresentable {
         let config = WKWebViewConfiguration()
         let webView = WKWebView(frame: .zero, configuration: config)
         webView.navigationDelegate = context.coordinator
-        let returnTo = "https://\(meetInstance)/"
-        let encodedReturnTo = returnTo.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? returnTo
-        if let url = URL(string: "https://\(meetInstance)/api/v1.0/authenticate/?returnTo=\(encodedReturnTo)") {
+        context.coordinator.progressObservation = webView.observe(\.estimatedProgress) { wv, _ in
+            DispatchQueue.main.async { context.coordinator.parent.progress = wv.estimatedProgress }
+        }
+        var components = URLComponents()
+        components.scheme = "https"
+        components.host = meetInstance
+        components.path = "/api/v1.0/authenticate/"
+        components.queryItems = [URLQueryItem(name: "returnTo", value: "visio://auth-callback")]
+        if let url = components.url {
             webView.load(URLRequest(url: url))
         }
         return webView
@@ -450,24 +480,59 @@ private struct OidcFallbackWebView: UIViewRepresentable {
     func updateUIView(_ uiView: WKWebView, context: Context) {}
 
     class Coordinator: NSObject, WKNavigationDelegate {
-        let parent: OidcFallbackWebView
-        init(_ parent: OidcFallbackWebView) { self.parent = parent }
+        var parent: OidcAuthWebView
+        var progressObservation: NSKeyValueObservation?
+        init(_ parent: OidcAuthWebView) { self.parent = parent }
 
-        func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
-            guard let url = webView.url else { return }
+        // Intercept visio://auth-callback to extract the code (or fall back to cookies).
+        func webView(
+            _ webView: WKWebView,
+            decidePolicyFor navigationAction: WKNavigationAction,
+            decisionHandler: @escaping (WKNavigationActionPolicy) -> Void
+        ) {
+            guard let url = navigationAction.request.url, url.scheme == "visio" else {
+                decisionHandler(.allow)
+                return
+            }
+            decisionHandler(.cancel)
+
             let instance = parent.meetInstance
-            // Detect when we've landed on the instance homepage after auth
-            guard url.host == instance,
+            if let code = URLComponents(url: url, resolvingAgainstBaseURL: false)?
+                .queryItems?.first(where: { $0.name == "code" })?.value,
+               !code.isEmpty {
+                // Exchange the one-time code for a session cookie.
+                OidcAuthManager.exchangeCode(meetInstance: instance, code: code) { [weak self] cookie in
+                    self?.parent.onCookie(cookie)
+                } onFailure: { [weak self, weak webView] in
+                    guard let self else { return }
+                    Self.extractCookie(from: webView, instance: instance, onCookie: self.parent.onCookie)
+                }
+            } else {
+                // No code in redirect — read cookies from the WKWebView store directly.
+                Self.extractCookie(from: webView, instance: instance, onCookie: parent.onCookie)
+            }
+        }
+
+        // Secondary detection: servers that redirect to the instance homepage.
+        func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+            guard let url = webView.url,
+                  url.host == parent.meetInstance,
                   !url.path.contains("/authenticate"),
                   !url.path.contains("/oauth2/"),
                   !url.path.contains("/callback") else { return }
+            Self.extractCookie(from: webView, instance: parent.meetInstance, onCookie: parent.onCookie)
+        }
 
-            webView.configuration.websiteDataStore.httpCookieStore.getAllCookies { [parent] cookies in
-                if let cookie = cookies.first(where: {
-                    OidcFallbackWebView.cookieNames.contains($0.name) && $0.domain.contains(instance)
-                }) {
-                    Task { @MainActor in parent.onCookie(cookie.value) }
-                }
+        private static func extractCookie(
+            from webView: WKWebView?,
+            instance: String,
+            onCookie: @escaping (String?) -> Void
+        ) {
+            webView?.configuration.websiteDataStore.httpCookieStore.getAllCookies { cookies in
+                let value = cookies.first(where: {
+                    OidcAuthManager.cookieNames.contains($0.name) && $0.domain.contains(instance)
+                })?.value
+                Task { @MainActor in onCookie(value) }
             }
         }
     }
@@ -475,12 +540,11 @@ private struct OidcFallbackWebView: UIViewRepresentable {
 
 // MARK: - Server Picker
 
-/// Server picker that navigates to the OIDC web view within the same sheet.
+/// Server picker — user selects an instance, then the WKWebView auth sheet opens.
 private struct ServerPickerWithOidc: View {
     let instances: [String]
     @Binding var customServer: String
     let lang: String
-    let onComplete: (String?, String) -> Void  // (cookie?, meetInstance)
     let onDismiss: () -> Void
 
     @EnvironmentObject private var manager: VisioManager
@@ -502,11 +566,8 @@ private struct ServerPickerWithOidc: View {
     }
 
     private func selectInstance(_ instance: String) {
-        // Dismiss the server picker sheet, then launch ASWebAuthenticationSession
         onDismiss()
-        manager.authManager.launchOidcFlow(meetInstance: instance) { cookie in
-            onComplete(cookie, instance)
-        }
+        manager.authManager.launchOidcFlow(meetInstance: instance)
     }
 
     var body: some View {
