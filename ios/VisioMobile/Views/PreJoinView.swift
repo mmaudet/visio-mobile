@@ -237,8 +237,8 @@ struct PreJoinView: View {
             isCameraOn = settings.cameraEnabledOnJoin
             isMicOn = settings.micEnabledOnJoin
         }
-        .onChange(of: manager.connectionState) { newState in
-            if case .connected = newState {
+        .onChange(of: manager.connectionState) { _ in
+            if case .connected = manager.connectionState {
                 waitingState = .idle
                 navigateToCall = true
             }

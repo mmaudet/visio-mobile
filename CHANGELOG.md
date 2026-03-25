@@ -18,6 +18,10 @@ and this project adheres to
   on public rooms (#180)
 - Desktop: remove room name field from join form (#180)
 - Desktop: fix camera not showing on join from lobby (#180)
+- iOS: restore iOS 16 compatibility by migrating all onChange(of:) calls
+  to the iOS 16-compatible perform: closure form, adding missing
+  requestNotificationPermissionIfNeeded() and Equatable conformance
+  on TestConnectParams (#185)
 
 ### Added
 

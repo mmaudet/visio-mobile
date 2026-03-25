@@ -4,7 +4,7 @@ import SwiftUI
 import UserNotifications
 import visioFFI
 
-struct TestConnectParams: Sendable {
+struct TestConnectParams: Sendable, Equatable {
     let livekitUrl: String
     let token: String
     let mediaFile: String?

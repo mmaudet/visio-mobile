@@ -76,8 +76,8 @@ struct HomeView: View {
                 .padding(.horizontal, 16)
                 .padding(.top, 8)
                 .padding(.bottom, 16)
-                .onChange(of: selectedTab) { newTab in
-                    if newTab == 1 {
+                .onChange(of: selectedTab) { _ in
+                    if selectedTab == 1 {
                         manager.refreshCalendarNow()
                     }
                 }
@@ -112,8 +112,8 @@ struct HomeView: View {
                     }
                     .padding(.top, 16)
                     .background(GeometryReader { geo in
-                        Color.clear.onChange(of: geo.frame(in: .named("scroll")).minY) { value in
-                            showCompactHeader = value < -20
+                        Color.clear.onChange(of: geo.frame(in: .named("scroll")).minY) { _ in
+                            showCompactHeader = geo.frame(in: .named("scroll")).minY < -20
                         }
                     })
 
@@ -394,23 +394,23 @@ struct HomeView: View {
                 manager.refreshCalendarNow()
             }
         }
-        .onChange(of: manager.authenticatedDisplayName) { newValue in
-            if !newValue.isEmpty && displayName.isEmpty {
-                displayName = newValue
+        .onChange(of: manager.authenticatedDisplayName) { _ in
+            if !manager.authenticatedDisplayName.isEmpty && displayName.isEmpty {
+                displayName = manager.authenticatedDisplayName
             }
         }
-        .onChange(of: roomStatus) { newStatus in
+        .onChange(of: roomStatus) { _ in
             guard historyJoinPending else { return }
-            if newStatus == "valid" {
+            if roomStatus == "valid" {
                 historyJoinPending = false
                 navigateToCall = true
-            } else if newStatus == "not_found" || newStatus == "idle" {
+            } else if roomStatus == "not_found" || roomStatus == "idle" {
                 // Validation failed — fall back to just showing the URL in the field
                 historyJoinPending = false
             }
         }
-        .onChange(of: manager.pendingDeepLink) { newValue in
-            if let link = newValue {
+        .onChange(of: manager.pendingDeepLink) { _ in
+            if let link = manager.pendingDeepLink {
                 // Extract room display name from the URL if present, then strip the param
                 if let extracted = manager.client.extractRoomDisplayName(url: link) {
                     roomDisplayName = extracted
@@ -421,13 +421,13 @@ struct HomeView: View {
                 manager.pendingDeepLink = nil
             }
         }
-        .onChange(of: manager.pendingTestConnect != nil) { hasTestConnect in
-            if hasTestConnect {
+        .onChange(of: manager.pendingTestConnect != nil) { _ in
+            if manager.pendingTestConnect != nil {
                 navigateToCall = true
             }
         }
-        .onChange(of: manager.calendarSyncResult) { newResult in
-            guard let result = newResult else { return }
+        .onChange(of: manager.calendarSyncResult) { _ in
+            guard let result = manager.calendarSyncResult else { return }
             switch result {
             case .success(let count):
                 if count > 0 {
@@ -762,16 +762,16 @@ private struct CreateRoomSheet: View {
                     if accessLevel == "restricted" {
                         Section(header: Text(Strings.t("restricted.invite", lang: lang))) {
                             TextField(Strings.t("restricted.searchUsers", lang: lang), text: $searchQuery)
-                                .onChange(of: searchQuery) { newValue in
+                                .onChange(of: searchQuery) { _ in
                                     searchTask?.cancel()
-                                    guard newValue.count >= 3 else {
+                                    guard searchQuery.count >= 3 else {
                                         searchResults = []
                                         return
                                     }
                                     searchTask = Task {
                                         try? await Task.sleep(nanoseconds: 300_000_000)
                                         guard !Task.isCancelled else { return }
-                                        let query = newValue
+                                        let query = searchQuery
                                         DispatchQueue.global(qos: .userInitiated).async {
                                             do {
                                                 let results = try manager.client.searchUsers(query: query)

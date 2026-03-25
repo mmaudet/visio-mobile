@@ -83,8 +83,8 @@ struct SettingsView: View {
                     .pickerStyle(.menu)
                     .foregroundStyle(VisioColors.onSurface(dark: isDark))
                     .listRowBackground(VisioColors.surface(dark: isDark))
-                    .onChange(of: language) { newLang in
-                        manager.setLanguage(newLang)
+                    .onChange(of: language) { _ in
+                        manager.setLanguage(language)
                     }
                 }
 
@@ -130,8 +130,8 @@ struct SettingsView: View {
                         .keyboardType(.URL)
                         .foregroundStyle(VisioColors.onSurface(dark: isDark))
                         .listRowBackground(VisioColors.surface(dark: isDark))
-                        .onChange(of: calendarUrl) { newUrl in
-                            let trimmed = newUrl.trimmingCharacters(in: .whitespacesAndNewlines)
+                        .onChange(of: calendarUrl) { _ in
+                            let trimmed = calendarUrl.trimmingCharacters(in: .whitespacesAndNewlines)
                             manager.client.setCalendarUrl(url: trimmed.isEmpty ? nil : trimmed)
                             if !trimmed.isEmpty {
                                 manager.requestNotificationPermissionIfNeeded()
@@ -147,8 +147,8 @@ struct SettingsView: View {
                     }
                     .foregroundStyle(VisioColors.onSurface(dark: isDark))
                     .listRowBackground(VisioColors.surface(dark: isDark))
-                    .onChange(of: calendarRefreshInterval) { newInterval in
-                        manager.client.setCalendarRefreshInterval(interval: newInterval)
+                    .onChange(of: calendarRefreshInterval) { _ in
+                        manager.client.setCalendarRefreshInterval(interval: calendarRefreshInterval)
                     }
 
                     if !calendarUrl.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {

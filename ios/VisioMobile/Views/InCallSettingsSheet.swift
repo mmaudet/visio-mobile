@@ -410,8 +410,8 @@ private struct NotificationsTabContent: View {
                         .foregroundStyle(VisioColors.onSurface(dark: isDark))
                 }
                 .tint(VisioColors.primary500)
-                .onChange(of: notifParticipant) { value in
-                    manager.setNotificationParticipantJoin(value)
+                .onChange(of: notifParticipant) { _ in
+                    manager.setNotificationParticipantJoin(notifParticipant)
                 }
 
                 Toggle(isOn: $notifHandRaised) {
@@ -419,8 +419,8 @@ private struct NotificationsTabContent: View {
                         .foregroundStyle(VisioColors.onSurface(dark: isDark))
                 }
                 .tint(VisioColors.primary500)
-                .onChange(of: notifHandRaised) { value in
-                    manager.setNotificationHandRaised(value)
+                .onChange(of: notifHandRaised) { _ in
+                    manager.setNotificationHandRaised(notifHandRaised)
                 }
 
                 Toggle(isOn: $notifMessage) {
@@ -428,8 +428,8 @@ private struct NotificationsTabContent: View {
                         .foregroundStyle(VisioColors.onSurface(dark: isDark))
                 }
                 .tint(VisioColors.primary500)
-                .onChange(of: notifMessage) { value in
-                    manager.setNotificationMessageReceived(value)
+                .onChange(of: notifMessage) { _ in
+                    manager.setNotificationMessageReceived(notifMessage)
                 }
             }
         }
@@ -462,16 +462,16 @@ private struct MembersTabContent: View {
                 TextField(Strings.t("restricted.searchUsers", lang: lang), text: $searchQuery)
                     .textFieldStyle(.roundedBorder)
                     .padding(.horizontal)
-                    .onChange(of: searchQuery) { newValue in
+                    .onChange(of: searchQuery) { _ in
                         searchTask?.cancel()
-                        guard newValue.count >= 3 else {
+                        guard searchQuery.count >= 3 else {
                             searchResults = []
                             return
                         }
                         searchTask = Task {
                             try? await Task.sleep(nanoseconds: 300_000_000)
                             guard !Task.isCancelled else { return }
-                            let query = newValue
+                            let query = searchQuery
                             let client = manager.client
                             let currentAccesses = manager.roomAccesses
                             do {
