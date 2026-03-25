@@ -1,128 +1,63 @@
-import AuthenticationServices
+import Foundation
 import Security
-import SwiftUI
-import UIKit
-import WebKit
 
 // MARK: - OidcAuthManager
 
-@MainActor
-class OidcAuthManager: NSObject, ObservableObject, ASWebAuthenticationPresentationContextProviding {
-
-    /// Called when the OIDC flow completes (cookie or nil).
-    var onComplete: ((String?) -> Void)?
-
-    /// Tracks the active session so it isn't deallocated mid-flow.
-    private var authSession: ASWebAuthenticationSession?
+class OidcAuthManager: ObservableObject {
 
     /// The meet instance being authenticated against.
+    /// When set, the WKWebView auth sheet is presented.
     @Published var pendingInstance: String?
 
     /// Known session cookie names (Meet uses "meet_sessionid", others may use "sessionid").
-    private static let cookieNames = ["meet_sessionid", "sessionid"]
+    static let cookieNames = ["meet_sessionid", "sessionid"]
 
     // MARK: - OIDC Flow
 
-    /// Launches the OIDC authentication flow.
-    ///
-    /// Tries ASWebAuthenticationSession with visio:// callback first (requires server
-    /// support for custom scheme returnTo). If the server rejects the custom scheme
-    /// (returns to homepage instead), falls back to WKWebView-based extraction.
-    func launchOidcFlow(meetInstance: String, completion: @escaping (String?) -> Void) {
-        onComplete = completion
+    /// Presents the WKWebView auth sheet for the given meet instance.
+    func launchOidcFlow(meetInstance: String) {
         pendingInstance = meetInstance
-
-        // Try ASWebAuthenticationSession first — best UX (password manager, saved sessions)
-        let returnTo = "visio://auth-callback"
-        let encodedReturnTo = returnTo.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? returnTo
-        guard let authURL = URL(string: "https://\(meetInstance)/api/v1.0/authenticate/?returnTo=\(encodedReturnTo)") else {
-            completion(nil)
-            return
-        }
-
-        let session = ASWebAuthenticationSession(
-            url: authURL,
-            callbackURLScheme: "visio"
-        ) { [weak self] callbackURL, error in
-            guard let self else { return }
-            self.authSession = nil
-
-            if let error {
-                let nsError = error as NSError
-                // ASWebAuthenticationSessionErrorCodeCanceledLogin = 1
-                if nsError.domain == ASWebAuthenticationSessionError.errorDomain
-                    && nsError.code == ASWebAuthenticationSessionError.canceledLogin.rawValue {
-                    // User cancelled — don't fallback, just report nil
-                    self.onComplete?(nil)
-                    self.onComplete = nil
-                    self.pendingInstance = nil
-                    return
-                }
-                // Other error — try fallback
-                print("[OidcAuthManager] ASWebAuth failed: \(error.localizedDescription), falling back to webview")
-                self.pendingInstance = meetInstance
-                return
-            }
-
-            // Success — try to extract cookie from shared storage
-            self.extractSessionCookie(meetInstance: meetInstance) { cookie in
-                if let cookie {
-                    self.onComplete?(cookie)
-                    self.onComplete = nil
-                    self.pendingInstance = nil
-                } else {
-                    // Cookie not in shared storage — server may not support custom scheme returnTo
-                    // Fall back to webview
-                    print("[OidcAuthManager] No cookie after ASWebAuth, falling back to webview")
-                    self.pendingInstance = meetInstance
-                }
-            }
-        }
-
-        session.prefersEphemeralWebBrowserSession = false
-        session.presentationContextProvider = self
-        authSession = session
-        session.start()
     }
 
-    /// Called by the webview fallback when it extracts a cookie.
+    /// Called by the WKWebView when it extracts a cookie (or nil on dismiss).
     func onWebViewCookie(_ cookie: String?, meetInstance: String) {
         pendingInstance = nil
-        onComplete?(cookie)
-        onComplete = nil
     }
 
-    // MARK: - Cookie Extraction
+    // MARK: - Code Exchange
 
-    private func extractSessionCookie(meetInstance: String, completion: @escaping (String?) -> Void) {
-        guard let instanceURL = URL(string: "https://\(meetInstance)/") else {
-            completion(nil)
+    /// Exchanges a one-time OIDC code for a session cookie via the server's
+    /// `/api/v1.0/auth/session-exchange/` endpoint.
+    /// Used by the WKWebView coordinator when the server includes `?code=` in the redirect.
+    static func exchangeCode(
+        meetInstance: String,
+        code: String,
+        onCookie: @escaping (String) -> Void,
+        onFailure: @escaping () -> Void
+    ) {
+        guard let url = URL(string: "https://\(meetInstance)/api/v1.0/auth/session-exchange/") else {
+            DispatchQueue.main.async { onFailure() }
             return
         }
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try? JSONSerialization.data(withJSONObject: ["code": code])
 
-        let cookies = HTTPCookieStorage.shared.cookies(for: instanceURL) ?? []
-        if let sessionCookie = cookies.first(where: { Self.cookieNames.contains($0.name) })?.value,
-           !sessionCookie.isEmpty {
-            completion(sessionCookie)
-        } else {
-            // Retry once after a short delay
-            Task { @MainActor in
-                try? await Task.sleep(for: .milliseconds(500))
-                let retryCookies = HTTPCookieStorage.shared.cookies(for: instanceURL) ?? []
-                let cookie = retryCookies.first(where: { Self.cookieNames.contains($0.name) })?.value
-                completion(cookie?.isEmpty == false ? cookie : nil)
+        URLSession.shared.dataTask(with: request) { data, _, _ in
+            let cookie = data
+                .flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: String] }
+                .flatMap { dict in Self.cookieNames.compactMap { dict[$0] }.first }
+
+            DispatchQueue.main.async {
+                if let cookie {
+                    onCookie(cookie)
+                } else {
+                    NSLog("[OidcAuthManager] session-exchange failed or missing key")
+                    onFailure()
+                }
             }
-        }
-    }
-
-    // MARK: - ASWebAuthenticationPresentationContextProviding
-
-    func presentationAnchor(for session: ASWebAuthenticationSession) -> ASPresentationAnchor {
-        guard let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
-              let window = scene.windows.first(where: { $0.isKeyWindow }) ?? scene.windows.first else {
-            return ASPresentationAnchor()
-        }
-        return window
+        }.resume()
     }
 
     // MARK: - Keychain Storage
