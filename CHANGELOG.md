@@ -14,6 +14,10 @@ and this project adheres to
   adding a new instance (#169)
 - Desktop: hide optional room name field on home page when
   authenticated via OIDC (#171)
+- Desktop: fix race condition causing "waiting for authorization"
+  on public rooms (#180)
+- Desktop: remove room name field from join form (#180)
+- Desktop: fix camera not showing on join from lobby (#180)
 
 ### Added
 

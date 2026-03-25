@@ -603,11 +603,15 @@ async fn get_video_tracks(state: tauri::State<'_, VisioState>) -> Result<Vec<Str
 
 #[tauri::command]
 async fn toggle_mic(state: tauri::State<'_, VisioState>, enabled: bool) -> Result<(), String> {
+    tracing::info!("toggle_mic called with enabled={}", enabled);
     let controls = state.controls.lock().await;
     controls
         .set_microphone_enabled(enabled)
         .await
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| {
+            tracing::error!("toggle_mic failed: {}", e);
+            e.to_string()
+        })?;
     if enabled {
         if let Some(source) = controls.audio_source().await {
             let mut engine = state.audio_engine.lock().unwrap_or_else(|e| e.into_inner());
