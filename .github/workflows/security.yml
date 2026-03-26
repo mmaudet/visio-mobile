@@ -11,7 +11,7 @@ jobs:
     name: Trivy - Rust dependencies
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
       - name: Run Trivy vulnerability scanner (fs mode)
         uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # master
         with:
@@ -35,7 +35,7 @@ jobs:
           - context: crates/visio-desktop
             name: desktop
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
       - name: Build Docker image
         run: |
           if [ -f "${{ matrix.context }}/Dockerfile" ]; then
@@ -58,10 +58,10 @@ jobs:
     name: GitGuardian - Secret detection
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           fetch-depth: 0
       - name: GitGuardian scan
-        uses: GitGuardian/ggshield-action@cc80fa3ea3f8338c387194779aab3c1ddb17e504 # v1
+        uses: GitGuardian/ggshield-action@f975da1a8f9f2b70923ecb95dc7b300bb0688d6e # v1.48.0
         env:
           GITGUARDIAN_API_KEY: ${{ secrets.GITGUARDIAN_API_KEY }}
