@@ -20,6 +20,10 @@ class ParticipantTileTest {
         isMuted: Boolean = false,
         hasVideo: Boolean = false,
         videoTrackSid: String? = null,
+        hasScreenShare: Boolean = false,
+        screenShareTrackSid: String? = null,
+        color: String? = null,
+        isAdmin: Boolean = false,
     ) = ParticipantInfo(
         sid = sid,
         identity = identity,
@@ -27,7 +31,11 @@ class ParticipantTileTest {
         isMuted = isMuted,
         hasVideo = hasVideo,
         videoTrackSid = videoTrackSid,
+        hasScreenShare = hasScreenShare,
+        screenShareTrackSid = screenShareTrackSid,
         connectionQuality = ConnectionQuality.GOOD,
+        color = color,
+        isAdmin = isAdmin,
     )
 
     @Test

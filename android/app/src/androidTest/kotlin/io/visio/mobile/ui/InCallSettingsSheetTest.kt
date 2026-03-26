@@ -1,5 +1,6 @@
 package io.visio.mobile.ui
 
+import android.media.AudioDeviceInfo
 import android.media.AudioManager
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.test.platform.app.InstrumentationRegistry
@@ -16,9 +17,11 @@ class InCallSettingsSheetTest {
 
         composeTestRule.setContent {
             InCallSettingsSheet(
+                roomUrl = "https://meet.example.com/test",
                 initialTab = 0,
                 onDismiss = {},
-                onSelectAudioDevice = {},
+                onSelectAudioInput = { _ -> },
+                onSelectAudioOutput = { _ -> },
                 onSwitchCamera = {},
                 isFrontCamera = true,
             )
@@ -33,9 +36,11 @@ class InCallSettingsSheetTest {
     fun camera_tab_shows_front_and_back_options() {
         composeTestRule.setContent {
             InCallSettingsSheet(
+                roomUrl = "https://meet.example.com/test",
                 initialTab = 1,
                 onDismiss = {},
-                onSelectAudioDevice = {},
+                onSelectAudioInput = { _ -> },
+                onSelectAudioOutput = { _ -> },
                 onSwitchCamera = {},
                 isFrontCamera = true,
             )
@@ -54,9 +59,11 @@ class InCallSettingsSheetTest {
 
         composeTestRule.setContent {
             InCallSettingsSheet(
+                roomUrl = "https://meet.example.com/test",
                 initialTab = 0,
                 onDismiss = {},
-                onSelectAudioDevice = {},
+                onSelectAudioInput = { _ -> },
+                onSelectAudioOutput = { _ -> },
                 onSwitchCamera = {},
                 isFrontCamera = true,
             )
