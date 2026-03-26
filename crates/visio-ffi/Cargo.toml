@@ -31,6 +31,7 @@ jni = "0.21"
 ndk-sys = "0.6"
 libwebrtc = "0.3.26"
 livekit = { workspace = true, features = ["rustls-tls-webpki-roots"] }
+ort = { version = "2.0.0-rc.12", default-features = false, features = ["std", "ndarray", "load-dynamic", "download-binaries", "api-18", "tls-native"] }
 
 [target.'cfg(target_os = "ios")'.dependencies]
 livekit = { workspace = true, features = ["rustls-tls-webpki-roots"] }

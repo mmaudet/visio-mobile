@@ -1,6 +1,5 @@
 package io.visio.mobile.ui
 
-import android.media.AudioDeviceInfo
 import android.media.AudioManager
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.test.platform.app.InstrumentationRegistry
