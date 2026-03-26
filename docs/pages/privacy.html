@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Visio Mobile — Politique de confidentialité</title>
+    <style>
+        :root { --bg: #f8f9fa; --fg: #1a1a2e; --accent: #3b82f6; --muted: #6b7280; --card: #fff; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--bg); color: var(--fg); line-height: 1.7; }
+        .container { max-width: 720px; margin: 0 auto; padding: 3rem 1.5rem; }
+        h1 { font-size: 2rem; margin-bottom: 0.5rem; }
+        .subtitle { color: var(--muted); margin-bottom: 2rem; font-size: 0.95rem; }
+        h2 { font-size: 1.25rem; margin: 2rem 0 0.75rem; color: var(--accent); }
+        p, li { margin-bottom: 0.75rem; font-size: 0.95rem; }
+        ul { padding-left: 1.5rem; }
+        a { color: var(--accent); }
+        .lang-switch { text-align: right; margin-bottom: 1rem; font-size: 0.9rem; }
+        .section { background: var(--card); border-radius: 8px; padding: 1.5rem; margin-bottom: 1.5rem; box-shadow: 0 1px 3px rgba(0,0,0,0.06); }
+        footer { margin-top: 3rem; text-align: center; color: var(--muted); font-size: 0.85rem; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="lang-switch"><a href="privacy-en.html">English version</a></div>
+    <h1>Politique de confidentialité</h1>
+    <p class="subtitle">Visio Mobile — Application de visioconférence · Dernière mise à jour : 26 mars 2026</p>
+
+    <div class="section">
+        <h2>1. Éditeur de l'application</h2>
+        <p>Visio Mobile est développé par <strong>LINAGORA</strong>, éditeur de logiciels libres.</p>
+        <p>37 Rue Pierre Poli, Tour Les Poissons<br>92130 Issy-les-Moulineaux, France<br>Contact : <a href="mailto:mmaudet@linagora.com">mmaudet@linagora.com</a></p>
+    </div>
+
+    <div class="section">
+        <h2>2. Nature de l'application</h2>
+        <p>Visio Mobile est un client natif de visioconférence conçu pour se connecter aux instances <a href="https://github.com/suitenumerique/meet">La Suite Meet</a>. L'application est un <strong>logiciel libre</strong> (AGPL-3.0), dont le code source est disponible sur <a href="https://github.com/mmaudet/visio-mobile">GitHub</a>.</p>
+    </div>
+
+    <div class="section">
+        <h2>3. Données collectées</h2>
+        <p>L'application collecte et traite uniquement les données <strong>strictement nécessaires</strong> au fonctionnement de la visioconférence :</p>
+        <ul>
+            <li><strong>Identité :</strong> nom d'affichage et identifiant de connexion (via authentification OIDC/ProConnect)</li>
+            <li><strong>Audio et vidéo :</strong> flux média transmis en temps réel pendant les appels (non enregistrés par l'application)</li>
+            <li><strong>Messages de chat :</strong> messages échangés pendant les réunions (transmis en temps réel, non stockés par l'application)</li>
+        </ul>
+        <p><strong>L'application ne collecte aucune donnée analytique, publicitaire ou de suivi.</strong></p>
+    </div>
+
+    <div class="section">
+        <h2>4. Traitement et stockage</h2>
+        <ul>
+            <li>Les flux audio/vidéo et les messages transitent par le serveur LiveKit de l'instance à laquelle vous vous connectez.</li>
+            <li>L'application <strong>ne stocke aucune donnée personnelle</strong> sur ses propres serveurs.</li>
+            <li>Les données de connexion (jetons d'authentification) sont stockées localement sur votre appareil et supprimées à la déconnexion.</li>
+            <li>Pour les instances La Suite Meet de l'État français, les données transitent exclusivement par des serveurs situés en France.</li>
+        </ul>
+    </div>
+
+    <div class="section">
+        <h2>5. Partage des données</h2>
+        <p>Aucune donnée personnelle n'est partagée avec des tiers. L'application ne contient aucun SDK publicitaire ni outil de suivi tiers.</p>
+    </div>
+
+    <div class="section">
+        <h2>6. Permissions de l'appareil</h2>
+        <p>L'application demande les permissions suivantes, uniquement lorsqu'elles sont nécessaires :</p>
+        <ul>
+            <li><strong>Caméra :</strong> pour la vidéo en appel</li>
+            <li><strong>Microphone :</strong> pour l'audio en appel</li>
+            <li><strong>Notifications :</strong> pour les alertes de réunion (optionnel)</li>
+        </ul>
+    </div>
+
+    <div class="section">
+        <h2>7. Vos droits</h2>
+        <p>Conformément au RGPD, vous disposez des droits d'accès, de rectification, d'effacement et de portabilité de vos données. Pour exercer ces droits, contactez notre Délégué à la Protection des Données : <a href="mailto:dpo@linagora.com">dpo@linagora.com</a></p>
+    </div>
+
+    <div class="section">
+        <h2>8. Modifications</h2>
+        <p>Cette politique peut être mise à jour. La date de dernière modification est indiquée en haut de cette page. Les modifications significatives seront communiquées via une mise à jour de l'application.</p>
+    </div>
+
+    <footer>
+        <p>Visio Mobile est un logiciel libre — <a href="https://github.com/mmaudet/visio-mobile">Code source</a> · <a href="https://github.com/mmaudet/visio-mobile/blob/main/LICENSE">Licence AGPL-3.0</a></p>
+    </footer>
+</div>
+</body>
+</html>
