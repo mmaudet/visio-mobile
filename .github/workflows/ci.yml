@@ -135,10 +135,56 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@631a55b12751854ce901bb631d5902ceb48146f7 # stable
+        with:
+          targets: x86_64-linux-android
+
+      - name: Install cargo-ndk
+        run: cargo install cargo-ndk
+
+      - name: Cache Rust build artifacts
+        uses: Swatinem/rust-cache@f51f967e158417aafa338a1e46ab22095f07aa01 # v2
+        with:
+          key: android-x86_64-test
+
+      - name: Set up Android NDK
+        uses: android-actions/setup-android@651bceb6f9ca583f16b8d75b62c36ded2ae6fc9c # v4
+
       - uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654 # v5
         with:
           java-version: "17"
           distribution: "temurin"
+
+      - name: Install system dependencies for UniFFI bindgen
+        run: sudo apt-get update && sudo apt-get install -y libglib2.0-dev libva-dev
+
+      - name: Compile Rust native libraries for emulator
+        run: cargo ndk -t x86_64 build -p visio-ffi -p visio-video --release
+
+      - name: Generate UniFFI Kotlin bindings
+        run: bash scripts/generate-bindings.sh kotlin
+
+      - name: Copy .so files to jniLibs
+        run: |
+          rm -rf android/app/src/main/jniLibs/x86_64
+          mkdir -p android/app/src/main/jniLibs/x86_64
+          cp target/x86_64-linux-android/release/libvisio_ffi.so android/app/src/main/jniLibs/x86_64/
+          cp target/x86_64-linux-android/release/libvisio_video.so android/app/src/main/jniLibs/x86_64/
+          LIBCXX=$(find $ANDROID_NDK_HOME -name "libc++_shared.so" -path "*/x86_64/*" | head -1)
+          if [ -n "$LIBCXX" ]; then cp "$LIBCXX" android/app/src/main/jniLibs/x86_64/; fi
+
+      - name: Copy libwebrtc.jar
+        run: |
+          mkdir -p android/app/libs
+          WEBRTC_JAR=$(find target -name "libwebrtc.jar" -path "*/android-x64-release/*" 2>/dev/null | head -1)
+          if [ -n "$WEBRTC_JAR" ]; then
+            cp "$WEBRTC_JAR" android/app/libs/
+          else
+            echo "::warning::libwebrtc.jar not found, tests may fail"
+          fi
+
       - uses: reactivecircus/android-emulator-runner@0a638108440efd5c7f980e6ba145dbcdd8f32009 # v2.37.0
         with:
           api-level: 34
