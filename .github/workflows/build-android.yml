@@ -99,6 +99,15 @@ jobs:
           RELEASE_NOTES: ${{ github.event.inputs.release_notes }}
         run: bundle exec fastlane distribute
 
+      - name: Build AAB for Google Play
+        working-directory: android
+        env:
+          KEYSTORE_PATH: release.keystore
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: ./gradlew bundleRelease
+
       - name: Find built APK
         id: find-apk
         if: always()
@@ -112,6 +121,18 @@ jobs:
             echo "No APK found"
           fi
 
+      - name: Find built AAB
+        id: find-aab
+        if: always()
+        run: |
+          AAB=$(find android/app/build/outputs -name "*.aab" -type f | head -1)
+          if [ -n "$AAB" ]; then
+            echo "aab_path=$AAB" >> $GITHUB_OUTPUT
+            echo "Found AAB: $AAB"
+          else
+            echo "No AAB found"
+          fi
+
       - name: Upload APK artifact
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7
         if: steps.find-apk.outputs.apk_path != ''
@@ -119,8 +140,15 @@ jobs:
           name: android-apk
           path: ${{ steps.find-apk.outputs.apk_path }}
 
-      - name: Create GitHub Release with APK
-        if: steps.find-apk.outputs.apk_path != ''
+      - name: Upload AAB artifact
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7
+        if: steps.find-aab.outputs.aab_path != ''
+        with:
+          name: android-aab
+          path: ${{ steps.find-aab.outputs.aab_path }}
+
+      - name: Create GitHub Release
+        if: steps.find-apk.outputs.apk_path != '' || steps.find-aab.outputs.aab_path != ''
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -129,8 +157,15 @@ jobs:
           if [ -z "$NOTES" ]; then
             NOTES="Build #${{ github.run_number }} from $(date -u +%Y-%m-%d)"
           fi
+          FILES=()
+          if [ -n "${{ steps.find-apk.outputs.apk_path }}" ]; then
+            FILES+=("${{ steps.find-apk.outputs.apk_path }}")
+          fi
+          if [ -n "${{ steps.find-aab.outputs.aab_path }}" ]; then
+            FILES+=("${{ steps.find-aab.outputs.aab_path }}")
+          fi
           gh release create "$TAG" \
-            "${{ steps.find-apk.outputs.apk_path }}" \
+            "${FILES[@]}" \
             --title "Android Build #${{ github.run_number }}" \
             --notes "$NOTES" \
             --prerelease
