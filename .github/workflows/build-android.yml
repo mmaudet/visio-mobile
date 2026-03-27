@@ -120,7 +120,7 @@ jobs:
             fi
           done
           # Create native-debug-symbols.zip for Google Play upload
-          cd "$SYMBOLS_DIR" && zip -r ../../../../native-debug-symbols.zip lib/
+          cd "$SYMBOLS_DIR" && zip -r "$GITHUB_WORKSPACE/native-debug-symbols.zip" lib/
 
       - name: Find built APK
         id: find-apk
@@ -166,7 +166,7 @@ jobs:
         if: always()
         with:
           name: native-debug-symbols
-          path: android/native-debug-symbols.zip
+          path: native-debug-symbols.zip
           if-no-files-found: warn
 
       - name: Create GitHub Release
