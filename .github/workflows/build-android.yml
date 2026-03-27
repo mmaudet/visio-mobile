@@ -157,6 +157,9 @@ jobs:
       - name: Upload AAB artifact
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7
         if: steps.find-aab.outputs.aab_path != ''
+        with:
+          name: android-aab
+          path: ${{ steps.find-aab.outputs.aab_path }}
 
       - name: Upload native debug symbols
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7
@@ -165,11 +168,6 @@ jobs:
           name: native-debug-symbols
           path: android/native-debug-symbols.zip
           if-no-files-found: warn
-
-
-        with:
-          name: android-aab
-          path: ${{ steps.find-aab.outputs.aab_path }}
 
       - name: Create GitHub Release
         if: steps.find-apk.outputs.apk_path != '' || steps.find-aab.outputs.aab_path != ''
