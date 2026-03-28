@@ -876,6 +876,7 @@ function HomeView({
   onDisplayNameChange,
   deepLinkUrl,
   onDeepLinkConsumed,
+  oidcEnabled,
   isAuthenticated,
   authenticatedMeetInstance,
   displayNameFromOidc,
@@ -897,6 +898,7 @@ function HomeView({
   onDisplayNameChange: (name: string) => void
   deepLinkUrl: string | null
   onDeepLinkConsumed: () => void
+  oidcEnabled: boolean
   isAuthenticated: boolean
   authenticatedMeetInstance: string
   displayNameFromOidc: string
@@ -1220,7 +1222,7 @@ function HomeView({
           <div className="join-form">
             <img src="/logo.png?v=2" alt="Visio Mobile" className="home-logo" />
             <h2>{t('app.title')}</h2>
-            {isAuthenticated ? (
+            {oidcEnabled && isAuthenticated ? (
               <div className="auth-card">
                 <div className="auth-avatar">
                   {(() => {
@@ -1250,7 +1252,7 @@ function HomeView({
                   <RiLogoutBoxRLine size={20} />
                 </button>
               </div>
-            ) : (
+            ) : oidcEnabled ? (
               <div className="auth-status">
                 <button
                   className="btn btn-primary"
@@ -1327,7 +1329,7 @@ function HomeView({
                   </div>
                 )}
               </div>
-            )}
+            ) : null}
             <div className="form-group">
               <label htmlFor="meetUrl">{t('home.meetUrl')}</label>
               <input
@@ -1418,7 +1420,7 @@ function HomeView({
                 {joining ? t('home.connecting') : t('home.join')}
               </button>
             )}
-            {isAuthenticated && authenticatedMeetInstance && (
+            {oidcEnabled && isAuthenticated && authenticatedMeetInstance && (
               <button
                 className="btn btn-primary"
                 style={{
@@ -1522,7 +1524,7 @@ function HomeView({
           </div>
         )}
       </div>
-      {showCreateRoom && authenticatedMeetInstance && (
+      {oidcEnabled && showCreateRoom && authenticatedMeetInstance && (
         <CreateRoomDialog
           meetInstance={authenticatedMeetInstance}
           onCreated={async (
@@ -4650,6 +4652,8 @@ export default function App() {
   const [lang, setLang] = useState(detectSystemLang)
   // Theme
   const [theme, setTheme] = useState('light')
+  // OIDC feature flag
+  const [oidcEnabled, setOidcEnabled] = useState(true)
   // OIDC auth
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [displayNameFromOidc, setDisplayNameFromOidc] = useState('')
@@ -4667,6 +4671,11 @@ export default function App() {
     (key: string) => translations[lang]?.[key] ?? translations.en[key] ?? key,
     [lang]
   )
+
+  // Check OIDC feature flag on mount
+  useEffect(() => {
+    invoke<boolean>('is_oidc_enabled').then(setOidcEnabled)
+  }, [])
 
   // Load settings on mount
   useEffect(() => {
@@ -5384,6 +5393,7 @@ export default function App() {
               onDisplayNameChange={setDisplayName}
               deepLinkUrl={deepLinkUrl}
               onDeepLinkConsumed={() => setDeepLinkUrl(null)}
+              oidcEnabled={oidcEnabled}
               isAuthenticated={isAuthenticated}
               authenticatedMeetInstance={authenticatedMeetInstance}
               displayNameFromOidc={displayNameFromOidc}

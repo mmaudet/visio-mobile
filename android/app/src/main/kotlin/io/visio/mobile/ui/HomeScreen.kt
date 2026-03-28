@@ -83,6 +83,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import uniffi.visio.RoomValidationResult
 import uniffi.visio.UserSearchResult
+import uniffi.visio.isOidcEnabled
 
 private const val TAG = "HomeScreen"
 
@@ -112,6 +113,7 @@ fun HomeScreen(
     val upcomingMeetings by VisioManager.upcomingMeetings.collectAsState()
     val calendarLoading by VisioManager.calendarLoading.collectAsState()
     var hasCalendarUrl by remember { mutableStateOf(false) }
+    val oidcEnabled = isOidcEnabled()
 
     HomeScreenEffects(
         selectedTab = selectedTab,
@@ -182,6 +184,7 @@ fun HomeScreen(
             meetInstances = meetInstances,
             showServerPicker = showServerPicker,
             customServer = customServer,
+            oidcEnabled = oidcEnabled,
             onSettings = onSettings,
             onShowServerPicker = { showServerPicker = true },
             onDismissServerPicker = { showServerPicker = false },
@@ -218,6 +221,7 @@ fun HomeScreen(
             hasCalendarUrl = hasCalendarUrl,
             calendarLoading = calendarLoading,
             nowSeconds = nowSeconds,
+            oidcEnabled = oidcEnabled,
             coroutineScope = coroutineScope,
             onRoomUrlChange = { roomUrl = it },
             onUsernameChange = { username = it },
@@ -228,7 +232,7 @@ fun HomeScreen(
         )
     }
 
-    if (showCreateRoom) {
+    if (oidcEnabled && showCreateRoom) {
         CreateRoomDialog(
             meetInstance = VisioManager.authenticatedMeetInstance,
             lang = lang,
@@ -443,6 +447,7 @@ private fun HomeHeader(
     meetInstances: List<String>,
     showServerPicker: Boolean,
     customServer: String,
+    oidcEnabled: Boolean,
     onSettings: () -> Unit,
     onShowServerPicker: () -> Unit,
     onDismissServerPicker: () -> Unit,
@@ -480,23 +485,25 @@ private fun HomeHeader(
         }
         Spacer(modifier = Modifier.height(16.dp))
 
-        HomeAuthSection(
-            context = context,
-            lang = lang,
-            isDark = isDark,
-            meetInstances = meetInstances,
-            onShowServerPicker = onShowServerPicker,
-        )
-
-        if (showServerPicker) {
-            ServerPickerDialog(
-                instances = meetInstances,
-                customServer = customServer,
-                onCustomServerChange = onCustomServerChange,
+        if (oidcEnabled) {
+            HomeAuthSection(
+                context = context,
                 lang = lang,
-                onSelect = onServerSelected,
-                onDismiss = onDismissServerPicker,
+                isDark = isDark,
+                meetInstances = meetInstances,
+                onShowServerPicker = onShowServerPicker,
             )
+
+            if (showServerPicker) {
+                ServerPickerDialog(
+                    instances = meetInstances,
+                    customServer = customServer,
+                    onCustomServerChange = onCustomServerChange,
+                    lang = lang,
+                    onSelect = onServerSelected,
+                    onDismiss = onDismissServerPicker,
+                )
+            }
         }
     }
 }
@@ -564,6 +571,7 @@ private fun ColumnScope.HomeTabContent(
     hasCalendarUrl: Boolean,
     calendarLoading: Boolean,
     nowSeconds: Long,
+    oidcEnabled: Boolean,
     coroutineScope: kotlinx.coroutines.CoroutineScope,
     onRoomUrlChange: (String) -> Unit,
     onUsernameChange: (String) -> Unit,
@@ -584,6 +592,7 @@ private fun ColumnScope.HomeTabContent(
                 isDark = isDark,
                 lang = lang,
                 isAuthenticated = VisioManager.isAuthenticated,
+                oidcEnabled = oidcEnabled,
                 roomHistory = roomHistory,
                 historyJoining = historyJoining,
                 onJoin = onJoin,
@@ -752,6 +761,7 @@ private fun JoinTab(
     isDark: Boolean,
     lang: String,
     isAuthenticated: Boolean,
+    oidcEnabled: Boolean,
     roomHistory: List<uniffi.visio.VisioHistoryEntry>,
     historyJoining: String?,
     onJoin: (roomUrl: String, username: String, roomDisplayName: String?) -> Unit,
@@ -866,7 +876,7 @@ private fun JoinTab(
             )
         }
 
-        if (isAuthenticated) {
+        if (oidcEnabled && isAuthenticated) {
             Spacer(modifier = Modifier.height(12.dp))
             OutlinedButton(
                 onClick = onShowCreateRoom,

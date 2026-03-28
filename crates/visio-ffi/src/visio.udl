@@ -1,5 +1,6 @@
 namespace visio {
     void init_logging();
+    boolean is_oidc_enabled();
 };
 
 [Enum]

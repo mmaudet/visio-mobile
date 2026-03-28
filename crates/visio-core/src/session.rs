@@ -1,7 +1,13 @@
+#[cfg(feature = "oidc")]
 use reqwest::header::{COOKIE, HeaderMap, HeaderValue};
 use serde::{Deserialize, Serialize};
 
 use crate::errors::VisioError;
+
+/// Returns whether OIDC authentication support is compiled in.
+pub fn is_oidc_enabled() -> bool {
+    cfg!(feature = "oidc")
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UserInfo {
@@ -111,6 +117,7 @@ impl SessionManager {
     /// The Meet server generates a short-lived UUID code and redirects to
     /// `visio://auth-callback?code={uuid}`. This method POSTs the code to the
     /// exchange endpoint and returns the session cookie value.
+    #[cfg(feature = "oidc")]
     pub async fn exchange_oidc_code(meet_instance: &str, code: &str) -> Result<String, VisioError> {
         let url = format!("https://{}/api/v1.0/auth/session-exchange/", meet_instance);
 
@@ -143,6 +150,12 @@ impl SessionManager {
             .ok_or_else(|| VisioError::Auth("no session ID in exchange response".into()))
     }
 
+    #[cfg(not(feature = "oidc"))]
+    pub async fn exchange_oidc_code(_meet_instance: &str, _code: &str) -> Result<String, VisioError> {
+        Err(VisioError::Auth("OIDC support is not enabled".into()))
+    }
+
+    #[cfg(feature = "oidc")]
     pub async fn fetch_user(meet_url: &str, cookie: &str) -> Result<UserInfo, VisioError> {
         let url = format!("{}/api/v1.0/users/me/", meet_url);
 
@@ -177,6 +190,12 @@ impl SessionManager {
             .map_err(|e| VisioError::Session(format!("Failed to parse user info: {}", e)))
     }
 
+    #[cfg(not(feature = "oidc"))]
+    pub async fn fetch_user(_meet_url: &str, _cookie: &str) -> Result<UserInfo, VisioError> {
+        Err(VisioError::Session("OIDC support is not enabled".into()))
+    }
+
+    #[cfg(feature = "oidc")]
     pub async fn validate_session(&mut self, meet_url: &str) -> Result<bool, VisioError> {
         let cookie = match self.cookie() {
             Some(c) => c,
@@ -204,6 +223,12 @@ impl SessionManager {
         }
     }
 
+    #[cfg(not(feature = "oidc"))]
+    pub async fn validate_session(&mut self, _meet_url: &str) -> Result<bool, VisioError> {
+        Err(VisioError::Auth("OIDC support is not enabled".into()))
+    }
+
+    #[cfg(feature = "oidc")]
     pub async fn logout(&mut self, meet_url: &str) -> Result<(), VisioError> {
         if let Some(cookie) = self.cookie() {
             let url = format!("{}/logout", meet_url);
@@ -219,6 +244,12 @@ impl SessionManager {
         Ok(())
     }
 
+    #[cfg(not(feature = "oidc"))]
+    pub async fn logout(&mut self, _meet_url: &str) -> Result<(), VisioError> {
+        Err(VisioError::Auth("OIDC support is not enabled".into()))
+    }
+
+    #[cfg(feature = "oidc")]
     pub async fn create_room(
         meet_url: &str,
         cookie: &str,
@@ -284,6 +315,15 @@ impl SessionManager {
         serde_json::from_str::<CreateRoomResponse>(&body).map_err(|e| {
             VisioError::Session(format!("Invalid room response: {} — body: {}", e, body))
         })
+    }
+
+    #[cfg(not(feature = "oidc"))]
+    pub async fn create_room(
+        _meet_url: &str,
+        _cookie: &str,
+        _access_level: &str,
+    ) -> Result<CreateRoomResponse, VisioError> {
+        Err(VisioError::Session("OIDC support is not enabled".into()))
     }
 }
 

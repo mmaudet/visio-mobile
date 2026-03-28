@@ -1895,6 +1895,11 @@ async fn get_session_state(
     }
 }
 
+#[tauri::command]
+fn is_oidc_enabled() -> bool {
+    cfg!(feature = "oidc")
+}
+
 // ---------------------------------------------------------------------------
 // Entry point
 // ---------------------------------------------------------------------------
@@ -2214,6 +2219,7 @@ pub fn run() {
             set_calendar_refresh_interval,
             get_upcoming_meetings,
             refresh_calendar_now,
+            is_oidc_enabled,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

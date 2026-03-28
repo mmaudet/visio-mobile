@@ -4,6 +4,10 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 
+[features]
+default = ["oidc"]
+oidc = []
+
 [dependencies]
 chrono = "0.4"
 chrono-tz = "0.10"

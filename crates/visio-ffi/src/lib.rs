@@ -91,6 +91,11 @@ fn visio_log(msg: &str) {
 
 // ── Namespace functions ──────────────────────────────────────────────
 
+/// Returns whether OIDC authentication support is compiled in.
+fn is_oidc_enabled() -> bool {
+    visio_core::session::is_oidc_enabled()
+}
+
 /// Initialize tracing/logging. Call once from the host before using VisioClient.
 /// On Android, stderr goes to logcat for debuggable builds.
 fn init_logging() {

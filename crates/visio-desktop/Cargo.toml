@@ -38,7 +38,8 @@ windows = { version = "=0.58", features = [
 ] }
 
 [features]
-default = []
+default = ["oidc"]
+oidc = ["visio-core/oidc"]
 pipewire-camera = ["ashpd", "pipewire"]
 
 [target.'cfg(target_os = "linux")'.dependencies]

@@ -47,7 +47,7 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y libglib2.0-dev libva-dev
 
       - name: Compile Rust native libraries
-        run: cargo ndk -t arm64-v8a build -p visio-ffi -p visio-video --release
+        run: cargo ndk -t arm64-v8a build -p visio-ffi -p visio-video --release --no-default-features
 
       - name: Generate UniFFI Kotlin bindings
         run: bash scripts/generate-bindings.sh kotlin

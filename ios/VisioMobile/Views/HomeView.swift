@@ -25,6 +25,8 @@ struct HomeView: View {
     @State private var now = Date()
     private let minuteTimer = Timer.publish(every: 60, on: .main, in: .common).autoconnect()
 
+    private let oidcEnabled: Bool = isOidcEnabled()
+
     private var lang: String { manager.currentLang }
     private var isDark: Bool { manager.currentTheme == "dark" }
 
@@ -72,33 +74,35 @@ struct HomeView: View {
                     })
 
                 // Authentication section
-                if manager.isAuthenticated {
-                    AuthenticatedCard(
-                        displayName: manager.authenticatedDisplayName,
-                        email: manager.authenticatedEmail,
-                        isDark: isDark,
-                        lang: lang,
-                        onLogout: { manager.logoutSession() }
-                    )
-                    .padding(.horizontal, 32)
-                } else {
-                    Button(action: {
-                        if meetInstances.count <= 1 {
-                            guard let meetInstance = meetInstances.first else { return }
-                            launchOidc(meetInstance: meetInstance)
-                        } else {
-                            customServer = ""
-                            showServerPicker = true
+                if oidcEnabled {
+                    if manager.isAuthenticated {
+                        AuthenticatedCard(
+                            displayName: manager.authenticatedDisplayName,
+                            email: manager.authenticatedEmail,
+                            isDark: isDark,
+                            lang: lang,
+                            onLogout: { manager.logoutSession() }
+                        )
+                        .padding(.horizontal, 32)
+                    } else {
+                        Button(action: {
+                            if meetInstances.count <= 1 {
+                                guard let meetInstance = meetInstances.first else { return }
+                                launchOidc(meetInstance: meetInstance)
+                            } else {
+                                customServer = ""
+                                showServerPicker = true
+                            }
+                        }) {
+                            Label(Strings.t("home.connect", lang: lang), systemImage: "person.circle")
+                                .font(.headline)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 12)
                         }
-                    }) {
-                        Label(Strings.t("home.connect", lang: lang), systemImage: "person.circle")
-                            .font(.headline)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 12)
+                        .buttonStyle(.borderedProminent)
+                        .tint(VisioColors.primary500)
+                        .padding(.horizontal, 32)
                     }
-                    .buttonStyle(.borderedProminent)
-                    .tint(VisioColors.primary500)
-                    .padding(.horizontal, 32)
                 }
 
                 // Input fields
@@ -195,7 +199,7 @@ struct HomeView: View {
                 .disabled(roomStatus != "valid")
                 .padding(.horizontal, 32)
 
-                if manager.isAuthenticated {
+                if oidcEnabled && manager.isAuthenticated {
                     Button {
                         showCreateRoom = true
                     } label: {
