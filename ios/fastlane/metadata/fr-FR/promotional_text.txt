@@ -1,1 +1,1 @@
-Rejoignez vos réunions La Suite Meet directement depuis votre iPhone ou iPad. Audio, vidéo et chat en temps réel, sans navigateur.
+Client natif de visioconférence open source. Audio, vidéo et chat en temps réel depuis votre iPhone ou iPad, sans navigateur.

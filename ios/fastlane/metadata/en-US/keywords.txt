@@ -1,1 +1,1 @@
-video,conferencing,meeting,call,La Suite,Meet,sovereign,chat,LiveKit,open source
+video,conferencing,meeting,call,open source,chat,LiveKit,LINAGORA

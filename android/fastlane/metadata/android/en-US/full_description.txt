@@ -1,11 +1,11 @@
-Visio Mobile is the native video conferencing client for La Suite Meet (meet.numerique.gouv.fr). Join meeting rooms directly from your device, no browser needed.
+Visio Mobile is a native video conferencing client built on the LiveKit SDK. Join meeting rooms directly from your device, no browser needed.
 
 Features:
 - Real-time audio and video calls
 - In-meeting chat
 - Participant list
 - Room link sharing
-- OIDC / ProConnect authentication
+- OIDC authentication
 - Room creation (public, trusted, restricted)
 
-Visio Mobile is free and open-source software built on the LiveKit SDK.
+Visio Mobile is free and open-source software developed by LINAGORA. Compatible with any LiveKit server.

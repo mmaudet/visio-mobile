@@ -1,1 +1,1 @@
-Visioconférence souveraine — client natif pour La Suite Meet
+Visioconférence open source — client natif LiveKit par LINAGORA

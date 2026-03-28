@@ -1,1 +1,1 @@
-Sovereign video conferencing — native client for La Suite Meet
+Open source video conferencing — native LiveKit client by LINAGORA

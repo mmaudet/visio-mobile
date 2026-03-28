@@ -1,1 +1,1 @@
-visioconférence,réunion,vidéo,appel,La Suite,Meet,souverain,chat,LiveKit
+visioconférence,réunion,vidéo,appel,open source,chat,LiveKit,LINAGORA

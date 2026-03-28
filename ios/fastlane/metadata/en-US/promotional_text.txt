@@ -1,1 +1,1 @@
-Join your La Suite Meet meetings directly from your iPhone or iPad. Real-time audio, video and chat, no browser needed.
+Native open-source video conferencing client. Real-time audio, video and chat from your iPhone or iPad, no browser needed.
