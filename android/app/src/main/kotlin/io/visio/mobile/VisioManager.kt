@@ -221,7 +221,7 @@ object VisioManager : VisioEventListener {
         val dataDir = context.filesDir.absolutePath
         _client = VisioClient(dataDir)
         _client.addListener(this)
-        // Load persisted settings
+        // Load persisted settings (lightweight, safe on main thread)
         try {
             val settings = _client.getSettings()
             currentLang = settings.language ?: "fr"
@@ -230,30 +230,33 @@ object VisioManager : VisioEventListener {
         } catch (e: Exception) {
             Log.e("VisioManager", "Failed to load persisted settings", e)
         }
-        // Load ONNX segmentation model for background blur
-        try {
-            val modelFile = java.io.File(context.cacheDir, "selfie_segmentation.onnx")
-            if (!modelFile.exists()) {
-                context.assets.open("models/selfie_segmentation.onnx").use { input ->
-                    modelFile.outputStream().use { output -> input.copyTo(output) }
-                }
-            }
-            _client.loadBlurModel(modelFile.absolutePath)
-            Log.i("VisioManager", "Blur model loaded from ${modelFile.absolutePath}")
-        } catch (e: Exception) {
-            Log.e("VisioManager", "Failed to load blur model", e)
-        }
-        // Load cached meetings immediately so badge shows without waiting for network
-        try {
-            val cached = _client.getUpcomingMeetings()
-            if (cached.isNotEmpty()) {
-                _upcomingMeetings.value = cached
-            }
-        } catch (e: Exception) {
-            Log.e("VisioManager", "Failed to load cached meetings", e)
-        }
         createNotificationChannels()
         initialized = true
+        // Heavy initialization off the main thread to avoid ANR on Android 15/16
+        scope.launch {
+            // Load ONNX segmentation model for background blur
+            try {
+                val modelFile = java.io.File(context.cacheDir, "selfie_segmentation.onnx")
+                if (!modelFile.exists()) {
+                    context.assets.open("models/selfie_segmentation.onnx").use { input ->
+                        modelFile.outputStream().use { output -> input.copyTo(output) }
+                    }
+                }
+                _client.loadBlurModel(modelFile.absolutePath)
+                Log.i("VisioManager", "Blur model loaded from ${modelFile.absolutePath}")
+            } catch (e: Exception) {
+                Log.e("VisioManager", "Failed to load blur model", e)
+            }
+            // Load cached meetings so badge shows without waiting for network
+            try {
+                val cached = _client.getUpcomingMeetings()
+                if (cached.isNotEmpty()) {
+                    _upcomingMeetings.value = cached
+                }
+            } catch (e: Exception) {
+                Log.e("VisioManager", "Failed to load cached meetings", e)
+            }
+        }
     }
 
     private fun createNotificationChannels() {
