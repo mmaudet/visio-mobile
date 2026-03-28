@@ -899,6 +899,8 @@ internal open class UniffiVTableCallbackInterfaceVisioEventListener(
 
 
 
+
+
 // For large crates we prevent `MethodTooLargeException` (see #2340)
 // N.B. the name of the extension is very misleading, since it is 
 // rather `InterfaceTooLargeException`, caused by too many methods 
@@ -915,6 +917,8 @@ internal open class UniffiVTableCallbackInterfaceVisioEventListener(
 internal interface IntegrityCheckingUniffiLib : Library {
     // Integrity check functions only
     fun uniffi_visio_ffi_checksum_func_init_logging(
+): Short
+fun uniffi_visio_ffi_checksum_func_is_oidc_enabled(
 ): Short
 fun uniffi_visio_ffi_checksum_method_visioclient_active_speakers(
 ): Short
@@ -1300,6 +1304,8 @@ fun uniffi_visio_ffi_fn_init_callback_vtable_visioeventlistener(`vtable`: Uniffi
 ): Unit
 fun uniffi_visio_ffi_fn_func_init_logging(uniffi_out_err: UniffiRustCallStatus, 
 ): Unit
+fun uniffi_visio_ffi_fn_func_is_oidc_enabled(uniffi_out_err: UniffiRustCallStatus, 
+): Byte
 fun ffi_visio_ffi_rustbuffer_alloc(`size`: Long,uniffi_out_err: UniffiRustCallStatus, 
 ): RustBuffer.ByValue
 fun ffi_visio_ffi_rustbuffer_from_bytes(`bytes`: ForeignBytes.ByValue,uniffi_out_err: UniffiRustCallStatus, 
@@ -1427,6 +1433,9 @@ private fun uniffiCheckContractApiVersion(lib: IntegrityCheckingUniffiLib) {
 @Suppress("UNUSED_PARAMETER")
 private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if (lib.uniffi_visio_ffi_checksum_func_init_logging() != 52772.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_visio_ffi_checksum_func_is_oidc_enabled() != 10643.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_visio_ffi_checksum_method_visioclient_active_speakers() != 15815.toShort()) {
@@ -5556,6 +5565,15 @@ public object FfiConverterSequenceTypeWaitingParticipant: FfiConverterRustBuffer
         _status)
 }
     
+    
+ fun `isOidcEnabled`(): kotlin.Boolean {
+            return FfiConverterBoolean.lift(
+    uniffiRustCall() { _status ->
+    UniffiLib.INSTANCE.uniffi_visio_ffi_fn_func_is_oidc_enabled(
+        _status)
+}
+    )
+    }
     
 
 

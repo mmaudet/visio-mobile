@@ -692,6 +692,12 @@ void uniffi_visio_ffi_fn_func_init_logging(RustCallStatus *_Nonnull out_status
     
 );
 #endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_FN_FUNC_IS_OIDC_ENABLED
+#define UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_FN_FUNC_IS_OIDC_ENABLED
+int8_t uniffi_visio_ffi_fn_func_is_oidc_enabled(RustCallStatus *_Nonnull out_status
+    
+);
+#endif
 #ifndef UNIFFI_FFIDEF_FFI_VISIO_FFI_RUSTBUFFER_ALLOC
 #define UNIFFI_FFIDEF_FFI_VISIO_FFI_RUSTBUFFER_ALLOC
 RustBuffer ffi_visio_ffi_rustbuffer_alloc(uint64_t size, RustCallStatus *_Nonnull out_status
@@ -975,6 +981,12 @@ void ffi_visio_ffi_rust_future_complete_void(uint64_t handle, RustCallStatus *_N
 #ifndef UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_CHECKSUM_FUNC_INIT_LOGGING
 #define UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_CHECKSUM_FUNC_INIT_LOGGING
 uint16_t uniffi_visio_ffi_checksum_func_init_logging(void
+    
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_CHECKSUM_FUNC_IS_OIDC_ENABLED
+#define UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_CHECKSUM_FUNC_IS_OIDC_ENABLED
+uint16_t uniffi_visio_ffi_checksum_func_is_oidc_enabled(void
     
 );
 #endif
