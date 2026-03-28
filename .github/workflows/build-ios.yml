@@ -33,7 +33,7 @@ jobs:
 
       - name: Compile Rust native libraries
         run: |
-          cargo build --target aarch64-apple-ios -p visio-ffi --release --no-default-features
+          cargo build --target aarch64-apple-ios -p visio-ffi --release
           rm -f target/aarch64-apple-ios/release/*.dylib
 
       - name: Set up Ruby

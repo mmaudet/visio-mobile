@@ -41,7 +41,7 @@ uniffi = { workspace = true, features = ["build"] }
 webrtc-sys-build = "0.3"
 
 [features]
-default = ["oidc"]
+default = []
 oidc = ["visio-core/oidc"]
 cli = ["uniffi/cli"]
 
