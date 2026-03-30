@@ -13,10 +13,18 @@ private struct SendableAction<T: CXAction>: @unchecked Sendable {
 /// 2. Incoming phone call -> `performSetHeldCallAction` -> auto-mute mic
 /// 3. `disconnect()` -> `reportCallEnded()` -> indicator removed
 /// 4. Lock screen: native mute/hangup buttons -> actions relayed to VisioManager
+///
+/// CallKit is disabled in China per MIIT regulations (App Store guideline 5).
 @MainActor
 class CallKitManager: NSObject, CXProviderDelegate {
 
     static let shared = CallKitManager()
+
+    /// CallKit is disabled in China per MIIT regulations.
+    var isAvailable: Bool {
+        let regionCode = Locale.current.region?.identifier ?? ""
+        return regionCode != "CN"
+    }
 
     private let provider: CXProvider
     private let callController = CXCallController()
@@ -37,6 +45,10 @@ class CallKitManager: NSObject, CXProviderDelegate {
 
     /// Report that an outgoing call has started (user joined a room).
     func reportCallStarted(roomName: String) {
+        guard isAvailable else {
+            configureAudioSession()
+            return
+        }
         let uuid = UUID()
         currentCallUUID = uuid
 
@@ -62,7 +74,7 @@ class CallKitManager: NSObject, CXProviderDelegate {
 
     /// Report that the call has ended.
     func reportCallEnded() {
-        guard let uuid = currentCallUUID else { return }
+        guard isAvailable, let uuid = currentCallUUID else { return }
         let action = CXEndCallAction(call: uuid)
         let transaction = CXTransaction(action: action)
         callController.request(transaction) { error in
