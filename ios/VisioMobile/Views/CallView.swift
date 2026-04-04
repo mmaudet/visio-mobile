@@ -77,6 +77,10 @@ struct CallView: View {
     /// Tracks whether the user manually pinned a participant (disables active speaker auto-focus).
     @State private var userPinned: Bool = false
     @State private var layoutState = LayoutState()
+    @State private var currentPage = 0
+    @State private var isSpeakerMode = false
+    /// Whether the user has manually toggled the layout mode (disables auto-default to speaker).
+    @State private var userToggledMode = false
 
     private var lang: String { manager.currentLang }
     private var isDark: Bool { manager.currentTheme == "dark" }
@@ -174,11 +178,13 @@ struct CallView: View {
                                 pedestrianSingleTile(speaker: layoutDecision.mainTile?.participant)
                             } else if layoutDecision.mode == .focus, let main = layoutDecision.mainTile {
                                 focusLayout(focused: main, allItems: [main] + layoutDecision.secondaryTiles, pinnedIndicatorSid: layoutDecision.pinnedIndicatorSid, speakerIndicatorSid: layoutDecision.speakerIndicatorSid)
+                            } else if isSpeakerMode {
+                                speakerLayout
                             } else {
-                                gridLayout
+                                paginatedGridLayout
                             }
                         }
-                        .accessibilityIdentifier("layout-mode:\(layoutDecision.mode == .focus ? "FOCUS" : "GRID")")
+                        .accessibilityIdentifier("layout-mode:\(layoutDecision.mode == .focus ? "FOCUS" : isSpeakerMode ? "SPEAKER" : "GRID")")
                     }
 
                     // Reaction overlay
@@ -363,6 +369,15 @@ struct CallView: View {
         }
         .onChange(of: manager.participants.count) { _ in
             updateLayout()
+            // Auto-default to speaker mode when >6 participants (unless user manually toggled)
+            if !userToggledMode {
+                let shouldSpeaker = manager.participants.count > 6
+                if isSpeakerMode != shouldSpeaker {
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        isSpeakerMode = shouldSpeaker
+                    }
+                }
+            }
         }
         .task {
             guard let params = manager.pendingTestConnect else { return }
@@ -465,7 +480,7 @@ struct CallView: View {
         layoutState = newState
 
         switch decision.mode {
-        case .grid:
+        case .grid, .speaker:
             if !userPinned {
                 withAnimation(.easeInOut(duration: 0.2)) { focusedItem = nil }
             }
@@ -479,9 +494,9 @@ struct CallView: View {
         }
     }
 
-    // MARK: - Grid Layout
+    // MARK: - Paginated Grid Layout
 
-    private var gridLayout: some View {
+    private var paginatedGridLayout: some View {
         let displayItems = buildDisplayItems(manager.participants)
         let count = displayItems.count
         guard count > 0 else { return AnyView(Color.clear) }
@@ -493,66 +508,201 @@ struct CallView: View {
                 if isLandscape { return min(count, 3) }
                 return count <= 2 ? 1 : 2
             }()
-            let rowCount = max(1, (count + columnCount - 1) / columnCount)
-            let tileHeight = (geo.size.height - 16 - CGFloat(rowCount - 1) * 8) / CGFloat(rowCount)
+            let maxRows: Int = {
+                if count == 1 { return 1 }
+                if isLandscape { return 2 }
+                return min(3, max(1, (count + columnCount - 1) / columnCount))
+            }()
+            let pageSize = columnCount * maxRows
+            let pageCount = max(1, (count + pageSize - 1) / pageSize)
 
-            VStack(spacing: 8) {
-                ForEach(Array(stride(from: 0, to: count, by: columnCount)), id: \.self) { rowStart in
-                    HStack(spacing: 8) {
-                        ForEach(rowStart..<min(rowStart + columnCount, count), id: \.self) { idx in
-                            let item = displayItems[idx]
-                            ZStack {
-                                ParticipantTile(
-                                    participant: item.participant,
-                                    trackSidOverride: item.isScreenShare ? item.trackSid : nil,
-                                    isActiveSpeaker: manager.activeSpeakers.contains(item.participant.sid),
-                                    handRaisePosition: item.isScreenShare ? 0 : manager.handRaisedMap[item.participant.sid] ?? 0,
-                                    isDark: isDark
-                                )
+            ZStack(alignment: .bottom) {
+                TabView(selection: Binding(
+                    get: { currentPage },
+                    set: { newValue in
+                        currentPage = newValue
+                    }
+                )) {
+                    ForEach(0..<pageCount, id: \.self) { pageIndex in
+                        let startIdx = pageIndex * pageSize
+                        let endIdx = min(startIdx + pageSize, count)
+                        let pageItems = Array(displayItems[startIdx..<endIdx])
+                        let pageItemCount = pageItems.count
+                        let rowCount = max(1, (pageItemCount + columnCount - 1) / columnCount)
+                        let tileHeight = (geo.size.height - 16 - CGFloat(rowCount - 1) * 8) / CGFloat(maxRows)
 
-                                // Screen share badge (top-leading)
-                                if item.isScreenShare {
-                                    VStack {
-                                        HStack {
-                                            Image(systemName: "display")
-                                                .font(.system(size: 12, weight: .medium))
-                                                .foregroundStyle(.white)
-                                                .padding(6)
-                                                .background(Color.black.opacity(0.6))
-                                                .clipShape(RoundedRectangle(cornerRadius: 4))
-                                                .padding(6)
-                                            Spacer()
-                                        }
-                                        Spacer()
+                        VStack(spacing: 8) {
+                            ForEach(Array(stride(from: 0, to: pageItemCount, by: columnCount)), id: \.self) { rowStart in
+                                HStack(spacing: 8) {
+                                    ForEach(rowStart..<min(rowStart + columnCount, pageItemCount), id: \.self) { idx in
+                                        let item = pageItems[idx]
+                                        gridTileView(item: item)
+                                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                                            .clipShape(RoundedRectangle(cornerRadius: 8))
                                     }
                                 }
-
-                                // Expand icon (top-trailing) for screen share tiles
-                                if item.isScreenShare {
-                                    VStack {
-                                        HStack {
-                                            Spacer()
-                                            Button {
-                                                withAnimation(.easeInOut(duration: 0.2)) {
-                                                    userPinned = true
-                                                    focusedItem = FocusItem(participantSid: item.participant.sid, source: item.source)
-                                                }
-                                            } label: {
-                                                Image(systemName: "arrow.up.left.and.arrow.down.right")
-                                                    .font(.system(size: 12, weight: .medium))
-                                                    .foregroundStyle(.white)
-                                                    .frame(width: 28, height: 28)
-                                                    .background(Color.black.opacity(0.6))
-                                                    .clipShape(Circle())
-                                            }
-                                            .padding(6)
-                                        }
-                                        Spacer()
-                                    }
-                                }
+                                .frame(height: tileHeight)
                             }
-                            .frame(maxWidth: .infinity, maxHeight: .infinity)
-                            .clipShape(RoundedRectangle(cornerRadius: 8))
+                            Spacer()
+                        }
+                        .padding(8)
+                        .tag(pageIndex)
+                    }
+                }
+                .tabViewStyle(.page(indexDisplayMode: pageCount <= 8 ? .automatic : .never))
+
+                // Compact text overlay for >8 pages
+                if pageCount > 8 {
+                    Text("\(currentPage + 1)/\(pageCount)")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(Color.black.opacity(0.6))
+                        .clipShape(Capsule())
+                        .padding(.bottom, 8)
+                }
+            }
+        })
+    }
+
+    /// A single tile in the grid, reused by paginatedGridLayout.
+    private func gridTileView(item: DisplayItem) -> some View {
+        ZStack {
+            ParticipantTile(
+                participant: item.participant,
+                trackSidOverride: item.isScreenShare ? item.trackSid : nil,
+                isActiveSpeaker: manager.activeSpeakers.contains(item.participant.sid),
+                handRaisePosition: item.isScreenShare ? 0 : manager.handRaisedMap[item.participant.sid] ?? 0,
+                isDark: isDark
+            )
+
+            // Screen share badge (top-leading)
+            if item.isScreenShare {
+                VStack {
+                    HStack {
+                        Image(systemName: "display")
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundStyle(.white)
+                            .padding(6)
+                            .background(Color.black.opacity(0.6))
+                            .clipShape(RoundedRectangle(cornerRadius: 4))
+                            .padding(6)
+                        Spacer()
+                    }
+                    Spacer()
+                }
+            }
+
+            // Expand icon (top-trailing) for screen share tiles
+            if item.isScreenShare {
+                VStack {
+                    HStack {
+                        Spacer()
+                        Button {
+                            withAnimation(.easeInOut(duration: 0.2)) {
+                                userPinned = true
+                                focusedItem = FocusItem(participantSid: item.participant.sid, source: item.source)
+                            }
+                        } label: {
+                            Image(systemName: "arrow.up.left.and.arrow.down.right")
+                                .font(.system(size: 12, weight: .medium))
+                                .foregroundStyle(.white)
+                                .frame(width: 28, height: 28)
+                                .background(Color.black.opacity(0.6))
+                                .clipShape(Circle())
+                        }
+                        .padding(6)
+                    }
+                    Spacer()
+                }
+            }
+        }
+        .onTapGesture {
+            withAnimation(.easeInOut(duration: 0.2)) {
+                userPinned = true
+                focusedItem = FocusItem(participantSid: item.participant.sid, source: item.source)
+            }
+        }
+        .onLongPressGesture {
+            withAnimation(.easeInOut(duration: 0.2)) {
+                if userPinned && focusedItem?.participantSid == item.participant.sid {
+                    userPinned = false
+                    updateLayout()
+                } else {
+                    userPinned = true
+                    focusedItem = FocusItem(participantSid: item.participant.sid, source: item.source)
+                }
+            }
+        }
+    }
+
+    // MARK: - Speaker Layout
+
+    private var speakerLayout: some View {
+        let displayItems = buildDisplayItems(manager.participants)
+        // Main participant: pinned, or first active speaker, or first remote, or first
+        let mainSid: String? = {
+            if userPinned, let fi = focusedItem {
+                return fi.participantSid
+            }
+            if let speaker = manager.activeSpeakers.first {
+                return speaker
+            }
+            // First remote participant (skip local at index 0)
+            if displayItems.count > 1 {
+                return displayItems[1].participant.sid
+            }
+            return displayItems.first?.participant.sid
+        }()
+        let mainItem = displayItems.first(where: { $0.participant.sid == mainSid && $0.source == .camera }) ?? displayItems.first
+        let thumbnails = displayItems.filter { $0.id != mainItem?.id }
+
+        return VStack(spacing: 8) {
+            // Main tile
+            if let main = mainItem {
+                ZStack {
+                    ParticipantTile(
+                        participant: main.participant,
+                        trackSidOverride: main.isScreenShare ? main.trackSid : nil,
+                        large: true,
+                        isActiveSpeaker: manager.activeSpeakers.contains(main.participant.sid),
+                        handRaisePosition: main.isScreenShare ? 0 : manager.handRaisedMap[main.participant.sid] ?? 0,
+                        isPinned: userPinned && focusedItem?.participantSid == main.participant.sid,
+                        isDark: isDark
+                    )
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+                .accessibilityIdentifier("speaker-main:\(main.participant.sid)")
+                .padding(.horizontal, 8)
+                .padding(.top, 8)
+            }
+
+            // Thumbnail strip
+            if !thumbnails.isEmpty {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(thumbnails) { item in
+                            ParticipantTile(
+                                participant: item.participant,
+                                trackSidOverride: item.isScreenShare ? item.trackSid : nil,
+                                isActiveSpeaker: manager.activeSpeakers.contains(item.participant.sid),
+                                handRaisePosition: item.isScreenShare ? 0 : manager.handRaisedMap[item.participant.sid] ?? 0,
+                                isPinned: userPinned && focusedItem?.participantSid == item.participant.sid,
+                                isDark: isDark
+                            )
+                            .frame(width: 120, height: 90)
+                            .clipShape(RoundedRectangle(cornerRadius: 6))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 6)
+                                    .stroke(
+                                        userPinned && focusedItem?.participantSid == item.participant.sid
+                                            ? VisioColors.primary500
+                                            : Color.clear,
+                                        lineWidth: 2
+                                    )
+                            )
                             .onTapGesture {
                                 withAnimation(.easeInOut(duration: 0.2)) {
                                     userPinned = true
@@ -563,7 +713,6 @@ struct CallView: View {
                                 withAnimation(.easeInOut(duration: 0.2)) {
                                     if userPinned && focusedItem?.participantSid == item.participant.sid {
                                         userPinned = false
-                                        updateLayout()
                                     } else {
                                         userPinned = true
                                         focusedItem = FocusItem(participantSid: item.participant.sid, source: item.source)
@@ -572,11 +721,12 @@ struct CallView: View {
                             }
                         }
                     }
-                    .frame(height: tileHeight)
+                    .padding(.horizontal, 8)
                 }
+                .frame(height: 100)
+                .padding(.bottom, 4)
             }
-            .padding(8)
-        })
+        }
     }
 
     // MARK: - Focus Layout
@@ -1036,6 +1186,24 @@ struct CallView: View {
                             .clipShape(RoundedRectangle(cornerRadius: buttonCornerRadius))
                     }
                     .accessibilityLabel(Strings.t(manager.isCameraEnabled ? "control.camOff" : "control.camOn", lang: lang))
+                }
+
+                // Layout toggle (grid/speaker) — office only
+                if effectiveAdaptiveMode == .office {
+                    Button {
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            userToggledMode = true
+                            isSpeakerMode.toggle()
+                        }
+                    } label: {
+                        Image(systemName: isSpeakerMode ? "square.grid.2x2" : "person.fill")
+                            .font(.system(size: 16, weight: .medium))
+                            .foregroundStyle(.white)
+                            .frame(width: 38, height: 38)
+                            .background(VisioColors.primaryDark100)
+                            .clipShape(RoundedRectangle(cornerRadius: 8))
+                    }
+                    .accessibilityLabel(isSpeakerMode ? "Grid" : "Speaker")
                 }
 
                 // Participants with count badge — office only

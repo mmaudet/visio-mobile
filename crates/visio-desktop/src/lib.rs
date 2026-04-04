@@ -416,6 +416,22 @@ impl VisioEventListener for DesktopEventListener {
                 tracing::warn!("calendar error: {msg}");
                 emit_event("calendar-error", msg);
             }
+            VisioEvent::ParticipantOrderChanged(sids) => {
+                tracing::debug!("participant order changed: {} participants", sids.len());
+                emit_event("participant-order-changed", sids);
+            }
+            VisioEvent::MainParticipantChanged(sid) => {
+                tracing::debug!("main participant changed: {sid}");
+                emit_event("main-participant-changed", sid);
+            }
+            VisioEvent::LayoutModeChanged(is_speaker) => {
+                let mode = if is_speaker { "speaker" } else { "grid" };
+                tracing::info!("layout mode changed: {mode}");
+                emit_event("layout-mode-changed", mode);
+            }
+            VisioEvent::PageChanged { .. } => {
+                // Desktop doesn't use pagination — large screens use responsive grid
+            }
         }
     }
 }
@@ -1901,6 +1917,69 @@ fn is_oidc_enabled() -> bool {
 }
 
 // ---------------------------------------------------------------------------
+// Layout engine commands
+// ---------------------------------------------------------------------------
+
+#[tauri::command]
+async fn set_layout_mode(
+    state: tauri::State<'_, VisioState>,
+    mode: String,
+) -> Result<(), String> {
+    let layout_mode = match mode.as_str() {
+        "speaker" => visio_core::layout::LayoutMode::Speaker,
+        "grid" => visio_core::layout::LayoutMode::Grid,
+        _ => return Err(format!("unknown layout mode: {mode}")),
+    };
+    let rm = state.room.lock().await;
+    rm.set_layout_mode(layout_mode);
+    Ok(())
+}
+
+#[tauri::command]
+async fn get_layout_mode(state: tauri::State<'_, VisioState>) -> Result<String, String> {
+    let rm = state.room.lock().await;
+    Ok(if rm.is_speaker_mode() {
+        "speaker".to_string()
+    } else {
+        "grid".to_string()
+    })
+}
+
+#[tauri::command]
+async fn get_main_participant(
+    state: tauri::State<'_, VisioState>,
+) -> Result<Option<String>, String> {
+    let rm = state.room.lock().await;
+    Ok(rm.main_participant())
+}
+
+#[tauri::command]
+async fn get_thumbnail_participants(
+    state: tauri::State<'_, VisioState>,
+) -> Result<Vec<String>, String> {
+    let rm = state.room.lock().await;
+    Ok(rm.thumbnail_participants())
+}
+
+#[tauri::command]
+async fn pin_participant(
+    state: tauri::State<'_, VisioState>,
+    sid: Option<String>,
+) -> Result<(), String> {
+    let rm = state.room.lock().await;
+    rm.pin_participant(sid);
+    Ok(())
+}
+
+#[tauri::command]
+async fn get_sorted_participants(
+    state: tauri::State<'_, VisioState>,
+) -> Result<Vec<String>, String> {
+    let rm = state.room.lock().await;
+    Ok(rm.visible_participants_layout())
+}
+
+// ---------------------------------------------------------------------------
 // Entry point
 // ---------------------------------------------------------------------------
 
@@ -2220,6 +2299,12 @@ pub fn run() {
             get_upcoming_meetings,
             refresh_calendar_now,
             is_oidc_enabled,
+            set_layout_mode,
+            get_layout_mode,
+            get_main_participant,
+            get_thumbnail_participants,
+            pin_participant,
+            get_sorted_participants,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

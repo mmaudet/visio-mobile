@@ -789,6 +789,37 @@ main {
   background: rgba(0, 0, 0, 0.85);
 }
 
+/* -- Speaker mode: pinned thumbnail accent -------------------------------- */
+
+.tile-pinned {
+  outline: 2px solid var(--accent, #0061f2);
+  outline-offset: -2px;
+}
+
+.tile-pin-badge {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--accent, #0061f2);
+  color: white;
+  z-index: 5;
+  pointer-events: none;
+}
+
+.speaker-main {
+  min-height: 0;
+}
+
+.speaker-thumbnails > .tile {
+  transition: outline-color 200ms ease;
+}
+
 .tile-screen-icon {
   color: #4fc3f7;
   display: flex;

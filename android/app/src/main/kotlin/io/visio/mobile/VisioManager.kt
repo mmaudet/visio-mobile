@@ -1251,6 +1251,18 @@ object VisioManager : VisioEventListener {
             is VisioEvent.AdaptiveModeChanged -> {
                 handleAdaptiveModeChanged(event.mode)
             }
+            is VisioEvent.ParticipantOrderChanged -> {
+                Log.d("VISIO", "Participant order changed")
+            }
+            is VisioEvent.PageChanged -> {
+                Log.d("VISIO", "Page changed: ${event.page}")
+            }
+            is VisioEvent.MainParticipantChanged -> {
+                Log.d("VISIO", "Main participant changed")
+            }
+            is VisioEvent.LayoutModeChanged -> {
+                Log.d("VISIO", "Layout mode changed")
+            }
         }
     }
 

@@ -25,6 +25,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -40,11 +41,17 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Fullscreen
+import androidx.compose.material.icons.outlined.GridView
+import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.VideocamOff
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
@@ -115,7 +122,9 @@ data class DisplayItem(
     val trackSid: String?,
     val isScreenShare: Boolean,
     val label: String,
-)
+) {
+    fun toFocusItem() = FocusItem(participant.sid, source)
+}
 
 fun buildDisplayItems(participants: List<ParticipantInfo>): List<DisplayItem> {
     val items = mutableListOf<DisplayItem>()
@@ -543,6 +552,9 @@ fun CallScreen(
     var userPinnedItem by remember { mutableStateOf<FocusItem?>(null) }
     var layoutState by remember { mutableStateOf(LayoutState()) }
     var showReactionPicker by remember { mutableStateOf(false) }
+    // Speaker mode: user manual choice (null = auto-decide based on participant count)
+    var userLayoutChoice by remember { mutableStateOf<LayoutMode?>(null) }
+    var pinnedSpeakerSid by remember { mutableStateOf<String?>(null) }
     // Fullscreen controls visibility: toggles on tap, auto-hides after 3s
     var controlsVisible by remember { mutableStateOf(false) }
     val reactions by VisioManager.reactions.collectAsState()
@@ -600,7 +612,7 @@ fun CallScreen(
         layoutState = newState
         // Update focusedItem based on decision
         when (decision.mode) {
-            LayoutMode.GRID -> focusedItem = null
+            LayoutMode.GRID, LayoutMode.SPEAKER -> focusedItem = null
             LayoutMode.FOCUS -> {
                 val main = decision.mainTile
                 if (main != null) {
@@ -841,13 +853,28 @@ fun CallScreen(
 
             // Video grid area with reaction overlay
             val isFullscreenFocus = layoutDecision.mode == LayoutMode.FOCUS
+            // Auto-default to speaker mode when > 6 participants and user hasn't chosen
+            val isSpeakerMode =
+                when (userLayoutChoice) {
+                    LayoutMode.SPEAKER -> true
+                    LayoutMode.GRID -> false
+                    else -> participants.size > 6
+                }
             Box(
                 modifier =
                     Modifier
                         .weight(1f)
                         .fillMaxWidth()
                         .padding(if (isFullscreenFocus) 0.dp else 8.dp)
-                        .testTag("layout-mode:${if (layoutDecision.mode == LayoutMode.FOCUS) "FOCUS" else "GRID"}"),
+                        .testTag(
+                            "layout-mode:${if (layoutDecision.mode == LayoutMode.FOCUS) {
+                                "FOCUS"
+                            } else if (isSpeakerMode) {
+                                "SPEAKER"
+                            } else {
+                                "GRID"
+                            }}",
+                        ),
             ) {
                 AdaptiveModeVideoArea(
                     effectiveAdaptiveMode = effectiveAdaptiveMode,
@@ -855,6 +882,8 @@ fun CallScreen(
                     participants = participants,
                     handRaisedMap = handRaisedMap,
                     controlsVisible = controlsVisible,
+                    isSpeakerMode = isSpeakerMode,
+                    pinnedSpeakerSid = pinnedSpeakerSid,
                     lang = lang,
                     onToggleControls = { controlsVisible = !controlsVisible },
                     onExitFocus = {
@@ -868,6 +897,7 @@ fun CallScreen(
                     onTogglePin = { fi ->
                         userPinnedItem = if (userPinnedItem == fi) null else fi
                     },
+                    onPinSpeaker = { sid -> pinnedSpeakerSid = sid },
                 )
 
                 // Reaction overlay on top of video grid
@@ -896,6 +926,7 @@ fun CallScreen(
                     showReactionPicker = showReactionPicker,
                     adaptiveMode = effectiveAdaptiveMode,
                     isAdaptiveModeEnabled = isAdaptiveModeEnabled,
+                    isSpeakerMode = isSpeakerMode,
                     lang = lang,
                     onToggleMic = {
                         toggleMic(micEnabled, context, coroutineScope, micPermissionLauncher) {
@@ -943,6 +974,9 @@ fun CallScreen(
                         coroutineScope.launch(Dispatchers.IO) {
                             VisioManager.client.setAdaptiveModeOverride(mode)
                         }
+                    },
+                    onToggleLayoutMode = {
+                        userLayoutChoice = if (isSpeakerMode) LayoutMode.GRID else LayoutMode.SPEAKER
                     },
                 )
 
@@ -1075,11 +1109,14 @@ private fun AdaptiveModeVideoArea(
     participants: List<ParticipantInfo>,
     handRaisedMap: Map<String, Int>,
     controlsVisible: Boolean,
+    isSpeakerMode: Boolean,
+    pinnedSpeakerSid: String?,
     lang: String,
     onToggleControls: () -> Unit,
     onExitFocus: () -> Unit,
     onFocusItem: (FocusItem) -> Unit,
     onTogglePin: (FocusItem) -> Unit,
+    onPinSpeaker: (String?) -> Unit,
 ) {
     when (effectiveAdaptiveMode) {
         AdaptiveMode.CAR -> {
@@ -1103,10 +1140,13 @@ private fun AdaptiveModeVideoArea(
                 participants = participants,
                 handRaisedMap = handRaisedMap,
                 controlsVisible = controlsVisible,
+                isSpeakerMode = isSpeakerMode,
+                pinnedSpeakerSid = pinnedSpeakerSid,
                 onToggleControls = onToggleControls,
                 onExitFocus = onExitFocus,
                 onFocusItem = onFocusItem,
                 onTogglePin = onTogglePin,
+                onPinSpeaker = onPinSpeaker,
             )
         }
     }
@@ -1118,33 +1158,51 @@ private fun OfficeVideoArea(
     participants: List<ParticipantInfo>,
     handRaisedMap: Map<String, Int>,
     controlsVisible: Boolean,
+    isSpeakerMode: Boolean,
+    pinnedSpeakerSid: String?,
     onToggleControls: () -> Unit,
     onExitFocus: () -> Unit,
     onFocusItem: (FocusItem) -> Unit,
     onTogglePin: (FocusItem) -> Unit,
+    onPinSpeaker: (String?) -> Unit,
 ) {
     val displayItems = buildDisplayItems(participants)
-    if (layoutDecision.mode == LayoutMode.FOCUS && layoutDecision.mainTile != null) {
-        OfficeFocusLayout(
-            focusedDisplayItem = layoutDecision.mainTile,
-            secondaryTiles = layoutDecision.secondaryTiles,
-            speakerIndicatorSid = layoutDecision.speakerIndicatorSid,
-            pinnedIndicatorSid = layoutDecision.pinnedIndicatorSid,
-            handRaisedMap = handRaisedMap,
-            controlsVisible = controlsVisible,
-            onToggleControls = onToggleControls,
-            onExitFocus = onExitFocus,
-            onFocusItem = onFocusItem,
-            onTogglePin = onTogglePin,
-        )
-    } else {
-        OfficeGridLayout(
-            displayItems = displayItems,
-            speakerIndicatorSid = layoutDecision.speakerIndicatorSid,
-            handRaisedMap = handRaisedMap,
-            onFocusItem = onFocusItem,
-            onTogglePin = onTogglePin,
-        )
+    when {
+        layoutDecision.mode == LayoutMode.FOCUS && layoutDecision.mainTile != null -> {
+            OfficeFocusLayout(
+                focusedDisplayItem = layoutDecision.mainTile,
+                secondaryTiles = layoutDecision.secondaryTiles,
+                speakerIndicatorSid = layoutDecision.speakerIndicatorSid,
+                pinnedIndicatorSid = layoutDecision.pinnedIndicatorSid,
+                handRaisedMap = handRaisedMap,
+                controlsVisible = controlsVisible,
+                onToggleControls = onToggleControls,
+                onExitFocus = onExitFocus,
+                onFocusItem = onFocusItem,
+                onTogglePin = onTogglePin,
+            )
+        }
+        isSpeakerMode -> {
+            SpeakerLayout(
+                displayItems = displayItems,
+                activeSpeakers = VisioManager.activeSpeakers.collectAsState().value,
+                speakerIndicatorSid = layoutDecision.speakerIndicatorSid,
+                pinnedSpeakerSid = pinnedSpeakerSid,
+                handRaisedMap = handRaisedMap,
+                onFocusItem = onFocusItem,
+                onTogglePin = onTogglePin,
+                onPinSpeaker = onPinSpeaker,
+            )
+        }
+        else -> {
+            PaginatedGridLayout(
+                displayItems = displayItems,
+                speakerIndicatorSid = layoutDecision.speakerIndicatorSid,
+                handRaisedMap = handRaisedMap,
+                onFocusItem = onFocusItem,
+                onTogglePin = onTogglePin,
+            )
+        }
     }
 }
 
@@ -1352,17 +1410,85 @@ private fun OfficeFocusLayout(
                             handRaisePosition = handRaisedMap[item.participant.sid] ?: 0,
                             isScreenShare = item.isScreenShare,
                             isPinned = pinnedIndicatorSid == item.participant.sid,
-                            onClick = {
-                                onFocusItem(FocusItem(item.participant.sid, item.source))
-                            },
-                            onLongPress = {
-                                onTogglePin(FocusItem(item.participant.sid, item.source))
-                            },
+                            onClick = { onFocusItem(item.toFocusItem()) },
+                            onLongPress = { onTogglePin(item.toFocusItem()) },
                         )
                     }
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun BoxScope.ScreenShareFullscreenButton(
+    item: DisplayItem,
+    onFocusItem: (FocusItem) -> Unit,
+) {
+    IconButton(
+        onClick = { onFocusItem(item.toFocusItem()) },
+        modifier =
+            Modifier
+                .align(Alignment.TopEnd)
+                .padding(4.dp)
+                .size(32.dp)
+                .background(
+                    Color.Black.copy(alpha = 0.5f),
+                    CircleShape,
+                ),
+    ) {
+        Icon(
+            imageVector = Icons.Outlined.Fullscreen,
+            contentDescription = "Fullscreen",
+            tint = Color.White,
+            modifier = Modifier.size(20.dp),
+        )
+    }
+}
+
+@Composable
+private fun GridTileView(
+    item: DisplayItem,
+    speakerIndicatorSid: String?,
+    handRaisedMap: Map<String, Int>,
+    testTag: String,
+    onFocusItem: (FocusItem) -> Unit,
+    onTogglePin: (FocusItem) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Box(modifier = modifier.testTag(testTag)) {
+        ParticipantTile(
+            participant = item.participant,
+            isActiveSpeaker = speakerIndicatorSid == item.participant.sid,
+            handRaisePosition = handRaisedMap[item.participant.sid] ?: 0,
+            isScreenShare = item.isScreenShare,
+            onClick = { onFocusItem(item.toFocusItem()) },
+            onLongPress = { onTogglePin(item.toFocusItem()) },
+        )
+        if (item.isScreenShare) {
+            ScreenShareFullscreenButton(item, onFocusItem)
+        }
+    }
+}
+
+@Composable
+private fun OverflowMenuItem(
+    icon: @Composable () -> Unit,
+    label: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = modifier.clickable { onClick() }.padding(horizontal = 8.dp),
+    ) {
+        icon()
+        Text(
+            text = label,
+            color = VisioColors.White,
+            fontSize = 10.sp,
+            maxLines = 1,
+        )
     }
 }
 
@@ -1403,56 +1529,288 @@ private fun OfficeGridLayout(
                     ) {
                         for (idx in rowStart until rowEnd) {
                             val item = displayItems[idx]
-                            Box(
+                            GridTileView(
+                                item = item,
+                                speakerIndicatorSid = speakerIndicatorSid,
+                                handRaisedMap = handRaisedMap,
+                                testTag = "grid-tile-$idx:${item.participant.sid}",
+                                onFocusItem = onFocusItem,
+                                onTogglePin = onTogglePin,
                                 modifier =
                                     Modifier
                                         .weight(1f)
                                         .fillMaxHeight()
-                                        .clip(RoundedCornerShape(8.dp))
-                                        .testTag("grid-tile-$idx:${item.participant.sid}"),
-                            ) {
-                                ParticipantTile(
-                                    participant = item.participant,
-                                    isActiveSpeaker = speakerIndicatorSid == item.participant.sid,
-                                    handRaisePosition = handRaisedMap[item.participant.sid] ?: 0,
-                                    isScreenShare = item.isScreenShare,
-                                    onClick = {
-                                        onFocusItem(FocusItem(item.participant.sid, item.source))
-                                    },
-                                    onLongPress = {
-                                        onTogglePin(FocusItem(item.participant.sid, item.source))
-                                    },
-                                )
-                                // Fullscreen icon overlay for screen share tiles
-                                if (item.isScreenShare) {
-                                    IconButton(
-                                        onClick = {
-                                            onFocusItem(FocusItem(item.participant.sid, item.source))
-                                        },
-                                        modifier =
-                                            Modifier
-                                                .align(Alignment.TopEnd)
-                                                .padding(4.dp)
-                                                .size(32.dp)
-                                                .background(
-                                                    Color.Black.copy(alpha = 0.5f),
-                                                    CircleShape,
-                                                ),
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Outlined.Fullscreen,
-                                            contentDescription = "Fullscreen",
-                                            tint = Color.White,
-                                            modifier = Modifier.size(20.dp),
-                                        )
-                                    }
-                                }
-                            }
+                                        .clip(RoundedCornerShape(8.dp)),
+                            )
                         }
                     }
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun PaginatedGridLayout(
+    displayItems: List<DisplayItem>,
+    speakerIndicatorSid: String?,
+    handRaisedMap: Map<String, Int>,
+    onFocusItem: (FocusItem) -> Unit,
+    onTogglePin: (FocusItem) -> Unit,
+) {
+    val count = displayItems.size
+    if (count == 0) return
+
+    val lang = VisioManager.currentLang
+
+    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+        val isLandscape = maxWidth > maxHeight
+        val constrainedHeight = maxHeight
+        val columnCount =
+            when {
+                count == 1 -> 1
+                isLandscape -> minOf(count, 3)
+                count <= 2 -> 1
+                else -> 2
+            }
+        val maxRowCount = if (isLandscape) 2 else 3
+        val pageSize = columnCount * maxRowCount
+        val pageCount = maxOf(1, (count + pageSize - 1) / pageSize)
+
+        val pagerState = rememberPagerState(pageCount = { pageCount })
+
+        Column(modifier = Modifier.fillMaxSize()) {
+            HorizontalPager(
+                state = pagerState,
+                modifier = Modifier.weight(1f).fillMaxWidth(),
+            ) { page ->
+                val startIdx = page * pageSize
+                val endIdx = minOf(startIdx + pageSize, count)
+                val pageItems = displayItems.subList(startIdx, endIdx)
+                val rowCount = maxOf(1, (pageItems.size + columnCount - 1) / columnCount)
+                val tileHeight = (constrainedHeight - 8.dp * (rowCount - 1) - if (pageCount > 1) 24.dp else 0.dp) / rowCount
+
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.fillMaxSize(),
+                ) {
+                    for (rowStart in pageItems.indices step columnCount) {
+                        val rowEnd = minOf(rowStart + columnCount, pageItems.size)
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier =
+                                Modifier
+                                    .fillMaxWidth()
+                                    .height(tileHeight),
+                        ) {
+                            for (idx in rowStart until rowEnd) {
+                                val item = pageItems[idx]
+                                GridTileView(
+                                    item = item,
+                                    speakerIndicatorSid = speakerIndicatorSid,
+                                    handRaisedMap = handRaisedMap,
+                                    testTag = "grid-tile-${startIdx + idx}:${item.participant.sid}",
+                                    onFocusItem = onFocusItem,
+                                    onTogglePin = onTogglePin,
+                                    modifier =
+                                        Modifier
+                                            .weight(1f)
+                                            .fillMaxHeight()
+                                            .clip(RoundedCornerShape(8.dp)),
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (pageCount > 1) {
+                PageIndicator(
+                    currentPage = pagerState.currentPage,
+                    pageCount = pageCount,
+                    lang = lang,
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 4.dp),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun PageIndicator(
+    currentPage: Int,
+    pageCount: Int,
+    lang: String,
+    modifier: Modifier = Modifier,
+) {
+    Box(
+        modifier = modifier,
+        contentAlignment = Alignment.Center,
+    ) {
+        if (pageCount <= 8) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                repeat(pageCount) { index ->
+                    Box(
+                        modifier =
+                            Modifier
+                                .size(if (index == currentPage) 8.dp else 6.dp)
+                                .background(
+                                    if (index == currentPage) VisioColors.Primary500 else Color.White.copy(alpha = 0.4f),
+                                    CircleShape,
+                                ),
+                    )
+                }
+            }
+        } else {
+            Text(
+                text =
+                    Strings.t("layout.page", lang)
+                        .replace("{current}", "${currentPage + 1}")
+                        .replace("{total}", "$pageCount"),
+                color = Color.White.copy(alpha = 0.7f),
+                fontSize = 12.sp,
+            )
+        }
+    }
+}
+
+@Suppress("kotlin:S107")
+@Composable
+private fun SpeakerLayout(
+    displayItems: List<DisplayItem>,
+    activeSpeakers: List<String>,
+    speakerIndicatorSid: String?,
+    pinnedSpeakerSid: String?,
+    handRaisedMap: Map<String, Int>,
+    onFocusItem: (FocusItem) -> Unit,
+    onTogglePin: (FocusItem) -> Unit,
+    onPinSpeaker: (String?) -> Unit,
+) {
+    if (displayItems.isEmpty()) return
+
+    // Determine the main participant: pinned > active speaker > first
+    val mainItem =
+        when {
+            pinnedSpeakerSid != null -> displayItems.find { it.participant.sid == pinnedSpeakerSid }
+            else -> {
+                val speakerSid = activeSpeakers.firstOrNull()
+                if (speakerSid != null) {
+                    displayItems.find { it.participant.sid == speakerSid }
+                } else {
+                    null
+                }
+            }
+        } ?: displayItems.first()
+
+    val thumbnailItems = displayItems.filter { it.key != mainItem.key }
+
+    Column(modifier = Modifier.fillMaxSize()) {
+        // Main tile (~70% height)
+        Box(
+            modifier =
+                Modifier
+                    .weight(0.7f)
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(8.dp))
+                    .testTag("speaker-main:${mainItem.participant.sid}"),
+        ) {
+            ParticipantTile(
+                participant = mainItem.participant,
+                isActiveSpeaker = speakerIndicatorSid == mainItem.participant.sid,
+                handRaisePosition = handRaisedMap[mainItem.participant.sid] ?: 0,
+                isScreenShare = mainItem.isScreenShare,
+                onClick = { onFocusItem(mainItem.toFocusItem()) },
+                onLongPress = { onTogglePin(mainItem.toFocusItem()) },
+            )
+        }
+
+        if (thumbnailItems.isNotEmpty()) {
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // Thumbnail strip (~100dp)
+            LazyRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                contentPadding = PaddingValues(horizontal = 4.dp),
+                modifier =
+                    Modifier
+                        .height(100.dp)
+                        .fillMaxWidth()
+                        .testTag("speaker-thumbnails"),
+            ) {
+                items(thumbnailItems, key = { it.key }) { item ->
+                    val isPinned = pinnedSpeakerSid == item.participant.sid
+                    Box(
+                        modifier =
+                            Modifier
+                                .width(130.dp)
+                                .fillMaxHeight()
+                                .clip(RoundedCornerShape(8.dp))
+                                .then(
+                                    if (isPinned) {
+                                        Modifier.border(2.dp, VisioColors.Primary500, RoundedCornerShape(8.dp))
+                                    } else {
+                                        Modifier
+                                    },
+                                )
+                                .clickable {
+                                    onPinSpeaker(
+                                        if (isPinned) null else item.participant.sid,
+                                    )
+                                }
+                                .testTag("speaker-thumb:${item.participant.sid}"),
+                    ) {
+                        ParticipantTile(
+                            participant = item.participant,
+                            isActiveSpeaker = speakerIndicatorSid == item.participant.sid,
+                            handRaisePosition = handRaisedMap[item.participant.sid] ?: 0,
+                            isScreenShare = item.isScreenShare,
+                            onClick = {
+                                onPinSpeaker(
+                                    if (isPinned) null else item.participant.sid,
+                                )
+                            },
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun LayoutToggleButton(
+    isSpeakerMode: Boolean,
+    btnSize: androidx.compose.ui.unit.Dp,
+    iconSize: androidx.compose.ui.unit.Dp,
+    cornerRadius: androidx.compose.ui.unit.Dp,
+    lang: String,
+    onToggle: () -> Unit,
+) {
+    IconButton(
+        onClick = onToggle,
+        modifier =
+            Modifier
+                .size(btnSize)
+                .background(VisioColors.PrimaryDark100, RoundedCornerShape(cornerRadius))
+                .testTag("call_layout_toggle"),
+    ) {
+        Icon(
+            imageVector = if (isSpeakerMode) Icons.Outlined.GridView else Icons.Outlined.Person,
+            contentDescription =
+                if (isSpeakerMode) {
+                    Strings.t("layout.grid", lang)
+                } else {
+                    Strings.t("layout.speaker", lang)
+                },
+            tint = VisioColors.White,
+            modifier = Modifier.size(iconSize),
+        )
     }
 }
 
@@ -1497,6 +1855,7 @@ private fun ControlBar(
     showReactionPicker: Boolean,
     adaptiveMode: AdaptiveMode,
     isAdaptiveModeEnabled: Boolean,
+    isSpeakerMode: Boolean,
     lang: String,
     onToggleMic: () -> Unit,
     onAudioPicker: () -> Unit,
@@ -1509,6 +1868,7 @@ private fun ControlBar(
     onChat: () -> Unit,
     onHangUp: () -> Unit,
     onAdaptiveModeOverride: (AdaptiveMode?) -> Unit,
+    onToggleLayoutMode: () -> Unit,
 ) {
     var showOverflow by remember { mutableStateOf(false) }
     var adaptiveModeOverride by remember { mutableStateOf<AdaptiveMode?>(null) }
@@ -1552,6 +1912,7 @@ private fun ControlBar(
             participantCount = participantCount,
             adaptiveMode = adaptiveMode,
             isAdaptiveModeEnabled = isAdaptiveModeEnabled,
+            isSpeakerMode = isSpeakerMode,
             showOverflow = showOverflow,
             lang = lang,
             onToggleMic = onToggleMic,
@@ -1560,6 +1921,7 @@ private fun ControlBar(
             onParticipants = onParticipants,
             onChat = onChat,
             onToggleOverflow = { showOverflow = !showOverflow },
+            onToggleLayoutMode = onToggleLayoutMode,
             onHangUp = onHangUp,
         )
     }
@@ -1631,65 +1993,56 @@ private fun OverflowHandRaiseItem(
     lang: String,
     onToggleHandRaise: () -> Unit,
 ) {
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier.clickable { onToggleHandRaise() }.padding(horizontal = 8.dp),
-    ) {
-        IconButton(
-            onClick = onToggleHandRaise,
-            modifier =
-                Modifier
-                    .size(38.dp)
-                    .background(
-                        if (isHandRaised) VisioColors.HandRaise else VisioColors.PrimaryDark100,
-                        RoundedCornerShape(8.dp),
-                    )
-                    .testTag("call_hand_raise_button"),
-        ) {
-            Icon(
-                painter = painterResource(R.drawable.ri_hand),
-                contentDescription =
-                    if (isHandRaised) Strings.t("control.lowerHand", lang) else Strings.t("control.raiseHand", lang),
-                tint = if (isHandRaised) Color.Black else VisioColors.White,
-                modifier = Modifier.size(20.dp),
-            )
-        }
-        Text(
-            text = if (isHandRaised) Strings.t("control.lowerHand", lang) else Strings.t("control.raiseHand", lang),
-            color = VisioColors.White,
-            fontSize = 10.sp,
-            maxLines = 1,
-        )
-    }
+    val label =
+        if (isHandRaised) Strings.t("control.lowerHand", lang) else Strings.t("control.raiseHand", lang)
+    OverflowMenuItem(
+        icon = {
+            IconButton(
+                onClick = onToggleHandRaise,
+                modifier =
+                    Modifier
+                        .size(38.dp)
+                        .background(
+                            if (isHandRaised) VisioColors.HandRaise else VisioColors.PrimaryDark100,
+                            RoundedCornerShape(8.dp),
+                        )
+                        .testTag("call_hand_raise_button"),
+            ) {
+                Icon(
+                    painter = painterResource(R.drawable.ri_hand),
+                    contentDescription = label,
+                    tint = if (isHandRaised) Color.Black else VisioColors.White,
+                    modifier = Modifier.size(20.dp),
+                )
+            }
+        },
+        label = label,
+        onClick = onToggleHandRaise,
+    )
 }
 
 @Composable
 private fun OverflowReactionItem(onReactionPicker: () -> Unit) {
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier.clickable { onReactionPicker() }.padding(horizontal = 8.dp),
-    ) {
-        IconButton(
-            onClick = onReactionPicker,
-            modifier =
-                Modifier
-                    .size(38.dp)
-                    .background(VisioColors.PrimaryDark100, RoundedCornerShape(8.dp)),
-        ) {
-            Icon(
-                painter = painterResource(R.drawable.ri_emotion_line),
-                contentDescription = "Reaction",
-                tint = VisioColors.White,
-                modifier = Modifier.size(20.dp),
-            )
-        }
-        Text(
-            text = "Reaction",
-            color = VisioColors.White,
-            fontSize = 10.sp,
-            maxLines = 1,
-        )
-    }
+    OverflowMenuItem(
+        icon = {
+            IconButton(
+                onClick = onReactionPicker,
+                modifier =
+                    Modifier
+                        .size(38.dp)
+                        .background(VisioColors.PrimaryDark100, RoundedCornerShape(8.dp)),
+            ) {
+                Icon(
+                    painter = painterResource(R.drawable.ri_emotion_line),
+                    contentDescription = "Reaction",
+                    tint = VisioColors.White,
+                    modifier = Modifier.size(20.dp),
+                )
+            }
+        },
+        label = "Reaction",
+        onClick = onReactionPicker,
+    )
 }
 
 @Composable
@@ -1697,32 +2050,27 @@ private fun OverflowSettingsItem(
     lang: String,
     onSettings: () -> Unit,
 ) {
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier.clickable { onSettings() }.padding(horizontal = 8.dp),
-    ) {
-        IconButton(
-            onClick = onSettings,
-            modifier =
-                Modifier
-                    .size(38.dp)
-                    .background(VisioColors.PrimaryDark100, RoundedCornerShape(8.dp))
-                    .testTag("call_settings_button"),
-        ) {
-            Icon(
-                painter = painterResource(R.drawable.ri_settings_3_line),
-                contentDescription = Strings.t("settings.incall", lang),
-                tint = VisioColors.White,
-                modifier = Modifier.size(20.dp),
-            )
-        }
-        Text(
-            text = Strings.t("settings.incall", lang),
-            color = VisioColors.White,
-            fontSize = 10.sp,
-            maxLines = 1,
-        )
-    }
+    OverflowMenuItem(
+        icon = {
+            IconButton(
+                onClick = onSettings,
+                modifier =
+                    Modifier
+                        .size(38.dp)
+                        .background(VisioColors.PrimaryDark100, RoundedCornerShape(8.dp))
+                        .testTag("call_settings_button"),
+            ) {
+                Icon(
+                    painter = painterResource(R.drawable.ri_settings_3_line),
+                    contentDescription = Strings.t("settings.incall", lang),
+                    tint = VisioColors.White,
+                    modifier = Modifier.size(20.dp),
+                )
+            }
+        },
+        label = Strings.t("settings.incall", lang),
+        onClick = onSettings,
+    )
 }
 
 @Composable
@@ -1788,6 +2136,7 @@ private fun ControlBarButtons(
     participantCount: Int,
     adaptiveMode: AdaptiveMode,
     isAdaptiveModeEnabled: Boolean,
+    isSpeakerMode: Boolean,
     showOverflow: Boolean,
     lang: String,
     onToggleMic: () -> Unit,
@@ -1796,6 +2145,7 @@ private fun ControlBarButtons(
     onParticipants: () -> Unit,
     onChat: () -> Unit,
     onToggleOverflow: () -> Unit,
+    onToggleLayoutMode: () -> Unit,
     onHangUp: () -> Unit,
 ) {
     val effectiveMode = if (isAdaptiveModeEnabled) adaptiveMode else AdaptiveMode.OFFICE
@@ -1821,6 +2171,7 @@ private fun ControlBarButtons(
         }
 
         if (adaptiveMode == AdaptiveMode.OFFICE) {
+            LayoutToggleButton(isSpeakerMode, btnSize, iconSize, cornerRadius, lang, onToggleLayoutMode)
             ParticipantsButton(participantCount, btnSize, iconSize, cornerRadius, lang, onParticipants)
             ChatButton(unreadCount, btnSize, iconSize, cornerRadius, lang, onChat)
             OverflowButton(showOverflow, btnSize, iconSize, cornerRadius, onToggleOverflow)

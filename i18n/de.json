@@ -266,5 +266,10 @@
   "alias.conflictReplace": "Ersetzen",
   "alias.conflictCancel": "Bestehende beibehalten",
   "home.createVisio.simplifiedUrl": "Vereinfachte URL",
-  "home.createVisio.simplifiedUrlHint": "Teilen Sie diesen Kurzlink anstelle der vollständigen URL"
+  "home.createVisio.simplifiedUrlHint": "Teilen Sie diesen Kurzlink anstelle der vollständigen URL",
+  "layout.grid": "Rasteransicht",
+  "layout.speaker": "Sprecheransicht",
+  "layout.page": "Seite {current} von {total}",
+  "layout.switchToGrid": "Zur Rasteransicht wechseln",
+  "layout.switchToSpeaker": "Zur Sprecheransicht wechseln"
 }
