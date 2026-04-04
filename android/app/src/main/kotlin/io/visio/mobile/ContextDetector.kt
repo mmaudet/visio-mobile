@@ -1,6 +1,7 @@
 package io.visio.mobile
 
 import android.bluetooth.BluetoothClass
+import android.bluetooth.BluetoothHeadset
 import android.bluetooth.BluetoothManager
 import android.bluetooth.BluetoothProfile
 import android.content.Context
@@ -16,6 +17,8 @@ import android.net.Network
 import android.net.NetworkCapabilities
 import android.net.NetworkRequest
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
 import uniffi.visio.NetworkType
 
@@ -27,10 +30,26 @@ class ContextDetector(private val context: Context) {
     private val audioManager =
         context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
 
+    private val mainHandler = Handler(Looper.getMainLooper())
+
     private var networkCallback: ConnectivityManager.NetworkCallback? = null
     private var accelerometerListener: SensorEventListener? = null
     private var audioDeviceCallback: AudioDeviceCallback? = null
     private var bluetoothReceiver: android.content.BroadcastReceiver? = null
+    private var scoReceiver: android.content.BroadcastReceiver? = null
+
+    // SCO confirmation: pending BT device awaiting SCO profile connection
+    private var pendingBtConnect: Boolean = false
+    private val scoTimeoutMs = 3000L
+    private val scoTimeoutRunnable = Runnable {
+        Log.w(TAG, "SCO confirmation timeout — ignoring pending BT connect")
+        pendingBtConnect = false
+    }
+
+    // Rapid connect/disconnect debounce
+    private val btDebounceMs = 500L
+    private var pendingConnectRunnable: Runnable? = null
+    private var pendingDisconnectRunnable: Runnable? = null
 
     private var lastReportedMotion = false
     private var lastSignificantMotionMs = 0L // last time we saw a significant accel event
@@ -55,10 +74,17 @@ class ContextDetector(private val context: Context) {
         accelerometerListener?.let { sensorManager.unregisterListener(it) }
         audioDeviceCallback?.let { audioManager.unregisterAudioDeviceCallback(it) }
         bluetoothReceiver?.let { context.unregisterReceiver(it) }
+        scoReceiver?.let { context.unregisterReceiver(it) }
+        // Cancel pending debounce/timeout callbacks
+        mainHandler.removeCallbacks(scoTimeoutRunnable)
+        pendingConnectRunnable?.let { mainHandler.removeCallbacks(it) }
+        pendingDisconnectRunnable?.let { mainHandler.removeCallbacks(it) }
+        pendingBtConnect = false
         networkCallback = null
         accelerometerListener = null
         audioDeviceCallback = null
         bluetoothReceiver = null
+        scoReceiver = null
     }
 
     private fun startNetworkMonitoring() {
@@ -180,7 +206,7 @@ class ContextDetector(private val context: Context) {
                 override fun onAudioDevicesAdded(addedDevices: Array<out AudioDeviceInfo>) {
                     Log.d(TAG, "Audio devices added: ${addedDevices.map { "${it.productName}(${it.type})" }}")
                     reportBluetoothCarKit()
-                    // Auto-route to newly connected Bluetooth audio device
+                    // Check if a Bluetooth audio device was added
                     val btDevice =
                         addedDevices.firstOrNull { device ->
                             device.type == AudioDeviceInfo.TYPE_BLUETOOTH_SCO ||
@@ -188,8 +214,11 @@ class ContextDetector(private val context: Context) {
                                 device.type == AudioDeviceInfo.TYPE_BLE_HEADSET
                         }
                     if (btDevice != null) {
-                        Log.i(TAG, "Bluetooth audio device connected: ${btDevice.productName}, auto-routing")
-                        VisioManager.onBluetoothAudioDeviceConnected()
+                        Log.i(TAG, "Bluetooth audio device detected: ${btDevice.productName}, waiting for SCO confirmation")
+                        // Don't route immediately — wait for SCO profile confirmation
+                        pendingBtConnect = true
+                        mainHandler.removeCallbacks(scoTimeoutRunnable)
+                        mainHandler.postDelayed(scoTimeoutRunnable, scoTimeoutMs)
                     }
                 }
 
@@ -204,12 +233,15 @@ class ContextDetector(private val context: Context) {
                                 device.type == AudioDeviceInfo.TYPE_BLE_HEADSET
                         }
                     if (wasBt) {
-                        Log.i(TAG, "Bluetooth audio device disconnected, restoring default routing")
-                        VisioManager.onBluetoothAudioDeviceDisconnected()
+                        // Cancel any pending connect — device disconnected before SCO confirmed
+                        pendingBtConnect = false
+                        mainHandler.removeCallbacks(scoTimeoutRunnable)
+                        // Debounce disconnect to avoid thrashing
+                        debouncedDisconnect()
                     }
                 }
             }
-        audioManager.registerAudioDeviceCallback(callback, android.os.Handler(android.os.Looper.getMainLooper()))
+        audioManager.registerAudioDeviceCallback(callback, mainHandler)
         audioDeviceCallback = callback
 
         // BroadcastReceiver for reliable Bluetooth disconnect detection
@@ -234,14 +266,9 @@ class ContextDetector(private val context: Context) {
                                     intent.getParcelableExtra(android.bluetooth.BluetoothDevice.EXTRA_DEVICE)
                                 }
                             Log.d(TAG, "Bluetooth ACL ${intent.action}: ${device?.name}")
-                            android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                            mainHandler.postDelayed({
                                 reportBluetoothCarKit()
                             }, 500)
-                            if (intent.action == android.bluetooth.BluetoothDevice.ACTION_ACL_CONNECTED) {
-                                android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
-                                    VisioManager.onBluetoothAudioDeviceConnected()
-                                }, 1000)
-                            }
                         }
                     }
                 }
@@ -257,6 +284,91 @@ class ContextDetector(private val context: Context) {
             context.registerReceiver(receiver, filter)
         }
         bluetoothReceiver = receiver
+
+        // SCO profile confirmation receiver — routes audio only after SCO is established
+        val scoRcv =
+            object : android.content.BroadcastReceiver() {
+                override fun onReceive(
+                    ctx: android.content.Context?,
+                    intent: android.content.Intent?,
+                ) {
+                    if (intent?.action != BluetoothHeadset.ACTION_CONNECTION_STATE_CHANGED) return
+                    val state = intent.getIntExtra(BluetoothProfile.EXTRA_STATE, -1)
+                    val device =
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                            intent.getParcelableExtra(
+                                android.bluetooth.BluetoothDevice.EXTRA_DEVICE,
+                                android.bluetooth.BluetoothDevice::class.java,
+                            )
+                        } else {
+                            @Suppress("DEPRECATION")
+                            intent.getParcelableExtra(android.bluetooth.BluetoothDevice.EXTRA_DEVICE)
+                        }
+                    Log.d(TAG, "SCO connection state: $state for ${device?.name}")
+                    when (state) {
+                        BluetoothProfile.STATE_CONNECTED -> {
+                            if (pendingBtConnect) {
+                                pendingBtConnect = false
+                                mainHandler.removeCallbacks(scoTimeoutRunnable)
+                                Log.i(TAG, "SCO confirmed for ${device?.name}, routing audio via debounce")
+                                debouncedConnect()
+                            }
+                        }
+                        BluetoothProfile.STATE_DISCONNECTED -> {
+                            if (pendingBtConnect) {
+                                pendingBtConnect = false
+                                mainHandler.removeCallbacks(scoTimeoutRunnable)
+                                Log.w(TAG, "SCO disconnected before confirmation — ignoring pending BT connect")
+                            }
+                            debouncedDisconnect()
+                        }
+                    }
+                }
+            }
+        val scoFilter = android.content.IntentFilter(BluetoothHeadset.ACTION_CONNECTION_STATE_CHANGED)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            context.registerReceiver(scoRcv, scoFilter, Context.RECEIVER_NOT_EXPORTED)
+        } else {
+            context.registerReceiver(scoRcv, scoFilter)
+        }
+        scoReceiver = scoRcv
+    }
+
+    /**
+     * Debounced connect: cancels any pending disconnect, then schedules connect after [btDebounceMs].
+     * If another event arrives within the window, the previous is cancelled.
+     */
+    private fun debouncedConnect() {
+        // Cancel opposing disconnect
+        pendingDisconnectRunnable?.let { mainHandler.removeCallbacks(it) }
+        pendingDisconnectRunnable = null
+        // Cancel previous connect
+        pendingConnectRunnable?.let { mainHandler.removeCallbacks(it) }
+        val runnable = Runnable {
+            Log.i(TAG, "Debounced: routing audio to Bluetooth device")
+            VisioManager.onBluetoothAudioDeviceConnected()
+            pendingConnectRunnable = null
+        }
+        pendingConnectRunnable = runnable
+        mainHandler.postDelayed(runnable, btDebounceMs)
+    }
+
+    /**
+     * Debounced disconnect: cancels any pending connect, then schedules disconnect after [btDebounceMs].
+     */
+    private fun debouncedDisconnect() {
+        // Cancel opposing connect
+        pendingConnectRunnable?.let { mainHandler.removeCallbacks(it) }
+        pendingConnectRunnable = null
+        // Cancel previous disconnect
+        pendingDisconnectRunnable?.let { mainHandler.removeCallbacks(it) }
+        val runnable = Runnable {
+            Log.i(TAG, "Debounced: restoring default audio routing")
+            VisioManager.onBluetoothAudioDeviceDisconnected()
+            pendingDisconnectRunnable = null
+        }
+        pendingDisconnectRunnable = runnable
+        mainHandler.postDelayed(runnable, btDebounceMs)
     }
 
     @Suppress("kotlin:S3776")
