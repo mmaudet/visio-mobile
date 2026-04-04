@@ -46,6 +46,8 @@ import {
   RiUnpinFill,
   RiVolumeMuteLine,
   RiAddLine,
+  RiGridLine,
+  RiSpeakLine,
 } from '@remixicon/react'
 import {
   useDeviceEnumeration,
@@ -2595,6 +2597,64 @@ function CallView({
   const reactionIdCounter = useRef(0)
   const [participantMenu, setParticipantMenu] = useState<string | null>(null)
 
+  // Layout engine state: voice-activity sorted grid + speaker mode
+  const [layoutMode, setLayoutMode] = useState<'grid' | 'speaker'>('grid')
+  const [sortedOrder, setSortedOrder] = useState<string[]>([])
+  const [mainParticipantSid, setMainParticipantSid] = useState<string | null>(null)
+  const autoSpeakerTriggered = useRef(false)
+
+  // Listen for layout engine events from the Rust backend
+  useEffect(() => {
+    const unlisteners: Promise<UnlistenFn>[] = []
+    unlisteners.push(
+      listen<string[]>('participant-order-changed', (event) => {
+        setSortedOrder(event.payload)
+      })
+    )
+    unlisteners.push(
+      listen<string>('main-participant-changed', (event) => {
+        setMainParticipantSid(event.payload)
+      })
+    )
+    unlisteners.push(
+      listen<string>('layout-mode-changed', (event) => {
+        setLayoutMode(event.payload === 'speaker' ? 'speaker' : 'grid')
+      })
+    )
+    return () => {
+      for (const u of unlisteners) {
+        u.then((f) => f())
+      }
+    }
+  }, [])
+
+  // Auto-switch to speaker mode when > 6 participants (once per call)
+  useEffect(() => {
+    if (autoSpeakerTriggered.current) return
+    const totalCount = (localParticipant ? 1 : 0) + participants.length
+    if (totalCount > 6) {
+      autoSpeakerTriggered.current = true
+      invoke('set_layout_mode', { mode: 'speaker' }).catch(() => {})
+    }
+  }, [participants.length, localParticipant])
+
+  const handleToggleLayout = async () => {
+    const newMode = layoutMode === 'grid' ? 'speaker' : 'grid'
+    try {
+      await invoke('set_layout_mode', { mode: newMode })
+    } catch (e) {
+      console.error('set_layout_mode error:', e)
+    }
+  }
+
+  const handlePinParticipant = async (sid: string | null) => {
+    try {
+      await invoke('pin_participant', { sid })
+    } catch (e) {
+      console.error('pin_participant error:', e)
+    }
+  }
+
   // Listen for reaction events
   useEffect(() => {
     let unlisten: UnlistenFn | null = null
@@ -2760,7 +2820,34 @@ function CallView({
       (p) => !localParticipant || p.sid !== localParticipant.sid
     )
   )
-  const displayItems = buildDisplayItems(allParticipants, t)
+  const unsortedDisplayItems = buildDisplayItems(allParticipants, t)
+
+  // Sort display items by voice-activity order from LayoutEngine
+  const displayItems =
+    sortedOrder.length > 0
+      ? [...unsortedDisplayItems].sort((a, b) => {
+          const ai = sortedOrder.indexOf(a.participant.sid)
+          const bi = sortedOrder.indexOf(b.participant.sid)
+          // Participants not in sorted order go to the end
+          const aSortIdx = ai >= 0 ? ai : sortedOrder.length
+          const bSortIdx = bi >= 0 ? bi : sortedOrder.length
+          return aSortIdx - bSortIdx
+        })
+      : unsortedDisplayItems
+
+  // Speaker mode: determine main tile and thumbnails from LayoutEngine
+  const speakerMainItem =
+    layoutMode === 'speaker' && mainParticipantSid
+      ? displayItems.find(
+          (d) => d.participant.sid === mainParticipantSid && !d.isScreenShare
+        ) ?? displayItems[0] ?? null
+      : null
+  const speakerThumbnailItems =
+    layoutMode === 'speaker' && speakerMainItem
+      ? displayItems.filter((d) => d.key !== speakerMainItem.key)
+      : []
+
+  // Legacy focus mode (click-to-pin, screen share) still takes priority
   const focusedDisplayItem = focusedItem
     ? displayItems.find(
         (d) =>
@@ -2771,6 +2858,14 @@ function CallView({
   const thumbnailItems = focusedDisplayItem
     ? displayItems.filter((d) => d.key !== focusedDisplayItem.key)
     : []
+
+  // Determine effective layout: legacy focus > speaker mode > grid
+  const effectiveLayout = focusedDisplayItem
+    ? 'focus'
+    : layoutMode === 'speaker' && speakerMainItem
+      ? 'speaker'
+      : 'grid'
+
   // Compute grid layout: choose columns so all tiles are uniform
   const gridCount = displayItems.length
   let gridCols = 5
@@ -2840,9 +2935,9 @@ function CallView({
         {/* Main video area */}
         <div
           className="call-content"
-          data-testid={`layout-mode:${focusedDisplayItem ? 'FOCUS' : 'GRID'}`}
+          data-testid={`layout-mode:${effectiveLayout.toUpperCase()}`}
         >
-          {focusedDisplayItem ? (
+          {effectiveLayout === 'focus' && focusedDisplayItem ? (
             <div className="focus-layout">
               <div
                 className="focus-main"
@@ -2924,6 +3019,80 @@ function CallView({
                       />
                     </button>
                   ))}
+                </div>
+              )}
+            </div>
+          ) : effectiveLayout === 'speaker' && speakerMainItem ? (
+            <div className="focus-layout" data-testid="speaker-layout">
+              <div
+                className="focus-main speaker-main"
+                data-testid={`speaker-main-tile:${speakerMainItem.participant.sid}`}
+              >
+                <ParticipantTile
+                  participant={speakerMainItem.participant}
+                  videoFrames={videoFrames}
+                  isActiveSpeaker={activeSpeakers.includes(
+                    speakerMainItem.participant.sid
+                  )}
+                  handRaisePosition={
+                    handRaisedMap[speakerMainItem.participant.sid]
+                  }
+                  displayItem={speakerMainItem}
+                  bandwidthMode={bandwidthMode}
+                />
+                <div className="focus-toolbar">
+                  <button
+                    className="focus-toolbar-btn"
+                    onClick={() => setShowFocusThumbnails((v) => !v)}
+                    title={
+                      showFocusThumbnails
+                        ? t('call.focus.hideThumbnails')
+                        : t('call.focus.showThumbnails')
+                    }
+                  >
+                    {showFocusThumbnails ? (
+                      <RiFullscreenLine size={18} />
+                    ) : (
+                      <RiFullscreenExitLine size={18} />
+                    )}
+                  </button>
+                </div>
+              </div>
+              {showFocusThumbnails && speakerThumbnailItems.length > 0 && (
+                <div className="focus-thumbnails speaker-thumbnails">
+                  {speakerThumbnailItems.map((d, index) => {
+                    const isPinned = mainParticipantSid === d.participant.sid
+                    return (
+                      <button
+                        key={d.key}
+                        type="button"
+                        className={`tile${isPinned ? ' tile-pinned' : ''}`}
+                        data-testid={`speaker-thumb-${index}:${d.participant.sid}`}
+                        onClick={() => {
+                          // Click to pin/unpin in speaker mode
+                          handlePinParticipant(
+                            isPinned ? null : d.participant.sid
+                          )
+                        }}
+                      >
+                        <ParticipantTile
+                          participant={d.participant}
+                          videoFrames={videoFrames}
+                          isActiveSpeaker={activeSpeakers.includes(
+                            d.participant.sid
+                          )}
+                          handRaisePosition={handRaisedMap[d.participant.sid]}
+                          displayItem={d}
+                          bandwidthMode={bandwidthMode}
+                        />
+                        {isPinned && (
+                          <span className="tile-pin-badge">
+                            <RiPushpinLine size={12} />
+                          </span>
+                        )}
+                      </button>
+                    )
+                  })}
                 </div>
               )}
             </div>
@@ -3414,6 +3583,24 @@ function CallView({
           data-testid="call-screen-share-button"
         >
           <ScreenShareIcon size={20} />
+        </button>
+
+        {/* Layout toggle */}
+        <button
+          className={`control-btn ${layoutMode === 'speaker' ? 'control-btn-hand' : ''}`}
+          onClick={handleToggleLayout}
+          title={
+            layoutMode === 'grid'
+              ? t('layout.switchToSpeaker')
+              : t('layout.switchToGrid')
+          }
+          data-testid="call-layout-toggle"
+        >
+          {layoutMode === 'grid' ? (
+            <RiSpeakLine size={20} />
+          ) : (
+            <RiGridLine size={20} />
+          )}
         </button>
 
         {/* Participants */}
