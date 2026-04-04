@@ -92,6 +92,14 @@ pub enum VisioEvent {
     MeetingStarted(Meeting),
     /// Calendar feed could not be fetched or parsed.
     CalendarError(String),
+    /// Sorted participant order changed (layout engine).
+    ParticipantOrderChanged(Vec<String>),
+    /// Pagination page changed.
+    PageChanged { page: u32, total: u32 },
+    /// Main participant changed (speaker mode or pin).
+    MainParticipantChanged(String),
+    /// Layout mode changed: true = Speaker, false = Grid.
+    LayoutModeChanged(bool),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
