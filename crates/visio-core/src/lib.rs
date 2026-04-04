@@ -16,6 +16,7 @@ pub mod errors;
 pub mod events;
 pub mod hand_raise;
 pub mod init;
+pub mod layout;
 pub mod lobby;
 pub mod participants;
 pub mod room;
