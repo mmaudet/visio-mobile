@@ -97,7 +97,13 @@ struct LayoutEngineInner {
     layout_mode: LayoutMode,
     current_page: usize,
     page_size: usize,
+    pinned_participant: Option<String>,
+    main_speaker: Option<String>,
+    main_speaker_since: Option<Instant>,
 }
+
+/// Anti-flicker for speaker mode: don't switch main if new speaker < 3s.
+const SPEAKER_ANTI_FLICKER: Duration = Duration::from_secs(3);
 
 impl LayoutEngine {
     /// Create a new layout engine with default settings (page_size=4, page=0, Grid mode).
@@ -108,6 +114,9 @@ impl LayoutEngine {
                 layout_mode: LayoutMode::Grid,
                 current_page: 0,
                 page_size: 4,
+                pinned_participant: None,
+                main_speaker: None,
+                main_speaker_since: None,
             }),
         }
     }
@@ -187,6 +196,64 @@ impl LayoutEngine {
         matches!(self.inner.lock().unwrap().layout_mode, LayoutMode::Speaker)
     }
 
+    /// Update the main speaker based on active speakers list.
+    ///
+    /// Anti-flicker: if the new speaker differs from the current main speaker
+    /// and the current speaker has been main for less than 3 seconds, keep the
+    /// current speaker.
+    pub fn update_main_speaker(&self, active_speakers: &[String], now: Instant) {
+        let mut inner = self.inner.lock().unwrap();
+        let new_speaker = active_speakers.first().cloned();
+
+        if new_speaker == inner.main_speaker {
+            // Same speaker — just refresh the timestamp
+            return;
+        }
+
+        // Anti-flicker: if current speaker held for < 3s, keep current
+        if inner.main_speaker.is_some() {
+            if let Some(since) = inner.main_speaker_since {
+                if now.duration_since(since) < SPEAKER_ANTI_FLICKER {
+                    return;
+                }
+            }
+        }
+
+        inner.main_speaker = new_speaker;
+        inner.main_speaker_since = Some(now);
+    }
+
+    /// Return the main participant: pinned participant takes priority over speaker.
+    pub fn main_participant(&self) -> Option<String> {
+        let inner = self.inner.lock().unwrap();
+        inner
+            .pinned_participant
+            .clone()
+            .or_else(|| inner.main_speaker.clone())
+    }
+
+    /// Return all sorted participants except the main participant (for thumbnail strip).
+    pub fn thumbnail_participants(&self) -> Vec<String> {
+        let inner = self.inner.lock().unwrap();
+        let main = inner
+            .pinned_participant
+            .as_ref()
+            .or(inner.main_speaker.as_ref());
+        match main {
+            Some(main_sid) => inner
+                .sorted_order
+                .iter()
+                .filter(|sid| *sid != main_sid)
+                .cloned()
+                .collect(),
+            None => inner.sorted_order.clone(),
+        }
+    }
+
+    /// Pin a participant (or unpin with `None`).
+    pub fn pin_participant(&self, sid: Option<String>) {
+        self.inner.lock().unwrap().pinned_participant = sid;
+    }
 }
 
 impl Default for LayoutEngine {
@@ -422,4 +489,57 @@ mod tests {
         assert!(engine.current_page() <= 1);
     }
 
+    // --- Speaker mode tests ---
+
+    #[test]
+    fn test_speaker_main_participant() {
+        let engine = LayoutEngine::new();
+        let sids = vec!["alice".into(), "bob".into(), "charlie".into()];
+        engine.update_sorted_order(sids);
+        engine.update_main_speaker(&["alice".to_string()], Instant::now());
+        assert_eq!(engine.main_participant(), Some("alice".to_string()));
+    }
+
+    #[test]
+    fn test_speaker_anti_flicker() {
+        let engine = LayoutEngine::new();
+        let sids = vec!["alice".into(), "bob".into()];
+        engine.update_sorted_order(sids);
+        let now = Instant::now();
+        engine.update_main_speaker(&["alice".to_string()], now);
+        engine.update_main_speaker(&["bob".to_string()], now + Duration::from_secs(1));
+        assert_eq!(engine.main_participant(), Some("alice".to_string())); // anti-flicker
+    }
+
+    #[test]
+    fn test_speaker_anti_flicker_expires() {
+        let engine = LayoutEngine::new();
+        let sids = vec!["alice".into(), "bob".into()];
+        engine.update_sorted_order(sids);
+        let now = Instant::now();
+        engine.update_main_speaker(&["alice".to_string()], now);
+        engine.update_main_speaker(&["bob".to_string()], now + Duration::from_secs(4));
+        assert_eq!(engine.main_participant(), Some("bob".to_string()));
+    }
+
+    #[test]
+    fn test_pin_overrides_speaker() {
+        let engine = LayoutEngine::new();
+        let sids = vec!["alice".into(), "bob".into(), "charlie".into()];
+        engine.update_sorted_order(sids);
+        engine.update_main_speaker(&["alice".to_string()], Instant::now());
+        engine.pin_participant(Some("charlie".to_string()));
+        assert_eq!(engine.main_participant(), Some("charlie".to_string()));
+    }
+
+    #[test]
+    fn test_thumbnail_excludes_main() {
+        let engine = LayoutEngine::new();
+        let sids = vec!["alice".into(), "bob".into(), "charlie".into()];
+        engine.update_sorted_order(sids);
+        engine.update_main_speaker(&["alice".to_string()], Instant::now());
+        let thumbs = engine.thumbnail_participants();
+        assert!(!thumbs.contains(&"alice".to_string()));
+        assert!(thumbs.contains(&"bob".to_string()));
+    }
 }
