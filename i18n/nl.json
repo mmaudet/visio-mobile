@@ -266,11 +266,10 @@
   "alias.conflictReplace": "Vervangen",
   "alias.conflictCancel": "Bestaande behouden",
   "home.createVisio.simplifiedUrl": "Vereenvoudigde URL",
-  "home.createVisio.simplifiedUrlHint": "Deel deze korte link in plaats van de volledige URL"
-,
-  "layout.grid": "Grid view",
-  "layout.speaker": "Speaker view",
-  "layout.page": "Page {current} of {total}",
-  "layout.switchToGrid": "Switch to grid view",
-  "layout.switchToSpeaker": "Switch to speaker view"
+  "home.createVisio.simplifiedUrlHint": "Deel deze korte link in plaats van de volledige URL",
+  "layout.grid": "Rasterweergave",
+  "layout.speaker": "Sprekerweergave",
+  "layout.page": "Pagina {current} van {total}",
+  "layout.switchToGrid": "Naar rasterweergave",
+  "layout.switchToSpeaker": "Naar sprekerweergave"
 }

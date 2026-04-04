@@ -266,11 +266,10 @@
   "alias.conflictReplace": "Sostituisci",
   "alias.conflictCancel": "Mantieni esistente",
   "home.createVisio.simplifiedUrl": "URL semplificato",
-  "home.createVisio.simplifiedUrlHint": "Condividi questo link breve al posto dell'URL completo"
-,
-  "layout.grid": "Grid view",
-  "layout.speaker": "Speaker view",
-  "layout.page": "Page {current} of {total}",
-  "layout.switchToGrid": "Switch to grid view",
-  "layout.switchToSpeaker": "Switch to speaker view"
+  "home.createVisio.simplifiedUrlHint": "Condividi questo link breve al posto dell'URL completo",
+  "layout.grid": "Vista griglia",
+  "layout.speaker": "Vista relatore",
+  "layout.page": "Pagina {current} di {total}",
+  "layout.switchToGrid": "Passa alla vista griglia",
+  "layout.switchToSpeaker": "Passa alla vista relatore"
 }
