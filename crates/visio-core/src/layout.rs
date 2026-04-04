@@ -2,6 +2,7 @@
 //!
 //! Sort order: hand raised > voice activity (10s anti-flicker) > camera on > join time.
 
+use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
 use crate::events::ParticipantInfo;
@@ -76,6 +77,139 @@ pub fn sort_participants(participants: &mut [ParticipantInfo]) {
             (None, None) => std::cmp::Ordering::Equal,
         }
     });
+}
+
+/// Layout mode for the video grid.
+pub enum LayoutMode {
+    /// Equal-sized tiles in a grid.
+    Grid,
+    /// One main participant + thumbnail strip.
+    Speaker,
+}
+
+/// Thread-safe layout engine managing pagination and speaker mode.
+pub struct LayoutEngine {
+    inner: Mutex<LayoutEngineInner>,
+}
+
+struct LayoutEngineInner {
+    sorted_order: Vec<String>,
+    layout_mode: LayoutMode,
+    current_page: usize,
+    page_size: usize,
+}
+
+impl LayoutEngine {
+    /// Create a new layout engine with default settings (page_size=4, page=0, Grid mode).
+    pub fn new() -> Self {
+        Self {
+            inner: Mutex::new(LayoutEngineInner {
+                sorted_order: Vec::new(),
+                layout_mode: LayoutMode::Grid,
+                current_page: 0,
+                page_size: 4,
+            }),
+        }
+    }
+
+    /// Update the sorted participant order. Clamps current page if needed.
+    pub fn update_sorted_order(&self, order: Vec<String>) {
+        let mut inner = self.inner.lock().unwrap();
+        inner.sorted_order = order;
+        clamp_page(&mut inner);
+    }
+
+    /// Set page size (minimum 1). Clamps current page if needed.
+    pub fn set_page_size(&self, size: usize) {
+        let mut inner = self.inner.lock().unwrap();
+        inner.page_size = size.max(1);
+        clamp_page(&mut inner);
+    }
+
+    /// Set current page (clamped to max valid page).
+    pub fn set_current_page(&self, page: usize) {
+        let mut inner = self.inner.lock().unwrap();
+        inner.current_page = page;
+        clamp_page(&mut inner);
+    }
+
+    /// Return the current page index.
+    pub fn current_page(&self) -> usize {
+        self.inner.lock().unwrap().current_page
+    }
+
+    /// Return total number of pages (0 if empty).
+    pub fn page_count(&self) -> usize {
+        let inner = self.inner.lock().unwrap();
+        page_count_inner(&inner)
+    }
+
+    /// Return participant SIDs visible on the current page.
+    pub fn visible_participants(&self) -> Vec<String> {
+        let inner = self.inner.lock().unwrap();
+        let start = inner.current_page * inner.page_size;
+        let end = (start + inner.page_size).min(inner.sorted_order.len());
+        if start >= inner.sorted_order.len() {
+            return Vec::new();
+        }
+        inner.sorted_order[start..end].to_vec()
+    }
+
+    /// Return participant SIDs on adjacent pages (±1) for pre-caching.
+    /// Excludes participants on the current (visible) page.
+    pub fn precached_participants(&self) -> Vec<String> {
+        let inner = self.inner.lock().unwrap();
+        let total = page_count_inner(&inner);
+        if total == 0 {
+            return Vec::new();
+        }
+        let mut result = Vec::new();
+        for &adj_page in &[
+            inner.current_page.wrapping_sub(1),
+            inner.current_page + 1,
+        ] {
+            if adj_page < total && adj_page != inner.current_page {
+                let start = adj_page * inner.page_size;
+                let end = (start + inner.page_size).min(inner.sorted_order.len());
+                result.extend_from_slice(&inner.sorted_order[start..end]);
+            }
+        }
+        result
+    }
+
+    /// Set the layout mode (Grid or Speaker).
+    pub fn set_layout_mode(&self, mode: LayoutMode) {
+        self.inner.lock().unwrap().layout_mode = mode;
+    }
+
+    /// Check if the current mode is Speaker.
+    pub fn is_speaker_mode(&self) -> bool {
+        matches!(self.inner.lock().unwrap().layout_mode, LayoutMode::Speaker)
+    }
+
+}
+
+impl Default for LayoutEngine {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+fn page_count_inner(inner: &LayoutEngineInner) -> usize {
+    let len = inner.sorted_order.len();
+    if len == 0 {
+        return 0;
+    }
+    (len + inner.page_size - 1) / inner.page_size
+}
+
+fn clamp_page(inner: &mut LayoutEngineInner) {
+    let max_page = page_count_inner(inner);
+    if max_page == 0 {
+        inner.current_page = 0;
+    } else if inner.current_page >= max_page {
+        inner.current_page = max_page - 1;
+    }
 }
 
 #[cfg(test)]
@@ -223,4 +357,69 @@ mod tests {
             assert!(!p.hand_raised);
         }
     }
+
+    // --- Pagination tests ---
+
+    #[test]
+    fn test_pagination_basic() {
+        let engine = LayoutEngine::new();
+        engine.set_page_size(4);
+        let sids: Vec<String> = (0..12).map(|i| format!("sid_{i}")).collect();
+        engine.update_sorted_order(sids);
+        assert_eq!(engine.page_count(), 3);
+        assert_eq!(
+            engine.visible_participants(),
+            vec!["sid_0", "sid_1", "sid_2", "sid_3"]
+        );
+    }
+
+    #[test]
+    fn test_pagination_last_page_partial() {
+        let engine = LayoutEngine::new();
+        engine.set_page_size(4);
+        let sids: Vec<String> = (0..10).map(|i| format!("sid_{i}")).collect();
+        engine.update_sorted_order(sids);
+        engine.set_current_page(2);
+        assert_eq!(engine.visible_participants(), vec!["sid_8", "sid_9"]);
+    }
+
+    #[test]
+    fn test_pagination_precache() {
+        let engine = LayoutEngine::new();
+        engine.set_page_size(4);
+        let sids: Vec<String> = (0..20).map(|i| format!("sid_{i}")).collect();
+        engine.update_sorted_order(sids);
+        engine.set_current_page(2);
+        let precached = engine.precached_participants();
+        assert!(precached.contains(&"sid_4".to_string())); // page 1
+        assert!(precached.contains(&"sid_12".to_string())); // page 3
+        assert!(!precached.contains(&"sid_8".to_string())); // visible, not precache
+    }
+
+    #[test]
+    fn test_pagination_100_participants() {
+        let engine = LayoutEngine::new();
+        engine.set_page_size(4);
+        let sids: Vec<String> = (0..100).map(|i| format!("sid_{i}")).collect();
+        engine.update_sorted_order(sids);
+        assert_eq!(engine.page_count(), 25);
+        engine.set_current_page(24);
+        assert_eq!(
+            engine.visible_participants(),
+            vec!["sid_96", "sid_97", "sid_98", "sid_99"]
+        );
+    }
+
+    #[test]
+    fn test_page_clamp_on_resize() {
+        let engine = LayoutEngine::new();
+        engine.set_page_size(4);
+        let sids: Vec<String> = (0..12).map(|i| format!("sid_{i}")).collect();
+        engine.update_sorted_order(sids);
+        engine.set_current_page(2);
+        engine.set_page_size(6);
+        assert_eq!(engine.page_count(), 2);
+        assert!(engine.current_page() <= 1);
+    }
+
 }
