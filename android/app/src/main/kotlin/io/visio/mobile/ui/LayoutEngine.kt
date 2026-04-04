@@ -6,7 +6,7 @@ import uniffi.visio.ParticipantInfo
 // NOTE: FocusItem and DisplayItem are already defined in CallScreen.kt, reuse them
 // NOTE: buildDisplayItems is already defined in CallScreen.kt, reuse it
 
-enum class LayoutMode { GRID, FOCUS }
+enum class LayoutMode { GRID, FOCUS, SPEAKER }
 
 data class LayoutDecision(
     val mode: LayoutMode,
