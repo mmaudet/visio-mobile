@@ -26,6 +26,7 @@ use crate::events::{
 use crate::hand_raise::HandRaiseManager;
 use crate::layout;
 use crate::participants::ParticipantManager;
+use crate::subscriptions;
 
 /// Cache for LiveKit tokens to speed up reconnection without re-calling the API.
 struct TokenCache {
@@ -90,6 +91,7 @@ async fn connect_after_lobby_acceptance(
     bandwidth_ctrl: Arc<std::sync::Mutex<bandwidth::BandwidthController>>,
     high_quality_mode: Arc<AtomicBool>,
     layout_engine: Arc<layout::LayoutEngine>,
+    subscriptions: Arc<std::sync::Mutex<subscriptions::SubscriptionManager>>,
 ) {
     *connection_state.lock().await = ConnectionState::Connecting;
     emitter.emit(VisioEvent::ConnectionStateChanged(
@@ -151,6 +153,7 @@ async fn connect_after_lobby_acceptance(
                     bandwidth_ctrl,
                     high_quality_mode,
                     layout_engine,
+                    subscriptions,
                 )
                 .await;
             });
@@ -251,6 +254,8 @@ pub struct RoomManager {
     token_cache: Arc<TokenCache>,
     /// Layout engine: participant sorting, pagination, speaker mode.
     layout: Arc<layout::LayoutEngine>,
+    /// Subscription manager: anti-jitter track quality decisions.
+    subscriptions: Arc<std::sync::Mutex<subscriptions::SubscriptionManager>>,
 }
 
 impl Default for RoomManager {
@@ -298,6 +303,7 @@ impl RoomManager {
             last_reaction_time: Arc::new(Mutex::new(None)),
             token_cache: Arc::new(TokenCache::new()),
             layout: Arc::new(layout::LayoutEngine::new()),
+            subscriptions: Arc::new(std::sync::Mutex::new(subscriptions::SubscriptionManager::new())),
         }
     }
 
@@ -351,6 +357,11 @@ impl RoomManager {
         let page = self.layout.current_page() as u32;
         let total = self.layout.page_count() as u32;
         self.emitter.emit(VisioEvent::PageChanged { page, total });
+    }
+
+    /// Get a snapshot of current subscription stats.
+    pub fn subscription_stats(&self) -> subscriptions::SubscriptionStats {
+        self.subscriptions.lock().unwrap().stats()
     }
 
     // ── End layout engine delegation ────────────────────────────────
@@ -702,6 +713,7 @@ impl RoomManager {
         let bandwidth_ctrl = self.bandwidth.clone();
         let high_quality_mode = self.high_quality_mode.clone();
         let layout_engine = self.layout.clone();
+        let subscriptions = self.subscriptions.clone();
 
         tokio::spawn(async move {
             Self::event_loop(
@@ -720,6 +732,7 @@ impl RoomManager {
                 bandwidth_ctrl,
                 high_quality_mode,
                 layout_engine,
+                subscriptions,
             )
             .await;
         });
@@ -1041,6 +1054,7 @@ impl RoomManager {
         let bandwidth_ctrl = self.bandwidth.clone();
         let high_quality_mode = self.high_quality_mode.clone();
         let layout_engine = self.layout.clone();
+        let subscriptions_mgr = self.subscriptions.clone();
 
         tokio::spawn(async move {
             let lobby_deadline =
@@ -1088,6 +1102,7 @@ impl RoomManager {
                                     bandwidth_ctrl.clone(),
                                     high_quality_mode.clone(),
                                     layout_engine.clone(),
+                                    subscriptions_mgr.clone(),
                                 )
                                 .await;
                                 break;
@@ -1302,6 +1317,7 @@ impl RoomManager {
         bandwidth_ctrl: Arc<std::sync::Mutex<bandwidth::BandwidthController>>,
         high_quality_mode: Arc<AtomicBool>,
         layout_engine: Arc<layout::LayoutEngine>,
+        subscriptions: Arc<std::sync::Mutex<subscriptions::SubscriptionManager>>,
     ) {
         let mut ctx = EventLoopContext {
             emitter,
@@ -1318,12 +1334,27 @@ impl RoomManager {
             bandwidth_ctrl,
             high_quality_mode,
             layout_engine,
+            subscriptions,
             reconnect_attempt: 0,
             audio_stream_tasks: HashMap::new(),
             idle_timer: None,
         };
 
-        while let Some(event) = events.recv().await {
+        let mut subscription_tick = tokio::time::interval(Duration::from_millis(500));
+
+        loop {
+            let event = tokio::select! {
+                event = events.recv() => {
+                    match event {
+                        Some(e) => e,
+                        None => break,
+                    }
+                }
+                _ = subscription_tick.tick() => {
+                    ctx.process_pending_subscriptions().await;
+                    continue;
+                }
+            };
             match event {
                 RoomEvent::Connected { .. } => ctx.handle_connected().await,
                 RoomEvent::Reconnecting => ctx.handle_reconnecting().await,
@@ -1537,6 +1568,7 @@ struct EventLoopContext {
     bandwidth_ctrl: Arc<std::sync::Mutex<bandwidth::BandwidthController>>,
     high_quality_mode: Arc<AtomicBool>,
     layout_engine: Arc<layout::LayoutEngine>,
+    subscriptions: Arc<std::sync::Mutex<subscriptions::SubscriptionManager>>,
     reconnect_attempt: u32,
     audio_stream_tasks: HashMap<String, tokio::task::JoinHandle<()>>,
     idle_timer: Option<tokio::task::JoinHandle<()>>,
@@ -1840,7 +1872,107 @@ impl EventLoopContext {
         }
 
         self.emitter.emit(VisioEvent::ActiveSpeakersChanged(sids));
+
+        // Recompute subscriptions after layout changes.
+        self.compute_subscriptions().await;
     }
+
+    // ── Subscription management ─────────────────────────────────────
+
+    /// Recompute desired subscription quality for all remote video tracks
+    /// based on current layout visibility and bandwidth mode.
+    async fn compute_subscriptions(&self) {
+        if self
+            .high_quality_mode
+            .load(std::sync::atomic::Ordering::Relaxed)
+        {
+            return;
+        }
+
+        let visible = self.layout_engine.visible_participants();
+        let precached = self.layout_engine.precached_participants();
+        let bw_mode = self.bandwidth_ctrl.lock().unwrap().current_mode();
+        let now = Instant::now();
+
+        let participants = self.participants.lock().await;
+        let all = participants.participants();
+        let mut sub_mgr = self.subscriptions.lock().unwrap();
+
+        for p in all {
+            if let Some(ref track_sid) = p.video_track_sid {
+                let visibility = if visible.contains(&p.sid) {
+                    subscriptions::TrackVisibility::Visible
+                } else if precached.contains(&p.sid) {
+                    subscriptions::TrackVisibility::Precached
+                } else {
+                    subscriptions::TrackVisibility::OffScreen
+                };
+
+                let desired = subscriptions::desired_quality(visibility, bw_mode);
+                sub_mgr.request_change(track_sid, desired, now);
+            }
+
+            if let Some(ref ss_sid) = p.screen_share_track_sid {
+                let desired = subscriptions::desired_screen_share_quality(bw_mode);
+                sub_mgr.request_change(ss_sid, desired, now);
+            }
+        }
+    }
+
+    /// Process pending subscription actions whose delay has elapsed.
+    async fn process_pending_subscriptions(&self) {
+        if self
+            .high_quality_mode
+            .load(std::sync::atomic::Ordering::Relaxed)
+        {
+            return;
+        }
+
+        let actions = {
+            let mut sub_mgr = self.subscriptions.lock().unwrap();
+            sub_mgr.pending_actions(Instant::now())
+        };
+
+        for (track_sid, quality) in actions {
+            self.apply_track_quality(&track_sid, quality).await;
+        }
+    }
+
+    /// Apply a subscription quality decision to a remote track via the LiveKit SDK.
+    async fn apply_track_quality(&self, track_sid: &str, quality: subscriptions::VideoQuality) {
+        let room_guard = self.room_ref.lock().await;
+        let Some(room) = room_guard.as_ref() else {
+            return;
+        };
+
+        for (_, participant) in room.remote_participants() {
+            for (sid, publication) in participant.track_publications() {
+                if sid.as_str() == track_sid {
+                    match quality {
+                        subscriptions::VideoQuality::Off => {
+                            publication.set_enabled(false);
+                        }
+                        subscriptions::VideoQuality::High => {
+                            publication.set_enabled(true);
+                            publication.set_video_quality(VideoQuality::High);
+                        }
+                        subscriptions::VideoQuality::Low => {
+                            publication.set_enabled(true);
+                            publication.set_video_quality(VideoQuality::Low);
+                        }
+                    }
+                    tracing::debug!(
+                        track_sid = %track_sid,
+                        quality = ?quality,
+                        "applied subscription quality"
+                    );
+                    return;
+                }
+            }
+        }
+    }
+
+    // ── End subscription management ─────────────────────────────────
 
     async fn handle_participant_attributes_changed(
         &self,
@@ -1912,6 +2044,7 @@ impl EventLoopContext {
             self.emitter
                 .emit(VisioEvent::BandwidthModeChanged { mode: new_mode });
             self.apply_bandwidth_mode(new_mode).await;
+            self.compute_subscriptions().await;
         }
     }
 
