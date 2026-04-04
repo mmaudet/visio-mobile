@@ -107,6 +107,11 @@ struct LayoutEngineInner {
 const SPEAKER_ANTI_FLICKER: Duration = Duration::from_secs(3);
 
 impl LayoutEngine {
+    /// Lock the inner state, recovering from mutex poisoning.
+    fn lock_inner(&self) -> std::sync::MutexGuard<'_, LayoutEngineInner> {
+        self.inner.lock().unwrap_or_else(|e| e.into_inner())
+    }
+
     /// Create a new layout engine with default settings (page_size=4, page=0, Grid mode).
     pub fn new() -> Self {
         Self {
@@ -124,39 +129,39 @@ impl LayoutEngine {
 
     /// Update the sorted participant order. Clamps current page if needed.
     pub fn update_sorted_order(&self, order: Vec<String>) {
-        let mut inner = self.inner.lock().unwrap();
+        let mut inner = self.lock_inner();
         inner.sorted_order = order;
         clamp_page(&mut inner);
     }
 
     /// Set page size (minimum 1). Clamps current page if needed.
     pub fn set_page_size(&self, size: usize) {
-        let mut inner = self.inner.lock().unwrap();
+        let mut inner = self.lock_inner();
         inner.page_size = size.max(1);
         clamp_page(&mut inner);
     }
 
     /// Set current page (clamped to max valid page).
     pub fn set_current_page(&self, page: usize) {
-        let mut inner = self.inner.lock().unwrap();
+        let mut inner = self.lock_inner();
         inner.current_page = page;
         clamp_page(&mut inner);
     }
 
     /// Return the current page index.
     pub fn current_page(&self) -> usize {
-        self.inner.lock().unwrap().current_page
+        self.lock_inner().current_page
     }
 
     /// Return total number of pages (0 if empty).
     pub fn page_count(&self) -> usize {
-        let inner = self.inner.lock().unwrap();
+        let inner = self.lock_inner();
         page_count_inner(&inner)
     }
 
     /// Return participant SIDs visible on the current page.
     pub fn visible_participants(&self) -> Vec<String> {
-        let inner = self.inner.lock().unwrap();
+        let inner = self.lock_inner();
         let start = inner.current_page * inner.page_size;
         let end = (start + inner.page_size).min(inner.sorted_order.len());
         if start >= inner.sorted_order.len() {
@@ -168,7 +173,7 @@ impl LayoutEngine {
     /// Return participant SIDs on adjacent pages (±1) for pre-caching.
     /// Excludes participants on the current (visible) page.
     pub fn precached_participants(&self) -> Vec<String> {
-        let inner = self.inner.lock().unwrap();
+        let inner = self.lock_inner();
         let total = page_count_inner(&inner);
         if total == 0 {
             return Vec::new();
@@ -186,12 +191,12 @@ impl LayoutEngine {
 
     /// Set the layout mode (Grid or Speaker).
     pub fn set_layout_mode(&self, mode: LayoutMode) {
-        self.inner.lock().unwrap().layout_mode = mode;
+        self.lock_inner().layout_mode = mode;
     }
 
     /// Check if the current mode is Speaker.
     pub fn is_speaker_mode(&self) -> bool {
-        matches!(self.inner.lock().unwrap().layout_mode, LayoutMode::Speaker)
+        matches!(self.lock_inner().layout_mode, LayoutMode::Speaker)
     }
 
     /// Update the main speaker based on active speakers list.
@@ -200,7 +205,7 @@ impl LayoutEngine {
     /// and the current speaker has been main for less than 3 seconds, keep the
     /// current speaker.
     pub fn update_main_speaker(&self, active_speakers: &[String], now: Instant) {
-        let mut inner = self.inner.lock().unwrap();
+        let mut inner = self.lock_inner();
         let new_speaker = active_speakers.first().cloned();
 
         if new_speaker == inner.main_speaker {
@@ -223,7 +228,7 @@ impl LayoutEngine {
 
     /// Return the main participant: pinned participant takes priority over speaker.
     pub fn main_participant(&self) -> Option<String> {
-        let inner = self.inner.lock().unwrap();
+        let inner = self.lock_inner();
         inner
             .pinned_participant
             .clone()
@@ -232,7 +237,7 @@ impl LayoutEngine {
 
     /// Return all sorted participants except the main participant (for thumbnail strip).
     pub fn thumbnail_participants(&self) -> Vec<String> {
-        let inner = self.inner.lock().unwrap();
+        let inner = self.lock_inner();
         let main = inner
             .pinned_participant
             .as_ref()
@@ -250,7 +255,7 @@ impl LayoutEngine {
 
     /// Pin a participant (or unpin with `None`).
     pub fn pin_participant(&self, sid: Option<String>) {
-        self.inner.lock().unwrap().pinned_participant = sid;
+        self.lock_inner().pinned_participant = sid;
     }
 }
 
