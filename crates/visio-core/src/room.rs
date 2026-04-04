@@ -303,7 +303,9 @@ impl RoomManager {
             last_reaction_time: Arc::new(Mutex::new(None)),
             token_cache: Arc::new(TokenCache::new()),
             layout: Arc::new(layout::LayoutEngine::new()),
-            subscriptions: Arc::new(std::sync::Mutex::new(subscriptions::SubscriptionManager::new())),
+            subscriptions: Arc::new(std::sync::Mutex::new(
+                subscriptions::SubscriptionManager::new(),
+            )),
         }
     }
 

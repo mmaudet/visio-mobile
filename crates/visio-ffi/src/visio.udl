@@ -250,6 +250,13 @@ dictionary VisioAlias {
     string url;
 };
 
+dictionary SubscriptionStats {
+    u32 subscribed_high;
+    u32 subscribed_low;
+    u32 unsubscribed;
+    u32 screen_shares;
+};
+
 interface VisioClient {
     constructor(string data_dir);
 
@@ -454,4 +461,5 @@ interface VisioClient {
     void pin_participant(string? sid);
     string? main_participant();
     sequence<string> thumbnail_participants();
+    SubscriptionStats get_subscription_stats();
 };

@@ -322,6 +322,25 @@ impl From<visio_core::settings::VisioAlias> for VisioAlias {
 }
 
 #[derive(Debug, Clone)]
+pub struct SubscriptionStats {
+    pub subscribed_high: u32,
+    pub subscribed_low: u32,
+    pub unsubscribed: u32,
+    pub screen_shares: u32,
+}
+
+impl From<visio_core::subscriptions::SubscriptionStats> for SubscriptionStats {
+    fn from(s: visio_core::subscriptions::SubscriptionStats) -> Self {
+        Self {
+            subscribed_high: s.subscribed_high,
+            subscribed_low: s.subscribed_low,
+            unsubscribed: s.unsubscribed,
+            screen_shares: s.screen_shares,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
 pub struct Meeting {
     pub id: String,
     pub summary: String,
@@ -2015,6 +2034,10 @@ impl VisioClient {
 
     pub fn thumbnail_participants(&self) -> Vec<String> {
         self.room_manager.thumbnail_participants()
+    }
+
+    pub fn get_subscription_stats(&self) -> SubscriptionStats {
+        self.room_manager.subscription_stats().into()
     }
 }
 

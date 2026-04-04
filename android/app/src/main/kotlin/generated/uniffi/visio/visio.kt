@@ -953,6 +953,8 @@ internal open class UniffiVTableCallbackInterfaceVisioEventListener(
 
 
 
+
+
 // For large crates we prevent `MethodTooLargeException` (see #2340)
 // N.B. the name of the extension is very misleading, since it is 
 // rather `InterfaceTooLargeException`, caused by too many methods 
@@ -1025,6 +1027,8 @@ fun uniffi_visio_ffi_checksum_method_visioclient_get_meet_instances(
 fun uniffi_visio_ffi_checksum_method_visioclient_get_session_state(
 ): Short
 fun uniffi_visio_ffi_checksum_method_visioclient_get_settings(
+): Short
+fun uniffi_visio_ffi_checksum_method_visioclient_get_subscription_stats(
 ): Short
 fun uniffi_visio_ffi_checksum_method_visioclient_get_upcoming_meetings(
 ): Short
@@ -1276,6 +1280,8 @@ fun uniffi_visio_ffi_fn_method_visioclient_get_meet_instances(`ptr`: Pointer,uni
 fun uniffi_visio_ffi_fn_method_visioclient_get_session_state(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
 ): RustBuffer.ByValue
 fun uniffi_visio_ffi_fn_method_visioclient_get_settings(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
+): RustBuffer.ByValue
+fun uniffi_visio_ffi_fn_method_visioclient_get_subscription_stats(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
 ): RustBuffer.ByValue
 fun uniffi_visio_ffi_fn_method_visioclient_get_upcoming_meetings(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
 ): RustBuffer.ByValue
@@ -1624,6 +1630,9 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_visio_ffi_checksum_method_visioclient_get_settings() != 24786.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_visio_ffi_checksum_method_visioclient_get_subscription_stats() != 19075.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_visio_ffi_checksum_method_visioclient_get_upcoming_meetings() != 17953.toShort()) {
@@ -2334,6 +2343,8 @@ public interface VisioClientInterface {
     
     fun `getSettings`(): Settings
     
+    fun `getSubscriptionStats`(): SubscriptionStats
+    
     fun `getUpcomingMeetings`(): List<Meeting>
     
     fun `getVisioAliases`(): List<VisioAlias>
@@ -2868,6 +2879,18 @@ open class VisioClient: Disposable, AutoCloseable, VisioClientInterface
     callWithPointer {
     uniffiRustCall() { _status ->
     UniffiLib.INSTANCE.uniffi_visio_ffi_fn_method_visioclient_get_settings(
+        it, _status)
+}
+    }
+    )
+    }
+    
+
+    override fun `getSubscriptionStats`(): SubscriptionStats {
+            return FfiConverterTypeSubscriptionStats.lift(
+    callWithPointer {
+    uniffiRustCall() { _status ->
+    UniffiLib.INSTANCE.uniffi_visio_ffi_fn_method_visioclient_get_subscription_stats(
         it, _status)
 }
     }
@@ -4043,6 +4066,46 @@ public object FfiConverterTypeSettings: FfiConverterRustBuffer<Settings> {
             FfiConverterString.write(value.`videoResolution`, buf)
             FfiConverterOptionalString.write(value.`calendarUrl`, buf)
             FfiConverterTypeCalendarRefreshInterval.write(value.`calendarRefreshInterval`, buf)
+    }
+}
+
+
+
+data class SubscriptionStats (
+    var `subscribedHigh`: kotlin.UInt, 
+    var `subscribedLow`: kotlin.UInt, 
+    var `unsubscribed`: kotlin.UInt, 
+    var `screenShares`: kotlin.UInt
+) {
+    
+    companion object
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterTypeSubscriptionStats: FfiConverterRustBuffer<SubscriptionStats> {
+    override fun read(buf: ByteBuffer): SubscriptionStats {
+        return SubscriptionStats(
+            FfiConverterUInt.read(buf),
+            FfiConverterUInt.read(buf),
+            FfiConverterUInt.read(buf),
+            FfiConverterUInt.read(buf),
+        )
+    }
+
+    override fun allocationSize(value: SubscriptionStats) = (
+            FfiConverterUInt.allocationSize(value.`subscribedHigh`) +
+            FfiConverterUInt.allocationSize(value.`subscribedLow`) +
+            FfiConverterUInt.allocationSize(value.`unsubscribed`) +
+            FfiConverterUInt.allocationSize(value.`screenShares`)
+    )
+
+    override fun write(value: SubscriptionStats, buf: ByteBuffer) {
+            FfiConverterUInt.write(value.`subscribedHigh`, buf)
+            FfiConverterUInt.write(value.`subscribedLow`, buf)
+            FfiConverterUInt.write(value.`unsubscribed`, buf)
+            FfiConverterUInt.write(value.`screenShares`, buf)
     }
 }
 

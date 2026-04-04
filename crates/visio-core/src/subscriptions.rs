@@ -94,7 +94,11 @@ impl SubscriptionManager {
     /// - If the requested quality matches the current state, any pending change is cancelled.
     /// - A new request supersedes any existing pending change for the same track.
     pub fn request_change(&mut self, track_sid: &str, target: VideoQuality, now: Instant) {
-        let current = self.current.get(track_sid).copied().unwrap_or(VideoQuality::Off);
+        let current = self
+            .current
+            .get(track_sid)
+            .copied()
+            .unwrap_or(VideoQuality::Off);
 
         // Same as current: cancel any pending change.
         if target == current {
