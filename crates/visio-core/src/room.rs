@@ -304,7 +304,10 @@ impl RoomManager {
     // ── Layout engine delegation ─────────────────────────────────────
 
     pub fn set_layout_mode(&self, mode: layout::LayoutMode) {
+        let is_speaker = matches!(mode, layout::LayoutMode::Speaker);
         self.layout.set_layout_mode(mode);
+        self.emitter
+            .emit(VisioEvent::LayoutModeChanged(is_speaker));
     }
 
     pub fn is_speaker_mode(&self) -> bool {
@@ -313,10 +316,12 @@ impl RoomManager {
 
     pub fn set_page_size(&self, size: usize) {
         self.layout.set_page_size(size);
+        self.emit_page_changed();
     }
 
     pub fn set_current_page(&self, page: usize) {
         self.layout.set_current_page(page);
+        self.emit_page_changed();
     }
 
     pub fn page_count(&self) -> usize {
@@ -341,6 +346,13 @@ impl RoomManager {
 
     pub fn thumbnail_participants(&self) -> Vec<String> {
         self.layout.thumbnail_participants()
+    }
+
+    fn emit_page_changed(&self) {
+        let page = self.layout.current_page() as u32;
+        let total = self.layout.page_count() as u32;
+        self.emitter
+            .emit(VisioEvent::PageChanged { page, total });
     }
 
     // ── End layout engine delegation ────────────────────────────────
