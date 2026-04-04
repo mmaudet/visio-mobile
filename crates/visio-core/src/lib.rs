@@ -23,6 +23,7 @@ pub mod room;
 pub mod room_display_name;
 pub mod session;
 pub mod settings;
+pub mod subscriptions;
 
 pub use access::{AccessService, RoomAccess, UserSearchResult};
 pub use audio_capture_buffer::{AudioCaptureBuffer, CapturedFrame};
