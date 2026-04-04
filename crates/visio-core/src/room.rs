@@ -1836,10 +1836,8 @@ impl EventLoopContext {
             }
 
             let new_main = self.layout_engine.main_participant();
-            if new_main != previous_main {
-                if let Some(main) = new_main {
-                    self.emitter.emit(VisioEvent::MainParticipantChanged(main));
-                }
+            if let Some(main) = new_main.filter(|m| Some(m) != previous_main.as_ref()) {
+                self.emitter.emit(VisioEvent::MainParticipantChanged(main));
             }
         }
 
