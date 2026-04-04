@@ -50,8 +50,9 @@ pub fn sort_participants(participants: &mut [ParticipantInfo]) {
                 // Neither within window — sort by recency (more recent first)
                 match (a.last_spoke_at, b.last_spoke_at) {
                     (Some(at), Some(bt)) => {
-                        // More recent = larger Instant = should come first
-                        let spoke_cmp = bt.cmp(&at).reverse();
+                        // More recent Instant = larger value = should sort first
+                        // bt.cmp(&at): Less when b spoke earlier → a first ✓
+                        let spoke_cmp = bt.cmp(&at);
                         if spoke_cmp != std::cmp::Ordering::Equal {
                             return spoke_cmp;
                         }
@@ -370,6 +371,24 @@ mod tests {
             "recent speaker first when other expired"
         );
         assert_eq!(list[1].identity, "alice");
+    }
+
+    #[test]
+    fn test_both_outside_window_sorted_by_recency() {
+        let now = Instant::now();
+        // Both outside the 10s window
+        let mut alice = make("s1", "alice");
+        alice.last_spoke_at = Some(now - Duration::from_secs(15));
+
+        let mut bob = make("s2", "bob");
+        bob.last_spoke_at = Some(now - Duration::from_secs(30));
+
+        let mut list = vec![bob, alice];
+        sort_participants(&mut list);
+
+        // alice (15s ago) is more recent than bob (30s ago) → alice first
+        assert_eq!(list[0].identity, "alice", "more recent speaker first");
+        assert_eq!(list[1].identity, "bob");
     }
 
     #[test]
