@@ -74,6 +74,16 @@ impl ParticipantManager {
         self.active_speakers = sids;
     }
 
+    /// Update `last_spoke_at` for participants currently speaking.
+    pub fn update_speakers(&mut self, speaker_sids: &[String]) {
+        let now = std::time::Instant::now();
+        for p in &mut self.participants {
+            if speaker_sids.contains(&p.sid) {
+                p.last_spoke_at = Some(now);
+            }
+        }
+    }
+
     pub fn active_speakers(&self) -> &[String] {
         &self.active_speakers
     }
@@ -137,6 +147,9 @@ mod tests {
             connection_quality: ConnectionQuality::Good,
             color: None,
             is_admin: false,
+            last_spoke_at: None,
+            joined_at: None,
+            hand_raised: false,
         }
     }
 

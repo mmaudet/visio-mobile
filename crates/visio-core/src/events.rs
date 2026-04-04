@@ -118,6 +118,13 @@ pub struct ParticipantInfo {
     pub color: Option<String>,
     /// Whether the participant is a room admin (attribute "room_admin").
     pub is_admin: bool,
+    /// Timestamp of last speech activity. None if never spoke.
+    /// Internal to layout engine — not exposed via UniFFI.
+    pub last_spoke_at: Option<std::time::Instant>,
+    /// Timestamp when the participant joined the room.
+    pub joined_at: Option<std::time::Instant>,
+    /// Whether the participant has raised their hand.
+    pub hand_raised: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

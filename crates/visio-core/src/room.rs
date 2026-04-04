@@ -451,6 +451,9 @@ impl RoomManager {
             connection_quality: ConnectionQuality::Excellent,
             color: None,
             is_admin: false,
+            last_spoke_at: None,
+            joined_at: Some(std::time::Instant::now()),
+            hand_raised: false,
         })
     }
 
@@ -1212,6 +1215,9 @@ impl RoomManager {
             connection_quality: ConnectionQuality::Good,
             color,
             is_admin,
+            last_spoke_at: None,
+            joined_at: Some(std::time::Instant::now()),
+            hand_raised: false,
         }
     }
 
@@ -1731,10 +1737,11 @@ impl EventLoopContext {
     }
 
     async fn handle_active_speakers_changed(&self, sids: Vec<String>) {
-        self.participants
-            .lock()
-            .await
-            .set_active_speakers(sids.clone());
+        {
+            let mut pm = self.participants.lock().await;
+            pm.set_active_speakers(sids.clone());
+            pm.update_speakers(&sids);
+        }
         if let Some(hm) = self.hand_raise.lock().await.as_ref() {
             hm.start_auto_lower(sids.clone());
         }
