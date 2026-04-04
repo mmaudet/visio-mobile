@@ -13,6 +13,7 @@ class ContextDetector: NSObject {
     private let manager: VisioManager
 
     private var isMoving = false
+    private var knownBluetoothConnected = false
     private var routeChangeObserver: NSObjectProtocol?
     private var interruptionObserver: NSObjectProtocol?
 
@@ -72,9 +73,9 @@ class ContextDetector: NSObject {
             forName: AVAudioSession.routeChangeNotification,
             object: nil,
             queue: .main
-        ) { [weak self] _ in
+        ) { [weak self] notification in
             Task { @MainActor in
-                self?.handleAudioRouteChange()
+                self?.handleAudioRouteChange(notification)
             }
         }
 
@@ -91,13 +92,13 @@ class ContextDetector: NSObject {
         reportBluetoothCarKit()
     }
 
-    private func handleAudioRouteChange() {
-        reportBluetoothCarKit()
+    private func handleAudioRouteChange(_ notification: Notification) {
+        guard let userInfo = notification.userInfo,
+              let reasonValue = userInfo[AVAudioSessionRouteChangeReasonKey] as? UInt,
+              let reason = AVAudioSession.RouteChangeReason(rawValue: reasonValue) else { return }
 
-        guard case .connected = manager.connectionState else { return }
-
-        let route = AVAudioSession.sharedInstance().currentRoute
-        let hasBluetooth = route.outputs.contains { port in
+        let currentRoute = AVAudioSession.sharedInstance().currentRoute
+        let hasBluetooth = currentRoute.outputs.contains { port in
             port.portType == .bluetoothA2DP ||
             port.portType == .bluetoothHFP ||
             port.portType == .bluetoothLE ||
@@ -105,24 +106,29 @@ class ContextDetector: NSObject {
         }
 
         if hasBluetooth {
-            // BT device connected — route audio to it
-            manager.routeAudioToBluetooth()
-        } else {
-            // BT disconnected — check if another BT device is still available
-            let session = AVAudioSession.sharedInstance()
-            let hasRemainingBt = session.availableInputs?.contains { port in
-                port.portType == .bluetoothHFP ||
-                port.portType == .bluetoothA2DP ||
-                port.portType == .bluetoothLE
-            } ?? false
+            knownBluetoothConnected = true
+            reportBluetoothCarKit()
 
-            if hasRemainingBt {
-                // Another BT device available — route to it
-                manager.routeAudioToBluetooth()
-            } else {
-                // No BT left — restore phone speaker/mic
-                manager.restoreDefaultAudioRoute()
+            guard case .connected = manager.connectionState else { return }
+            manager.routeAudioToBluetooth()
+        } else if knownBluetoothConnected {
+            // BT was connected but no BT port in current route.
+            // During A2DP→HFP renegotiation the BT port temporarily disappears
+            // for ~200-500ms. Don't treat transient gaps as a disconnect.
+            if reason == .routeConfigurationChange || reason == .categoryChange {
+                return
             }
+            // Actual disconnect
+            knownBluetoothConnected = false
+            reportBluetoothCarKit()
+
+            guard case .connected = manager.connectionState else { return }
+            manager.restoreDefaultAudioRoute()
+        } else {
+            reportBluetoothCarKit()
+
+            guard case .connected = manager.connectionState else { return }
+            manager.restoreDefaultAudioRoute()
         }
     }
 
