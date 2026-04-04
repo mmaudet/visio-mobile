@@ -933,6 +933,26 @@ internal open class UniffiVTableCallbackInterfaceVisioEventListener(
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 // For large crates we prevent `MethodTooLargeException` (see #2340)
 // N.B. the name of the extension is very misleading, since it is 
 // rather `InterfaceTooLargeException`, caused by too many methods 
@@ -998,6 +1018,8 @@ fun uniffi_visio_ffi_checksum_method_visioclient_get_calendar_refresh_interval(
 ): Short
 fun uniffi_visio_ffi_checksum_method_visioclient_get_calendar_url(
 ): Short
+fun uniffi_visio_ffi_checksum_method_visioclient_get_layout_mode(
+): Short
 fun uniffi_visio_ffi_checksum_method_visioclient_get_meet_instances(
 ): Short
 fun uniffi_visio_ffi_checksum_method_visioclient_get_session_state(
@@ -1032,9 +1054,17 @@ fun uniffi_visio_ffi_checksum_method_visioclient_lower_all_hands(
 ): Short
 fun uniffi_visio_ffi_checksum_method_visioclient_lower_hand(
 ): Short
+fun uniffi_visio_ffi_checksum_method_visioclient_main_participant(
+): Short
 fun uniffi_visio_ffi_checksum_method_visioclient_mute_everyone(
 ): Short
+fun uniffi_visio_ffi_checksum_method_visioclient_page_count(
+): Short
 fun uniffi_visio_ffi_checksum_method_visioclient_participants(
+): Short
+fun uniffi_visio_ffi_checksum_method_visioclient_pin_participant(
+): Short
+fun uniffi_visio_ffi_checksum_method_visioclient_precached_participants(
 ): Short
 fun uniffi_visio_ffi_checksum_method_visioclient_prepare_connection(
 ): Short
@@ -1084,9 +1114,13 @@ fun uniffi_visio_ffi_checksum_method_visioclient_set_camera_enabled_on_join(
 ): Short
 fun uniffi_visio_ffi_checksum_method_visioclient_set_chat_open(
 ): Short
+fun uniffi_visio_ffi_checksum_method_visioclient_set_current_page(
+): Short
 fun uniffi_visio_ffi_checksum_method_visioclient_set_display_name(
 ): Short
 fun uniffi_visio_ffi_checksum_method_visioclient_set_language(
+): Short
+fun uniffi_visio_ffi_checksum_method_visioclient_set_layout_mode(
 ): Short
 fun uniffi_visio_ffi_checksum_method_visioclient_set_meet_instances(
 ): Short
@@ -1100,11 +1134,15 @@ fun uniffi_visio_ffi_checksum_method_visioclient_set_notification_message_receiv
 ): Short
 fun uniffi_visio_ffi_checksum_method_visioclient_set_notification_participant_join(
 ): Short
+fun uniffi_visio_ffi_checksum_method_visioclient_set_page_size(
+): Short
 fun uniffi_visio_ffi_checksum_method_visioclient_set_theme(
 ): Short
 fun uniffi_visio_ffi_checksum_method_visioclient_start_video_renderer(
 ): Short
 fun uniffi_visio_ffi_checksum_method_visioclient_stop_video_renderer(
+): Short
+fun uniffi_visio_ffi_checksum_method_visioclient_thumbnail_participants(
 ): Short
 fun uniffi_visio_ffi_checksum_method_visioclient_unread_count(
 ): Short
@@ -1113,6 +1151,8 @@ fun uniffi_visio_ffi_checksum_method_visioclient_validate_room(
 fun uniffi_visio_ffi_checksum_method_visioclient_validate_room_display_name(
 ): Short
 fun uniffi_visio_ffi_checksum_method_visioclient_validate_session(
+): Short
+fun uniffi_visio_ffi_checksum_method_visioclient_visible_participants_layout(
 ): Short
 fun uniffi_visio_ffi_checksum_constructor_visioclient_new(
 ): Short
@@ -1229,6 +1269,8 @@ fun uniffi_visio_ffi_fn_method_visioclient_get_calendar_refresh_interval(`ptr`: 
 ): RustBuffer.ByValue
 fun uniffi_visio_ffi_fn_method_visioclient_get_calendar_url(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
 ): RustBuffer.ByValue
+fun uniffi_visio_ffi_fn_method_visioclient_get_layout_mode(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
+): RustBuffer.ByValue
 fun uniffi_visio_ffi_fn_method_visioclient_get_meet_instances(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
 ): RustBuffer.ByValue
 fun uniffi_visio_ffi_fn_method_visioclient_get_session_state(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
@@ -1263,9 +1305,17 @@ fun uniffi_visio_ffi_fn_method_visioclient_lower_all_hands(`ptr`: Pointer,uniffi
 ): Unit
 fun uniffi_visio_ffi_fn_method_visioclient_lower_hand(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
 ): Unit
+fun uniffi_visio_ffi_fn_method_visioclient_main_participant(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
+): RustBuffer.ByValue
 fun uniffi_visio_ffi_fn_method_visioclient_mute_everyone(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
 ): Unit
+fun uniffi_visio_ffi_fn_method_visioclient_page_count(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
+): Int
 fun uniffi_visio_ffi_fn_method_visioclient_participants(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
+): RustBuffer.ByValue
+fun uniffi_visio_ffi_fn_method_visioclient_pin_participant(`ptr`: Pointer,`sid`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+): Unit
+fun uniffi_visio_ffi_fn_method_visioclient_precached_participants(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
 ): RustBuffer.ByValue
 fun uniffi_visio_ffi_fn_method_visioclient_prepare_connection(`ptr`: Pointer,`livekitUrl`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
 ): Unit
@@ -1315,9 +1365,13 @@ fun uniffi_visio_ffi_fn_method_visioclient_set_camera_enabled_on_join(`ptr`: Poi
 ): Unit
 fun uniffi_visio_ffi_fn_method_visioclient_set_chat_open(`ptr`: Pointer,`open`: Byte,uniffi_out_err: UniffiRustCallStatus, 
 ): Unit
+fun uniffi_visio_ffi_fn_method_visioclient_set_current_page(`ptr`: Pointer,`page`: Int,uniffi_out_err: UniffiRustCallStatus, 
+): Unit
 fun uniffi_visio_ffi_fn_method_visioclient_set_display_name(`ptr`: Pointer,`name`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
 ): Unit
 fun uniffi_visio_ffi_fn_method_visioclient_set_language(`ptr`: Pointer,`lang`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+): Unit
+fun uniffi_visio_ffi_fn_method_visioclient_set_layout_mode(`ptr`: Pointer,`mode`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
 ): Unit
 fun uniffi_visio_ffi_fn_method_visioclient_set_meet_instances(`ptr`: Pointer,`instances`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
 ): Unit
@@ -1331,12 +1385,16 @@ fun uniffi_visio_ffi_fn_method_visioclient_set_notification_message_received(`pt
 ): Unit
 fun uniffi_visio_ffi_fn_method_visioclient_set_notification_participant_join(`ptr`: Pointer,`enabled`: Byte,uniffi_out_err: UniffiRustCallStatus, 
 ): Unit
+fun uniffi_visio_ffi_fn_method_visioclient_set_page_size(`ptr`: Pointer,`size`: Int,uniffi_out_err: UniffiRustCallStatus, 
+): Unit
 fun uniffi_visio_ffi_fn_method_visioclient_set_theme(`ptr`: Pointer,`theme`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
 ): Unit
 fun uniffi_visio_ffi_fn_method_visioclient_start_video_renderer(`ptr`: Pointer,`trackSid`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
 ): Unit
 fun uniffi_visio_ffi_fn_method_visioclient_stop_video_renderer(`ptr`: Pointer,`trackSid`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
 ): Unit
+fun uniffi_visio_ffi_fn_method_visioclient_thumbnail_participants(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
+): RustBuffer.ByValue
 fun uniffi_visio_ffi_fn_method_visioclient_unread_count(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
 ): Int
 fun uniffi_visio_ffi_fn_method_visioclient_validate_room(`ptr`: Pointer,`url`: RustBuffer.ByValue,`username`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
@@ -1345,6 +1403,8 @@ fun uniffi_visio_ffi_fn_method_visioclient_validate_room_display_name(`ptr`: Poi
 ): RustBuffer.ByValue
 fun uniffi_visio_ffi_fn_method_visioclient_validate_session(`ptr`: Pointer,`meetUrl`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
 ): Byte
+fun uniffi_visio_ffi_fn_method_visioclient_visible_participants_layout(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
+): RustBuffer.ByValue
 fun uniffi_visio_ffi_fn_init_callback_vtable_initprogresslistener(`vtable`: UniffiVTableCallbackInterfaceInitProgressListener,
 ): Unit
 fun uniffi_visio_ffi_fn_init_callback_vtable_visioeventlistener(`vtable`: UniffiVTableCallbackInterfaceVisioEventListener,
@@ -1554,6 +1614,9 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if (lib.uniffi_visio_ffi_checksum_method_visioclient_get_calendar_url() != 36642.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
+    if (lib.uniffi_visio_ffi_checksum_method_visioclient_get_layout_mode() != 33315.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
     if (lib.uniffi_visio_ffi_checksum_method_visioclient_get_meet_instances() != 1312.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
@@ -1605,10 +1668,22 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if (lib.uniffi_visio_ffi_checksum_method_visioclient_lower_hand() != 53728.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
+    if (lib.uniffi_visio_ffi_checksum_method_visioclient_main_participant() != 50241.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
     if (lib.uniffi_visio_ffi_checksum_method_visioclient_mute_everyone() != 46169.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
+    if (lib.uniffi_visio_ffi_checksum_method_visioclient_page_count() != 49645.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
     if (lib.uniffi_visio_ffi_checksum_method_visioclient_participants() != 38029.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_visio_ffi_checksum_method_visioclient_pin_participant() != 18540.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_visio_ffi_checksum_method_visioclient_precached_participants() != 493.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_visio_ffi_checksum_method_visioclient_prepare_connection() != 57671.toShort()) {
@@ -1683,10 +1758,16 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if (lib.uniffi_visio_ffi_checksum_method_visioclient_set_chat_open() != 417.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
+    if (lib.uniffi_visio_ffi_checksum_method_visioclient_set_current_page() != 8781.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
     if (lib.uniffi_visio_ffi_checksum_method_visioclient_set_display_name() != 36622.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_visio_ffi_checksum_method_visioclient_set_language() != 63924.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_visio_ffi_checksum_method_visioclient_set_layout_mode() != 14516.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_visio_ffi_checksum_method_visioclient_set_meet_instances() != 55021.toShort()) {
@@ -1707,6 +1788,9 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if (lib.uniffi_visio_ffi_checksum_method_visioclient_set_notification_participant_join() != 47125.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
+    if (lib.uniffi_visio_ffi_checksum_method_visioclient_set_page_size() != 37249.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
     if (lib.uniffi_visio_ffi_checksum_method_visioclient_set_theme() != 58689.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
@@ -1714,6 +1798,9 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_visio_ffi_checksum_method_visioclient_stop_video_renderer() != 45318.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_visio_ffi_checksum_method_visioclient_thumbnail_participants() != 8670.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_visio_ffi_checksum_method_visioclient_unread_count() != 7178.toShort()) {
@@ -1726,6 +1813,9 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_visio_ffi_checksum_method_visioclient_validate_session() != 29581.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_visio_ffi_checksum_method_visioclient_visible_participants_layout() != 11399.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_visio_ffi_checksum_constructor_visioclient_new() != 10250.toShort()) {
@@ -2236,6 +2326,8 @@ public interface VisioClientInterface {
     
     fun `getCalendarUrl`(): kotlin.String?
     
+    fun `getLayoutMode`(): LayoutMode
+    
     fun `getMeetInstances`(): List<kotlin.String>
     
     fun `getSessionState`(): SessionState
@@ -2270,9 +2362,17 @@ public interface VisioClientInterface {
     
     fun `lowerHand`()
     
+    fun `mainParticipant`(): kotlin.String?
+    
     fun `muteEveryone`()
     
+    fun `pageCount`(): kotlin.UInt
+    
     fun `participants`(): List<ParticipantInfo>
+    
+    fun `pinParticipant`(`sid`: kotlin.String?)
+    
+    fun `precachedParticipants`(): List<kotlin.String>
     
     fun `prepareConnection`(`livekitUrl`: kotlin.String)
     
@@ -2322,9 +2422,13 @@ public interface VisioClientInterface {
     
     fun `setChatOpen`(`open`: kotlin.Boolean)
     
+    fun `setCurrentPage`(`page`: kotlin.UInt)
+    
     fun `setDisplayName`(`name`: kotlin.String?)
     
     fun `setLanguage`(`lang`: kotlin.String?)
+    
+    fun `setLayoutMode`(`mode`: LayoutMode)
     
     fun `setMeetInstances`(`instances`: List<kotlin.String>)
     
@@ -2338,11 +2442,15 @@ public interface VisioClientInterface {
     
     fun `setNotificationParticipantJoin`(`enabled`: kotlin.Boolean)
     
+    fun `setPageSize`(`size`: kotlin.UInt)
+    
     fun `setTheme`(`theme`: kotlin.String)
     
     fun `startVideoRenderer`(`trackSid`: kotlin.String)
     
     fun `stopVideoRenderer`(`trackSid`: kotlin.String)
+    
+    fun `thumbnailParticipants`(): List<kotlin.String>
     
     fun `unreadCount`(): kotlin.UInt
     
@@ -2351,6 +2459,8 @@ public interface VisioClientInterface {
     fun `validateRoomDisplayName`(`raw`: kotlin.String): kotlin.String?
     
     fun `validateSession`(`meetUrl`: kotlin.String): kotlin.Boolean
+    
+    fun `visibleParticipantsLayout`(): List<kotlin.String>
     
     companion object
 }
@@ -2717,6 +2827,18 @@ open class VisioClient: Disposable, AutoCloseable, VisioClientInterface
     }
     
 
+    override fun `getLayoutMode`(): LayoutMode {
+            return FfiConverterTypeLayoutMode.lift(
+    callWithPointer {
+    uniffiRustCall() { _status ->
+    UniffiLib.INSTANCE.uniffi_visio_ffi_fn_method_visioclient_get_layout_mode(
+        it, _status)
+}
+    }
+    )
+    }
+    
+
     override fun `getMeetInstances`(): List<kotlin.String> {
             return FfiConverterSequenceString.lift(
     callWithPointer {
@@ -2923,6 +3045,18 @@ open class VisioClient: Disposable, AutoCloseable, VisioClientInterface
     
     
 
+    override fun `mainParticipant`(): kotlin.String? {
+            return FfiConverterOptionalString.lift(
+    callWithPointer {
+    uniffiRustCall() { _status ->
+    UniffiLib.INSTANCE.uniffi_visio_ffi_fn_method_visioclient_main_participant(
+        it, _status)
+}
+    }
+    )
+    }
+    
+
     
     @Throws(VisioException::class)override fun `muteEveryone`()
         = 
@@ -2935,11 +3069,46 @@ open class VisioClient: Disposable, AutoCloseable, VisioClientInterface
     
     
 
+    override fun `pageCount`(): kotlin.UInt {
+            return FfiConverterUInt.lift(
+    callWithPointer {
+    uniffiRustCall() { _status ->
+    UniffiLib.INSTANCE.uniffi_visio_ffi_fn_method_visioclient_page_count(
+        it, _status)
+}
+    }
+    )
+    }
+    
+
     override fun `participants`(): List<ParticipantInfo> {
             return FfiConverterSequenceTypeParticipantInfo.lift(
     callWithPointer {
     uniffiRustCall() { _status ->
     UniffiLib.INSTANCE.uniffi_visio_ffi_fn_method_visioclient_participants(
+        it, _status)
+}
+    }
+    )
+    }
+    
+
+    override fun `pinParticipant`(`sid`: kotlin.String?)
+        = 
+    callWithPointer {
+    uniffiRustCall() { _status ->
+    UniffiLib.INSTANCE.uniffi_visio_ffi_fn_method_visioclient_pin_participant(
+        it, FfiConverterOptionalString.lower(`sid`),_status)
+}
+    }
+    
+    
+
+    override fun `precachedParticipants`(): List<kotlin.String> {
+            return FfiConverterSequenceString.lift(
+    callWithPointer {
+    uniffiRustCall() { _status ->
+    UniffiLib.INSTANCE.uniffi_visio_ffi_fn_method_visioclient_precached_participants(
         it, _status)
 }
     }
@@ -3222,6 +3391,17 @@ open class VisioClient: Disposable, AutoCloseable, VisioClientInterface
     
     
 
+    override fun `setCurrentPage`(`page`: kotlin.UInt)
+        = 
+    callWithPointer {
+    uniffiRustCall() { _status ->
+    UniffiLib.INSTANCE.uniffi_visio_ffi_fn_method_visioclient_set_current_page(
+        it, FfiConverterUInt.lower(`page`),_status)
+}
+    }
+    
+    
+
     override fun `setDisplayName`(`name`: kotlin.String?)
         = 
     callWithPointer {
@@ -3239,6 +3419,17 @@ open class VisioClient: Disposable, AutoCloseable, VisioClientInterface
     uniffiRustCall() { _status ->
     UniffiLib.INSTANCE.uniffi_visio_ffi_fn_method_visioclient_set_language(
         it, FfiConverterOptionalString.lower(`lang`),_status)
+}
+    }
+    
+    
+
+    override fun `setLayoutMode`(`mode`: LayoutMode)
+        = 
+    callWithPointer {
+    uniffiRustCall() { _status ->
+    UniffiLib.INSTANCE.uniffi_visio_ffi_fn_method_visioclient_set_layout_mode(
+        it, FfiConverterTypeLayoutMode.lower(`mode`),_status)
 }
     }
     
@@ -3311,6 +3502,17 @@ open class VisioClient: Disposable, AutoCloseable, VisioClientInterface
     
     
 
+    override fun `setPageSize`(`size`: kotlin.UInt)
+        = 
+    callWithPointer {
+    uniffiRustCall() { _status ->
+    UniffiLib.INSTANCE.uniffi_visio_ffi_fn_method_visioclient_set_page_size(
+        it, FfiConverterUInt.lower(`size`),_status)
+}
+    }
+    
+    
+
     override fun `setTheme`(`theme`: kotlin.String)
         = 
     callWithPointer {
@@ -3342,6 +3544,18 @@ open class VisioClient: Disposable, AutoCloseable, VisioClientInterface
 }
     }
     
+    
+
+    override fun `thumbnailParticipants`(): List<kotlin.String> {
+            return FfiConverterSequenceString.lift(
+    callWithPointer {
+    uniffiRustCall() { _status ->
+    UniffiLib.INSTANCE.uniffi_visio_ffi_fn_method_visioclient_thumbnail_participants(
+        it, _status)
+}
+    }
+    )
+    }
     
 
     override fun `unreadCount`(): kotlin.UInt {
@@ -3387,6 +3601,18 @@ open class VisioClient: Disposable, AutoCloseable, VisioClientInterface
     uniffiRustCallWithError(VisioException) { _status ->
     UniffiLib.INSTANCE.uniffi_visio_ffi_fn_method_visioclient_validate_session(
         it, FfiConverterString.lower(`meetUrl`),_status)
+}
+    }
+    )
+    }
+    
+
+    override fun `visibleParticipantsLayout`(): List<kotlin.String> {
+            return FfiConverterSequenceString.lift(
+    callWithPointer {
+    uniffiRustCall() { _status ->
+    UniffiLib.INSTANCE.uniffi_visio_ffi_fn_method_visioclient_visible_participants_layout(
+        it, _status)
 }
     }
     )
@@ -4294,6 +4520,36 @@ public object FfiConverterTypeInitResult: FfiConverterRustBuffer<InitResult> {
 
 
 
+enum class LayoutMode {
+    
+    GRID,
+    SPEAKER;
+    companion object
+}
+
+
+/**
+ * @suppress
+ */
+public object FfiConverterTypeLayoutMode: FfiConverterRustBuffer<LayoutMode> {
+    override fun read(buf: ByteBuffer) = try {
+        LayoutMode.values()[buf.getInt() - 1]
+    } catch (e: IndexOutOfBoundsException) {
+        throw RuntimeException("invalid enum value, something is very wrong!!", e)
+    }
+
+    override fun allocationSize(value: LayoutMode) = 4UL
+
+    override fun write(value: LayoutMode, buf: ByteBuffer) {
+        buf.putInt(value.ordinal + 1)
+    }
+}
+
+
+
+
+
+
 enum class NetworkType {
     
     WIFI,
@@ -4918,6 +5174,27 @@ sealed class VisioEvent {
         companion object
     }
     
+    data class ParticipantOrderChanged(
+        val `participantSids`: List<kotlin.String>) : VisioEvent() {
+        companion object
+    }
+    
+    data class PageChanged(
+        val `page`: kotlin.UInt, 
+        val `total`: kotlin.UInt) : VisioEvent() {
+        companion object
+    }
+    
+    data class MainParticipantChanged(
+        val `participantSid`: kotlin.String) : VisioEvent() {
+        companion object
+    }
+    
+    data class LayoutModeChanged(
+        val `isSpeaker`: kotlin.Boolean) : VisioEvent() {
+        companion object
+    }
+    
 
     
     companion object
@@ -5012,6 +5289,19 @@ public object FfiConverterTypeVisioEvent : FfiConverterRustBuffer<VisioEvent>{
                 )
             30 -> VisioEvent.CalendarError(
                 FfiConverterString.read(buf),
+                )
+            31 -> VisioEvent.ParticipantOrderChanged(
+                FfiConverterSequenceString.read(buf),
+                )
+            32 -> VisioEvent.PageChanged(
+                FfiConverterUInt.read(buf),
+                FfiConverterUInt.read(buf),
+                )
+            33 -> VisioEvent.MainParticipantChanged(
+                FfiConverterString.read(buf),
+                )
+            34 -> VisioEvent.LayoutModeChanged(
+                FfiConverterBoolean.read(buf),
                 )
             else -> throw RuntimeException("invalid enum value, something is very wrong!!")
         }
@@ -5229,6 +5519,35 @@ public object FfiConverterTypeVisioEvent : FfiConverterRustBuffer<VisioEvent>{
                 + FfiConverterString.allocationSize(value.`message`)
             )
         }
+        is VisioEvent.ParticipantOrderChanged -> {
+            // Add the size for the Int that specifies the variant plus the size needed for all fields
+            (
+                4UL
+                + FfiConverterSequenceString.allocationSize(value.`participantSids`)
+            )
+        }
+        is VisioEvent.PageChanged -> {
+            // Add the size for the Int that specifies the variant plus the size needed for all fields
+            (
+                4UL
+                + FfiConverterUInt.allocationSize(value.`page`)
+                + FfiConverterUInt.allocationSize(value.`total`)
+            )
+        }
+        is VisioEvent.MainParticipantChanged -> {
+            // Add the size for the Int that specifies the variant plus the size needed for all fields
+            (
+                4UL
+                + FfiConverterString.allocationSize(value.`participantSid`)
+            )
+        }
+        is VisioEvent.LayoutModeChanged -> {
+            // Add the size for the Int that specifies the variant plus the size needed for all fields
+            (
+                4UL
+                + FfiConverterBoolean.allocationSize(value.`isSpeaker`)
+            )
+        }
     }
 
     override fun write(value: VisioEvent, buf: ByteBuffer) {
@@ -5382,6 +5701,27 @@ public object FfiConverterTypeVisioEvent : FfiConverterRustBuffer<VisioEvent>{
             is VisioEvent.CalendarError -> {
                 buf.putInt(30)
                 FfiConverterString.write(value.`message`, buf)
+                Unit
+            }
+            is VisioEvent.ParticipantOrderChanged -> {
+                buf.putInt(31)
+                FfiConverterSequenceString.write(value.`participantSids`, buf)
+                Unit
+            }
+            is VisioEvent.PageChanged -> {
+                buf.putInt(32)
+                FfiConverterUInt.write(value.`page`, buf)
+                FfiConverterUInt.write(value.`total`, buf)
+                Unit
+            }
+            is VisioEvent.MainParticipantChanged -> {
+                buf.putInt(33)
+                FfiConverterString.write(value.`participantSid`, buf)
+                Unit
+            }
+            is VisioEvent.LayoutModeChanged -> {
+                buf.putInt(34)
+                FfiConverterBoolean.write(value.`isSpeaker`, buf)
                 Unit
             }
         }.let { /* this makes the `when` an expression, which ensures it is exhaustive */ }

@@ -583,6 +583,8 @@ public protocol VisioClientProtocol: AnyObject, Sendable {
     
     func getCalendarUrl()  -> String?
     
+    func getLayoutMode()  -> LayoutMode
+    
     func getMeetInstances()  -> [String]
     
     func getSessionState()  -> SessionState
@@ -617,9 +619,17 @@ public protocol VisioClientProtocol: AnyObject, Sendable {
     
     func lowerHand() throws 
     
+    func mainParticipant()  -> String?
+    
     func muteEveryone() throws 
     
+    func pageCount()  -> UInt32
+    
     func participants()  -> [ParticipantInfo]
+    
+    func pinParticipant(sid: String?) 
+    
+    func precachedParticipants()  -> [String]
     
     func prepareConnection(livekitUrl: String) throws 
     
@@ -669,9 +679,13 @@ public protocol VisioClientProtocol: AnyObject, Sendable {
     
     func setChatOpen(`open`: Bool) 
     
+    func setCurrentPage(page: UInt32) 
+    
     func setDisplayName(name: String?) 
     
     func setLanguage(lang: String?) 
+    
+    func setLayoutMode(mode: LayoutMode) 
     
     func setMeetInstances(instances: [String]) 
     
@@ -685,11 +699,15 @@ public protocol VisioClientProtocol: AnyObject, Sendable {
     
     func setNotificationParticipantJoin(enabled: Bool) 
     
+    func setPageSize(size: UInt32) 
+    
     func setTheme(theme: String) 
     
     func startVideoRenderer(trackSid: String) 
     
     func stopVideoRenderer(trackSid: String) 
+    
+    func thumbnailParticipants()  -> [String]
     
     func unreadCount()  -> UInt32
     
@@ -698,6 +716,8 @@ public protocol VisioClientProtocol: AnyObject, Sendable {
     func validateRoomDisplayName(raw: String)  -> String?
     
     func validateSession(meetUrl: String) throws  -> Bool
+    
+    func visibleParticipantsLayout()  -> [String]
     
 }
 open class VisioClient: VisioClientProtocol, @unchecked Sendable {
@@ -941,6 +961,13 @@ open func getCalendarUrl() -> String?  {
 })
 }
     
+open func getLayoutMode() -> LayoutMode  {
+    return try!  FfiConverterTypeLayoutMode_lift(try! rustCall() {
+    uniffi_visio_ffi_fn_method_visioclient_get_layout_mode(self.uniffiClonePointer(),$0
+    )
+})
+}
+    
 open func getMeetInstances() -> [String]  {
     return try!  FfiConverterSequenceString.lift(try! rustCall() {
     uniffi_visio_ffi_fn_method_visioclient_get_meet_instances(self.uniffiClonePointer(),$0
@@ -1060,15 +1087,43 @@ open func lowerHand()throws   {try rustCallWithError(FfiConverterTypeVisioError_
 }
 }
     
+open func mainParticipant() -> String?  {
+    return try!  FfiConverterOptionString.lift(try! rustCall() {
+    uniffi_visio_ffi_fn_method_visioclient_main_participant(self.uniffiClonePointer(),$0
+    )
+})
+}
+    
 open func muteEveryone()throws   {try rustCallWithError(FfiConverterTypeVisioError_lift) {
     uniffi_visio_ffi_fn_method_visioclient_mute_everyone(self.uniffiClonePointer(),$0
     )
 }
 }
     
+open func pageCount() -> UInt32  {
+    return try!  FfiConverterUInt32.lift(try! rustCall() {
+    uniffi_visio_ffi_fn_method_visioclient_page_count(self.uniffiClonePointer(),$0
+    )
+})
+}
+    
 open func participants() -> [ParticipantInfo]  {
     return try!  FfiConverterSequenceTypeParticipantInfo.lift(try! rustCall() {
     uniffi_visio_ffi_fn_method_visioclient_participants(self.uniffiClonePointer(),$0
+    )
+})
+}
+    
+open func pinParticipant(sid: String?)  {try! rustCall() {
+    uniffi_visio_ffi_fn_method_visioclient_pin_participant(self.uniffiClonePointer(),
+        FfiConverterOptionString.lower(sid),$0
+    )
+}
+}
+    
+open func precachedParticipants() -> [String]  {
+    return try!  FfiConverterSequenceString.lift(try! rustCall() {
+    uniffi_visio_ffi_fn_method_visioclient_precached_participants(self.uniffiClonePointer(),$0
     )
 })
 }
@@ -1241,6 +1296,13 @@ open func setChatOpen(`open`: Bool)  {try! rustCall() {
 }
 }
     
+open func setCurrentPage(page: UInt32)  {try! rustCall() {
+    uniffi_visio_ffi_fn_method_visioclient_set_current_page(self.uniffiClonePointer(),
+        FfiConverterUInt32.lower(page),$0
+    )
+}
+}
+    
 open func setDisplayName(name: String?)  {try! rustCall() {
     uniffi_visio_ffi_fn_method_visioclient_set_display_name(self.uniffiClonePointer(),
         FfiConverterOptionString.lower(name),$0
@@ -1251,6 +1313,13 @@ open func setDisplayName(name: String?)  {try! rustCall() {
 open func setLanguage(lang: String?)  {try! rustCall() {
     uniffi_visio_ffi_fn_method_visioclient_set_language(self.uniffiClonePointer(),
         FfiConverterOptionString.lower(lang),$0
+    )
+}
+}
+    
+open func setLayoutMode(mode: LayoutMode)  {try! rustCall() {
+    uniffi_visio_ffi_fn_method_visioclient_set_layout_mode(self.uniffiClonePointer(),
+        FfiConverterTypeLayoutMode_lower(mode),$0
     )
 }
 }
@@ -1297,6 +1366,13 @@ open func setNotificationParticipantJoin(enabled: Bool)  {try! rustCall() {
 }
 }
     
+open func setPageSize(size: UInt32)  {try! rustCall() {
+    uniffi_visio_ffi_fn_method_visioclient_set_page_size(self.uniffiClonePointer(),
+        FfiConverterUInt32.lower(size),$0
+    )
+}
+}
+    
 open func setTheme(theme: String)  {try! rustCall() {
     uniffi_visio_ffi_fn_method_visioclient_set_theme(self.uniffiClonePointer(),
         FfiConverterString.lower(theme),$0
@@ -1316,6 +1392,13 @@ open func stopVideoRenderer(trackSid: String)  {try! rustCall() {
         FfiConverterString.lower(trackSid),$0
     )
 }
+}
+    
+open func thumbnailParticipants() -> [String]  {
+    return try!  FfiConverterSequenceString.lift(try! rustCall() {
+    uniffi_visio_ffi_fn_method_visioclient_thumbnail_participants(self.uniffiClonePointer(),$0
+    )
+})
 }
     
 open func unreadCount() -> UInt32  {
@@ -1346,6 +1429,13 @@ open func validateSession(meetUrl: String)throws  -> Bool  {
     return try  FfiConverterBool.lift(try rustCallWithError(FfiConverterTypeVisioError_lift) {
     uniffi_visio_ffi_fn_method_visioclient_validate_session(self.uniffiClonePointer(),
         FfiConverterString.lower(meetUrl),$0
+    )
+})
+}
+    
+open func visibleParticipantsLayout() -> [String]  {
+    return try!  FfiConverterSequenceString.lift(try! rustCall() {
+    uniffi_visio_ffi_fn_method_visioclient_visible_participants_layout(self.uniffiClonePointer(),$0
     )
 })
 }
@@ -3169,6 +3259,76 @@ extension InitResult: Equatable, Hashable {}
 // Note that we don't yet support `indirect` for enums.
 // See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
 
+public enum LayoutMode {
+    
+    case grid
+    case speaker
+}
+
+
+#if compiler(>=6)
+extension LayoutMode: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeLayoutMode: FfiConverterRustBuffer {
+    typealias SwiftType = LayoutMode
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> LayoutMode {
+        let variant: Int32 = try readInt(&buf)
+        switch variant {
+        
+        case 1: return .grid
+        
+        case 2: return .speaker
+        
+        default: throw UniffiInternalError.unexpectedEnumCase
+        }
+    }
+
+    public static func write(_ value: LayoutMode, into buf: inout [UInt8]) {
+        switch value {
+        
+        
+        case .grid:
+            writeInt(&buf, Int32(1))
+        
+        
+        case .speaker:
+            writeInt(&buf, Int32(2))
+        
+        }
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeLayoutMode_lift(_ buf: RustBuffer) throws -> LayoutMode {
+    return try FfiConverterTypeLayoutMode.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeLayoutMode_lower(_ value: LayoutMode) -> RustBuffer {
+    return FfiConverterTypeLayoutMode.lower(value)
+}
+
+
+extension LayoutMode: Equatable, Hashable {}
+
+
+
+
+
+
+// Note that we don't yet support `indirect` for enums.
+// See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
+
 public enum NetworkType {
     
     case wifi
@@ -3770,6 +3930,14 @@ public enum VisioEvent {
     )
     case calendarError(message: String
     )
+    case participantOrderChanged(participantSids: [String]
+    )
+    case pageChanged(page: UInt32, total: UInt32
+    )
+    case mainParticipantChanged(participantSid: String
+    )
+    case layoutModeChanged(isSpeaker: Bool
+    )
 }
 
 
@@ -3868,6 +4036,18 @@ public struct FfiConverterTypeVisioEvent: FfiConverterRustBuffer {
         )
         
         case 30: return .calendarError(message: try FfiConverterString.read(from: &buf)
+        )
+        
+        case 31: return .participantOrderChanged(participantSids: try FfiConverterSequenceString.read(from: &buf)
+        )
+        
+        case 32: return .pageChanged(page: try FfiConverterUInt32.read(from: &buf), total: try FfiConverterUInt32.read(from: &buf)
+        )
+        
+        case 33: return .mainParticipantChanged(participantSid: try FfiConverterString.read(from: &buf)
+        )
+        
+        case 34: return .layoutModeChanged(isSpeaker: try FfiConverterBool.read(from: &buf)
         )
         
         default: throw UniffiInternalError.unexpectedEnumCase
@@ -4027,6 +4207,27 @@ public struct FfiConverterTypeVisioEvent: FfiConverterRustBuffer {
         case let .calendarError(message):
             writeInt(&buf, Int32(30))
             FfiConverterString.write(message, into: &buf)
+            
+        
+        case let .participantOrderChanged(participantSids):
+            writeInt(&buf, Int32(31))
+            FfiConverterSequenceString.write(participantSids, into: &buf)
+            
+        
+        case let .pageChanged(page,total):
+            writeInt(&buf, Int32(32))
+            FfiConverterUInt32.write(page, into: &buf)
+            FfiConverterUInt32.write(total, into: &buf)
+            
+        
+        case let .mainParticipantChanged(participantSid):
+            writeInt(&buf, Int32(33))
+            FfiConverterString.write(participantSid, into: &buf)
+            
+        
+        case let .layoutModeChanged(isSpeaker):
+            writeInt(&buf, Int32(34))
+            FfiConverterBool.write(isSpeaker, into: &buf)
             
         }
     }
@@ -4715,6 +4916,9 @@ private let initializationResult: InitializationResult = {
     if (uniffi_visio_ffi_checksum_method_visioclient_get_calendar_url() != 36642) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_visio_ffi_checksum_method_visioclient_get_layout_mode() != 33315) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_visio_ffi_checksum_method_visioclient_get_meet_instances() != 1312) {
         return InitializationResult.apiChecksumMismatch
     }
@@ -4766,10 +4970,22 @@ private let initializationResult: InitializationResult = {
     if (uniffi_visio_ffi_checksum_method_visioclient_lower_hand() != 53728) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_visio_ffi_checksum_method_visioclient_main_participant() != 50241) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_visio_ffi_checksum_method_visioclient_mute_everyone() != 46169) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_visio_ffi_checksum_method_visioclient_page_count() != 49645) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_visio_ffi_checksum_method_visioclient_participants() != 38029) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_visio_ffi_checksum_method_visioclient_pin_participant() != 18540) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_visio_ffi_checksum_method_visioclient_precached_participants() != 493) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_visio_ffi_checksum_method_visioclient_prepare_connection() != 57671) {
@@ -4844,10 +5060,16 @@ private let initializationResult: InitializationResult = {
     if (uniffi_visio_ffi_checksum_method_visioclient_set_chat_open() != 417) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_visio_ffi_checksum_method_visioclient_set_current_page() != 8781) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_visio_ffi_checksum_method_visioclient_set_display_name() != 36622) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_visio_ffi_checksum_method_visioclient_set_language() != 63924) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_visio_ffi_checksum_method_visioclient_set_layout_mode() != 14516) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_visio_ffi_checksum_method_visioclient_set_meet_instances() != 55021) {
@@ -4868,6 +5090,9 @@ private let initializationResult: InitializationResult = {
     if (uniffi_visio_ffi_checksum_method_visioclient_set_notification_participant_join() != 47125) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_visio_ffi_checksum_method_visioclient_set_page_size() != 37249) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_visio_ffi_checksum_method_visioclient_set_theme() != 58689) {
         return InitializationResult.apiChecksumMismatch
     }
@@ -4875,6 +5100,9 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_visio_ffi_checksum_method_visioclient_stop_video_renderer() != 45318) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_visio_ffi_checksum_method_visioclient_thumbnail_participants() != 8670) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_visio_ffi_checksum_method_visioclient_unread_count() != 7178) {
@@ -4887,6 +5115,9 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_visio_ffi_checksum_method_visioclient_validate_session() != 29581) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_visio_ffi_checksum_method_visioclient_visible_participants_layout() != 11399) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_visio_ffi_checksum_constructor_visioclient_new() != 10250) {

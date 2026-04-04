@@ -424,6 +424,11 @@ RustBuffer uniffi_visio_ffi_fn_method_visioclient_get_calendar_refresh_interval(
 RustBuffer uniffi_visio_ffi_fn_method_visioclient_get_calendar_url(void*_Nonnull ptr, RustCallStatus *_Nonnull out_status
 );
 #endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_FN_METHOD_VISIOCLIENT_GET_LAYOUT_MODE
+#define UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_FN_METHOD_VISIOCLIENT_GET_LAYOUT_MODE
+RustBuffer uniffi_visio_ffi_fn_method_visioclient_get_layout_mode(void*_Nonnull ptr, RustCallStatus *_Nonnull out_status
+);
+#endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_FN_METHOD_VISIOCLIENT_GET_MEET_INSTANCES
 #define UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_FN_METHOD_VISIOCLIENT_GET_MEET_INSTANCES
 RustBuffer uniffi_visio_ffi_fn_method_visioclient_get_meet_instances(void*_Nonnull ptr, RustCallStatus *_Nonnull out_status
@@ -509,14 +514,34 @@ void uniffi_visio_ffi_fn_method_visioclient_lower_all_hands(void*_Nonnull ptr, R
 void uniffi_visio_ffi_fn_method_visioclient_lower_hand(void*_Nonnull ptr, RustCallStatus *_Nonnull out_status
 );
 #endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_FN_METHOD_VISIOCLIENT_MAIN_PARTICIPANT
+#define UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_FN_METHOD_VISIOCLIENT_MAIN_PARTICIPANT
+RustBuffer uniffi_visio_ffi_fn_method_visioclient_main_participant(void*_Nonnull ptr, RustCallStatus *_Nonnull out_status
+);
+#endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_FN_METHOD_VISIOCLIENT_MUTE_EVERYONE
 #define UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_FN_METHOD_VISIOCLIENT_MUTE_EVERYONE
 void uniffi_visio_ffi_fn_method_visioclient_mute_everyone(void*_Nonnull ptr, RustCallStatus *_Nonnull out_status
 );
 #endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_FN_METHOD_VISIOCLIENT_PAGE_COUNT
+#define UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_FN_METHOD_VISIOCLIENT_PAGE_COUNT
+uint32_t uniffi_visio_ffi_fn_method_visioclient_page_count(void*_Nonnull ptr, RustCallStatus *_Nonnull out_status
+);
+#endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_FN_METHOD_VISIOCLIENT_PARTICIPANTS
 #define UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_FN_METHOD_VISIOCLIENT_PARTICIPANTS
 RustBuffer uniffi_visio_ffi_fn_method_visioclient_participants(void*_Nonnull ptr, RustCallStatus *_Nonnull out_status
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_FN_METHOD_VISIOCLIENT_PIN_PARTICIPANT
+#define UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_FN_METHOD_VISIOCLIENT_PIN_PARTICIPANT
+void uniffi_visio_ffi_fn_method_visioclient_pin_participant(void*_Nonnull ptr, RustBuffer sid, RustCallStatus *_Nonnull out_status
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_FN_METHOD_VISIOCLIENT_PRECACHED_PARTICIPANTS
+#define UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_FN_METHOD_VISIOCLIENT_PRECACHED_PARTICIPANTS
+RustBuffer uniffi_visio_ffi_fn_method_visioclient_precached_participants(void*_Nonnull ptr, RustCallStatus *_Nonnull out_status
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_FN_METHOD_VISIOCLIENT_PREPARE_CONNECTION
@@ -639,6 +664,11 @@ void uniffi_visio_ffi_fn_method_visioclient_set_camera_enabled_on_join(void*_Non
 void uniffi_visio_ffi_fn_method_visioclient_set_chat_open(void*_Nonnull ptr, int8_t open, RustCallStatus *_Nonnull out_status
 );
 #endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_FN_METHOD_VISIOCLIENT_SET_CURRENT_PAGE
+#define UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_FN_METHOD_VISIOCLIENT_SET_CURRENT_PAGE
+void uniffi_visio_ffi_fn_method_visioclient_set_current_page(void*_Nonnull ptr, uint32_t page, RustCallStatus *_Nonnull out_status
+);
+#endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_FN_METHOD_VISIOCLIENT_SET_DISPLAY_NAME
 #define UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_FN_METHOD_VISIOCLIENT_SET_DISPLAY_NAME
 void uniffi_visio_ffi_fn_method_visioclient_set_display_name(void*_Nonnull ptr, RustBuffer name, RustCallStatus *_Nonnull out_status
@@ -647,6 +677,11 @@ void uniffi_visio_ffi_fn_method_visioclient_set_display_name(void*_Nonnull ptr, 
 #ifndef UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_FN_METHOD_VISIOCLIENT_SET_LANGUAGE
 #define UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_FN_METHOD_VISIOCLIENT_SET_LANGUAGE
 void uniffi_visio_ffi_fn_method_visioclient_set_language(void*_Nonnull ptr, RustBuffer lang, RustCallStatus *_Nonnull out_status
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_FN_METHOD_VISIOCLIENT_SET_LAYOUT_MODE
+#define UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_FN_METHOD_VISIOCLIENT_SET_LAYOUT_MODE
+void uniffi_visio_ffi_fn_method_visioclient_set_layout_mode(void*_Nonnull ptr, RustBuffer mode, RustCallStatus *_Nonnull out_status
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_FN_METHOD_VISIOCLIENT_SET_MEET_INSTANCES
@@ -679,6 +714,11 @@ void uniffi_visio_ffi_fn_method_visioclient_set_notification_message_received(vo
 void uniffi_visio_ffi_fn_method_visioclient_set_notification_participant_join(void*_Nonnull ptr, int8_t enabled, RustCallStatus *_Nonnull out_status
 );
 #endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_FN_METHOD_VISIOCLIENT_SET_PAGE_SIZE
+#define UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_FN_METHOD_VISIOCLIENT_SET_PAGE_SIZE
+void uniffi_visio_ffi_fn_method_visioclient_set_page_size(void*_Nonnull ptr, uint32_t size, RustCallStatus *_Nonnull out_status
+);
+#endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_FN_METHOD_VISIOCLIENT_SET_THEME
 #define UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_FN_METHOD_VISIOCLIENT_SET_THEME
 void uniffi_visio_ffi_fn_method_visioclient_set_theme(void*_Nonnull ptr, RustBuffer theme, RustCallStatus *_Nonnull out_status
@@ -692,6 +732,11 @@ void uniffi_visio_ffi_fn_method_visioclient_start_video_renderer(void*_Nonnull p
 #ifndef UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_FN_METHOD_VISIOCLIENT_STOP_VIDEO_RENDERER
 #define UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_FN_METHOD_VISIOCLIENT_STOP_VIDEO_RENDERER
 void uniffi_visio_ffi_fn_method_visioclient_stop_video_renderer(void*_Nonnull ptr, RustBuffer track_sid, RustCallStatus *_Nonnull out_status
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_FN_METHOD_VISIOCLIENT_THUMBNAIL_PARTICIPANTS
+#define UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_FN_METHOD_VISIOCLIENT_THUMBNAIL_PARTICIPANTS
+RustBuffer uniffi_visio_ffi_fn_method_visioclient_thumbnail_participants(void*_Nonnull ptr, RustCallStatus *_Nonnull out_status
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_FN_METHOD_VISIOCLIENT_UNREAD_COUNT
@@ -712,6 +757,11 @@ RustBuffer uniffi_visio_ffi_fn_method_visioclient_validate_room_display_name(voi
 #ifndef UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_FN_METHOD_VISIOCLIENT_VALIDATE_SESSION
 #define UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_FN_METHOD_VISIOCLIENT_VALIDATE_SESSION
 int8_t uniffi_visio_ffi_fn_method_visioclient_validate_session(void*_Nonnull ptr, RustBuffer meet_url, RustCallStatus *_Nonnull out_status
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_FN_METHOD_VISIOCLIENT_VISIBLE_PARTICIPANTS_LAYOUT
+#define UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_FN_METHOD_VISIOCLIENT_VISIBLE_PARTICIPANTS_LAYOUT
+RustBuffer uniffi_visio_ffi_fn_method_visioclient_visible_participants_layout(void*_Nonnull ptr, RustCallStatus *_Nonnull out_status
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_FN_INIT_CALLBACK_VTABLE_INITPROGRESSLISTENER
@@ -1166,6 +1216,12 @@ uint16_t uniffi_visio_ffi_checksum_method_visioclient_get_calendar_url(void
     
 );
 #endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_CHECKSUM_METHOD_VISIOCLIENT_GET_LAYOUT_MODE
+#define UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_CHECKSUM_METHOD_VISIOCLIENT_GET_LAYOUT_MODE
+uint16_t uniffi_visio_ffi_checksum_method_visioclient_get_layout_mode(void
+    
+);
+#endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_CHECKSUM_METHOD_VISIOCLIENT_GET_MEET_INSTANCES
 #define UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_CHECKSUM_METHOD_VISIOCLIENT_GET_MEET_INSTANCES
 uint16_t uniffi_visio_ffi_checksum_method_visioclient_get_meet_instances(void
@@ -1268,15 +1324,39 @@ uint16_t uniffi_visio_ffi_checksum_method_visioclient_lower_hand(void
     
 );
 #endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_CHECKSUM_METHOD_VISIOCLIENT_MAIN_PARTICIPANT
+#define UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_CHECKSUM_METHOD_VISIOCLIENT_MAIN_PARTICIPANT
+uint16_t uniffi_visio_ffi_checksum_method_visioclient_main_participant(void
+    
+);
+#endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_CHECKSUM_METHOD_VISIOCLIENT_MUTE_EVERYONE
 #define UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_CHECKSUM_METHOD_VISIOCLIENT_MUTE_EVERYONE
 uint16_t uniffi_visio_ffi_checksum_method_visioclient_mute_everyone(void
     
 );
 #endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_CHECKSUM_METHOD_VISIOCLIENT_PAGE_COUNT
+#define UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_CHECKSUM_METHOD_VISIOCLIENT_PAGE_COUNT
+uint16_t uniffi_visio_ffi_checksum_method_visioclient_page_count(void
+    
+);
+#endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_CHECKSUM_METHOD_VISIOCLIENT_PARTICIPANTS
 #define UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_CHECKSUM_METHOD_VISIOCLIENT_PARTICIPANTS
 uint16_t uniffi_visio_ffi_checksum_method_visioclient_participants(void
+    
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_CHECKSUM_METHOD_VISIOCLIENT_PIN_PARTICIPANT
+#define UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_CHECKSUM_METHOD_VISIOCLIENT_PIN_PARTICIPANT
+uint16_t uniffi_visio_ffi_checksum_method_visioclient_pin_participant(void
+    
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_CHECKSUM_METHOD_VISIOCLIENT_PRECACHED_PARTICIPANTS
+#define UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_CHECKSUM_METHOD_VISIOCLIENT_PRECACHED_PARTICIPANTS
+uint16_t uniffi_visio_ffi_checksum_method_visioclient_precached_participants(void
     
 );
 #endif
@@ -1424,6 +1504,12 @@ uint16_t uniffi_visio_ffi_checksum_method_visioclient_set_chat_open(void
     
 );
 #endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_CHECKSUM_METHOD_VISIOCLIENT_SET_CURRENT_PAGE
+#define UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_CHECKSUM_METHOD_VISIOCLIENT_SET_CURRENT_PAGE
+uint16_t uniffi_visio_ffi_checksum_method_visioclient_set_current_page(void
+    
+);
+#endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_CHECKSUM_METHOD_VISIOCLIENT_SET_DISPLAY_NAME
 #define UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_CHECKSUM_METHOD_VISIOCLIENT_SET_DISPLAY_NAME
 uint16_t uniffi_visio_ffi_checksum_method_visioclient_set_display_name(void
@@ -1433,6 +1519,12 @@ uint16_t uniffi_visio_ffi_checksum_method_visioclient_set_display_name(void
 #ifndef UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_CHECKSUM_METHOD_VISIOCLIENT_SET_LANGUAGE
 #define UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_CHECKSUM_METHOD_VISIOCLIENT_SET_LANGUAGE
 uint16_t uniffi_visio_ffi_checksum_method_visioclient_set_language(void
+    
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_CHECKSUM_METHOD_VISIOCLIENT_SET_LAYOUT_MODE
+#define UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_CHECKSUM_METHOD_VISIOCLIENT_SET_LAYOUT_MODE
+uint16_t uniffi_visio_ffi_checksum_method_visioclient_set_layout_mode(void
     
 );
 #endif
@@ -1472,6 +1564,12 @@ uint16_t uniffi_visio_ffi_checksum_method_visioclient_set_notification_participa
     
 );
 #endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_CHECKSUM_METHOD_VISIOCLIENT_SET_PAGE_SIZE
+#define UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_CHECKSUM_METHOD_VISIOCLIENT_SET_PAGE_SIZE
+uint16_t uniffi_visio_ffi_checksum_method_visioclient_set_page_size(void
+    
+);
+#endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_CHECKSUM_METHOD_VISIOCLIENT_SET_THEME
 #define UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_CHECKSUM_METHOD_VISIOCLIENT_SET_THEME
 uint16_t uniffi_visio_ffi_checksum_method_visioclient_set_theme(void
@@ -1487,6 +1585,12 @@ uint16_t uniffi_visio_ffi_checksum_method_visioclient_start_video_renderer(void
 #ifndef UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_CHECKSUM_METHOD_VISIOCLIENT_STOP_VIDEO_RENDERER
 #define UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_CHECKSUM_METHOD_VISIOCLIENT_STOP_VIDEO_RENDERER
 uint16_t uniffi_visio_ffi_checksum_method_visioclient_stop_video_renderer(void
+    
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_CHECKSUM_METHOD_VISIOCLIENT_THUMBNAIL_PARTICIPANTS
+#define UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_CHECKSUM_METHOD_VISIOCLIENT_THUMBNAIL_PARTICIPANTS
+uint16_t uniffi_visio_ffi_checksum_method_visioclient_thumbnail_participants(void
     
 );
 #endif
@@ -1511,6 +1615,12 @@ uint16_t uniffi_visio_ffi_checksum_method_visioclient_validate_room_display_name
 #ifndef UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_CHECKSUM_METHOD_VISIOCLIENT_VALIDATE_SESSION
 #define UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_CHECKSUM_METHOD_VISIOCLIENT_VALIDATE_SESSION
 uint16_t uniffi_visio_ffi_checksum_method_visioclient_validate_session(void
+    
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_CHECKSUM_METHOD_VISIOCLIENT_VISIBLE_PARTICIPANTS_LAYOUT
+#define UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_CHECKSUM_METHOD_VISIOCLIENT_VISIBLE_PARTICIPANTS_LAYOUT
+uint16_t uniffi_visio_ffi_checksum_method_visioclient_visible_participants_layout(void
     
 );
 #endif
