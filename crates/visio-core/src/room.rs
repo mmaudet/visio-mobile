@@ -262,6 +262,8 @@ fn create_room_options(high_quality: bool) -> RoomOptions {
     options.adaptive_stream = !high_quality;
     options.dynacast = true;
     options.join_retries = 5;
+    // Reduced from 60s: faster failure detection on mobile networks.
+    // The SDK's own retry logic (join_retries=5) handles transient failures.
     options.connect_timeout = Duration::from_secs(20);
     options
 }
@@ -877,6 +879,8 @@ impl RoomManager {
         let max_delay = Duration::from_secs(5);
 
         // Try cached token first for fast reconnection
+        // LiveKit tokens are valid for hours; cache for 5 min to speed up
+        // reconnection while minimizing risk of using a revoked token.
         const TOKEN_MAX_AGE: Duration = Duration::from_secs(300);
         if let Some((token, url)) = self.token_cache.get(TOKEN_MAX_AGE) {
             tracing::info!("reconnecting with cached token");
@@ -1495,14 +1499,10 @@ impl EventLoopContext {
             let room_participants: Vec<_> = lk_room
                 .remote_participants()
                 .values()
-                .map(|p| RoomManager::remote_participant_to_info(p))
+                .map(RoomManager::remote_participant_to_info)
                 .collect();
 
-            let (joined, left) = self
-                .participants
-                .lock()
-                .await
-                .resync(room_participants);
+            let (joined, left) = self.participants.lock().await.resync(room_participants);
 
             for info in joined {
                 self.emitter.emit(VisioEvent::ParticipantJoined(info));
@@ -2084,10 +2084,12 @@ mod tests {
     #[tokio::test]
     async fn test_prepare_connection_rejects_unreachable() {
         let rm = RoomManager::new();
-        let result = rm.prepare_connection("wss://nonexistent.invalid:7880").await;
+        let result = rm
+            .prepare_connection("wss://nonexistent.invalid:7880")
+            .await;
         assert!(result.is_err());
         match result.unwrap_err() {
-            VisioError::NetworkUnreachable(_) => {},
+            VisioError::NetworkUnreachable(_) => {}
             other => panic!("expected NetworkUnreachable, got: {other}"),
         }
     }

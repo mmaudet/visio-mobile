@@ -621,6 +621,8 @@ public protocol VisioClientProtocol: AnyObject, Sendable {
     
     func participants()  -> [ParticipantInfo]
     
+    func prepareConnection(livekitUrl: String) throws 
+    
     func raiseHand() throws 
     
     func reconnect() throws 
@@ -755,6 +757,15 @@ public convenience init(dataDir: String) {
         try! rustCall { uniffi_visio_ffi_fn_free_visioclient(pointer, $0) }
     }
 
+    
+public static func newWithListener(dataDir: String, listener: InitProgressListener) -> VisioClient  {
+    return try!  FfiConverterTypeVisioClient_lift(try! rustCall() {
+    uniffi_visio_ffi_fn_constructor_visioclient_new_with_listener(
+        FfiConverterString.lower(dataDir),
+        FfiConverterCallbackInterfaceInitProgressListener_lower(listener),$0
+    )
+})
+}
     
 
     
@@ -1060,6 +1071,13 @@ open func participants() -> [ParticipantInfo]  {
     uniffi_visio_ffi_fn_method_visioclient_participants(self.uniffiClonePointer(),$0
     )
 })
+}
+    
+open func prepareConnection(livekitUrl: String)throws   {try rustCallWithError(FfiConverterTypeVisioError_lift) {
+    uniffi_visio_ffi_fn_method_visioclient_prepare_connection(self.uniffiClonePointer(),
+        FfiConverterString.lower(livekitUrl),$0
+    )
+}
 }
     
 open func raiseHand()throws   {try rustCallWithError(FfiConverterTypeVisioError_lift) {
@@ -1581,6 +1599,76 @@ public func FfiConverterTypeCreateRoomResult_lift(_ buf: RustBuffer) throws -> C
 #endif
 public func FfiConverterTypeCreateRoomResult_lower(_ value: CreateRoomResult) -> RustBuffer {
     return FfiConverterTypeCreateRoomResult.lower(value)
+}
+
+
+public struct InitPhaseError {
+    public var phase: InitPhase
+    public var errorMessage: String
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(phase: InitPhase, errorMessage: String) {
+        self.phase = phase
+        self.errorMessage = errorMessage
+    }
+}
+
+#if compiler(>=6)
+extension InitPhaseError: Sendable {}
+#endif
+
+
+extension InitPhaseError: Equatable, Hashable {
+    public static func ==(lhs: InitPhaseError, rhs: InitPhaseError) -> Bool {
+        if lhs.phase != rhs.phase {
+            return false
+        }
+        if lhs.errorMessage != rhs.errorMessage {
+            return false
+        }
+        return true
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(phase)
+        hasher.combine(errorMessage)
+    }
+}
+
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeInitPhaseError: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> InitPhaseError {
+        return
+            try InitPhaseError(
+                phase: FfiConverterTypeInitPhase.read(from: &buf), 
+                errorMessage: FfiConverterString.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: InitPhaseError, into buf: inout [UInt8]) {
+        FfiConverterTypeInitPhase.write(value.phase, into: &buf)
+        FfiConverterString.write(value.errorMessage, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeInitPhaseError_lift(_ buf: RustBuffer) throws -> InitPhaseError {
+    return try FfiConverterTypeInitPhaseError.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeInitPhaseError_lower(_ value: InitPhaseError) -> RustBuffer {
+    return FfiConverterTypeInitPhaseError.lower(value)
 }
 
 
@@ -2927,6 +3015,160 @@ extension ConnectionState: Equatable, Hashable {}
 // Note that we don't yet support `indirect` for enums.
 // See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
 
+public enum InitPhase {
+    
+    case settings
+    case auth
+    case services
+    case ready
+}
+
+
+#if compiler(>=6)
+extension InitPhase: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeInitPhase: FfiConverterRustBuffer {
+    typealias SwiftType = InitPhase
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> InitPhase {
+        let variant: Int32 = try readInt(&buf)
+        switch variant {
+        
+        case 1: return .settings
+        
+        case 2: return .auth
+        
+        case 3: return .services
+        
+        case 4: return .ready
+        
+        default: throw UniffiInternalError.unexpectedEnumCase
+        }
+    }
+
+    public static func write(_ value: InitPhase, into buf: inout [UInt8]) {
+        switch value {
+        
+        
+        case .settings:
+            writeInt(&buf, Int32(1))
+        
+        
+        case .auth:
+            writeInt(&buf, Int32(2))
+        
+        
+        case .services:
+            writeInt(&buf, Int32(3))
+        
+        
+        case .ready:
+            writeInt(&buf, Int32(4))
+        
+        }
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeInitPhase_lift(_ buf: RustBuffer) throws -> InitPhase {
+    return try FfiConverterTypeInitPhase.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeInitPhase_lower(_ value: InitPhase) -> RustBuffer {
+    return FfiConverterTypeInitPhase.lower(value)
+}
+
+
+extension InitPhase: Equatable, Hashable {}
+
+
+
+
+
+
+// Note that we don't yet support `indirect` for enums.
+// See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
+
+public enum InitResult {
+    
+    case success
+    case partialFailure
+}
+
+
+#if compiler(>=6)
+extension InitResult: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeInitResult: FfiConverterRustBuffer {
+    typealias SwiftType = InitResult
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> InitResult {
+        let variant: Int32 = try readInt(&buf)
+        switch variant {
+        
+        case 1: return .success
+        
+        case 2: return .partialFailure
+        
+        default: throw UniffiInternalError.unexpectedEnumCase
+        }
+    }
+
+    public static func write(_ value: InitResult, into buf: inout [UInt8]) {
+        switch value {
+        
+        
+        case .success:
+            writeInt(&buf, Int32(1))
+        
+        
+        case .partialFailure:
+            writeInt(&buf, Int32(2))
+        
+        }
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeInitResult_lift(_ buf: RustBuffer) throws -> InitResult {
+    return try FfiConverterTypeInitResult.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeInitResult_lower(_ value: InitResult) -> RustBuffer {
+    return FfiConverterTypeInitResult.lower(value)
+}
+
+
+extension InitResult: Equatable, Hashable {}
+
+
+
+
+
+
+// Note that we don't yet support `indirect` for enums.
+// See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
+
 public enum NetworkType {
     
     case wifi
@@ -3343,6 +3585,8 @@ public enum VisioError: Swift.Error {
     )
     case Generic(msg: String
     )
+    case NetworkUnreachable(msg: String
+    )
 }
 
 
@@ -3378,6 +3622,9 @@ public struct FfiConverterTypeVisioError: FfiConverterRustBuffer {
             msg: try FfiConverterString.read(from: &buf)
             )
         case 7: return .Generic(
+            msg: try FfiConverterString.read(from: &buf)
+            )
+        case 8: return .NetworkUnreachable(
             msg: try FfiConverterString.read(from: &buf)
             )
 
@@ -3424,6 +3671,11 @@ public struct FfiConverterTypeVisioError: FfiConverterRustBuffer {
         
         case let .Generic(msg):
             writeInt(&buf, Int32(7))
+            FfiConverterString.write(msg, into: &buf)
+            
+        
+        case let .NetworkUnreachable(msg):
+            writeInt(&buf, Int32(8))
             FfiConverterString.write(msg, into: &buf)
             
         }
@@ -3806,6 +4058,152 @@ extension VisioEvent: Equatable, Hashable {}
 
 
 
+public protocol InitProgressListener: AnyObject, Sendable {
+    
+    func onPhaseStarted(phase: InitPhase) 
+    
+    func onPhaseCompleted(phase: InitPhase, result: InitResult, error: InitPhaseError?) 
+    
+}
+
+
+// Put the implementation in a struct so we don't pollute the top-level namespace
+fileprivate struct UniffiCallbackInterfaceInitProgressListener {
+
+    // Create the VTable using a series of closures.
+    // Swift automatically converts these into C callback functions.
+    //
+    // This creates 1-element array, since this seems to be the only way to construct a const
+    // pointer that we can pass to the Rust code.
+    static let vtable: [UniffiVTableCallbackInterfaceInitProgressListener] = [UniffiVTableCallbackInterfaceInitProgressListener(
+        onPhaseStarted: { (
+            uniffiHandle: UInt64,
+            phase: RustBuffer,
+            uniffiOutReturn: UnsafeMutableRawPointer,
+            uniffiCallStatus: UnsafeMutablePointer<RustCallStatus>
+        ) in
+            let makeCall = {
+                () throws -> () in
+                guard let uniffiObj = try? FfiConverterCallbackInterfaceInitProgressListener.handleMap.get(handle: uniffiHandle) else {
+                    throw UniffiInternalError.unexpectedStaleHandle
+                }
+                return uniffiObj.onPhaseStarted(
+                     phase: try FfiConverterTypeInitPhase_lift(phase)
+                )
+            }
+
+            
+            let writeReturn = { () }
+            uniffiTraitInterfaceCall(
+                callStatus: uniffiCallStatus,
+                makeCall: makeCall,
+                writeReturn: writeReturn
+            )
+        },
+        onPhaseCompleted: { (
+            uniffiHandle: UInt64,
+            phase: RustBuffer,
+            result: RustBuffer,
+            error: RustBuffer,
+            uniffiOutReturn: UnsafeMutableRawPointer,
+            uniffiCallStatus: UnsafeMutablePointer<RustCallStatus>
+        ) in
+            let makeCall = {
+                () throws -> () in
+                guard let uniffiObj = try? FfiConverterCallbackInterfaceInitProgressListener.handleMap.get(handle: uniffiHandle) else {
+                    throw UniffiInternalError.unexpectedStaleHandle
+                }
+                return uniffiObj.onPhaseCompleted(
+                     phase: try FfiConverterTypeInitPhase_lift(phase),
+                     result: try FfiConverterTypeInitResult_lift(result),
+                     error: try FfiConverterOptionTypeInitPhaseError.lift(error)
+                )
+            }
+
+            
+            let writeReturn = { () }
+            uniffiTraitInterfaceCall(
+                callStatus: uniffiCallStatus,
+                makeCall: makeCall,
+                writeReturn: writeReturn
+            )
+        },
+        uniffiFree: { (uniffiHandle: UInt64) -> () in
+            let result = try? FfiConverterCallbackInterfaceInitProgressListener.handleMap.remove(handle: uniffiHandle)
+            if result == nil {
+                print("Uniffi callback interface InitProgressListener: handle missing in uniffiFree")
+            }
+        }
+    )]
+}
+
+private func uniffiCallbackInitInitProgressListener() {
+    uniffi_visio_ffi_fn_init_callback_vtable_initprogresslistener(UniffiCallbackInterfaceInitProgressListener.vtable)
+}
+
+// FfiConverter protocol for callback interfaces
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+fileprivate struct FfiConverterCallbackInterfaceInitProgressListener {
+    fileprivate static let handleMap = UniffiHandleMap<InitProgressListener>()
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+extension FfiConverterCallbackInterfaceInitProgressListener : FfiConverter {
+    typealias SwiftType = InitProgressListener
+    typealias FfiType = UInt64
+
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    public static func lift(_ handle: UInt64) throws -> SwiftType {
+        try handleMap.get(handle: handle)
+    }
+
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
+        let handle: UInt64 = try readInt(&buf)
+        return try lift(handle)
+    }
+
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    public static func lower(_ v: SwiftType) -> UInt64 {
+        return handleMap.insert(obj: v)
+    }
+
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    public static func write(_ v: SwiftType, into buf: inout [UInt8]) {
+        writeInt(&buf, lower(v))
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterCallbackInterfaceInitProgressListener_lift(_ handle: UInt64) throws -> InitProgressListener {
+    return try FfiConverterCallbackInterfaceInitProgressListener.lift(handle)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterCallbackInterfaceInitProgressListener_lower(_ v: InitProgressListener) -> UInt64 {
+    return FfiConverterCallbackInterfaceInitProgressListener.lower(v)
+}
+
+
+
+
 public protocol VisioEventListener: AnyObject, Sendable {
     
     func onEvent(event: VisioEvent) 
@@ -3938,6 +4336,30 @@ fileprivate struct FfiConverterOptionString: FfiConverterRustBuffer {
         switch try readInt(&buf) as Int8 {
         case 0: return nil
         case 1: return try FfiConverterString.read(from: &buf)
+        default: throw UniffiInternalError.unexpectedOptionalTag
+        }
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+fileprivate struct FfiConverterOptionTypeInitPhaseError: FfiConverterRustBuffer {
+    typealias SwiftType = InitPhaseError?
+
+    public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
+        guard let value = value else {
+            writeInt(&buf, Int8(0))
+            return
+        }
+        writeInt(&buf, Int8(1))
+        FfiConverterTypeInitPhaseError.write(value, into: &buf)
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
+        switch try readInt(&buf) as Int8 {
+        case 0: return nil
+        case 1: return try FfiConverterTypeInitPhaseError.read(from: &buf)
         default: throw UniffiInternalError.unexpectedOptionalTag
         }
     }
@@ -4350,6 +4772,9 @@ private let initializationResult: InitializationResult = {
     if (uniffi_visio_ffi_checksum_method_visioclient_participants() != 38029) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_visio_ffi_checksum_method_visioclient_prepare_connection() != 57671) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_visio_ffi_checksum_method_visioclient_raise_hand() != 37998) {
         return InitializationResult.apiChecksumMismatch
     }
@@ -4467,10 +4892,20 @@ private let initializationResult: InitializationResult = {
     if (uniffi_visio_ffi_checksum_constructor_visioclient_new() != 10250) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_visio_ffi_checksum_constructor_visioclient_new_with_listener() != 13576) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_visio_ffi_checksum_method_initprogresslistener_on_phase_started() != 7544) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_visio_ffi_checksum_method_initprogresslistener_on_phase_completed() != 31707) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_visio_ffi_checksum_method_visioeventlistener_on_event() != 7818) {
         return InitializationResult.apiChecksumMismatch
     }
 
+    uniffiCallbackInitInitProgressListener()
     uniffiCallbackInitVisioEventListener()
     return InitializationResult.ok
 }()

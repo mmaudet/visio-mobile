@@ -768,6 +768,98 @@ impl From<visio_core::VisioError> for VisioError {
     }
 }
 
+// ── Init progress types ──────────────────────────────────────────────
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum InitPhase {
+    Settings,
+    Auth,
+    Services,
+    Ready,
+}
+
+impl From<visio_core::InitPhase> for InitPhase {
+    fn from(p: visio_core::InitPhase) -> Self {
+        match p {
+            visio_core::InitPhase::Settings => Self::Settings,
+            visio_core::InitPhase::Auth => Self::Auth,
+            visio_core::InitPhase::Services => Self::Services,
+            visio_core::InitPhase::Ready => Self::Ready,
+        }
+    }
+}
+
+impl From<InitPhase> for visio_core::InitPhase {
+    fn from(p: InitPhase) -> Self {
+        match p {
+            InitPhase::Settings => Self::Settings,
+            InitPhase::Auth => Self::Auth,
+            InitPhase::Services => Self::Services,
+            InitPhase::Ready => Self::Ready,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum InitResult {
+    Success,
+    PartialFailure,
+}
+
+impl From<visio_core::InitResult> for InitResult {
+    fn from(r: visio_core::InitResult) -> Self {
+        match r {
+            visio_core::InitResult::Success => Self::Success,
+            visio_core::InitResult::PartialFailure => Self::PartialFailure,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct InitPhaseError {
+    pub phase: InitPhase,
+    pub error_message: String,
+}
+
+impl From<visio_core::InitPhaseError> for InitPhaseError {
+    fn from(e: visio_core::InitPhaseError) -> Self {
+        Self {
+            phase: e.phase.into(),
+            error_message: e.error_message,
+        }
+    }
+}
+
+pub trait InitProgressListener: Send + Sync {
+    fn on_phase_started(&self, phase: InitPhase);
+    fn on_phase_completed(
+        &self,
+        phase: InitPhase,
+        result: InitResult,
+        error: Option<InitPhaseError>,
+    );
+}
+
+/// Bridge: wraps an FFI `InitProgressListener` into a core `InitProgressListener`.
+struct BridgeInitListener {
+    ffi_listener: Box<dyn InitProgressListener>,
+}
+
+impl visio_core::InitProgressListener for BridgeInitListener {
+    fn on_phase_started(&self, phase: visio_core::InitPhase) {
+        self.ffi_listener.on_phase_started(phase.into());
+    }
+    fn on_phase_completed(
+        &self,
+        phase: visio_core::InitPhase,
+        result: visio_core::InitResult,
+        error: Option<visio_core::InitPhaseError>,
+    ) {
+        self.ffi_listener
+            .on_phase_completed(phase.into(), result.into(), error.map(|e| e.into()));
+    }
+}
+
 // ── Callback interface ────────────────────────────────────────────────
 
 pub trait VisioEventListener: Send + Sync {
@@ -950,6 +1042,84 @@ impl VisioClient {
         }
 
         visio_log("VISIO FFI: VisioClient::new() completed");
+        Self {
+            room_manager,
+            controls,
+            chat,
+            settings,
+            session_manager,
+            calendar,
+            rt,
+        }
+    }
+
+    /// Alternative constructor with phased initialization progress callbacks.
+    ///
+    /// Runs the same initialization as `new()` but reports progress via the
+    /// supplied `InitProgressListener` at each phase boundary.
+    pub fn new_with_listener(data_dir: String, listener: Box<dyn InitProgressListener>) -> Self {
+        visio_log("VISIO FFI: VisioClient::new_with_listener() called");
+        let rt = tokio::runtime::Runtime::new().expect("failed to create tokio runtime");
+        visio_log("VISIO FFI: tokio runtime created successfully");
+
+        let bridge_listener = BridgeInitListener {
+            ffi_listener: listener,
+        };
+        let init = visio_core::InitSequence::new(Box::new(bridge_listener));
+
+        // Phase 1: Settings
+        let settings = init.init_settings(&data_dir).expect("settings init failed");
+
+        // Phase 2: Auth (placeholder — reports success)
+        rt.block_on(init.init_auth());
+
+        let room_manager = visio_core::RoomManager::new();
+
+        // Store playout buffer for Android JNI audio pull
+        #[cfg(target_os = "android")]
+        {
+            let buf = room_manager.playout_buffer();
+            *PLAYOUT_BUFFER.lock().unwrap() = Some(buf);
+            visio_log("VISIO FFI: playout buffer stored for Android audio output");
+        }
+
+        // Store playout buffer for iOS C FFI audio pull
+        #[cfg(target_os = "ios")]
+        {
+            let buf = room_manager.playout_buffer();
+            *PLAYOUT_BUFFER_IOS.lock().unwrap() = Some(buf);
+            visio_log("VISIO FFI: playout buffer stored for iOS audio output");
+        }
+
+        let controls = room_manager.controls();
+        let chat = room_manager.chat();
+
+        let session_manager = Arc::new(StdMutex::new(visio_core::SessionManager::new()));
+
+        let calendar = Arc::new(visio_core::CalendarService::new(
+            settings.clone(),
+            room_manager.emitter(),
+            data_dir.clone(),
+        ));
+
+        // Phase 3: Services (calendar auto-refresh)
+        rt.block_on(init.init_services());
+
+        if settings.get_calendar_url().is_some() {
+            let cal = calendar.clone();
+            rt.spawn(async move {
+                cal.refresh().await;
+            });
+            let cal = calendar.clone();
+            rt.spawn(async move {
+                let _ = cal.start_periodic_refresh().await;
+            });
+        }
+
+        // Phase 4: Ready
+        init.ready();
+
+        visio_log("VISIO FFI: VisioClient::new_with_listener() completed");
         Self {
             room_manager,
             controls,

@@ -654,8 +654,33 @@ internal open class UniffiForeignFutureStructVoid(
 internal interface UniffiForeignFutureCompleteVoid : com.sun.jna.Callback {
     fun callback(`callbackData`: Long,`result`: UniffiForeignFutureStructVoid.UniffiByValue,)
 }
+internal interface UniffiCallbackInterfaceInitProgressListenerMethod0 : com.sun.jna.Callback {
+    fun callback(`uniffiHandle`: Long,`phase`: RustBuffer.ByValue,`uniffiOutReturn`: Pointer,uniffiCallStatus: UniffiRustCallStatus,)
+}
+internal interface UniffiCallbackInterfaceInitProgressListenerMethod1 : com.sun.jna.Callback {
+    fun callback(`uniffiHandle`: Long,`phase`: RustBuffer.ByValue,`result`: RustBuffer.ByValue,`error`: RustBuffer.ByValue,`uniffiOutReturn`: Pointer,uniffiCallStatus: UniffiRustCallStatus,)
+}
 internal interface UniffiCallbackInterfaceVisioEventListenerMethod0 : com.sun.jna.Callback {
     fun callback(`uniffiHandle`: Long,`event`: RustBuffer.ByValue,`uniffiOutReturn`: Pointer,uniffiCallStatus: UniffiRustCallStatus,)
+}
+@Structure.FieldOrder("onPhaseStarted", "onPhaseCompleted", "uniffiFree")
+internal open class UniffiVTableCallbackInterfaceInitProgressListener(
+    @JvmField internal var `onPhaseStarted`: UniffiCallbackInterfaceInitProgressListenerMethod0? = null,
+    @JvmField internal var `onPhaseCompleted`: UniffiCallbackInterfaceInitProgressListenerMethod1? = null,
+    @JvmField internal var `uniffiFree`: UniffiCallbackInterfaceFree? = null,
+) : Structure() {
+    class UniffiByValue(
+        `onPhaseStarted`: UniffiCallbackInterfaceInitProgressListenerMethod0? = null,
+        `onPhaseCompleted`: UniffiCallbackInterfaceInitProgressListenerMethod1? = null,
+        `uniffiFree`: UniffiCallbackInterfaceFree? = null,
+    ): UniffiVTableCallbackInterfaceInitProgressListener(`onPhaseStarted`,`onPhaseCompleted`,`uniffiFree`,), Structure.ByValue
+
+   internal fun uniffiSetValue(other: UniffiVTableCallbackInterfaceInitProgressListener) {
+        `onPhaseStarted` = other.`onPhaseStarted`
+        `onPhaseCompleted` = other.`onPhaseCompleted`
+        `uniffiFree` = other.`uniffiFree`
+    }
+
 }
 @Structure.FieldOrder("onEvent", "uniffiFree")
 internal open class UniffiVTableCallbackInterfaceVisioEventListener(
@@ -673,6 +698,13 @@ internal open class UniffiVTableCallbackInterfaceVisioEventListener(
     }
 
 }
+
+
+
+
+
+
+
 
 
 
@@ -1004,6 +1036,8 @@ fun uniffi_visio_ffi_checksum_method_visioclient_mute_everyone(
 ): Short
 fun uniffi_visio_ffi_checksum_method_visioclient_participants(
 ): Short
+fun uniffi_visio_ffi_checksum_method_visioclient_prepare_connection(
+): Short
 fun uniffi_visio_ffi_checksum_method_visioclient_raise_hand(
 ): Short
 fun uniffi_visio_ffi_checksum_method_visioclient_reconnect(
@@ -1082,6 +1116,12 @@ fun uniffi_visio_ffi_checksum_method_visioclient_validate_session(
 ): Short
 fun uniffi_visio_ffi_checksum_constructor_visioclient_new(
 ): Short
+fun uniffi_visio_ffi_checksum_constructor_visioclient_new_with_listener(
+): Short
+fun uniffi_visio_ffi_checksum_method_initprogresslistener_on_phase_started(
+): Short
+fun uniffi_visio_ffi_checksum_method_initprogresslistener_on_phase_completed(
+): Short
 fun uniffi_visio_ffi_checksum_method_visioeventlistener_on_event(
 ): Short
 fun ffi_visio_ffi_uniffi_contract_version(
@@ -1122,6 +1162,7 @@ internal interface UniffiLib : Library {
             val lib = loadIndirect<UniffiLib>(componentName)
             // No need to check the contract version and checksums, since 
             // we already did that with `IntegrityCheckingUniffiLib` above.
+            uniffiCallbackInterfaceInitProgressListener.register(lib)
             uniffiCallbackInterfaceVisioEventListener.register(lib)
             // Loading of library with integrity check done.
             lib
@@ -1139,6 +1180,8 @@ internal interface UniffiLib : Library {
 fun uniffi_visio_ffi_fn_free_visioclient(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
 ): Unit
 fun uniffi_visio_ffi_fn_constructor_visioclient_new(`dataDir`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+): Pointer
+fun uniffi_visio_ffi_fn_constructor_visioclient_new_with_listener(`dataDir`: RustBuffer.ByValue,`listener`: Long,uniffi_out_err: UniffiRustCallStatus, 
 ): Pointer
 fun uniffi_visio_ffi_fn_method_visioclient_active_speakers(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
 ): RustBuffer.ByValue
@@ -1224,6 +1267,8 @@ fun uniffi_visio_ffi_fn_method_visioclient_mute_everyone(`ptr`: Pointer,uniffi_o
 ): Unit
 fun uniffi_visio_ffi_fn_method_visioclient_participants(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
 ): RustBuffer.ByValue
+fun uniffi_visio_ffi_fn_method_visioclient_prepare_connection(`ptr`: Pointer,`livekitUrl`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+): Unit
 fun uniffi_visio_ffi_fn_method_visioclient_raise_hand(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
 ): Unit
 fun uniffi_visio_ffi_fn_method_visioclient_reconnect(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
@@ -1300,6 +1345,8 @@ fun uniffi_visio_ffi_fn_method_visioclient_validate_room_display_name(`ptr`: Poi
 ): RustBuffer.ByValue
 fun uniffi_visio_ffi_fn_method_visioclient_validate_session(`ptr`: Pointer,`meetUrl`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
 ): Byte
+fun uniffi_visio_ffi_fn_init_callback_vtable_initprogresslistener(`vtable`: UniffiVTableCallbackInterfaceInitProgressListener,
+): Unit
 fun uniffi_visio_ffi_fn_init_callback_vtable_visioeventlistener(`vtable`: UniffiVTableCallbackInterfaceVisioEventListener,
 ): Unit
 fun uniffi_visio_ffi_fn_func_init_logging(uniffi_out_err: UniffiRustCallStatus, 
@@ -1564,6 +1611,9 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if (lib.uniffi_visio_ffi_checksum_method_visioclient_participants() != 38029.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
+    if (lib.uniffi_visio_ffi_checksum_method_visioclient_prepare_connection() != 57671.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
     if (lib.uniffi_visio_ffi_checksum_method_visioclient_raise_hand() != 37998.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
@@ -1679,6 +1729,15 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_visio_ffi_checksum_constructor_visioclient_new() != 10250.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_visio_ffi_checksum_constructor_visioclient_new_with_listener() != 13576.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_visio_ffi_checksum_method_initprogresslistener_on_phase_started() != 7544.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_visio_ffi_checksum_method_initprogresslistener_on_phase_completed() != 31707.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_visio_ffi_checksum_method_visioeventlistener_on_event() != 7818.toShort()) {
@@ -2214,6 +2273,8 @@ public interface VisioClientInterface {
     fun `muteEveryone`()
     
     fun `participants`(): List<ParticipantInfo>
+    
+    fun `prepareConnection`(`livekitUrl`: kotlin.String)
     
     fun `raiseHand`()
     
@@ -2887,6 +2948,18 @@ open class VisioClient: Disposable, AutoCloseable, VisioClientInterface
     
 
     
+    @Throws(VisioException::class)override fun `prepareConnection`(`livekitUrl`: kotlin.String)
+        = 
+    callWithPointer {
+    uniffiRustCallWithError(VisioException) { _status ->
+    UniffiLib.INSTANCE.uniffi_visio_ffi_fn_method_visioclient_prepare_connection(
+        it, FfiConverterString.lower(`livekitUrl`),_status)
+}
+    }
+    
+    
+
+    
     @Throws(VisioException::class)override fun `raiseHand`()
         = 
     callWithPointer {
@@ -3323,8 +3396,19 @@ open class VisioClient: Disposable, AutoCloseable, VisioClientInterface
     
 
     
+    companion object {
+         fun `newWithListener`(`dataDir`: kotlin.String, `listener`: InitProgressListener): VisioClient {
+            return FfiConverterTypeVisioClient.lift(
+    uniffiRustCall() { _status ->
+    UniffiLib.INSTANCE.uniffi_visio_ffi_fn_constructor_visioclient_new_with_listener(
+        FfiConverterString.lower(`dataDir`),FfiConverterTypeInitProgressListener.lower(`listener`),_status)
+}
+    )
+    }
     
-    companion object
+
+        
+    }
     
 }
 
@@ -3445,6 +3529,38 @@ public object FfiConverterTypeCreateRoomResult: FfiConverterRustBuffer<CreateRoo
             FfiConverterString.write(value.`accessLevel`, buf)
             FfiConverterString.write(value.`livekitUrl`, buf)
             FfiConverterString.write(value.`livekitToken`, buf)
+    }
+}
+
+
+
+data class InitPhaseError (
+    var `phase`: InitPhase, 
+    var `errorMessage`: kotlin.String
+) {
+    
+    companion object
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterTypeInitPhaseError: FfiConverterRustBuffer<InitPhaseError> {
+    override fun read(buf: ByteBuffer): InitPhaseError {
+        return InitPhaseError(
+            FfiConverterTypeInitPhase.read(buf),
+            FfiConverterString.read(buf),
+        )
+    }
+
+    override fun allocationSize(value: InitPhaseError) = (
+            FfiConverterTypeInitPhase.allocationSize(value.`phase`) +
+            FfiConverterString.allocationSize(value.`errorMessage`)
+    )
+
+    override fun write(value: InitPhaseError, buf: ByteBuffer) {
+            FfiConverterTypeInitPhase.write(value.`phase`, buf)
+            FfiConverterString.write(value.`errorMessage`, buf)
     }
 }
 
@@ -4116,6 +4232,68 @@ public object FfiConverterTypeConnectionState : FfiConverterRustBuffer<Connectio
 
 
 
+enum class InitPhase {
+    
+    SETTINGS,
+    AUTH,
+    SERVICES,
+    READY;
+    companion object
+}
+
+
+/**
+ * @suppress
+ */
+public object FfiConverterTypeInitPhase: FfiConverterRustBuffer<InitPhase> {
+    override fun read(buf: ByteBuffer) = try {
+        InitPhase.values()[buf.getInt() - 1]
+    } catch (e: IndexOutOfBoundsException) {
+        throw RuntimeException("invalid enum value, something is very wrong!!", e)
+    }
+
+    override fun allocationSize(value: InitPhase) = 4UL
+
+    override fun write(value: InitPhase, buf: ByteBuffer) {
+        buf.putInt(value.ordinal + 1)
+    }
+}
+
+
+
+
+
+
+enum class InitResult {
+    
+    SUCCESS,
+    PARTIAL_FAILURE;
+    companion object
+}
+
+
+/**
+ * @suppress
+ */
+public object FfiConverterTypeInitResult: FfiConverterRustBuffer<InitResult> {
+    override fun read(buf: ByteBuffer) = try {
+        InitResult.values()[buf.getInt() - 1]
+    } catch (e: IndexOutOfBoundsException) {
+        throw RuntimeException("invalid enum value, something is very wrong!!", e)
+    }
+
+    override fun allocationSize(value: InitResult) = 4UL
+
+    override fun write(value: InitResult, buf: ByteBuffer) {
+        buf.putInt(value.ordinal + 1)
+    }
+}
+
+
+
+
+
+
 enum class NetworkType {
     
     WIFI,
@@ -4448,6 +4626,14 @@ sealed class VisioException: kotlin.Exception() {
             get() = "msg=${ `msg` }"
     }
     
+    class NetworkUnreachable(
+        
+        val `msg`: kotlin.String
+        ) : VisioException() {
+        override val message
+            get() = "msg=${ `msg` }"
+    }
+    
 
     companion object ErrorHandler : UniffiRustCallStatusErrorHandler<VisioException> {
         override fun lift(error_buf: RustBuffer.ByValue): VisioException = FfiConverterTypeVisioError.lift(error_buf)
@@ -4483,6 +4669,9 @@ public object FfiConverterTypeVisioError : FfiConverterRustBuffer<VisioException
                 FfiConverterString.read(buf),
                 )
             7 -> VisioException.Generic(
+                FfiConverterString.read(buf),
+                )
+            8 -> VisioException.NetworkUnreachable(
                 FfiConverterString.read(buf),
                 )
             else -> throw RuntimeException("invalid error enum value, something is very wrong!!")
@@ -4526,6 +4715,11 @@ public object FfiConverterTypeVisioError : FfiConverterRustBuffer<VisioException
                 4UL
                 + FfiConverterString.allocationSize(value.`msg`)
             )
+            is VisioException.NetworkUnreachable -> (
+                // Add the size for the Int that specifies the variant plus the size needed for all fields
+                4UL
+                + FfiConverterString.allocationSize(value.`msg`)
+            )
         }
     }
 
@@ -4563,6 +4757,11 @@ public object FfiConverterTypeVisioError : FfiConverterRustBuffer<VisioException
             }
             is VisioException.Generic -> {
                 buf.putInt(7)
+                FfiConverterString.write(value.`msg`, buf)
+                Unit
+            }
+            is VisioException.NetworkUnreachable -> {
+                buf.putInt(8)
                 FfiConverterString.write(value.`msg`, buf)
                 Unit
             }
@@ -5195,6 +5394,76 @@ public object FfiConverterTypeVisioEvent : FfiConverterRustBuffer<VisioEvent>{
 
 
 
+public interface InitProgressListener {
+    
+    fun `onPhaseStarted`(`phase`: InitPhase)
+    
+    fun `onPhaseCompleted`(`phase`: InitPhase, `result`: InitResult, `error`: InitPhaseError?)
+    
+    companion object
+}
+
+
+
+// Put the implementation in an object so we don't pollute the top-level namespace
+internal object uniffiCallbackInterfaceInitProgressListener {
+    internal object `onPhaseStarted`: UniffiCallbackInterfaceInitProgressListenerMethod0 {
+        override fun callback(`uniffiHandle`: Long,`phase`: RustBuffer.ByValue,`uniffiOutReturn`: Pointer,uniffiCallStatus: UniffiRustCallStatus,) {
+            val uniffiObj = FfiConverterTypeInitProgressListener.handleMap.get(uniffiHandle)
+            val makeCall = { ->
+                uniffiObj.`onPhaseStarted`(
+                    FfiConverterTypeInitPhase.lift(`phase`),
+                )
+            }
+            val writeReturn = { _: Unit -> Unit }
+            uniffiTraitInterfaceCall(uniffiCallStatus, makeCall, writeReturn)
+        }
+    }
+    internal object `onPhaseCompleted`: UniffiCallbackInterfaceInitProgressListenerMethod1 {
+        override fun callback(`uniffiHandle`: Long,`phase`: RustBuffer.ByValue,`result`: RustBuffer.ByValue,`error`: RustBuffer.ByValue,`uniffiOutReturn`: Pointer,uniffiCallStatus: UniffiRustCallStatus,) {
+            val uniffiObj = FfiConverterTypeInitProgressListener.handleMap.get(uniffiHandle)
+            val makeCall = { ->
+                uniffiObj.`onPhaseCompleted`(
+                    FfiConverterTypeInitPhase.lift(`phase`),
+                    FfiConverterTypeInitResult.lift(`result`),
+                    FfiConverterOptionalTypeInitPhaseError.lift(`error`),
+                )
+            }
+            val writeReturn = { _: Unit -> Unit }
+            uniffiTraitInterfaceCall(uniffiCallStatus, makeCall, writeReturn)
+        }
+    }
+
+    internal object uniffiFree: UniffiCallbackInterfaceFree {
+        override fun callback(handle: Long) {
+            FfiConverterTypeInitProgressListener.handleMap.remove(handle)
+        }
+    }
+
+    internal var vtable = UniffiVTableCallbackInterfaceInitProgressListener.UniffiByValue(
+        `onPhaseStarted`,
+        `onPhaseCompleted`,
+        uniffiFree,
+    )
+
+    // Registers the foreign callback with the Rust side.
+    // This method is generated for each callback interface.
+    internal fun register(lib: UniffiLib) {
+        lib.uniffi_visio_ffi_fn_init_callback_vtable_initprogresslistener(vtable)
+    }
+}
+
+/**
+ * The ffiConverter which transforms the Callbacks in to handles to pass to Rust.
+ *
+ * @suppress
+ */
+public object FfiConverterTypeInitProgressListener: FfiConverterCallbackInterface<InitProgressListener>()
+
+
+
+
+
 public interface VisioEventListener {
     
     fun `onEvent`(`event`: VisioEvent)
@@ -5272,6 +5541,38 @@ public object FfiConverterOptionalString: FfiConverterRustBuffer<kotlin.String?>
         } else {
             buf.put(1)
             FfiConverterString.write(value, buf)
+        }
+    }
+}
+
+
+
+
+/**
+ * @suppress
+ */
+public object FfiConverterOptionalTypeInitPhaseError: FfiConverterRustBuffer<InitPhaseError?> {
+    override fun read(buf: ByteBuffer): InitPhaseError? {
+        if (buf.get().toInt() == 0) {
+            return null
+        }
+        return FfiConverterTypeInitPhaseError.read(buf)
+    }
+
+    override fun allocationSize(value: InitPhaseError?): ULong {
+        if (value == null) {
+            return 1UL
+        } else {
+            return 1UL + FfiConverterTypeInitPhaseError.allocationSize(value)
+        }
+    }
+
+    override fun write(value: InitPhaseError?, buf: ByteBuffer) {
+        if (value == null) {
+            buf.put(0)
+        } else {
+            buf.put(1)
+            FfiConverterTypeInitPhaseError.write(value, buf)
         }
     }
 }

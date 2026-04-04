@@ -5,7 +5,6 @@ import android.media.AudioDeviceInfo
 import android.media.AudioFormat
 import android.media.AudioTrack
 import android.util.Log
-import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * Plays decoded remote audio received from the Rust playout buffer.
@@ -25,7 +24,6 @@ class AudioPlayout {
     }
 
     private val lock = Any()
-    private val isRunning = AtomicBoolean(false)
 
     @Volatile
     private var running = false
@@ -36,7 +34,6 @@ class AudioPlayout {
         synchronized(lock) {
             if (running) return
             running = true
-            isRunning.set(true)
         }
 
         val minBuf =
@@ -91,8 +88,6 @@ class AudioPlayout {
                     }
                 }
 
-                track.stop()
-                track.release()
                 Log.i(TAG, "Audio playout stopped")
             }, "AudioPlayout").also { it.start() }
     }
@@ -102,22 +97,24 @@ class AudioPlayout {
     }
 
     fun switchDevice(device: AudioDeviceInfo?) {
-        val wasRunning = isRunning.get()
-        if (wasRunning) {
-            stop()
+        val wasRunning: Boolean
+        synchronized(lock) {
+            wasRunning = running
         }
         if (wasRunning) {
+            stop()
             start(device)
         }
     }
 
     fun stop() {
         val thread: Thread?
+        val track: AudioTrack?
         synchronized(lock) {
             if (!running) return
             running = false
-            isRunning.set(false)
             thread = playThread
+            track = audioTrack
             playThread = null
             audioTrack = null
         }
@@ -127,6 +124,10 @@ class AudioPlayout {
                 Log.w(TAG, "Playout thread did not stop within 1s, interrupting")
                 it.interrupt()
             }
+        }
+        track?.let {
+            it.stop()
+            it.release()
         }
     }
 }

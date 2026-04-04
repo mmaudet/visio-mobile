@@ -251,11 +251,34 @@ typedef void (*UniffiForeignFutureCompleteVoid)(uint64_t, UniffiForeignFutureStr
     );
 
 #endif
+#ifndef UNIFFI_FFIDEF_CALLBACK_INTERFACE_INIT_PROGRESS_LISTENER_METHOD0
+#define UNIFFI_FFIDEF_CALLBACK_INTERFACE_INIT_PROGRESS_LISTENER_METHOD0
+typedef void (*UniffiCallbackInterfaceInitProgressListenerMethod0)(uint64_t, RustBuffer, void* _Nonnull, 
+        RustCallStatus *_Nonnull uniffiCallStatus
+    );
+
+#endif
+#ifndef UNIFFI_FFIDEF_CALLBACK_INTERFACE_INIT_PROGRESS_LISTENER_METHOD1
+#define UNIFFI_FFIDEF_CALLBACK_INTERFACE_INIT_PROGRESS_LISTENER_METHOD1
+typedef void (*UniffiCallbackInterfaceInitProgressListenerMethod1)(uint64_t, RustBuffer, RustBuffer, RustBuffer, void* _Nonnull, 
+        RustCallStatus *_Nonnull uniffiCallStatus
+    );
+
+#endif
 #ifndef UNIFFI_FFIDEF_CALLBACK_INTERFACE_VISIO_EVENT_LISTENER_METHOD0
 #define UNIFFI_FFIDEF_CALLBACK_INTERFACE_VISIO_EVENT_LISTENER_METHOD0
 typedef void (*UniffiCallbackInterfaceVisioEventListenerMethod0)(uint64_t, RustBuffer, void* _Nonnull, 
         RustCallStatus *_Nonnull uniffiCallStatus
     );
+
+#endif
+#ifndef UNIFFI_FFIDEF_V_TABLE_CALLBACK_INTERFACE_INIT_PROGRESS_LISTENER
+#define UNIFFI_FFIDEF_V_TABLE_CALLBACK_INTERFACE_INIT_PROGRESS_LISTENER
+typedef struct UniffiVTableCallbackInterfaceInitProgressListener {
+    UniffiCallbackInterfaceInitProgressListenerMethod0 _Nonnull onPhaseStarted;
+    UniffiCallbackInterfaceInitProgressListenerMethod1 _Nonnull onPhaseCompleted;
+    UniffiCallbackInterfaceFree _Nonnull uniffiFree;
+} UniffiVTableCallbackInterfaceInitProgressListener;
 
 #endif
 #ifndef UNIFFI_FFIDEF_V_TABLE_CALLBACK_INTERFACE_VISIO_EVENT_LISTENER
@@ -279,6 +302,11 @@ void uniffi_visio_ffi_fn_free_visioclient(void*_Nonnull ptr, RustCallStatus *_No
 #ifndef UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_FN_CONSTRUCTOR_VISIOCLIENT_NEW
 #define UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_FN_CONSTRUCTOR_VISIOCLIENT_NEW
 void*_Nonnull uniffi_visio_ffi_fn_constructor_visioclient_new(RustBuffer data_dir, RustCallStatus *_Nonnull out_status
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_FN_CONSTRUCTOR_VISIOCLIENT_NEW_WITH_LISTENER
+#define UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_FN_CONSTRUCTOR_VISIOCLIENT_NEW_WITH_LISTENER
+void*_Nonnull uniffi_visio_ffi_fn_constructor_visioclient_new_with_listener(RustBuffer data_dir, uint64_t listener, RustCallStatus *_Nonnull out_status
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_FN_METHOD_VISIOCLIENT_ACTIVE_SPEAKERS
@@ -491,6 +519,11 @@ void uniffi_visio_ffi_fn_method_visioclient_mute_everyone(void*_Nonnull ptr, Rus
 RustBuffer uniffi_visio_ffi_fn_method_visioclient_participants(void*_Nonnull ptr, RustCallStatus *_Nonnull out_status
 );
 #endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_FN_METHOD_VISIOCLIENT_PREPARE_CONNECTION
+#define UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_FN_METHOD_VISIOCLIENT_PREPARE_CONNECTION
+void uniffi_visio_ffi_fn_method_visioclient_prepare_connection(void*_Nonnull ptr, RustBuffer livekit_url, RustCallStatus *_Nonnull out_status
+);
+#endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_FN_METHOD_VISIOCLIENT_RAISE_HAND
 #define UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_FN_METHOD_VISIOCLIENT_RAISE_HAND
 void uniffi_visio_ffi_fn_method_visioclient_raise_hand(void*_Nonnull ptr, RustCallStatus *_Nonnull out_status
@@ -679,6 +712,11 @@ RustBuffer uniffi_visio_ffi_fn_method_visioclient_validate_room_display_name(voi
 #ifndef UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_FN_METHOD_VISIOCLIENT_VALIDATE_SESSION
 #define UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_FN_METHOD_VISIOCLIENT_VALIDATE_SESSION
 int8_t uniffi_visio_ffi_fn_method_visioclient_validate_session(void*_Nonnull ptr, RustBuffer meet_url, RustCallStatus *_Nonnull out_status
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_FN_INIT_CALLBACK_VTABLE_INITPROGRESSLISTENER
+#define UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_FN_INIT_CALLBACK_VTABLE_INITPROGRESSLISTENER
+void uniffi_visio_ffi_fn_init_callback_vtable_initprogresslistener(const UniffiVTableCallbackInterfaceInitProgressListener* _Nonnull vtable
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_FN_INIT_CALLBACK_VTABLE_VISIOEVENTLISTENER
@@ -1242,6 +1280,12 @@ uint16_t uniffi_visio_ffi_checksum_method_visioclient_participants(void
     
 );
 #endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_CHECKSUM_METHOD_VISIOCLIENT_PREPARE_CONNECTION
+#define UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_CHECKSUM_METHOD_VISIOCLIENT_PREPARE_CONNECTION
+uint16_t uniffi_visio_ffi_checksum_method_visioclient_prepare_connection(void
+    
+);
+#endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_CHECKSUM_METHOD_VISIOCLIENT_RAISE_HAND
 #define UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_CHECKSUM_METHOD_VISIOCLIENT_RAISE_HAND
 uint16_t uniffi_visio_ffi_checksum_method_visioclient_raise_hand(void
@@ -1473,6 +1517,24 @@ uint16_t uniffi_visio_ffi_checksum_method_visioclient_validate_session(void
 #ifndef UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_CHECKSUM_CONSTRUCTOR_VISIOCLIENT_NEW
 #define UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_CHECKSUM_CONSTRUCTOR_VISIOCLIENT_NEW
 uint16_t uniffi_visio_ffi_checksum_constructor_visioclient_new(void
+    
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_CHECKSUM_CONSTRUCTOR_VISIOCLIENT_NEW_WITH_LISTENER
+#define UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_CHECKSUM_CONSTRUCTOR_VISIOCLIENT_NEW_WITH_LISTENER
+uint16_t uniffi_visio_ffi_checksum_constructor_visioclient_new_with_listener(void
+    
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_CHECKSUM_METHOD_INITPROGRESSLISTENER_ON_PHASE_STARTED
+#define UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_CHECKSUM_METHOD_INITPROGRESSLISTENER_ON_PHASE_STARTED
+uint16_t uniffi_visio_ffi_checksum_method_initprogresslistener_on_phase_started(void
+    
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_CHECKSUM_METHOD_INITPROGRESSLISTENER_ON_PHASE_COMPLETED
+#define UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_CHECKSUM_METHOD_INITPROGRESSLISTENER_ON_PHASE_COMPLETED
+uint16_t uniffi_visio_ffi_checksum_method_initprogresslistener_on_phase_completed(void
     
 );
 #endif

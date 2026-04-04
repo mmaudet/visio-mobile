@@ -35,8 +35,8 @@ pub use events::{
     ChatMessage, ConnectionQuality, ConnectionState, EventEmitter, InitPhase, InitPhaseError,
     InitResult, ParticipantInfo, TrackInfo, TrackKind, TrackSource, VisioEvent, VisioEventListener,
 };
-pub use init::{InitProgressListener, InitSequence, NoOpListener};
 pub use hand_raise::HandRaiseManager;
+pub use init::{InitProgressListener, InitSequence, NoOpListener};
 pub use lobby::{LobbyPollResult, LobbyService, LobbyStatus, WaitingParticipant};
 pub use participants::ParticipantManager;
 pub use room::RoomManager;
