@@ -49,6 +49,11 @@ enum NetworkType {
     "Unknown",
 };
 
+enum LayoutMode {
+    "Grid",
+    "Speaker",
+};
+
 enum CalendarRefreshInterval {
     "Minutes5",
     "Minutes15",
@@ -139,6 +144,10 @@ interface VisioEvent {
     MeetingStartingSoon(Meeting meeting);
     MeetingStarted(Meeting meeting);
     CalendarError(string message);
+    ParticipantOrderChanged(sequence<string> participant_sids);
+    PageChanged(u32 page, u32 total);
+    MainParticipantChanged(string participant_sid);
+    LayoutModeChanged(boolean is_speaker);
 };
 
 [Error]
@@ -434,4 +443,15 @@ interface VisioClient {
     sequence<Meeting> get_upcoming_meetings();
 
     void refresh_calendar_now();
+
+    void set_layout_mode(LayoutMode mode);
+    LayoutMode get_layout_mode();
+    void set_page_size(u32 size);
+    void set_current_page(u32 page);
+    u32 page_count();
+    sequence<string> visible_participants_layout();
+    sequence<string> precached_participants();
+    void pin_participant(string? sid);
+    string? main_participant();
+    sequence<string> thumbnail_participants();
 };

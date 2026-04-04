@@ -242,6 +242,12 @@ pub enum NetworkType {
     Unknown,
 }
 
+#[derive(Debug, Clone)]
+pub enum LayoutMode {
+    Grid,
+    Speaker,
+}
+
 impl From<NetworkType> for CoreNetworkType {
     fn from(n: NetworkType) -> Self {
         match n {
@@ -627,6 +633,19 @@ pub enum VisioEvent {
     CalendarError {
         message: String,
     },
+    ParticipantOrderChanged {
+        participant_sids: Vec<String>,
+    },
+    PageChanged {
+        page: u32,
+        total: u32,
+    },
+    MainParticipantChanged {
+        participant_sid: String,
+    },
+    LayoutModeChanged {
+        is_speaker: bool,
+    },
 }
 
 impl From<CoreVisioEvent> for VisioEvent {
@@ -718,6 +737,14 @@ impl From<CoreVisioEvent> for VisioEvent {
                 meeting: meeting.into(),
             },
             CoreVisioEvent::CalendarError(message) => Self::CalendarError { message },
+            CoreVisioEvent::ParticipantOrderChanged(sids) => Self::ParticipantOrderChanged {
+                participant_sids: sids,
+            },
+            CoreVisioEvent::PageChanged { page, total } => Self::PageChanged { page, total },
+            CoreVisioEvent::MainParticipantChanged(sid) => Self::MainParticipantChanged {
+                participant_sid: sid,
+            },
+            CoreVisioEvent::LayoutModeChanged(is_speaker) => Self::LayoutModeChanged { is_speaker },
         }
     }
 }
@@ -1938,6 +1965,56 @@ impl VisioClient {
         self.rt.spawn(async move {
             calendar.refresh().await;
         });
+    }
+
+    // ── Layout engine ───────────────────────────────────────────────
+
+    pub fn set_layout_mode(&self, mode: LayoutMode) {
+        let core_mode = match mode {
+            LayoutMode::Grid => visio_core::layout::LayoutMode::Grid,
+            LayoutMode::Speaker => visio_core::layout::LayoutMode::Speaker,
+        };
+        self.room_manager.set_layout_mode(core_mode);
+    }
+
+    pub fn get_layout_mode(&self) -> LayoutMode {
+        if self.room_manager.is_speaker_mode() {
+            LayoutMode::Speaker
+        } else {
+            LayoutMode::Grid
+        }
+    }
+
+    pub fn set_page_size(&self, size: u32) {
+        self.room_manager.set_page_size(size as usize);
+    }
+
+    pub fn set_current_page(&self, page: u32) {
+        self.room_manager.set_current_page(page as usize);
+    }
+
+    pub fn page_count(&self) -> u32 {
+        self.room_manager.page_count() as u32
+    }
+
+    pub fn visible_participants_layout(&self) -> Vec<String> {
+        self.room_manager.visible_participants_layout()
+    }
+
+    pub fn precached_participants(&self) -> Vec<String> {
+        self.room_manager.precached_participants()
+    }
+
+    pub fn pin_participant(&self, sid: Option<String>) {
+        self.room_manager.pin_participant(sid);
+    }
+
+    pub fn main_participant(&self) -> Option<String> {
+        self.room_manager.main_participant()
+    }
+
+    pub fn thumbnail_participants(&self) -> Vec<String> {
+        self.room_manager.thumbnail_participants()
     }
 }
 

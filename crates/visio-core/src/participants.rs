@@ -52,6 +52,10 @@ impl ParticipantManager {
     }
 
     /// Get participants sorted: hand raised first, then alphabetical (case-insensitive).
+    ///
+    /// **Deprecated:** Use `layout::sort_participants()` for voice-activity sorting.
+    /// This method is kept for the `participants()` UniFFI API which returns a
+    /// simple alphabetical list. The LayoutEngine provides the canonical sort.
     pub fn sorted_participants(&self) -> Vec<ParticipantInfo> {
         let mut sorted = self.participants.clone();
         sorted.sort_by(|a, b| {
@@ -72,6 +76,16 @@ impl ParticipantManager {
 
     pub fn set_active_speakers(&mut self, sids: Vec<String>) {
         self.active_speakers = sids;
+    }
+
+    /// Update `last_spoke_at` for participants currently speaking.
+    pub fn update_speakers(&mut self, speaker_sids: &[String]) {
+        let now = std::time::Instant::now();
+        for p in &mut self.participants {
+            if speaker_sids.contains(&p.sid) {
+                p.last_spoke_at = Some(now);
+            }
+        }
     }
 
     pub fn active_speakers(&self) -> &[String] {
@@ -137,6 +151,9 @@ mod tests {
             connection_quality: ConnectionQuality::Good,
             color: None,
             is_admin: false,
+            last_spoke_at: None,
+            joined_at: None,
+            hand_raised: false,
         }
     }
 

@@ -92,6 +92,17 @@ pub enum VisioEvent {
     MeetingStarted(Meeting),
     /// Calendar feed could not be fetched or parsed.
     CalendarError(String),
+    /// Sorted participant order changed (layout engine).
+    ParticipantOrderChanged(Vec<String>),
+    /// Pagination page changed.
+    PageChanged {
+        page: u32,
+        total: u32,
+    },
+    /// Main participant changed (speaker mode or pin).
+    MainParticipantChanged(String),
+    /// Layout mode changed: true = Speaker, false = Grid.
+    LayoutModeChanged(bool),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -118,6 +129,13 @@ pub struct ParticipantInfo {
     pub color: Option<String>,
     /// Whether the participant is a room admin (attribute "room_admin").
     pub is_admin: bool,
+    /// Timestamp of last speech activity. None if never spoke.
+    /// Internal to layout engine — not exposed via UniFFI.
+    pub last_spoke_at: Option<std::time::Instant>,
+    /// Timestamp when the participant joined the room.
+    pub joined_at: Option<std::time::Instant>,
+    /// Whether the participant has raised their hand.
+    pub hand_raised: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

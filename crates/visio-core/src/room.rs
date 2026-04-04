@@ -24,6 +24,7 @@ use crate::events::{
     TrackKind, TrackSource, VisioEvent, VisioEventListener,
 };
 use crate::hand_raise::HandRaiseManager;
+use crate::layout;
 use crate::participants::ParticipantManager;
 
 /// Cache for LiveKit tokens to speed up reconnection without re-calling the API.
@@ -88,6 +89,7 @@ async fn connect_after_lobby_acceptance(
     unread_count: Arc<AtomicU32>,
     bandwidth_ctrl: Arc<std::sync::Mutex<bandwidth::BandwidthController>>,
     high_quality_mode: Arc<AtomicBool>,
+    layout_engine: Arc<layout::LayoutEngine>,
 ) {
     *connection_state.lock().await = ConnectionState::Connecting;
     emitter.emit(VisioEvent::ConnectionStateChanged(
@@ -148,6 +150,7 @@ async fn connect_after_lobby_acceptance(
                     unread_count,
                     bandwidth_ctrl,
                     high_quality_mode,
+                    layout_engine,
                 )
                 .await;
             });
@@ -246,6 +249,8 @@ pub struct RoomManager {
     last_reaction_time: Arc<Mutex<Option<std::time::Instant>>>,
     /// Token cache for fast reconnection.
     token_cache: Arc<TokenCache>,
+    /// Layout engine: participant sorting, pagination, speaker mode.
+    layout: Arc<layout::LayoutEngine>,
 }
 
 impl Default for RoomManager {
@@ -292,8 +297,63 @@ impl RoomManager {
             high_quality_mode: Arc::new(AtomicBool::new(false)),
             last_reaction_time: Arc::new(Mutex::new(None)),
             token_cache: Arc::new(TokenCache::new()),
+            layout: Arc::new(layout::LayoutEngine::new()),
         }
     }
+
+    // ── Layout engine delegation ─────────────────────────────────────
+
+    pub fn set_layout_mode(&self, mode: layout::LayoutMode) {
+        let is_speaker = matches!(mode, layout::LayoutMode::Speaker);
+        self.layout.set_layout_mode(mode);
+        self.emitter.emit(VisioEvent::LayoutModeChanged(is_speaker));
+    }
+
+    pub fn is_speaker_mode(&self) -> bool {
+        self.layout.is_speaker_mode()
+    }
+
+    pub fn set_page_size(&self, size: usize) {
+        self.layout.set_page_size(size);
+        self.emit_page_changed();
+    }
+
+    pub fn set_current_page(&self, page: usize) {
+        self.layout.set_current_page(page);
+        self.emit_page_changed();
+    }
+
+    pub fn page_count(&self) -> usize {
+        self.layout.page_count()
+    }
+
+    pub fn visible_participants_layout(&self) -> Vec<String> {
+        self.layout.visible_participants()
+    }
+
+    pub fn precached_participants(&self) -> Vec<String> {
+        self.layout.precached_participants()
+    }
+
+    pub fn pin_participant(&self, sid: Option<String>) {
+        self.layout.pin_participant(sid);
+    }
+
+    pub fn main_participant(&self) -> Option<String> {
+        self.layout.main_participant()
+    }
+
+    pub fn thumbnail_participants(&self) -> Vec<String> {
+        self.layout.thumbnail_participants()
+    }
+
+    fn emit_page_changed(&self) {
+        let page = self.layout.current_page() as u32;
+        let total = self.layout.page_count() as u32;
+        self.emitter.emit(VisioEvent::PageChanged { page, total });
+    }
+
+    // ── End layout engine delegation ────────────────────────────────
 
     /// Enable high-quality mode: disables adaptive streaming and bandwidth
     /// degradation to always receive the highest quality video.
@@ -451,6 +511,9 @@ impl RoomManager {
             connection_quality: ConnectionQuality::Excellent,
             color: None,
             is_admin: false,
+            last_spoke_at: None,
+            joined_at: Some(std::time::Instant::now()),
+            hand_raised: false,
         })
     }
 
@@ -638,6 +701,7 @@ impl RoomManager {
         let unread_count = self.unread_count.clone();
         let bandwidth_ctrl = self.bandwidth.clone();
         let high_quality_mode = self.high_quality_mode.clone();
+        let layout_engine = self.layout.clone();
 
         tokio::spawn(async move {
             Self::event_loop(
@@ -655,6 +719,7 @@ impl RoomManager {
                 unread_count,
                 bandwidth_ctrl,
                 high_quality_mode,
+                layout_engine,
             )
             .await;
         });
@@ -975,6 +1040,7 @@ impl RoomManager {
         let unread_count = self.unread_count.clone();
         let bandwidth_ctrl = self.bandwidth.clone();
         let high_quality_mode = self.high_quality_mode.clone();
+        let layout_engine = self.layout.clone();
 
         tokio::spawn(async move {
             let lobby_deadline =
@@ -1021,6 +1087,7 @@ impl RoomManager {
                                     unread_count.clone(),
                                     bandwidth_ctrl.clone(),
                                     high_quality_mode.clone(),
+                                    layout_engine.clone(),
                                 )
                                 .await;
                                 break;
@@ -1212,6 +1279,9 @@ impl RoomManager {
             connection_quality: ConnectionQuality::Good,
             color,
             is_admin,
+            last_spoke_at: None,
+            joined_at: Some(std::time::Instant::now()),
+            hand_raised: false,
         }
     }
 
@@ -1231,6 +1301,7 @@ impl RoomManager {
         unread_count: Arc<AtomicU32>,
         bandwidth_ctrl: Arc<std::sync::Mutex<bandwidth::BandwidthController>>,
         high_quality_mode: Arc<AtomicBool>,
+        layout_engine: Arc<layout::LayoutEngine>,
     ) {
         let mut ctx = EventLoopContext {
             emitter,
@@ -1246,6 +1317,7 @@ impl RoomManager {
             unread_count,
             bandwidth_ctrl,
             high_quality_mode,
+            layout_engine,
             reconnect_attempt: 0,
             audio_stream_tasks: HashMap::new(),
             idle_timer: None,
@@ -1464,6 +1536,7 @@ struct EventLoopContext {
     unread_count: Arc<AtomicU32>,
     bandwidth_ctrl: Arc<std::sync::Mutex<bandwidth::BandwidthController>>,
     high_quality_mode: Arc<AtomicBool>,
+    layout_engine: Arc<layout::LayoutEngine>,
     reconnect_attempt: u32,
     audio_stream_tasks: HashMap<String, tokio::task::JoinHandle<()>>,
     idle_timer: Option<tokio::task::JoinHandle<()>>,
@@ -1731,13 +1804,41 @@ impl EventLoopContext {
     }
 
     async fn handle_active_speakers_changed(&self, sids: Vec<String>) {
-        self.participants
-            .lock()
-            .await
-            .set_active_speakers(sids.clone());
+        {
+            let mut pm = self.participants.lock().await;
+            pm.set_active_speakers(sids.clone());
+            pm.update_speakers(&sids);
+        }
         if let Some(hm) = self.hand_raise.lock().await.as_ref() {
             hm.start_auto_lower(sids.clone());
         }
+
+        // Sort and update layout
+        {
+            let pm = self.participants.lock().await;
+            let mut sorted = pm.participants().to_vec();
+            layout::sort_participants(&mut sorted);
+            let sorted_sids: Vec<String> = sorted.iter().map(|p| p.sid.clone()).collect();
+
+            let previous_visible = self.layout_engine.visible_participants();
+            let previous_main = self.layout_engine.main_participant();
+
+            self.layout_engine.update_sorted_order(sorted_sids.clone());
+            self.layout_engine
+                .update_main_speaker(&sids, std::time::Instant::now());
+
+            let new_visible = self.layout_engine.visible_participants();
+            if new_visible != previous_visible {
+                self.emitter
+                    .emit(VisioEvent::ParticipantOrderChanged(sorted_sids));
+            }
+
+            let new_main = self.layout_engine.main_participant();
+            if let Some(main) = new_main.filter(|m| Some(m) != previous_main.as_ref()) {
+                self.emitter.emit(VisioEvent::MainParticipantChanged(main));
+            }
+        }
+
         self.emitter.emit(VisioEvent::ActiveSpeakersChanged(sids));
     }
 
