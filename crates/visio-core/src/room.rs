@@ -1489,6 +1489,28 @@ impl EventLoopContext {
         self.emitter.emit(VisioEvent::ConnectionStateChanged(
             ConnectionState::Connected,
         ));
+
+        // Re-sync participants: the room state may have changed during reconnection.
+        if let Some(lk_room) = self.room_ref.lock().await.as_ref() {
+            let room_participants: Vec<_> = lk_room
+                .remote_participants()
+                .values()
+                .map(|p| RoomManager::remote_participant_to_info(p))
+                .collect();
+
+            let (joined, left) = self
+                .participants
+                .lock()
+                .await
+                .resync(room_participants);
+
+            for info in joined {
+                self.emitter.emit(VisioEvent::ParticipantJoined(info));
+            }
+            for sid in left {
+                self.emitter.emit(VisioEvent::ParticipantLeft(sid));
+            }
+        }
     }
 
     async fn handle_disconnected(&mut self, reason: DisconnectReason) {

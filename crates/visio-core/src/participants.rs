@@ -82,6 +82,37 @@ impl ParticipantManager {
         self.participants.len()
     }
 
+    /// Compare current participant list with the room's actual state.
+    /// Returns (joined, left) for participants that are out of sync.
+    pub fn resync(
+        &mut self,
+        room_participants: Vec<ParticipantInfo>,
+    ) -> (Vec<ParticipantInfo>, Vec<String>) {
+        let current_sids: std::collections::HashSet<_> =
+            self.participants.iter().map(|p| p.sid.clone()).collect();
+        let room_sids: std::collections::HashSet<_> =
+            room_participants.iter().map(|p| p.sid.clone()).collect();
+
+        let joined: Vec<ParticipantInfo> = room_participants
+            .into_iter()
+            .filter(|p| !current_sids.contains(&p.sid))
+            .collect();
+
+        let left: Vec<String> = current_sids
+            .into_iter()
+            .filter(|sid| !room_sids.contains(sid))
+            .collect();
+
+        for p in &joined {
+            self.add_participant(p.clone());
+        }
+        for sid in &left {
+            self.remove_participant(sid);
+        }
+
+        (joined, left)
+    }
+
     pub fn clear(&mut self) {
         self.participants.clear();
         self.active_speakers.clear();
@@ -272,6 +303,26 @@ mod tests {
         let sorted = mgr.sorted_participants();
         let names: Vec<_> = sorted.iter().map(|p| p.name.as_deref().unwrap()).collect();
         assert_eq!(names, vec!["Alice", "bob"]);
+    }
+
+    #[test]
+    fn resync_detects_joined_and_left() {
+        let mut pm = ParticipantManager::new();
+        pm.add_participant(make_participant("sid1", "Alice"));
+        pm.add_participant(make_participant("sid2", "Bob"));
+
+        // Room now has sid2 + sid3 (sid1 left, sid3 joined)
+        let p2_again = make_participant("sid2", "Bob");
+        let p3 = make_participant("sid3", "Charlie");
+
+        let (joined, left) = pm.resync(vec![p2_again, p3]);
+        assert_eq!(joined.len(), 1);
+        assert_eq!(joined[0].sid, "sid3");
+        assert_eq!(left, vec!["sid1".to_string()]);
+        assert_eq!(pm.participants().len(), 2);
+        assert!(pm.participant("sid2").is_some());
+        assert!(pm.participant("sid3").is_some());
+        assert!(pm.participant("sid1").is_none());
     }
 
     #[test]
