@@ -150,10 +150,33 @@ interface VisioError {
     InvalidUrl(string msg);
     Session(string msg);
     Generic(string msg);
+    NetworkUnreachable(string msg);
 };
 
 callback interface VisioEventListener {
     void on_event(VisioEvent event);
+};
+
+enum InitPhase {
+    "Settings",
+    "Auth",
+    "Services",
+    "Ready",
+};
+
+enum InitResult {
+    "Success",
+    "PartialFailure",
+};
+
+dictionary InitPhaseError {
+    InitPhase phase;
+    string error_message;
+};
+
+callback interface InitProgressListener {
+    void on_phase_started(InitPhase phase);
+    void on_phase_completed(InitPhase phase, InitResult result, InitPhaseError? error);
 };
 
 [Enum]
@@ -221,6 +244,9 @@ dictionary VisioAlias {
 interface VisioClient {
     constructor(string data_dir);
 
+    [Name=new_with_listener]
+    constructor(string data_dir, InitProgressListener listener);
+
     [Throws=VisioError]
     void connect(string meet_url, string? username);
 
@@ -228,6 +254,9 @@ interface VisioClient {
     void connect_with_token(string livekit_url, string token);
 
     void disconnect();
+
+    [Throws=VisioError]
+    void prepare_connection(string livekit_url);
 
     [Throws=VisioError]
     void reconnect();

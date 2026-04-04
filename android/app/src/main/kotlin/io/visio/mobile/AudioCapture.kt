@@ -165,6 +165,17 @@ class AudioCapture {
         recorder?.setPreferredDevice(device)
     }
 
+    fun switchDevice(device: AudioDeviceInfo?) {
+        val wasRunning: Boolean
+        synchronized(lock) {
+            wasRunning = running
+        }
+        if (wasRunning) {
+            stop()
+            start(device)
+        }
+    }
+
     fun stop() {
         val thread: Thread?
         val rec: AudioRecord?

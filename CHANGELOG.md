@@ -8,7 +8,23 @@ and this project adheres to
 
 ## [Unreleased]
 
+### Added
+
+- Core: `prepare_connection()` pre-check validates server
+  reachability before connecting (#193)
+- Core: phased initialization with progress callbacks (#195)
+- Core: token cache for faster reconnection (#193)
+- FFI: `newWithListener` constructor with init progress (#195)
+
 ### Fixed
+
+- Android: restart AudioTrack/AudioRecord on Bluetooth device
+  change for reliable routing mid-call (#203)
+- Android: debounce Bluetooth routing with SCO confirmation
+  to prevent premature audio switching (#203)
+- iOS: handle A2DP to HFP Bluetooth transition gap (#203)
+- Core: re-sync participants after reconnection (#193)
+- Core: reduce reconnection timeout from 60s to 20s (#193)
 
 - Security: remove sensitive data (tokens, cookies) from API logs
 - Security: add XSS sanitization to chat messages

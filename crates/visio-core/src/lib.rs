@@ -15,6 +15,7 @@ pub mod controls;
 pub mod errors;
 pub mod events;
 pub mod hand_raise;
+pub mod init;
 pub mod lobby;
 pub mod participants;
 pub mod room;
@@ -31,10 +32,11 @@ pub use chat::ChatService;
 pub use controls::MeetingControls;
 pub use errors::VisioError;
 pub use events::{
-    ChatMessage, ConnectionQuality, ConnectionState, EventEmitter, ParticipantInfo, TrackInfo,
-    TrackKind, TrackSource, VisioEvent, VisioEventListener,
+    ChatMessage, ConnectionQuality, ConnectionState, EventEmitter, InitPhase, InitPhaseError,
+    InitResult, ParticipantInfo, TrackInfo, TrackKind, TrackSource, VisioEvent, VisioEventListener,
 };
 pub use hand_raise::HandRaiseManager;
+pub use init::{InitProgressListener, InitSequence, NoOpListener};
 pub use lobby::{LobbyPollResult, LobbyService, LobbyStatus, WaitingParticipant};
 pub use participants::ParticipantManager;
 pub use room::RoomManager;

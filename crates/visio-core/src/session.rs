@@ -151,7 +151,10 @@ impl SessionManager {
     }
 
     #[cfg(not(feature = "oidc"))]
-    pub async fn exchange_oidc_code(_meet_instance: &str, _code: &str) -> Result<String, VisioError> {
+    pub async fn exchange_oidc_code(
+        _meet_instance: &str,
+        _code: &str,
+    ) -> Result<String, VisioError> {
         Err(VisioError::Auth("OIDC support is not enabled".into()))
     }
 
