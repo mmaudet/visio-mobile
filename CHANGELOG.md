@@ -23,6 +23,15 @@ and this project adheres to
   pin override, and thumbnail strip (#201)
 - FFI: LayoutEngine API exposed via UniFFI (10 new methods,
   4 new events) (#201)
+- Android: paginated video grid with HorizontalPager and
+  adaptive page size (#199)
+- Android: speaker mode with dominant speaker tile and
+  thumbnail strip (#200)
+- iOS: paginated video grid with TabView swipeable pages (#199)
+- iOS: speaker mode with main tile and thumbnail strip (#200)
+- Desktop: voice-activity sorted grid and speaker mode with
+  Tauri commands (#199, #200)
+- i18n: layout mode translation keys for all 6 locales
 
 ### Fixed
 
