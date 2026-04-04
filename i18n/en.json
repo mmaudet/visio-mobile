@@ -266,5 +266,10 @@
   "alias.conflictReplace": "Replace",
   "alias.conflictCancel": "Keep existing",
   "home.createVisio.simplifiedUrl": "Simplified URL",
-  "home.createVisio.simplifiedUrlHint": "Share this short link instead of the full URL"
+  "home.createVisio.simplifiedUrlHint": "Share this short link instead of the full URL",
+  "layout.grid": "Grid view",
+  "layout.speaker": "Speaker view",
+  "layout.page": "Page {current} of {total}",
+  "layout.switchToGrid": "Switch to grid view",
+  "layout.switchToSpeaker": "Switch to speaker view"
 }
