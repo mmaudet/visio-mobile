@@ -41,10 +41,11 @@ class ContextDetector(private val context: Context) {
     // SCO confirmation: pending BT device awaiting SCO profile connection
     private var pendingBtConnect: Boolean = false
     private val scoTimeoutMs = 3000L
-    private val scoTimeoutRunnable = Runnable {
-        Log.w(TAG, "SCO confirmation timeout — ignoring pending BT connect")
-        pendingBtConnect = false
-    }
+    private val scoTimeoutRunnable =
+        Runnable {
+            Log.w(TAG, "SCO confirmation timeout — ignoring pending BT connect")
+            pendingBtConnect = false
+        }
 
     // Rapid connect/disconnect debounce
     private val btDebounceMs = 500L
@@ -344,11 +345,12 @@ class ContextDetector(private val context: Context) {
         pendingDisconnectRunnable = null
         // Cancel previous connect
         pendingConnectRunnable?.let { mainHandler.removeCallbacks(it) }
-        val runnable = Runnable {
-            Log.i(TAG, "Debounced: routing audio to Bluetooth device")
-            VisioManager.onBluetoothAudioDeviceConnected()
-            pendingConnectRunnable = null
-        }
+        val runnable =
+            Runnable {
+                Log.i(TAG, "Debounced: routing audio to Bluetooth device")
+                VisioManager.onBluetoothAudioDeviceConnected()
+                pendingConnectRunnable = null
+            }
         pendingConnectRunnable = runnable
         mainHandler.postDelayed(runnable, btDebounceMs)
     }
@@ -362,11 +364,12 @@ class ContextDetector(private val context: Context) {
         pendingConnectRunnable = null
         // Cancel previous disconnect
         pendingDisconnectRunnable?.let { mainHandler.removeCallbacks(it) }
-        val runnable = Runnable {
-            Log.i(TAG, "Debounced: restoring default audio routing")
-            VisioManager.onBluetoothAudioDeviceDisconnected()
-            pendingDisconnectRunnable = null
-        }
+        val runnable =
+            Runnable {
+                Log.i(TAG, "Debounced: restoring default audio routing")
+                VisioManager.onBluetoothAudioDeviceDisconnected()
+                pendingDisconnectRunnable = null
+            }
         pendingDisconnectRunnable = runnable
         mainHandler.postDelayed(runnable, btDebounceMs)
     }
