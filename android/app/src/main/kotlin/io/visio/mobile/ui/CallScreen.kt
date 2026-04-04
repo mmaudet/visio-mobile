@@ -23,8 +23,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -42,6 +40,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
@@ -851,18 +851,27 @@ fun CallScreen(
             // Video grid area with reaction overlay
             val isFullscreenFocus = layoutDecision.mode == LayoutMode.FOCUS
             // Auto-default to speaker mode when > 6 participants and user hasn't chosen
-            val isSpeakerMode = when (userLayoutChoice) {
-                LayoutMode.SPEAKER -> true
-                LayoutMode.GRID -> false
-                else -> participants.size > 6
-            }
+            val isSpeakerMode =
+                when (userLayoutChoice) {
+                    LayoutMode.SPEAKER -> true
+                    LayoutMode.GRID -> false
+                    else -> participants.size > 6
+                }
             Box(
                 modifier =
                     Modifier
                         .weight(1f)
                         .fillMaxWidth()
                         .padding(if (isFullscreenFocus) 0.dp else 8.dp)
-                        .testTag("layout-mode:${if (layoutDecision.mode == LayoutMode.FOCUS) "FOCUS" else if (isSpeakerMode) "SPEAKER" else "GRID"}"),
+                        .testTag(
+                            "layout-mode:${if (layoutDecision.mode == LayoutMode.FOCUS) {
+                                "FOCUS"
+                            } else if (isSpeakerMode) {
+                                "SPEAKER"
+                            } else {
+                                "GRID"
+                            }}",
+                        ),
             ) {
                 AdaptiveModeVideoArea(
                     effectiveAdaptiveMode = effectiveAdaptiveMode,
@@ -1518,12 +1527,13 @@ private fun PaginatedGridLayout(
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
         val isLandscape = maxWidth > maxHeight
         val constrainedHeight = maxHeight
-        val columnCount = when {
-            count == 1 -> 1
-            isLandscape -> minOf(count, 3)
-            count <= 2 -> 1
-            else -> 2
-        }
+        val columnCount =
+            when {
+                count == 1 -> 1
+                isLandscape -> minOf(count, 3)
+                count <= 2 -> 1
+                else -> 2
+            }
         val maxRowCount = if (isLandscape) 2 else 3
         val pageSize = columnCount * maxRowCount
         val pageCount = maxOf(1, (count + pageSize - 1) / pageSize)
@@ -1549,18 +1559,20 @@ private fun PaginatedGridLayout(
                         val rowEnd = minOf(rowStart + columnCount, pageItems.size)
                         Row(
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(tileHeight),
+                            modifier =
+                                Modifier
+                                    .fillMaxWidth()
+                                    .height(tileHeight),
                         ) {
                             for (idx in rowStart until rowEnd) {
                                 val item = pageItems[idx]
                                 Box(
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .fillMaxHeight()
-                                        .clip(RoundedCornerShape(8.dp))
-                                        .testTag("grid-tile-${startIdx + idx}:${item.participant.sid}"),
+                                    modifier =
+                                        Modifier
+                                            .weight(1f)
+                                            .fillMaxHeight()
+                                            .clip(RoundedCornerShape(8.dp))
+                                            .testTag("grid-tile-${startIdx + idx}:${item.participant.sid}"),
                                 ) {
                                     ParticipantTile(
                                         participant = item.participant,
@@ -1579,14 +1591,15 @@ private fun PaginatedGridLayout(
                                             onClick = {
                                                 onFocusItem(FocusItem(item.participant.sid, item.source))
                                             },
-                                            modifier = Modifier
-                                                .align(Alignment.TopEnd)
-                                                .padding(4.dp)
-                                                .size(32.dp)
-                                                .background(
-                                                    Color.Black.copy(alpha = 0.5f),
-                                                    CircleShape,
-                                                ),
+                                            modifier =
+                                                Modifier
+                                                    .align(Alignment.TopEnd)
+                                                    .padding(4.dp)
+                                                    .size(32.dp)
+                                                    .background(
+                                                        Color.Black.copy(alpha = 0.5f),
+                                                        CircleShape,
+                                                    ),
                                         ) {
                                             Icon(
                                                 imageVector = Icons.Outlined.Fullscreen,
@@ -1608,9 +1621,10 @@ private fun PaginatedGridLayout(
                     currentPage = pagerState.currentPage,
                     pageCount = pageCount,
                     lang = lang,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 4.dp),
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 4.dp),
                 )
             }
         }
@@ -1635,20 +1649,22 @@ private fun PageIndicator(
             ) {
                 repeat(pageCount) { index ->
                     Box(
-                        modifier = Modifier
-                            .size(if (index == currentPage) 8.dp else 6.dp)
-                            .background(
-                                if (index == currentPage) VisioColors.Primary500 else Color.White.copy(alpha = 0.4f),
-                                CircleShape,
-                            ),
+                        modifier =
+                            Modifier
+                                .size(if (index == currentPage) 8.dp else 6.dp)
+                                .background(
+                                    if (index == currentPage) VisioColors.Primary500 else Color.White.copy(alpha = 0.4f),
+                                    CircleShape,
+                                ),
                     )
                 }
             }
         } else {
             Text(
-                text = Strings.t("layout.page", lang)
-                    .replace("{current}", "${currentPage + 1}")
-                    .replace("{total}", "$pageCount"),
+                text =
+                    Strings.t("layout.page", lang)
+                        .replace("{current}", "${currentPage + 1}")
+                        .replace("{total}", "$pageCount"),
                 color = Color.White.copy(alpha = 0.7f),
                 fontSize = 12.sp,
             )
@@ -1671,25 +1687,30 @@ private fun SpeakerLayout(
     if (displayItems.isEmpty()) return
 
     // Determine the main participant: pinned > active speaker > first
-    val mainItem = when {
-        pinnedSpeakerSid != null -> displayItems.find { it.participant.sid == pinnedSpeakerSid }
-        else -> {
-            val speakerSid = activeSpeakers.firstOrNull()
-            if (speakerSid != null) displayItems.find { it.participant.sid == speakerSid }
-            else null
-        }
-    } ?: displayItems.first()
+    val mainItem =
+        when {
+            pinnedSpeakerSid != null -> displayItems.find { it.participant.sid == pinnedSpeakerSid }
+            else -> {
+                val speakerSid = activeSpeakers.firstOrNull()
+                if (speakerSid != null) {
+                    displayItems.find { it.participant.sid == speakerSid }
+                } else {
+                    null
+                }
+            }
+        } ?: displayItems.first()
 
     val thumbnailItems = displayItems.filter { it.key != mainItem.key }
 
     Column(modifier = Modifier.fillMaxSize()) {
         // Main tile (~70% height)
         Box(
-            modifier = Modifier
-                .weight(0.7f)
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(8.dp))
-                .testTag("speaker-main:${mainItem.participant.sid}"),
+            modifier =
+                Modifier
+                    .weight(0.7f)
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(8.dp))
+                    .testTag("speaker-main:${mainItem.participant.sid}"),
         ) {
             ParticipantTile(
                 participant = mainItem.participant,
@@ -1712,31 +1733,33 @@ private fun SpeakerLayout(
             LazyRow(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 contentPadding = PaddingValues(horizontal = 4.dp),
-                modifier = Modifier
-                    .height(100.dp)
-                    .fillMaxWidth()
-                    .testTag("speaker-thumbnails"),
+                modifier =
+                    Modifier
+                        .height(100.dp)
+                        .fillMaxWidth()
+                        .testTag("speaker-thumbnails"),
             ) {
                 items(thumbnailItems, key = { it.key }) { item ->
                     val isPinned = pinnedSpeakerSid == item.participant.sid
                     Box(
-                        modifier = Modifier
-                            .width(130.dp)
-                            .fillMaxHeight()
-                            .clip(RoundedCornerShape(8.dp))
-                            .then(
-                                if (isPinned) {
-                                    Modifier.border(2.dp, VisioColors.Primary500, RoundedCornerShape(8.dp))
-                                } else {
-                                    Modifier
-                                },
-                            )
-                            .clickable {
-                                onPinSpeaker(
-                                    if (isPinned) null else item.participant.sid,
+                        modifier =
+                            Modifier
+                                .width(130.dp)
+                                .fillMaxHeight()
+                                .clip(RoundedCornerShape(8.dp))
+                                .then(
+                                    if (isPinned) {
+                                        Modifier.border(2.dp, VisioColors.Primary500, RoundedCornerShape(8.dp))
+                                    } else {
+                                        Modifier
+                                    },
                                 )
-                            }
-                            .testTag("speaker-thumb:${item.participant.sid}"),
+                                .clickable {
+                                    onPinSpeaker(
+                                        if (isPinned) null else item.participant.sid,
+                                    )
+                                }
+                                .testTag("speaker-thumb:${item.participant.sid}"),
                     ) {
                         ParticipantTile(
                             participant = item.participant,
@@ -1767,18 +1790,20 @@ private fun LayoutToggleButton(
 ) {
     IconButton(
         onClick = onToggle,
-        modifier = Modifier
-            .size(btnSize)
-            .background(VisioColors.PrimaryDark100, RoundedCornerShape(cornerRadius))
-            .testTag("call_layout_toggle"),
+        modifier =
+            Modifier
+                .size(btnSize)
+                .background(VisioColors.PrimaryDark100, RoundedCornerShape(cornerRadius))
+                .testTag("call_layout_toggle"),
     ) {
         Icon(
             imageVector = if (isSpeakerMode) Icons.Outlined.GridView else Icons.Outlined.Person,
-            contentDescription = if (isSpeakerMode) {
-                Strings.t("layout.grid", lang)
-            } else {
-                Strings.t("layout.speaker", lang)
-            },
+            contentDescription =
+                if (isSpeakerMode) {
+                    Strings.t("layout.grid", lang)
+                } else {
+                    Strings.t("layout.speaker", lang)
+                },
             tint = VisioColors.White,
             modifier = Modifier.size(iconSize),
         )

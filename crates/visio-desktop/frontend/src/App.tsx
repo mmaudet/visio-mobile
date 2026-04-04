@@ -2600,7 +2600,9 @@ function CallView({
   // Layout engine state: voice-activity sorted grid + speaker mode
   const [layoutMode, setLayoutMode] = useState<'grid' | 'speaker'>('grid')
   const [sortedOrder, setSortedOrder] = useState<string[]>([])
-  const [mainParticipantSid, setMainParticipantSid] = useState<string | null>(null)
+  const [mainParticipantSid, setMainParticipantSid] = useState<string | null>(
+    null
+  )
   const autoSpeakerTriggered = useRef(false)
 
   // Listen for layout engine events from the Rust backend
@@ -2838,9 +2840,11 @@ function CallView({
   // Speaker mode: determine main tile and thumbnails from LayoutEngine
   const speakerMainItem =
     layoutMode === 'speaker' && mainParticipantSid
-      ? displayItems.find(
+      ? (displayItems.find(
           (d) => d.participant.sid === mainParticipantSid && !d.isScreenShare
-        ) ?? displayItems[0] ?? null
+        ) ??
+        displayItems[0] ??
+        null)
       : null
   const speakerThumbnailItems =
     layoutMode === 'speaker' && speakerMainItem
