@@ -25,6 +25,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -121,7 +122,9 @@ data class DisplayItem(
     val trackSid: String?,
     val isScreenShare: Boolean,
     val label: String,
-)
+) {
+    fun toFocusItem() = FocusItem(participant.sid, source)
+}
 
 fun buildDisplayItems(participants: List<ParticipantInfo>): List<DisplayItem> {
     val items = mutableListOf<DisplayItem>()
@@ -1407,17 +1410,85 @@ private fun OfficeFocusLayout(
                             handRaisePosition = handRaisedMap[item.participant.sid] ?: 0,
                             isScreenShare = item.isScreenShare,
                             isPinned = pinnedIndicatorSid == item.participant.sid,
-                            onClick = {
-                                onFocusItem(FocusItem(item.participant.sid, item.source))
-                            },
-                            onLongPress = {
-                                onTogglePin(FocusItem(item.participant.sid, item.source))
-                            },
+                            onClick = { onFocusItem(item.toFocusItem()) },
+                            onLongPress = { onTogglePin(item.toFocusItem()) },
                         )
                     }
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun BoxScope.ScreenShareFullscreenButton(
+    item: DisplayItem,
+    onFocusItem: (FocusItem) -> Unit,
+) {
+    IconButton(
+        onClick = { onFocusItem(item.toFocusItem()) },
+        modifier =
+            Modifier
+                .align(Alignment.TopEnd)
+                .padding(4.dp)
+                .size(32.dp)
+                .background(
+                    Color.Black.copy(alpha = 0.5f),
+                    CircleShape,
+                ),
+    ) {
+        Icon(
+            imageVector = Icons.Outlined.Fullscreen,
+            contentDescription = "Fullscreen",
+            tint = Color.White,
+            modifier = Modifier.size(20.dp),
+        )
+    }
+}
+
+@Composable
+private fun GridTileView(
+    item: DisplayItem,
+    speakerIndicatorSid: String?,
+    handRaisedMap: Map<String, Int>,
+    testTag: String,
+    onFocusItem: (FocusItem) -> Unit,
+    onTogglePin: (FocusItem) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Box(modifier = modifier.testTag(testTag)) {
+        ParticipantTile(
+            participant = item.participant,
+            isActiveSpeaker = speakerIndicatorSid == item.participant.sid,
+            handRaisePosition = handRaisedMap[item.participant.sid] ?: 0,
+            isScreenShare = item.isScreenShare,
+            onClick = { onFocusItem(item.toFocusItem()) },
+            onLongPress = { onTogglePin(item.toFocusItem()) },
+        )
+        if (item.isScreenShare) {
+            ScreenShareFullscreenButton(item, onFocusItem)
+        }
+    }
+}
+
+@Composable
+private fun OverflowMenuItem(
+    icon: @Composable () -> Unit,
+    label: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = modifier.clickable { onClick() }.padding(horizontal = 8.dp),
+    ) {
+        icon()
+        Text(
+            text = label,
+            color = VisioColors.White,
+            fontSize = 10.sp,
+            maxLines = 1,
+        )
     }
 }
 
@@ -1458,51 +1529,19 @@ private fun OfficeGridLayout(
                     ) {
                         for (idx in rowStart until rowEnd) {
                             val item = displayItems[idx]
-                            Box(
+                            GridTileView(
+                                item = item,
+                                speakerIndicatorSid = speakerIndicatorSid,
+                                handRaisedMap = handRaisedMap,
+                                testTag = "grid-tile-$idx:${item.participant.sid}",
+                                onFocusItem = onFocusItem,
+                                onTogglePin = onTogglePin,
                                 modifier =
                                     Modifier
                                         .weight(1f)
                                         .fillMaxHeight()
-                                        .clip(RoundedCornerShape(8.dp))
-                                        .testTag("grid-tile-$idx:${item.participant.sid}"),
-                            ) {
-                                ParticipantTile(
-                                    participant = item.participant,
-                                    isActiveSpeaker = speakerIndicatorSid == item.participant.sid,
-                                    handRaisePosition = handRaisedMap[item.participant.sid] ?: 0,
-                                    isScreenShare = item.isScreenShare,
-                                    onClick = {
-                                        onFocusItem(FocusItem(item.participant.sid, item.source))
-                                    },
-                                    onLongPress = {
-                                        onTogglePin(FocusItem(item.participant.sid, item.source))
-                                    },
-                                )
-                                // Fullscreen icon overlay for screen share tiles
-                                if (item.isScreenShare) {
-                                    IconButton(
-                                        onClick = {
-                                            onFocusItem(FocusItem(item.participant.sid, item.source))
-                                        },
-                                        modifier =
-                                            Modifier
-                                                .align(Alignment.TopEnd)
-                                                .padding(4.dp)
-                                                .size(32.dp)
-                                                .background(
-                                                    Color.Black.copy(alpha = 0.5f),
-                                                    CircleShape,
-                                                ),
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Outlined.Fullscreen,
-                                            contentDescription = "Fullscreen",
-                                            tint = Color.White,
-                                            modifier = Modifier.size(20.dp),
-                                        )
-                                    }
-                                }
-                            }
+                                        .clip(RoundedCornerShape(8.dp)),
+                            )
                         }
                     }
                 }
@@ -1566,50 +1605,19 @@ private fun PaginatedGridLayout(
                         ) {
                             for (idx in rowStart until rowEnd) {
                                 val item = pageItems[idx]
-                                Box(
+                                GridTileView(
+                                    item = item,
+                                    speakerIndicatorSid = speakerIndicatorSid,
+                                    handRaisedMap = handRaisedMap,
+                                    testTag = "grid-tile-${startIdx + idx}:${item.participant.sid}",
+                                    onFocusItem = onFocusItem,
+                                    onTogglePin = onTogglePin,
                                     modifier =
                                         Modifier
                                             .weight(1f)
                                             .fillMaxHeight()
-                                            .clip(RoundedCornerShape(8.dp))
-                                            .testTag("grid-tile-${startIdx + idx}:${item.participant.sid}"),
-                                ) {
-                                    ParticipantTile(
-                                        participant = item.participant,
-                                        isActiveSpeaker = speakerIndicatorSid == item.participant.sid,
-                                        handRaisePosition = handRaisedMap[item.participant.sid] ?: 0,
-                                        isScreenShare = item.isScreenShare,
-                                        onClick = {
-                                            onFocusItem(FocusItem(item.participant.sid, item.source))
-                                        },
-                                        onLongPress = {
-                                            onTogglePin(FocusItem(item.participant.sid, item.source))
-                                        },
-                                    )
-                                    if (item.isScreenShare) {
-                                        IconButton(
-                                            onClick = {
-                                                onFocusItem(FocusItem(item.participant.sid, item.source))
-                                            },
-                                            modifier =
-                                                Modifier
-                                                    .align(Alignment.TopEnd)
-                                                    .padding(4.dp)
-                                                    .size(32.dp)
-                                                    .background(
-                                                        Color.Black.copy(alpha = 0.5f),
-                                                        CircleShape,
-                                                    ),
-                                        ) {
-                                            Icon(
-                                                imageVector = Icons.Outlined.Fullscreen,
-                                                contentDescription = "Fullscreen",
-                                                tint = Color.White,
-                                                modifier = Modifier.size(20.dp),
-                                            )
-                                        }
-                                    }
-                                }
+                                            .clip(RoundedCornerShape(8.dp)),
+                                )
                             }
                         }
                     }
@@ -1717,12 +1725,8 @@ private fun SpeakerLayout(
                 isActiveSpeaker = speakerIndicatorSid == mainItem.participant.sid,
                 handRaisePosition = handRaisedMap[mainItem.participant.sid] ?: 0,
                 isScreenShare = mainItem.isScreenShare,
-                onClick = {
-                    onFocusItem(FocusItem(mainItem.participant.sid, mainItem.source))
-                },
-                onLongPress = {
-                    onTogglePin(FocusItem(mainItem.participant.sid, mainItem.source))
-                },
+                onClick = { onFocusItem(mainItem.toFocusItem()) },
+                onLongPress = { onTogglePin(mainItem.toFocusItem()) },
             )
         }
 
@@ -1989,65 +1993,56 @@ private fun OverflowHandRaiseItem(
     lang: String,
     onToggleHandRaise: () -> Unit,
 ) {
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier.clickable { onToggleHandRaise() }.padding(horizontal = 8.dp),
-    ) {
-        IconButton(
-            onClick = onToggleHandRaise,
-            modifier =
-                Modifier
-                    .size(38.dp)
-                    .background(
-                        if (isHandRaised) VisioColors.HandRaise else VisioColors.PrimaryDark100,
-                        RoundedCornerShape(8.dp),
-                    )
-                    .testTag("call_hand_raise_button"),
-        ) {
-            Icon(
-                painter = painterResource(R.drawable.ri_hand),
-                contentDescription =
-                    if (isHandRaised) Strings.t("control.lowerHand", lang) else Strings.t("control.raiseHand", lang),
-                tint = if (isHandRaised) Color.Black else VisioColors.White,
-                modifier = Modifier.size(20.dp),
-            )
-        }
-        Text(
-            text = if (isHandRaised) Strings.t("control.lowerHand", lang) else Strings.t("control.raiseHand", lang),
-            color = VisioColors.White,
-            fontSize = 10.sp,
-            maxLines = 1,
-        )
-    }
+    val label =
+        if (isHandRaised) Strings.t("control.lowerHand", lang) else Strings.t("control.raiseHand", lang)
+    OverflowMenuItem(
+        icon = {
+            IconButton(
+                onClick = onToggleHandRaise,
+                modifier =
+                    Modifier
+                        .size(38.dp)
+                        .background(
+                            if (isHandRaised) VisioColors.HandRaise else VisioColors.PrimaryDark100,
+                            RoundedCornerShape(8.dp),
+                        )
+                        .testTag("call_hand_raise_button"),
+            ) {
+                Icon(
+                    painter = painterResource(R.drawable.ri_hand),
+                    contentDescription = label,
+                    tint = if (isHandRaised) Color.Black else VisioColors.White,
+                    modifier = Modifier.size(20.dp),
+                )
+            }
+        },
+        label = label,
+        onClick = onToggleHandRaise,
+    )
 }
 
 @Composable
 private fun OverflowReactionItem(onReactionPicker: () -> Unit) {
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier.clickable { onReactionPicker() }.padding(horizontal = 8.dp),
-    ) {
-        IconButton(
-            onClick = onReactionPicker,
-            modifier =
-                Modifier
-                    .size(38.dp)
-                    .background(VisioColors.PrimaryDark100, RoundedCornerShape(8.dp)),
-        ) {
-            Icon(
-                painter = painterResource(R.drawable.ri_emotion_line),
-                contentDescription = "Reaction",
-                tint = VisioColors.White,
-                modifier = Modifier.size(20.dp),
-            )
-        }
-        Text(
-            text = "Reaction",
-            color = VisioColors.White,
-            fontSize = 10.sp,
-            maxLines = 1,
-        )
-    }
+    OverflowMenuItem(
+        icon = {
+            IconButton(
+                onClick = onReactionPicker,
+                modifier =
+                    Modifier
+                        .size(38.dp)
+                        .background(VisioColors.PrimaryDark100, RoundedCornerShape(8.dp)),
+            ) {
+                Icon(
+                    painter = painterResource(R.drawable.ri_emotion_line),
+                    contentDescription = "Reaction",
+                    tint = VisioColors.White,
+                    modifier = Modifier.size(20.dp),
+                )
+            }
+        },
+        label = "Reaction",
+        onClick = onReactionPicker,
+    )
 }
 
 @Composable
@@ -2055,32 +2050,27 @@ private fun OverflowSettingsItem(
     lang: String,
     onSettings: () -> Unit,
 ) {
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier.clickable { onSettings() }.padding(horizontal = 8.dp),
-    ) {
-        IconButton(
-            onClick = onSettings,
-            modifier =
-                Modifier
-                    .size(38.dp)
-                    .background(VisioColors.PrimaryDark100, RoundedCornerShape(8.dp))
-                    .testTag("call_settings_button"),
-        ) {
-            Icon(
-                painter = painterResource(R.drawable.ri_settings_3_line),
-                contentDescription = Strings.t("settings.incall", lang),
-                tint = VisioColors.White,
-                modifier = Modifier.size(20.dp),
-            )
-        }
-        Text(
-            text = Strings.t("settings.incall", lang),
-            color = VisioColors.White,
-            fontSize = 10.sp,
-            maxLines = 1,
-        )
-    }
+    OverflowMenuItem(
+        icon = {
+            IconButton(
+                onClick = onSettings,
+                modifier =
+                    Modifier
+                        .size(38.dp)
+                        .background(VisioColors.PrimaryDark100, RoundedCornerShape(8.dp))
+                        .testTag("call_settings_button"),
+            ) {
+                Icon(
+                    painter = painterResource(R.drawable.ri_settings_3_line),
+                    contentDescription = Strings.t("settings.incall", lang),
+                    tint = VisioColors.White,
+                    modifier = Modifier.size(20.dp),
+                )
+            }
+        },
+        label = Strings.t("settings.incall", lang),
+        onClick = onSettings,
+    )
 }
 
 @Composable
