@@ -740,6 +740,8 @@ pub enum VisioError {
     Session { msg: String },
     #[error("{msg}")]
     Generic { msg: String },
+    #[error("Network unreachable: {msg}")]
+    NetworkUnreachable { msg: String },
 }
 
 impl From<visio_core::VisioError> for VisioError {
@@ -761,6 +763,7 @@ impl From<visio_core::VisioError> for VisioError {
             visio_core::VisioError::DevicePermissionDenied(msg) => Self::Generic { msg },
             visio_core::VisioError::DeviceInUse(msg) => Self::Generic { msg },
             visio_core::VisioError::DeviceNotFound(msg) => Self::Generic { msg },
+            visio_core::VisioError::NetworkUnreachable(msg) => Self::NetworkUnreachable { msg },
         }
     }
 }
@@ -1080,6 +1083,12 @@ impl VisioClient {
             pending::drain();
         }
         self.rt.block_on(self.room_manager.disconnect());
+    }
+
+    pub fn prepare_connection(&self, livekit_url: String) -> Result<(), VisioError> {
+        self.rt
+            .block_on(self.room_manager.prepare_connection(&livekit_url))
+            .map_err(Into::into)
     }
 
     pub fn reconnect(&self) -> Result<(), VisioError> {

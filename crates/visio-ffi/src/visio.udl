@@ -150,6 +150,7 @@ interface VisioError {
     InvalidUrl(string msg);
     Session(string msg);
     Generic(string msg);
+    NetworkUnreachable(string msg);
 };
 
 callback interface VisioEventListener {
@@ -228,6 +229,9 @@ interface VisioClient {
     void connect_with_token(string livekit_url, string token);
 
     void disconnect();
+
+    [Throws=VisioError]
+    void prepare_connection(string livekit_url);
 
     [Throws=VisioError]
     void reconnect();

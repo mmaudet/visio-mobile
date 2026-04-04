@@ -514,6 +514,27 @@ impl RoomManager {
         }
     }
 
+    /// Pre-check: verify the LiveKit server is reachable before attempting
+    /// a full connection. Converts wss:// to https:// for the HEAD request.
+    pub async fn prepare_connection(&self, livekit_url: &str) -> Result<(), VisioError> {
+        let http_url = livekit_url
+            .replace("wss://", "https://")
+            .replace("ws://", "http://");
+
+        let client = reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(5))
+            .build()
+            .map_err(|e| VisioError::NetworkUnreachable(e.to_string()))?;
+
+        client
+            .head(&http_url)
+            .send()
+            .await
+            .map_err(|e| VisioError::NetworkUnreachable(format!("{http_url}: {e}")))?;
+
+        Ok(())
+    }
+
     /// Connect directly with a LiveKit URL and token (useful for testing).
     pub async fn connect_with_token(
         &self,
@@ -1986,6 +2007,17 @@ async fn lookup_participant_name(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn test_prepare_connection_rejects_unreachable() {
+        let rm = RoomManager::new();
+        let result = rm.prepare_connection("wss://nonexistent.invalid:7880").await;
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            VisioError::NetworkUnreachable(_) => {},
+            other => panic!("expected NetworkUnreachable, got: {other}"),
+        }
+    }
 
     #[tokio::test]
     async fn local_participant_info_returns_none_when_disconnected() {
