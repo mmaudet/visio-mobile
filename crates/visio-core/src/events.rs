@@ -160,6 +160,29 @@ pub struct ChatMessage {
     pub timestamp_ms: u64,
 }
 
+/// Phase of the initialization sequence.
+#[derive(Debug, Clone, PartialEq)]
+pub enum InitPhase {
+    Settings,
+    Auth,
+    Services,
+    Ready,
+}
+
+/// Result of a single initialization phase.
+#[derive(Debug, Clone, PartialEq)]
+pub enum InitResult {
+    Success,
+    PartialFailure,
+}
+
+/// Error details for a failed initialization phase.
+#[derive(Debug, Clone)]
+pub struct InitPhaseError {
+    pub phase: InitPhase,
+    pub error_message: String,
+}
+
 /// Trait for receiving events from the core.
 /// Implementations must be Send + Sync (called from tokio tasks).
 pub trait VisioEventListener: Send + Sync {
