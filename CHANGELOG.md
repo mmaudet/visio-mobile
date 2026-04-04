@@ -15,6 +15,14 @@ and this project adheres to
 - Core: phased initialization with progress callbacks (#195)
 - Core: token cache for faster reconnection (#193)
 - FFI: `newWithListener` constructor with init progress (#195)
+- Core: LayoutEngine with voice-activity participant sorting
+  and 10s anti-flicker window (#201)
+- Core: paginated layout with set_page_size/set_current_page
+  and precache for adjacent pages (#201)
+- Core: speaker mode with dominant speaker, 3s anti-flicker,
+  pin override, and thumbnail strip (#201)
+- FFI: LayoutEngine API exposed via UniFFI (10 new methods,
+  4 new events) (#201)
 
 ### Fixed
 

@@ -1822,13 +1822,11 @@ impl EventLoopContext {
             }
 
             if let Some(main) = self.layout_engine.main_participant() {
-                self.emitter
-                    .emit(VisioEvent::MainParticipantChanged(main));
+                self.emitter.emit(VisioEvent::MainParticipantChanged(main));
             }
         }
 
-        self.emitter
-            .emit(VisioEvent::ActiveSpeakersChanged(sids));
+        self.emitter.emit(VisioEvent::ActiveSpeakersChanged(sids));
     }
 
     async fn handle_participant_attributes_changed(

@@ -31,10 +31,10 @@ pub fn sort_participants(participants: &mut [ParticipantInfo]) {
         // 2. Voice activity with anti-flicker
         let a_recent = a
             .last_spoke_at
-            .map_or(false, |t| now.duration_since(t) < ANTI_FLICKER_WINDOW);
+            .is_some_and(|t| now.duration_since(t) < ANTI_FLICKER_WINDOW);
         let b_recent = b
             .last_spoke_at
-            .map_or(false, |t| now.duration_since(t) < ANTI_FLICKER_WINDOW);
+            .is_some_and(|t| now.duration_since(t) < ANTI_FLICKER_WINDOW);
 
         match (a_recent, b_recent) {
             (true, true) => {
@@ -173,10 +173,7 @@ impl LayoutEngine {
             return Vec::new();
         }
         let mut result = Vec::new();
-        for &adj_page in &[
-            inner.current_page.wrapping_sub(1),
-            inner.current_page + 1,
-        ] {
+        for &adj_page in &[inner.current_page.wrapping_sub(1), inner.current_page + 1] {
             if adj_page < total && adj_page != inner.current_page {
                 let start = adj_page * inner.page_size;
                 let end = (start + inner.page_size).min(inner.sorted_order.len());
@@ -211,12 +208,12 @@ impl LayoutEngine {
         }
 
         // Anti-flicker: if current speaker held for < 3s, keep current
-        if inner.main_speaker.is_some() {
-            if let Some(since) = inner.main_speaker_since {
-                if now.duration_since(since) < SPEAKER_ANTI_FLICKER {
-                    return;
-                }
-            }
+        if inner.main_speaker.is_some()
+            && inner
+                .main_speaker_since
+                .is_some_and(|since| now.duration_since(since) < SPEAKER_ANTI_FLICKER)
+        {
+            return;
         }
 
         inner.main_speaker = new_speaker;
@@ -267,7 +264,7 @@ fn page_count_inner(inner: &LayoutEngineInner) -> usize {
     if len == 0 {
         return 0;
     }
-    (len + inner.page_size - 1) / inner.page_size
+    len.div_ceil(inner.page_size)
 }
 
 fn clamp_page(inner: &mut LayoutEngineInner) {
@@ -348,7 +345,10 @@ mod tests {
         let mut list = vec![a, b];
         sort_participants(&mut list);
 
-        assert_eq!(list[0].identity, "alice", "anti-flicker: alphabetical by identity");
+        assert_eq!(
+            list[0].identity, "alice",
+            "anti-flicker: alphabetical by identity"
+        );
         assert_eq!(list[1].identity, "bob");
     }
 
@@ -365,7 +365,10 @@ mod tests {
         let mut list = vec![old, recent];
         sort_participants(&mut list);
 
-        assert_eq!(list[0].identity, "bob", "recent speaker first when other expired");
+        assert_eq!(
+            list[0].identity, "bob",
+            "recent speaker first when other expired"
+        );
         assert_eq!(list[1].identity, "alice");
     }
 
@@ -416,7 +419,10 @@ mod tests {
         );
 
         // Verify hand-raised participants come first
-        let first_non_raised = list.iter().position(|p| !p.hand_raised).unwrap_or(list.len());
+        let first_non_raised = list
+            .iter()
+            .position(|p| !p.hand_raised)
+            .unwrap_or(list.len());
         for p in &list[..first_non_raised] {
             assert!(p.hand_raised);
         }

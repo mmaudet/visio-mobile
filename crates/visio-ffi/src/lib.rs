@@ -737,18 +737,14 @@ impl From<CoreVisioEvent> for VisioEvent {
                 meeting: meeting.into(),
             },
             CoreVisioEvent::CalendarError(message) => Self::CalendarError { message },
-            CoreVisioEvent::ParticipantOrderChanged(sids) => {
-                Self::ParticipantOrderChanged {
-                    participant_sids: sids,
-                }
-            }
+            CoreVisioEvent::ParticipantOrderChanged(sids) => Self::ParticipantOrderChanged {
+                participant_sids: sids,
+            },
             CoreVisioEvent::PageChanged { page, total } => Self::PageChanged { page, total },
             CoreVisioEvent::MainParticipantChanged(sid) => Self::MainParticipantChanged {
                 participant_sid: sid,
             },
-            CoreVisioEvent::LayoutModeChanged(is_speaker) => {
-                Self::LayoutModeChanged { is_speaker }
-            }
+            CoreVisioEvent::LayoutModeChanged(is_speaker) => Self::LayoutModeChanged { is_speaker },
         }
     }
 }

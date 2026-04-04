@@ -95,7 +95,10 @@ pub enum VisioEvent {
     /// Sorted participant order changed (layout engine).
     ParticipantOrderChanged(Vec<String>),
     /// Pagination page changed.
-    PageChanged { page: u32, total: u32 },
+    PageChanged {
+        page: u32,
+        total: u32,
+    },
     /// Main participant changed (speaker mode or pin).
     MainParticipantChanged(String),
     /// Layout mode changed: true = Speaker, false = Grid.
