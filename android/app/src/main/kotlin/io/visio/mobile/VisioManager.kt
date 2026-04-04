@@ -595,8 +595,7 @@ object VisioManager : VisioEventListener {
     fun setAudioInputDevice(device: AudioDeviceInfo) {
         val capture = audioCapture ?: return // no-op if not capturing
         // Restart AudioRecord with new device to ensure routing takes effect
-        capture.stop()
-        audioCapture = AudioCapture().also { it.start(device) }
+        capture.switchDevice(device)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             val am = appContext.getSystemService(Context.AUDIO_SERVICE) as AudioManager
             am.setCommunicationDevice(device)
@@ -609,8 +608,7 @@ object VisioManager : VisioEventListener {
     fun setAudioOutputDevice(device: AudioDeviceInfo) {
         val playout = audioPlayout ?: return // no-op if not playing
         // Restart AudioTrack with new device to ensure routing takes effect
-        playout.stop()
-        audioPlayout = AudioPlayout().also { it.start(device) }
+        playout.switchDevice(device)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             val am = appContext.getSystemService(Context.AUDIO_SERVICE) as AudioManager
             am.setCommunicationDevice(device)
@@ -697,14 +695,8 @@ object VisioManager : VisioEventListener {
         }
         // Restart audio tracks without a device preference so they use default routing
         // (setPreferredDevice does not work after recording/playback has already started)
-        audioCapture?.let {
-            it.stop()
-            audioCapture = AudioCapture().also { newCapture -> newCapture.start(null) }
-        }
-        audioPlayout?.let {
-            it.stop()
-            audioPlayout = AudioPlayout().also { newPlayout -> newPlayout.start(null) }
-        }
+        audioCapture?.switchDevice(null)
+        audioPlayout?.switchDevice(null)
         previousAudioDevice = null
         Log.i("VisioManager", "Restored default audio routing (tracks restarted)")
     }

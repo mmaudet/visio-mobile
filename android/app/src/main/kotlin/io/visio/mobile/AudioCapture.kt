@@ -8,6 +8,7 @@ import android.media.MediaRecorder
 import android.util.Log
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
+import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * Captures microphone audio via AudioRecord and pushes PCM frames
@@ -30,6 +31,7 @@ class AudioCapture {
     }
 
     private val lock = Any()
+    private val isRunning = AtomicBoolean(false)
 
     @Volatile
     private var running = false
@@ -42,6 +44,7 @@ class AudioCapture {
         synchronized(lock) {
             if (running) return
             running = true
+            isRunning.set(true)
             synthetic = false
 
             val bufferSize =
@@ -67,6 +70,7 @@ class AudioCapture {
             if (rec.state != AudioRecord.STATE_INITIALIZED) {
                 Log.e(TAG, "AudioRecord failed to initialize")
                 running = false
+                isRunning.set(false)
                 return
             }
 
@@ -121,6 +125,7 @@ class AudioCapture {
         synchronized(lock) {
             if (running) return
             running = true
+            isRunning.set(true)
             synthetic = true
         }
 
@@ -165,12 +170,23 @@ class AudioCapture {
         recorder?.setPreferredDevice(device)
     }
 
+    fun switchDevice(device: AudioDeviceInfo?) {
+        val wasRunning = isRunning.get()
+        if (wasRunning) {
+            stop()
+        }
+        if (wasRunning) {
+            start(device)
+        }
+    }
+
     fun stop() {
         val thread: Thread?
         val rec: AudioRecord?
         synchronized(lock) {
             if (!running) return
             running = false
+            isRunning.set(false)
             thread = recordThread
             recordThread = null
             rec = recorder
