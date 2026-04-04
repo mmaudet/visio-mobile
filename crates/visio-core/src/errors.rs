@@ -24,4 +24,6 @@ pub enum VisioError {
     DeviceInUse(String),
     #[error("device not found: {0}")]
     DeviceNotFound(String),
+    #[error("network unreachable: {0}")]
+    NetworkUnreachable(String),
 }
