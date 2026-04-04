@@ -10,6 +10,7 @@ use livekit::webrtc::audio_stream::native::NativeAudioStream;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
+use std::time::{Duration, Instant};
 use tokio::sync::Mutex;
 
 use crate::adaptive;
@@ -24,6 +25,38 @@ use crate::events::{
 };
 use crate::hand_raise::HandRaiseManager;
 use crate::participants::ParticipantManager;
+
+/// Cache for LiveKit tokens to speed up reconnection without re-calling the API.
+struct TokenCache {
+    inner: std::sync::Mutex<Option<(String, String, Instant)>>,
+}
+
+impl TokenCache {
+    fn new() -> Self {
+        Self {
+            inner: std::sync::Mutex::new(None),
+        }
+    }
+
+    fn store(&self, token: String, url: String) {
+        *self.inner.lock().unwrap() = Some((token, url, Instant::now()));
+    }
+
+    fn get(&self, max_age: Duration) -> Option<(String, String)> {
+        let guard = self.inner.lock().unwrap();
+        guard.as_ref().and_then(|(token, url, stored_at)| {
+            if stored_at.elapsed() < max_age {
+                Some((token.clone(), url.clone()))
+            } else {
+                None
+            }
+        })
+    }
+
+    fn clear(&self) {
+        *self.inner.lock().unwrap() = None;
+    }
+}
 
 /// Returns true if the disconnect reason means we should NOT auto-reconnect.
 #[allow(dead_code)]
@@ -211,6 +244,8 @@ pub struct RoomManager {
     high_quality_mode: Arc<AtomicBool>,
     /// Rate limit: last reaction timestamp.
     last_reaction_time: Arc<Mutex<Option<std::time::Instant>>>,
+    /// Token cache for fast reconnection.
+    token_cache: Arc<TokenCache>,
 }
 
 impl Default for RoomManager {
@@ -227,7 +262,7 @@ fn create_room_options(high_quality: bool) -> RoomOptions {
     options.adaptive_stream = !high_quality;
     options.dynacast = true;
     options.join_retries = 5;
-    options.connect_timeout = std::time::Duration::from_secs(60);
+    options.connect_timeout = Duration::from_secs(20);
     options
 }
 
@@ -254,6 +289,7 @@ impl RoomManager {
             bandwidth: Arc::new(std::sync::Mutex::new(bandwidth::BandwidthController::new())),
             high_quality_mode: Arc::new(AtomicBool::new(false)),
             last_reaction_time: Arc::new(Mutex::new(None)),
+            token_cache: Arc::new(TokenCache::new()),
         }
     }
 
@@ -492,6 +528,8 @@ impl RoomManager {
 
         match AuthService::request_token(meet_url, username, session_cookie).await {
             Ok(token_info) => {
+                self.token_cache
+                    .store(token_info.token.clone(), token_info.livekit_url.clone());
                 self.connect_with_token(&token_info.livekit_url, &token_info.token)
                     .await?;
 
@@ -632,6 +670,7 @@ impl RoomManager {
         // knows this disconnect is intentional.
         *self.last_meet_url.lock().await = None;
         *self.last_username.lock().await = None;
+        self.token_cache.clear();
 
         let room = self.room.lock().await.take();
         if let Some(room) = room
@@ -833,9 +872,21 @@ impl RoomManager {
             .await
             .ok_or_else(|| VisioError::Connection("no previous connection info".into()))?;
 
-        let max_attempts: u32 = 10;
-        let base_delay = std::time::Duration::from_secs(1);
-        let max_delay = std::time::Duration::from_secs(30);
+        let max_attempts: u32 = 3;
+        let base_delay = Duration::from_millis(800);
+        let max_delay = Duration::from_secs(5);
+
+        // Try cached token first for fast reconnection
+        const TOKEN_MAX_AGE: Duration = Duration::from_secs(300);
+        if let Some((token, url)) = self.token_cache.get(TOKEN_MAX_AGE) {
+            tracing::info!("reconnecting with cached token");
+            if self.connect_with_token(&url, &token).await.is_ok() {
+                tracing::info!("reconnection successful with cached token");
+                return Ok(());
+            }
+            tracing::warn!("cached token reconnection failed, falling back to full reconnect");
+            self.token_cache.clear();
+        }
 
         for attempt in 1..=max_attempts {
             self.set_connection_state(ConnectionState::Reconnecting { attempt })
@@ -2090,10 +2141,9 @@ mod tests {
 
     #[test]
     fn room_options_have_extended_timeouts() {
-        // Meet: maxRetries=5, peerConnectionTimeout=60s
         let options = create_room_options(false);
         assert_eq!(options.join_retries, 5);
-        assert_eq!(options.connect_timeout, std::time::Duration::from_secs(60));
+        assert_eq!(options.connect_timeout, Duration::from_secs(20));
     }
 
     #[test]
@@ -2113,5 +2163,27 @@ mod tests {
         assert!(result.is_err());
         let err_msg = format!("{:?}", result.unwrap_err());
         assert!(err_msg.contains("unknown reaction emoji"));
+    }
+
+    #[tokio::test]
+    async fn test_token_cache_reuses_fresh_token() {
+        let cache = TokenCache::new();
+        cache.store(
+            "eyJ_test_token".to_string(),
+            "wss://lk.example.com".to_string(),
+        );
+        let cached = cache.get(Duration::from_secs(300));
+        assert!(cached.is_some());
+        let (t, u) = cached.unwrap();
+        assert_eq!(t, "eyJ_test_token");
+        assert_eq!(u, "wss://lk.example.com");
+    }
+
+    #[tokio::test]
+    async fn test_token_cache_rejects_expired() {
+        let cache = TokenCache::new();
+        cache.store("old_token".to_string(), "wss://lk.example.com".to_string());
+        let cached = cache.get(Duration::from_secs(0));
+        assert!(cached.is_none());
     }
 }
