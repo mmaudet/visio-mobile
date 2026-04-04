@@ -6,6 +6,7 @@ import visioFFI
 enum LayoutMode {
     case grid
     case focus
+    case speaker
 }
 
 struct LayoutDecision {
