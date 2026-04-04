@@ -52,6 +52,10 @@ impl ParticipantManager {
     }
 
     /// Get participants sorted: hand raised first, then alphabetical (case-insensitive).
+    ///
+    /// **Deprecated:** Use `layout::sort_participants()` for voice-activity sorting.
+    /// This method is kept for the `participants()` UniFFI API which returns a
+    /// simple alphabetical list. The LayoutEngine provides the canonical sort.
     pub fn sorted_participants(&self) -> Vec<ParticipantInfo> {
         let mut sorted = self.participants.clone();
         sorted.sort_by(|a, b| {
