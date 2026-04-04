@@ -1810,19 +1810,24 @@ impl EventLoopContext {
             layout::sort_participants(&mut sorted);
             let sorted_sids: Vec<String> = sorted.iter().map(|p| p.sid.clone()).collect();
 
-            let previous = self.layout_engine.visible_participants();
+            let previous_visible = self.layout_engine.visible_participants();
+            let previous_main = self.layout_engine.main_participant();
+
             self.layout_engine.update_sorted_order(sorted_sids.clone());
             self.layout_engine
                 .update_main_speaker(&sids, std::time::Instant::now());
 
             let new_visible = self.layout_engine.visible_participants();
-            if new_visible != previous {
+            if new_visible != previous_visible {
                 self.emitter
                     .emit(VisioEvent::ParticipantOrderChanged(sorted_sids));
             }
 
-            if let Some(main) = self.layout_engine.main_participant() {
-                self.emitter.emit(VisioEvent::MainParticipantChanged(main));
+            let new_main = self.layout_engine.main_participant();
+            if new_main != previous_main {
+                if let Some(main) = new_main {
+                    self.emitter.emit(VisioEvent::MainParticipantChanged(main));
+                }
             }
         }
 
