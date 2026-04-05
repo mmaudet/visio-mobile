@@ -35,18 +35,27 @@ impl FeatureService {
     }
 
     pub fn is_enabled(&self, name: &str) -> bool {
-        if let Some(&val) = self.flags.read().unwrap().get(name) {
+        if let Some(&val) = self
+            .flags
+            .read()
+            .unwrap_or_else(|p| p.into_inner())
+            .get(name)
+        {
             return val;
         }
         self.defaults.get(name).copied().unwrap_or(false)
     }
 
     pub fn set_proxy_url(&self, url: Option<String>) {
-        *self.proxy_url.write().unwrap() = url;
+        *self.proxy_url.write().unwrap_or_else(|p| p.into_inner()) = url;
     }
 
     pub async fn refresh(&self) {
-        let url = self.proxy_url.read().unwrap().clone();
+        let url = self
+            .proxy_url
+            .read()
+            .unwrap_or_else(|p| p.into_inner())
+            .clone();
         let Some(base_url) = url else { return };
         let client = match reqwest::Client::builder()
             .timeout(Duration::from_secs(3))
@@ -77,7 +86,7 @@ impl FeatureService {
             }
         };
         if let Some(toggles) = body.get("toggles").and_then(|t| t.as_array()) {
-            let mut flags = self.flags.write().unwrap();
+            let mut flags = self.flags.write().unwrap_or_else(|p| p.into_inner());
             for toggle in toggles {
                 if let (Some(name), Some(enabled)) = (
                     toggle.get("name").and_then(|n| n.as_str()),

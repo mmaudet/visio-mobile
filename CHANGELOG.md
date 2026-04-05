@@ -48,6 +48,10 @@ and this project adheres to
 
 ### Fixed
 
+- Security: derive chat encryption key from room name instead
+  of LiveKit URL to ensure per-room key isolation (#197)
+- Security: use VC1: prefix for encrypted messages to prevent
+  false positive detection on plain text (#197)
 - Android: restart AudioTrack/AudioRecord on Bluetooth device
   change for reliable routing mid-call (#203)
 - Android: debounce Bluetooth routing with SCO confirmation

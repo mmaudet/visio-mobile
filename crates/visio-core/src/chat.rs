@@ -22,8 +22,8 @@ const CHAT_TOPIC: &str = "lk.chat";
 /// Maximum chat message length (matches Meet web client).
 const MAX_MESSAGE_LENGTH: usize = 2000;
 
-/// Wire format version byte for encrypted chat messages.
-const ENCRYPTION_VERSION: u8 = 0x01;
+/// ASCII prefix for encrypted chat messages ("Visio Chat v1").
+const ENCRYPTED_PREFIX: &str = "VC1:";
 
 /// AES-256-GCM nonce size in bytes.
 const NONCE_SIZE: usize = 12;
@@ -31,7 +31,7 @@ const NONCE_SIZE: usize = 12;
 /// Shared chat encryption key, accessible from both ChatService and room event loop.
 pub type ChatKey = Arc<std::sync::Mutex<Option<[u8; 32]>>>;
 
-/// Derive a 256-bit AES-GCM key from a room token using HKDF-SHA256.
+/// Derive a 256-bit AES-GCM key from a room name using HKDF-SHA256.
 pub fn derive_chat_key(room_token: &str) -> [u8; 32] {
     let hk = Hkdf::<Sha256>::new(Some(b"visio-chat-v1"), room_token.as_bytes());
     let mut key = [0u8; 32];
@@ -42,7 +42,7 @@ pub fn derive_chat_key(room_token: &str) -> [u8; 32] {
 
 /// Encrypt a plaintext message using AES-256-GCM.
 ///
-/// Wire format: `[version=0x01][12-byte nonce][ciphertext+tag]`, then base64 encoded.
+/// Wire format: `VC1:` prefix followed by base64-encoded `[12-byte nonce][ciphertext+tag]`.
 pub fn encrypt_message(plaintext: &str, key: &[u8; 32]) -> Result<String, VisioError> {
     use aes_gcm::AeadCore;
     use aes_gcm::aead::OsRng;
@@ -53,40 +53,32 @@ pub fn encrypt_message(plaintext: &str, key: &[u8; 32]) -> Result<String, VisioE
         .encrypt(&nonce, plaintext.as_bytes())
         .map_err(|e| VisioError::Room(format!("encrypt failed: {e}")))?;
 
-    let mut wire = Vec::with_capacity(1 + NONCE_SIZE + ciphertext.len());
-    wire.push(ENCRYPTION_VERSION);
+    let mut wire = Vec::with_capacity(NONCE_SIZE + ciphertext.len());
     wire.extend_from_slice(&nonce);
     wire.extend_from_slice(&ciphertext);
 
-    Ok(BASE64.encode(&wire))
+    Ok(format!("{}{}", ENCRYPTED_PREFIX, BASE64.encode(&wire)))
 }
 
-/// Decrypt a base64-encoded encrypted message.
+/// Decrypt a `VC1:`-prefixed encrypted message.
 ///
-/// Returns the plaintext on success, or an error if the version is unknown,
+/// Returns the plaintext on success, or an error if the prefix is missing,
 /// the data is corrupt, or the key is wrong.
 pub fn decrypt_message(encoded: &str, key: &[u8; 32]) -> Result<String, VisioError> {
+    let payload = encoded
+        .strip_prefix(ENCRYPTED_PREFIX)
+        .ok_or_else(|| VisioError::Room("missing VC1: prefix".into()))?;
+
     let wire = BASE64
-        .decode(encoded)
+        .decode(payload)
         .map_err(|e| VisioError::Room(format!("base64 decode failed: {e}")))?;
 
-    if wire.is_empty() {
-        return Err(VisioError::Room("empty encrypted message".into()));
-    }
-
-    let version = wire[0];
-    if version != ENCRYPTION_VERSION {
-        return Err(VisioError::Room(format!(
-            "unknown encryption version: 0x{version:02x}"
-        )));
-    }
-
-    if wire.len() < 1 + NONCE_SIZE + 1 {
+    if wire.len() < NONCE_SIZE + 1 {
         return Err(VisioError::Room("encrypted message too short".into()));
     }
 
-    let nonce = Nonce::from_slice(&wire[1..1 + NONCE_SIZE]);
-    let ciphertext = &wire[1 + NONCE_SIZE..];
+    let nonce = Nonce::from_slice(&wire[..NONCE_SIZE]);
+    let ciphertext = &wire[NONCE_SIZE..];
 
     let cipher = Aes256Gcm::new(key.into());
     let plaintext = cipher
@@ -98,13 +90,9 @@ pub fn decrypt_message(encoded: &str, key: &[u8; 32]) -> Result<String, VisioErr
 
 /// Detect whether a message string is an encrypted chat message.
 ///
-/// Checks if it base64-decodes to bytes starting with the version byte 0x01.
+/// Checks for the `VC1:` ASCII prefix.
 pub fn is_encrypted_message(text: &str) -> bool {
-    BASE64
-        .decode(text)
-        .ok()
-        .map(|wire| !wire.is_empty() && wire[0] == ENCRYPTION_VERSION)
-        .unwrap_or(false)
+    text.starts_with(ENCRYPTED_PREFIX)
 }
 
 /// Manages chat messaging via LiveKit data channels.
@@ -356,11 +344,18 @@ mod tests {
     }
 
     #[test]
+    fn test_encrypted_has_vc1_prefix() {
+        let key = derive_chat_key("prefix-token");
+        let encrypted = encrypt_message("test prefix", &key).unwrap();
+        assert!(encrypted.starts_with("VC1:"));
+    }
+
+    #[test]
     fn test_long_message_roundtrip() {
         let key = derive_chat_key("long-msg-token");
         let plaintext = "x".repeat(2000);
         let encrypted = encrypt_message(&plaintext, &key).unwrap();
-        // Overhead check: base64 of (1 + 12 + 2000 + 16) = 2029 bytes → ~2706 base64 chars
+        // Overhead check: VC1: prefix (4) + base64 of (12 + 2000 + 16) = 2028 bytes → ~2708 base64 chars + 4
         assert!(
             encrypted.len() < 3000,
             "encrypted overhead too large: {} bytes",
@@ -371,14 +366,13 @@ mod tests {
     }
 
     #[test]
-    fn test_unknown_version_byte() {
-        // Craft a message with version 0x02 instead of 0x01
-        let mut wire = vec![0x02u8];
-        wire.extend_from_slice(&[0u8; NONCE_SIZE]); // dummy nonce
+    fn test_missing_prefix_fails() {
+        // A bare base64 string without VC1: prefix should fail
+        let mut wire = vec![0u8; NONCE_SIZE];
         wire.extend_from_slice(b"dummy ciphertext");
         let encoded = BASE64.encode(&wire);
         let key = derive_chat_key("any-token");
         let err = decrypt_message(&encoded, &key).unwrap_err();
-        assert!(err.to_string().contains("unknown encryption version"));
+        assert!(err.to_string().contains("missing VC1: prefix"));
     }
 }
