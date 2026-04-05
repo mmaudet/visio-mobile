@@ -407,7 +407,7 @@ impl RoomManager {
 
     /// Get a snapshot of current subscription stats.
     pub fn subscription_stats(&self) -> subscriptions::SubscriptionStats {
-        self.subscriptions.lock().unwrap().stats()
+        self.subscriptions.lock().unwrap_or_else(|p| p.into_inner()).stats()
     }
 
     // ── End layout engine delegation ────────────────────────────────
@@ -1959,7 +1959,7 @@ impl EventLoopContext {
 
         let participants = self.participants.lock().await;
         let all = participants.participants();
-        let mut sub_mgr = self.subscriptions.lock().unwrap();
+        let mut sub_mgr = self.subscriptions.lock().unwrap_or_else(|p| p.into_inner());
 
         for p in all {
             if let Some(ref track_sid) = p.video_track_sid {
@@ -1992,7 +1992,7 @@ impl EventLoopContext {
         }
 
         let actions = {
-            let mut sub_mgr = self.subscriptions.lock().unwrap();
+            let mut sub_mgr = self.subscriptions.lock().unwrap_or_else(|p| p.into_inner());
             sub_mgr.pending_actions(Instant::now())
         };
 
