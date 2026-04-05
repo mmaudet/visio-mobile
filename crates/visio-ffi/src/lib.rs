@@ -424,6 +424,8 @@ pub struct ChatMessage {
     pub sender_name: String,
     pub text: String,
     pub timestamp_ms: u64,
+    pub encrypted: bool,
+    pub decryption_failed: bool,
 }
 
 impl From<CoreChatMessage> for ChatMessage {
@@ -434,6 +436,8 @@ impl From<CoreChatMessage> for ChatMessage {
             sender_name: m.sender_name,
             text: m.text,
             timestamp_ms: m.timestamp_ms,
+            encrypted: m.encrypted,
+            decryption_failed: m.decryption_failed,
         }
     }
 }

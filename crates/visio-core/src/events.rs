@@ -176,6 +176,10 @@ pub struct ChatMessage {
     pub sender_name: String,
     pub text: String,
     pub timestamp_ms: u64,
+    /// Whether this message was encrypted on the wire.
+    pub encrypted: bool,
+    /// Whether decryption failed (wrong key, corrupt, unknown version).
+    pub decryption_failed: bool,
 }
 
 /// Phase of the initialization sequence.

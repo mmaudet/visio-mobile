@@ -89,6 +89,8 @@ dictionary ChatMessage {
     string sender_name;
     string text;
     u64 timestamp_ms;
+    boolean encrypted;
+    boolean decryption_failed;
 };
 
 dictionary Settings {
