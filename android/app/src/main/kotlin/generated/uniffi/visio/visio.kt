@@ -955,6 +955,10 @@ internal open class UniffiVTableCallbackInterfaceVisioEventListener(
 
 
 
+
+
+
+
 // For large crates we prevent `MethodTooLargeException` (see #2340)
 // N.B. the name of the extension is very misleading, since it is 
 // rather `InterfaceTooLargeException`, caused by too many methods 
@@ -1040,6 +1044,8 @@ fun uniffi_visio_ffi_checksum_method_visioclient_is_adaptive_mode_enabled(
 ): Short
 fun uniffi_visio_ffi_checksum_method_visioclient_is_camera_enabled(
 ): Short
+fun uniffi_visio_ffi_checksum_method_visioclient_is_feature_enabled(
+): Short
 fun uniffi_visio_ffi_checksum_method_visioclient_is_hand_raised(
 ): Short
 fun uniffi_visio_ffi_checksum_method_visioclient_is_microphone_enabled(
@@ -1121,6 +1127,8 @@ fun uniffi_visio_ffi_checksum_method_visioclient_set_chat_open(
 fun uniffi_visio_ffi_checksum_method_visioclient_set_current_page(
 ): Short
 fun uniffi_visio_ffi_checksum_method_visioclient_set_display_name(
+): Short
+fun uniffi_visio_ffi_checksum_method_visioclient_set_feature_flags_url(
 ): Short
 fun uniffi_visio_ffi_checksum_method_visioclient_set_language(
 ): Short
@@ -1293,6 +1301,8 @@ fun uniffi_visio_ffi_fn_method_visioclient_is_adaptive_mode_enabled(`ptr`: Point
 ): Byte
 fun uniffi_visio_ffi_fn_method_visioclient_is_camera_enabled(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
 ): Byte
+fun uniffi_visio_ffi_fn_method_visioclient_is_feature_enabled(`ptr`: Pointer,`featureName`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+): Byte
 fun uniffi_visio_ffi_fn_method_visioclient_is_hand_raised(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
 ): Byte
 fun uniffi_visio_ffi_fn_method_visioclient_is_microphone_enabled(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
@@ -1374,6 +1384,8 @@ fun uniffi_visio_ffi_fn_method_visioclient_set_chat_open(`ptr`: Pointer,`open`: 
 fun uniffi_visio_ffi_fn_method_visioclient_set_current_page(`ptr`: Pointer,`page`: Int,uniffi_out_err: UniffiRustCallStatus, 
 ): Unit
 fun uniffi_visio_ffi_fn_method_visioclient_set_display_name(`ptr`: Pointer,`name`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+): Unit
+fun uniffi_visio_ffi_fn_method_visioclient_set_feature_flags_url(`ptr`: Pointer,`url`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
 ): Unit
 fun uniffi_visio_ffi_fn_method_visioclient_set_language(`ptr`: Pointer,`lang`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
 ): Unit
@@ -1650,6 +1662,9 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if (lib.uniffi_visio_ffi_checksum_method_visioclient_is_camera_enabled() != 23394.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
+    if (lib.uniffi_visio_ffi_checksum_method_visioclient_is_feature_enabled() != 28498.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
     if (lib.uniffi_visio_ffi_checksum_method_visioclient_is_hand_raised() != 47789.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
@@ -1771,6 +1786,9 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_visio_ffi_checksum_method_visioclient_set_display_name() != 36622.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_visio_ffi_checksum_method_visioclient_set_feature_flags_url() != 60275.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_visio_ffi_checksum_method_visioclient_set_language() != 63924.toShort()) {
@@ -2355,6 +2373,8 @@ public interface VisioClientInterface {
     
     fun `isCameraEnabled`(): kotlin.Boolean
     
+    fun `isFeatureEnabled`(`featureName`: kotlin.String): kotlin.Boolean
+    
     fun `isHandRaised`(): kotlin.Boolean
     
     fun `isMicrophoneEnabled`(): kotlin.Boolean
@@ -2436,6 +2456,8 @@ public interface VisioClientInterface {
     fun `setCurrentPage`(`page`: kotlin.UInt)
     
     fun `setDisplayName`(`name`: kotlin.String?)
+    
+    fun `setFeatureFlagsUrl`(`url`: kotlin.String?)
     
     fun `setLanguage`(`lang`: kotlin.String?)
     
@@ -2958,6 +2980,18 @@ open class VisioClient: Disposable, AutoCloseable, VisioClientInterface
     }
     
 
+    override fun `isFeatureEnabled`(`featureName`: kotlin.String): kotlin.Boolean {
+            return FfiConverterBoolean.lift(
+    callWithPointer {
+    uniffiRustCall() { _status ->
+    UniffiLib.INSTANCE.uniffi_visio_ffi_fn_method_visioclient_is_feature_enabled(
+        it, FfiConverterString.lower(`featureName`),_status)
+}
+    }
+    )
+    }
+    
+
     override fun `isHandRaised`(): kotlin.Boolean {
             return FfiConverterBoolean.lift(
     callWithPointer {
@@ -3436,6 +3470,17 @@ open class VisioClient: Disposable, AutoCloseable, VisioClientInterface
     
     
 
+    override fun `setFeatureFlagsUrl`(`url`: kotlin.String?)
+        = 
+    callWithPointer {
+    uniffiRustCall() { _status ->
+    UniffiLib.INSTANCE.uniffi_visio_ffi_fn_method_visioclient_set_feature_flags_url(
+        it, FfiConverterOptionalString.lower(`url`),_status)
+}
+    }
+    
+    
+
     override fun `setLanguage`(`lang`: kotlin.String?)
         = 
     callWithPointer {
@@ -3696,7 +3741,9 @@ data class ChatMessage (
     var `senderSid`: kotlin.String, 
     var `senderName`: kotlin.String, 
     var `text`: kotlin.String, 
-    var `timestampMs`: kotlin.ULong
+    var `timestampMs`: kotlin.ULong, 
+    var `encrypted`: kotlin.Boolean, 
+    var `decryptionFailed`: kotlin.Boolean
 ) {
     
     companion object
@@ -3713,6 +3760,8 @@ public object FfiConverterTypeChatMessage: FfiConverterRustBuffer<ChatMessage> {
             FfiConverterString.read(buf),
             FfiConverterString.read(buf),
             FfiConverterULong.read(buf),
+            FfiConverterBoolean.read(buf),
+            FfiConverterBoolean.read(buf),
         )
     }
 
@@ -3721,7 +3770,9 @@ public object FfiConverterTypeChatMessage: FfiConverterRustBuffer<ChatMessage> {
             FfiConverterString.allocationSize(value.`senderSid`) +
             FfiConverterString.allocationSize(value.`senderName`) +
             FfiConverterString.allocationSize(value.`text`) +
-            FfiConverterULong.allocationSize(value.`timestampMs`)
+            FfiConverterULong.allocationSize(value.`timestampMs`) +
+            FfiConverterBoolean.allocationSize(value.`encrypted`) +
+            FfiConverterBoolean.allocationSize(value.`decryptionFailed`)
     )
 
     override fun write(value: ChatMessage, buf: ByteBuffer) {
@@ -3730,6 +3781,8 @@ public object FfiConverterTypeChatMessage: FfiConverterRustBuffer<ChatMessage> {
             FfiConverterString.write(value.`senderName`, buf)
             FfiConverterString.write(value.`text`, buf)
             FfiConverterULong.write(value.`timestampMs`, buf)
+            FfiConverterBoolean.write(value.`encrypted`, buf)
+            FfiConverterBoolean.write(value.`decryptionFailed`, buf)
     }
 }
 
