@@ -35,7 +35,12 @@ impl FeatureService {
     }
 
     pub fn is_enabled(&self, name: &str) -> bool {
-        if let Some(&val) = self.flags.read().unwrap_or_else(|p| p.into_inner()).get(name) {
+        if let Some(&val) = self
+            .flags
+            .read()
+            .unwrap_or_else(|p| p.into_inner())
+            .get(name)
+        {
             return val;
         }
         self.defaults.get(name).copied().unwrap_or(false)
@@ -46,7 +51,11 @@ impl FeatureService {
     }
 
     pub async fn refresh(&self) {
-        let url = self.proxy_url.read().unwrap_or_else(|p| p.into_inner()).clone();
+        let url = self
+            .proxy_url
+            .read()
+            .unwrap_or_else(|p| p.into_inner())
+            .clone();
         let Some(base_url) = url else { return };
         let client = match reqwest::Client::builder()
             .timeout(Duration::from_secs(3))

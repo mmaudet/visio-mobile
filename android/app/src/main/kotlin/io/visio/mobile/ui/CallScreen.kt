@@ -1713,17 +1713,19 @@ private fun SpeakerLayout(
     val mainSid = VisioManager.client.mainParticipant()
     val thumbnailSids = VisioManager.client.thumbnailParticipants()
 
-    val mainItem = mainSid?.let { sid ->
-        displayItems.find { it.participant.sid == sid }
-    } ?: displayItems.first()
-
-    val thumbnailItems = if (thumbnailSids.isNotEmpty()) {
-        thumbnailSids.mapNotNull { sid ->
+    val mainItem =
+        mainSid?.let { sid ->
             displayItems.find { it.participant.sid == sid }
+        } ?: displayItems.first()
+
+    val thumbnailItems =
+        if (thumbnailSids.isNotEmpty()) {
+            thumbnailSids.mapNotNull { sid ->
+                displayItems.find { it.participant.sid == sid }
+            }
+        } else {
+            displayItems.filter { it.key != mainItem.key }
         }
-    } else {
-        displayItems.filter { it.key != mainItem.key }
-    }
 
     Column(modifier = Modifier.fillMaxSize()) {
         // Main tile (~70% height)

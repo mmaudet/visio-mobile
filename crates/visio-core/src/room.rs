@@ -410,7 +410,10 @@ impl RoomManager {
 
     /// Get a snapshot of current subscription stats.
     pub fn subscription_stats(&self) -> subscriptions::SubscriptionStats {
-        self.subscriptions.lock().unwrap_or_else(|p| p.into_inner()).stats()
+        self.subscriptions
+            .lock()
+            .unwrap_or_else(|p| p.into_inner())
+            .stats()
     }
 
     // ── End layout engine delegation ────────────────────────────────
