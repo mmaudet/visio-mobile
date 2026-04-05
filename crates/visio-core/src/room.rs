@@ -92,6 +92,7 @@ async fn connect_after_lobby_acceptance(
     high_quality_mode: Arc<AtomicBool>,
     layout_engine: Arc<layout::LayoutEngine>,
     subscriptions: Arc<std::sync::Mutex<subscriptions::SubscriptionManager>>,
+    chat_key: crate::chat::ChatKey,
 ) {
     *connection_state.lock().await = ConnectionState::Connecting;
     emitter.emit(VisioEvent::ConnectionStateChanged(
@@ -136,6 +137,12 @@ async fn connect_after_lobby_acceptance(
                 ConnectionState::Connected,
             ));
 
+            // Derive chat key from LiveKit URL (shared by all participants)
+            {
+                let key = crate::chat::derive_chat_key(&livekit_url);
+                *chat_key.lock().unwrap_or_else(|p| p.into_inner()) = Some(key);
+            }
+
             tokio::spawn(async move {
                 RoomManager::event_loop(
                     events,
@@ -154,6 +161,7 @@ async fn connect_after_lobby_acceptance(
                     high_quality_mode,
                     layout_engine,
                     subscriptions,
+                    chat_key,
                 )
                 .await;
             });
@@ -169,6 +177,7 @@ async fn connect_after_lobby_acceptance(
 }
 
 /// Read a single chat text stream message and emit it as a ChatMessageReceived event.
+/// If a chat key is available and the message is encrypted, it will be decrypted.
 #[allow(clippy::too_many_arguments)]
 async fn read_chat_text_stream(
     reader: livekit::TakeCell<livekit::data_stream::TextStreamReader>,
@@ -178,6 +187,7 @@ async fn read_chat_text_stream(
     room_ref: Arc<Mutex<Option<Arc<Room>>>>,
     chat_open: Arc<AtomicBool>,
     unread_count: Arc<AtomicU32>,
+    chat_key: crate::chat::ChatKey,
 ) {
     let reader = match reader.take() {
         Some(r) => r,
@@ -189,19 +199,27 @@ async fn read_chat_text_stream(
     let stream_id = reader.info().id.clone();
     let timestamp_ms = reader.info().timestamp.timestamp_millis() as u64;
     match reader.read_all().await {
-        Ok(text) => {
+        Ok(wire_text) => {
             let sender_name = lookup_participant_name(&room_ref, &identity).await;
+
+            // Attempt decryption if the message looks encrypted
+            let (text, encrypted, decryption_failed) = decrypt_incoming(&wire_text, &chat_key);
+
             let msg = crate::events::ChatMessage {
                 id: stream_id,
                 sender_sid: identity,
                 sender_name,
                 text,
                 timestamp_ms,
+                encrypted,
+                decryption_failed,
             };
             tracing::info!(
-                "Chat via TextStream: from={} text={}",
+                "Chat via TextStream: from={} text={} encrypted={} decryption_failed={}",
                 msg.sender_name,
-                msg.text
+                msg.text,
+                msg.encrypted,
+                msg.decryption_failed,
             );
             messages.lock().await.push(msg.clone());
             emitter.emit(VisioEvent::ChatMessageReceived(msg));
@@ -212,6 +230,28 @@ async fn read_chat_text_stream(
         }
         Err(e) => {
             tracing::warn!("Failed to read chat text stream: {e}");
+        }
+    }
+}
+
+/// Try to decrypt an incoming message. Returns (text, encrypted, decryption_failed).
+fn decrypt_incoming(wire_text: &str, chat_key: &crate::chat::ChatKey) -> (String, bool, bool) {
+    if !crate::chat::is_encrypted_message(wire_text) {
+        return (wire_text.to_string(), false, false);
+    }
+
+    let key = *chat_key.lock().unwrap_or_else(|p| p.into_inner());
+    match key {
+        Some(ref k) => match crate::chat::decrypt_message(wire_text, k) {
+            Ok(plaintext) => (plaintext, true, false),
+            Err(e) => {
+                tracing::warn!("Chat decryption failed: {e}");
+                (wire_text.to_string(), true, true)
+            }
+        },
+        None => {
+            tracing::warn!("Encrypted message received but no chat key available");
+            (wire_text.to_string(), true, true)
         }
     }
 }
@@ -256,6 +296,8 @@ pub struct RoomManager {
     layout: Arc<layout::LayoutEngine>,
     /// Subscription manager: anti-jitter track quality decisions.
     subscriptions: Arc<std::sync::Mutex<subscriptions::SubscriptionManager>>,
+    /// Shared chat encryption key (derived from room token).
+    chat_key: crate::chat::ChatKey,
 }
 
 impl Default for RoomManager {
@@ -306,6 +348,7 @@ impl RoomManager {
             subscriptions: Arc::new(std::sync::Mutex::new(
                 subscriptions::SubscriptionManager::new(),
             )),
+            chat_key: Arc::new(std::sync::Mutex::new(None)),
         }
     }
 
@@ -410,6 +453,7 @@ impl RoomManager {
             self.room.clone(),
             self.emitter.clone(),
             self.messages.clone(),
+            self.chat_key.clone(),
         )
     }
 
@@ -659,6 +703,13 @@ impl RoomManager {
     ) -> Result<(), VisioError> {
         self.set_connection_state(ConnectionState::Connecting).await;
 
+        // Derive and store the chat encryption key from the LiveKit URL
+        // (shared by all participants in the same room).
+        {
+            let key = crate::chat::derive_chat_key(livekit_url);
+            *self.chat_key.lock().unwrap_or_else(|p| p.into_inner()) = Some(key);
+        }
+
         let high_quality = self
             .high_quality_mode
             .load(std::sync::atomic::Ordering::Relaxed);
@@ -716,6 +767,7 @@ impl RoomManager {
         let high_quality_mode = self.high_quality_mode.clone();
         let layout_engine = self.layout.clone();
         let subscriptions = self.subscriptions.clone();
+        let chat_key = self.chat_key.clone();
 
         tokio::spawn(async move {
             Self::event_loop(
@@ -735,6 +787,7 @@ impl RoomManager {
                 high_quality_mode,
                 layout_engine,
                 subscriptions,
+                chat_key,
             )
             .await;
         });
@@ -1057,6 +1110,7 @@ impl RoomManager {
         let high_quality_mode = self.high_quality_mode.clone();
         let layout_engine = self.layout.clone();
         let subscriptions_mgr = self.subscriptions.clone();
+        let chat_key = self.chat_key.clone();
 
         tokio::spawn(async move {
             let lobby_deadline =
@@ -1105,6 +1159,7 @@ impl RoomManager {
                                     high_quality_mode.clone(),
                                     layout_engine.clone(),
                                     subscriptions_mgr.clone(),
+                                    chat_key.clone(),
                                 )
                                 .await;
                                 break;
@@ -1320,6 +1375,7 @@ impl RoomManager {
         high_quality_mode: Arc<AtomicBool>,
         layout_engine: Arc<layout::LayoutEngine>,
         subscriptions: Arc<std::sync::Mutex<subscriptions::SubscriptionManager>>,
+        chat_key: crate::chat::ChatKey,
     ) {
         let mut ctx = EventLoopContext {
             emitter,
@@ -1337,6 +1393,7 @@ impl RoomManager {
             high_quality_mode,
             layout_engine,
             subscriptions,
+            chat_key,
             reconnect_attempt: 0,
             audio_stream_tasks: HashMap::new(),
             idle_timer: None,
@@ -1571,6 +1628,7 @@ struct EventLoopContext {
     high_quality_mode: Arc<AtomicBool>,
     layout_engine: Arc<layout::LayoutEngine>,
     subscriptions: Arc<std::sync::Mutex<subscriptions::SubscriptionManager>>,
+    chat_key: crate::chat::ChatKey,
     reconnect_attempt: u32,
     audio_stream_tasks: HashMap<String, tokio::task::JoinHandle<()>>,
     idle_timer: Option<tokio::task::JoinHandle<()>>,
@@ -1659,6 +1717,7 @@ impl EventLoopContext {
         let room_ref = self.room_ref.clone();
         let chat_open = self.chat_open.clone();
         let unread_count = self.unread_count.clone();
+        let chat_key = self.chat_key.clone();
         tokio::spawn(async move {
             read_chat_text_stream(
                 reader,
@@ -1668,6 +1727,7 @@ impl EventLoopContext {
                 room_ref,
                 chat_open,
                 unread_count,
+                chat_key,
             )
             .await;
         });
@@ -2096,16 +2156,25 @@ impl EventLoopContext {
         id: String,
         sender_sid: String,
         sender_name: String,
-        text: String,
+        wire_text: String,
         timestamp_ms: u64,
     ) {
-        tracing::info!("ChatMessage received: id={} text={}", id, text);
+        let (text, encrypted, decryption_failed) = decrypt_incoming(&wire_text, &self.chat_key);
+        tracing::info!(
+            "ChatMessage received: id={} text={} encrypted={} decryption_failed={}",
+            id,
+            text,
+            encrypted,
+            decryption_failed,
+        );
         let msg = ChatMessage {
             id,
             sender_sid,
             sender_name,
             text,
             timestamp_ms,
+            encrypted,
+            decryption_failed,
         };
         self.messages.lock().await.push(msg.clone());
         self.emitter.emit(VisioEvent::ChatMessageReceived(msg));
@@ -2236,6 +2305,8 @@ impl EventLoopContext {
             sender_name: sender_name.to_string(),
             text: json["message"].as_str().unwrap_or("").to_string(),
             timestamp_ms: json["timestamp"].as_u64().unwrap_or(0),
+            encrypted: false,
+            decryption_failed: false,
         };
 
         if !msg.text.is_empty() {

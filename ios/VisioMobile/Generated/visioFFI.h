@@ -474,6 +474,11 @@ int8_t uniffi_visio_ffi_fn_method_visioclient_is_adaptive_mode_enabled(void*_Non
 int8_t uniffi_visio_ffi_fn_method_visioclient_is_camera_enabled(void*_Nonnull ptr, RustCallStatus *_Nonnull out_status
 );
 #endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_FN_METHOD_VISIOCLIENT_IS_FEATURE_ENABLED
+#define UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_FN_METHOD_VISIOCLIENT_IS_FEATURE_ENABLED
+int8_t uniffi_visio_ffi_fn_method_visioclient_is_feature_enabled(void*_Nonnull ptr, RustBuffer feature_name, RustCallStatus *_Nonnull out_status
+);
+#endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_FN_METHOD_VISIOCLIENT_IS_HAND_RAISED
 #define UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_FN_METHOD_VISIOCLIENT_IS_HAND_RAISED
 int8_t uniffi_visio_ffi_fn_method_visioclient_is_hand_raised(void*_Nonnull ptr, RustCallStatus *_Nonnull out_status
@@ -677,6 +682,11 @@ void uniffi_visio_ffi_fn_method_visioclient_set_current_page(void*_Nonnull ptr, 
 #ifndef UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_FN_METHOD_VISIOCLIENT_SET_DISPLAY_NAME
 #define UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_FN_METHOD_VISIOCLIENT_SET_DISPLAY_NAME
 void uniffi_visio_ffi_fn_method_visioclient_set_display_name(void*_Nonnull ptr, RustBuffer name, RustCallStatus *_Nonnull out_status
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_FN_METHOD_VISIOCLIENT_SET_FEATURE_FLAGS_URL
+#define UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_FN_METHOD_VISIOCLIENT_SET_FEATURE_FLAGS_URL
+void uniffi_visio_ffi_fn_method_visioclient_set_feature_flags_url(void*_Nonnull ptr, RustBuffer url, RustCallStatus *_Nonnull out_status
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_FN_METHOD_VISIOCLIENT_SET_LANGUAGE
@@ -1281,6 +1291,12 @@ uint16_t uniffi_visio_ffi_checksum_method_visioclient_is_camera_enabled(void
     
 );
 #endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_CHECKSUM_METHOD_VISIOCLIENT_IS_FEATURE_ENABLED
+#define UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_CHECKSUM_METHOD_VISIOCLIENT_IS_FEATURE_ENABLED
+uint16_t uniffi_visio_ffi_checksum_method_visioclient_is_feature_enabled(void
+    
+);
+#endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_CHECKSUM_METHOD_VISIOCLIENT_IS_HAND_RAISED
 #define UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_CHECKSUM_METHOD_VISIOCLIENT_IS_HAND_RAISED
 uint16_t uniffi_visio_ffi_checksum_method_visioclient_is_hand_raised(void
@@ -1524,6 +1540,12 @@ uint16_t uniffi_visio_ffi_checksum_method_visioclient_set_current_page(void
 #ifndef UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_CHECKSUM_METHOD_VISIOCLIENT_SET_DISPLAY_NAME
 #define UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_CHECKSUM_METHOD_VISIOCLIENT_SET_DISPLAY_NAME
 uint16_t uniffi_visio_ffi_checksum_method_visioclient_set_display_name(void
+    
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_CHECKSUM_METHOD_VISIOCLIENT_SET_FEATURE_FLAGS_URL
+#define UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_CHECKSUM_METHOD_VISIOCLIENT_SET_FEATURE_FLAGS_URL
+uint16_t uniffi_visio_ffi_checksum_method_visioclient_set_feature_flags_url(void
     
 );
 #endif

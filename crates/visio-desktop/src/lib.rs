@@ -349,6 +349,8 @@ impl VisioEventListener for DesktopEventListener {
                         "senderName": msg.sender_name,
                         "text": msg.text,
                         "timestampMs": msg.timestamp_ms,
+                        "encrypted": msg.encrypted,
+                        "decryptionFailed": msg.decryption_failed,
                     }),
                 );
             }
@@ -796,6 +798,8 @@ async fn send_chat(
         "sender_name": msg.sender_name,
         "text": msg.text,
         "timestamp_ms": msg.timestamp_ms,
+        "encrypted": msg.encrypted,
+        "decryption_failed": msg.decryption_failed,
     }))
 }
 
@@ -814,6 +818,8 @@ async fn get_messages(
                 "sender_name": m.sender_name,
                 "text": m.text,
                 "timestamp_ms": m.timestamp_ms,
+                "encrypted": m.encrypted,
+                "decryption_failed": m.decryption_failed,
             })
         })
         .collect();

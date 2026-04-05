@@ -15,6 +15,14 @@ and this project adheres to
 - Core: screen share tracks always subscribed at HIGH
   quality (#202)
 - FFI: subscription stats for monitoring (#198)
+- Core: client-side AES-256-GCM chat message encryption with
+  HKDF key derivation from room token (#197)
+- Core: FeatureService with Unleash proxy client and compiled-in
+  defaults for runtime feature flags (#192)
+- Core: runtime OIDC auth toggle via feature flags (#192)
+- FFI: is_feature_enabled() and set_feature_flags_url() (#192)
+- CI: translation key verification workflow with check-i18n.sh
+  script (#194)
 - Core: `prepare_connection()` pre-check validates server
   reachability before connecting (#193)
 - Core: phased initialization with progress callbacks (#195)

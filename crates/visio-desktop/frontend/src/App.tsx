@@ -131,6 +131,8 @@ interface ChatMessage {
   sender_name: string | null
   text: string
   timestamp_ms: number
+  encrypted: boolean
+  decryption_failed: boolean
 }
 
 interface VideoFrame {

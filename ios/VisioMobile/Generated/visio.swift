@@ -603,6 +603,8 @@ public protocol VisioClientProtocol: AnyObject, Sendable {
     
     func isCameraEnabled()  -> Bool
     
+    func isFeatureEnabled(featureName: String)  -> Bool
+    
     func isHandRaised()  -> Bool
     
     func isMicrophoneEnabled()  -> Bool
@@ -684,6 +686,8 @@ public protocol VisioClientProtocol: AnyObject, Sendable {
     func setCurrentPage(page: UInt32) 
     
     func setDisplayName(name: String?) 
+    
+    func setFeatureFlagsUrl(url: String?) 
     
     func setLanguage(lang: String?) 
     
@@ -1033,6 +1037,14 @@ open func isCameraEnabled() -> Bool  {
 })
 }
     
+open func isFeatureEnabled(featureName: String) -> Bool  {
+    return try!  FfiConverterBool.lift(try! rustCall() {
+    uniffi_visio_ffi_fn_method_visioclient_is_feature_enabled(self.uniffiClonePointer(),
+        FfiConverterString.lower(featureName),$0
+    )
+})
+}
+    
 open func isHandRaised() -> Bool  {
     return try!  FfiConverterBool.lift(try! rustCall() {
     uniffi_visio_ffi_fn_method_visioclient_is_hand_raised(self.uniffiClonePointer(),$0
@@ -1319,6 +1331,13 @@ open func setDisplayName(name: String?)  {try! rustCall() {
 }
 }
     
+open func setFeatureFlagsUrl(url: String?)  {try! rustCall() {
+    uniffi_visio_ffi_fn_method_visioclient_set_feature_flags_url(self.uniffiClonePointer(),
+        FfiConverterOptionString.lower(url),$0
+    )
+}
+}
+    
 open func setLanguage(lang: String?)  {try! rustCall() {
     uniffi_visio_ffi_fn_method_visioclient_set_language(self.uniffiClonePointer(),
         FfiConverterOptionString.lower(lang),$0
@@ -1511,15 +1530,19 @@ public struct ChatMessage {
     public var senderName: String
     public var text: String
     public var timestampMs: UInt64
+    public var encrypted: Bool
+    public var decryptionFailed: Bool
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    public init(id: String, senderSid: String, senderName: String, text: String, timestampMs: UInt64) {
+    public init(id: String, senderSid: String, senderName: String, text: String, timestampMs: UInt64, encrypted: Bool, decryptionFailed: Bool) {
         self.id = id
         self.senderSid = senderSid
         self.senderName = senderName
         self.text = text
         self.timestampMs = timestampMs
+        self.encrypted = encrypted
+        self.decryptionFailed = decryptionFailed
     }
 }
 
@@ -1545,6 +1568,12 @@ extension ChatMessage: Equatable, Hashable {
         if lhs.timestampMs != rhs.timestampMs {
             return false
         }
+        if lhs.encrypted != rhs.encrypted {
+            return false
+        }
+        if lhs.decryptionFailed != rhs.decryptionFailed {
+            return false
+        }
         return true
     }
 
@@ -1554,6 +1583,8 @@ extension ChatMessage: Equatable, Hashable {
         hasher.combine(senderName)
         hasher.combine(text)
         hasher.combine(timestampMs)
+        hasher.combine(encrypted)
+        hasher.combine(decryptionFailed)
     }
 }
 
@@ -1570,7 +1601,9 @@ public struct FfiConverterTypeChatMessage: FfiConverterRustBuffer {
                 senderSid: FfiConverterString.read(from: &buf), 
                 senderName: FfiConverterString.read(from: &buf), 
                 text: FfiConverterString.read(from: &buf), 
-                timestampMs: FfiConverterUInt64.read(from: &buf)
+                timestampMs: FfiConverterUInt64.read(from: &buf), 
+                encrypted: FfiConverterBool.read(from: &buf), 
+                decryptionFailed: FfiConverterBool.read(from: &buf)
         )
     }
 
@@ -1580,6 +1613,8 @@ public struct FfiConverterTypeChatMessage: FfiConverterRustBuffer {
         FfiConverterString.write(value.senderName, into: &buf)
         FfiConverterString.write(value.text, into: &buf)
         FfiConverterUInt64.write(value.timestampMs, into: &buf)
+        FfiConverterBool.write(value.encrypted, into: &buf)
+        FfiConverterBool.write(value.decryptionFailed, into: &buf)
     }
 }
 
@@ -5041,6 +5076,9 @@ private let initializationResult: InitializationResult = {
     if (uniffi_visio_ffi_checksum_method_visioclient_is_camera_enabled() != 23394) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_visio_ffi_checksum_method_visioclient_is_feature_enabled() != 28498) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_visio_ffi_checksum_method_visioclient_is_hand_raised() != 47789) {
         return InitializationResult.apiChecksumMismatch
     }
@@ -5162,6 +5200,9 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_visio_ffi_checksum_method_visioclient_set_display_name() != 36622) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_visio_ffi_checksum_method_visioclient_set_feature_flags_url() != 60275) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_visio_ffi_checksum_method_visioclient_set_language() != 63924) {
