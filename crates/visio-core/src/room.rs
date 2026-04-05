@@ -389,6 +389,9 @@ impl RoomManager {
 
     pub fn pin_participant(&self, sid: Option<String>) {
         self.layout.pin_participant(sid);
+        if let Some(main) = self.layout.main_participant() {
+            self.emitter.emit(VisioEvent::MainParticipantChanged(main));
+        }
     }
 
     pub fn main_participant(&self) -> Option<String> {
