@@ -1040,6 +1040,7 @@ pub struct VisioClient {
     settings: Arc<visio_core::SettingsStore>,
     session_manager: Arc<StdMutex<visio_core::SessionManager>>,
     calendar: Arc<visio_core::CalendarService>,
+    features: Arc<visio_core::FeatureService>,
     rt: tokio::runtime::Runtime,
 }
 
@@ -1091,6 +1092,8 @@ impl VisioClient {
             });
         }
 
+        let features = Arc::new(visio_core::FeatureService::new());
+
         visio_log("VISIO FFI: VisioClient::new() completed");
         Self {
             room_manager,
@@ -1099,6 +1102,7 @@ impl VisioClient {
             settings,
             session_manager,
             calendar,
+            features,
             rt,
         }
     }
@@ -1169,6 +1173,8 @@ impl VisioClient {
         // Phase 4: Ready
         init.ready();
 
+        let features = Arc::new(visio_core::FeatureService::new());
+
         visio_log("VISIO FFI: VisioClient::new_with_listener() completed");
         Self {
             room_manager,
@@ -1177,6 +1183,7 @@ impl VisioClient {
             settings,
             session_manager,
             calendar,
+            features,
             rt,
         }
     }
@@ -2042,6 +2049,24 @@ impl VisioClient {
 
     pub fn get_subscription_stats(&self) -> SubscriptionStats {
         self.room_manager.subscription_stats().into()
+    }
+
+    pub fn is_feature_enabled(&self, feature_name: String) -> bool {
+        self.features.is_enabled(&feature_name)
+    }
+
+    pub fn set_feature_flags_url(&self, url: Option<String>) {
+        self.features.set_proxy_url(url.clone());
+        if url.is_some() {
+            let features = self.features.clone();
+            self.rt.spawn(async move {
+                features.refresh().await;
+            });
+            let features = self.features.clone();
+            self.rt.spawn(async move {
+                features.start_periodic_refresh().await;
+            });
+        }
     }
 }
 

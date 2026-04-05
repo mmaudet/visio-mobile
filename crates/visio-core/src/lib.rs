@@ -14,6 +14,7 @@ pub mod chat;
 pub mod controls;
 pub mod errors;
 pub mod events;
+pub mod features;
 pub mod hand_raise;
 pub mod init;
 pub mod layout;
@@ -33,6 +34,7 @@ pub use calendar::CalendarService;
 pub use chat::ChatService;
 pub use controls::MeetingControls;
 pub use errors::VisioError;
+pub use features::FeatureService;
 pub use events::{
     ChatMessage, ConnectionQuality, ConnectionState, EventEmitter, InitPhase, InitPhaseError,
     InitResult, ParticipantInfo, TrackInfo, TrackKind, TrackSource, VisioEvent, VisioEventListener,

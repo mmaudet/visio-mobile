@@ -464,4 +464,7 @@ interface VisioClient {
     string? main_participant();
     sequence<string> thumbnail_participants();
     SubscriptionStats get_subscription_stats();
+
+    boolean is_feature_enabled(string feature_name);
+    void set_feature_flags_url(string? url);
 };

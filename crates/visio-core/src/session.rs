@@ -9,6 +9,11 @@ pub fn is_oidc_enabled() -> bool {
     cfg!(feature = "oidc")
 }
 
+/// Returns whether OIDC is both compiled in AND enabled at runtime via feature flags.
+pub fn is_oidc_enabled_runtime(features: &crate::features::FeatureService) -> bool {
+    cfg!(feature = "oidc") && features.is_enabled("oidc_auth")
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UserInfo {
     pub id: String,
