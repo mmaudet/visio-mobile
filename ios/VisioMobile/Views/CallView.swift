@@ -516,11 +516,16 @@ struct CallView: View {
             let pageSize = columnCount * maxRows
             let pageCount = max(1, (count + pageSize - 1) / pageSize)
 
+            // Wire page size to core LayoutEngine for smart subscriptions
+            let _ = manager.client.setPageSize(size: UInt32(pageSize))
+
             ZStack(alignment: .bottom) {
                 TabView(selection: Binding(
                     get: { currentPage },
                     set: { newValue in
                         currentPage = newValue
+                        // Wire current page to core LayoutEngine for smart subscriptions
+                        manager.client.setCurrentPage(page: UInt32(newValue))
                     }
                 )) {
                     ForEach(0..<pageCount, id: \.self) { pageIndex in
@@ -641,22 +646,26 @@ struct CallView: View {
 
     private var speakerLayout: some View {
         let displayItems = buildDisplayItems(manager.participants)
-        // Main participant: pinned, or first active speaker, or first remote, or first
-        let mainSid: String? = {
-            if userPinned, let fi = focusedItem {
-                return fi.participantSid
+
+        // Wire pin state to core LayoutEngine for smart subscriptions
+        let pinnedSid: String? = (userPinned ? focusedItem?.participantSid : nil)
+        let _ = manager.client.pinParticipant(sid: pinnedSid)
+
+        // Use core LayoutEngine to determine main and thumbnail participants
+        let mainSid = manager.client.mainParticipant()
+        let thumbnailSids = manager.client.thumbnailParticipants()
+
+        let mainItem = mainSid.flatMap { sid in
+            displayItems.first(where: { $0.participant.sid == sid && $0.source == .camera })
+        } ?? displayItems.first
+        let thumbnails: [DisplayItem] = {
+            if !thumbnailSids.isEmpty {
+                return thumbnailSids.compactMap { sid in
+                    displayItems.first(where: { $0.participant.sid == sid })
+                }
             }
-            if let speaker = manager.activeSpeakers.first {
-                return speaker
-            }
-            // First remote participant (skip local at index 0)
-            if displayItems.count > 1 {
-                return displayItems[1].participant.sid
-            }
-            return displayItems.first?.participant.sid
+            return displayItems.filter { $0.id != mainItem?.id }
         }()
-        let mainItem = displayItems.first(where: { $0.participant.sid == mainSid && $0.source == .camera }) ?? displayItems.first
-        let thumbnails = displayItems.filter { $0.id != mainItem?.id }
 
         return VStack(spacing: 8) {
             // Main tile
