@@ -591,6 +591,8 @@ public protocol VisioClientProtocol: AnyObject, Sendable {
     
     func getSettings()  -> Settings
     
+    func getSubscriptionStats()  -> SubscriptionStats
+    
     func getUpcomingMeetings()  -> [Meeting]
     
     func getVisioAliases()  -> [VisioAlias]
@@ -985,6 +987,13 @@ open func getSessionState() -> SessionState  {
 open func getSettings() -> Settings  {
     return try!  FfiConverterTypeSettings_lift(try! rustCall() {
     uniffi_visio_ffi_fn_method_visioclient_get_settings(self.uniffiClonePointer(),$0
+    )
+})
+}
+    
+open func getSubscriptionStats() -> SubscriptionStats  {
+    return try!  FfiConverterTypeSubscriptionStats_lift(try! rustCall() {
+    uniffi_visio_ffi_fn_method_visioclient_get_subscription_stats(self.uniffiClonePointer(),$0
     )
 })
 }
@@ -2295,6 +2304,92 @@ public func FfiConverterTypeSettings_lift(_ buf: RustBuffer) throws -> Settings 
 #endif
 public func FfiConverterTypeSettings_lower(_ value: Settings) -> RustBuffer {
     return FfiConverterTypeSettings.lower(value)
+}
+
+
+public struct SubscriptionStats {
+    public var subscribedHigh: UInt32
+    public var subscribedLow: UInt32
+    public var unsubscribed: UInt32
+    public var screenShares: UInt32
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(subscribedHigh: UInt32, subscribedLow: UInt32, unsubscribed: UInt32, screenShares: UInt32) {
+        self.subscribedHigh = subscribedHigh
+        self.subscribedLow = subscribedLow
+        self.unsubscribed = unsubscribed
+        self.screenShares = screenShares
+    }
+}
+
+#if compiler(>=6)
+extension SubscriptionStats: Sendable {}
+#endif
+
+
+extension SubscriptionStats: Equatable, Hashable {
+    public static func ==(lhs: SubscriptionStats, rhs: SubscriptionStats) -> Bool {
+        if lhs.subscribedHigh != rhs.subscribedHigh {
+            return false
+        }
+        if lhs.subscribedLow != rhs.subscribedLow {
+            return false
+        }
+        if lhs.unsubscribed != rhs.unsubscribed {
+            return false
+        }
+        if lhs.screenShares != rhs.screenShares {
+            return false
+        }
+        return true
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(subscribedHigh)
+        hasher.combine(subscribedLow)
+        hasher.combine(unsubscribed)
+        hasher.combine(screenShares)
+    }
+}
+
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeSubscriptionStats: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SubscriptionStats {
+        return
+            try SubscriptionStats(
+                subscribedHigh: FfiConverterUInt32.read(from: &buf), 
+                subscribedLow: FfiConverterUInt32.read(from: &buf), 
+                unsubscribed: FfiConverterUInt32.read(from: &buf), 
+                screenShares: FfiConverterUInt32.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: SubscriptionStats, into buf: inout [UInt8]) {
+        FfiConverterUInt32.write(value.subscribedHigh, into: &buf)
+        FfiConverterUInt32.write(value.subscribedLow, into: &buf)
+        FfiConverterUInt32.write(value.unsubscribed, into: &buf)
+        FfiConverterUInt32.write(value.screenShares, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeSubscriptionStats_lift(_ buf: RustBuffer) throws -> SubscriptionStats {
+    return try FfiConverterTypeSubscriptionStats.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeSubscriptionStats_lower(_ value: SubscriptionStats) -> RustBuffer {
+    return FfiConverterTypeSubscriptionStats.lower(value)
 }
 
 
@@ -4926,6 +5021,9 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_visio_ffi_checksum_method_visioclient_get_settings() != 24786) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_visio_ffi_checksum_method_visioclient_get_subscription_stats() != 19075) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_visio_ffi_checksum_method_visioclient_get_upcoming_meetings() != 17953) {

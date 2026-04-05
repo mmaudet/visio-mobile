@@ -10,6 +10,11 @@ and this project adheres to
 
 ### Added
 
+- Core: smart video subscription management with anti-jitter
+  delays for bandwidth optimization (#198)
+- Core: screen share tracks always subscribed at HIGH
+  quality (#202)
+- FFI: subscription stats for monitoring (#198)
 - Core: `prepare_connection()` pre-check validates server
   reachability before connecting (#193)
 - Core: phased initialization with progress callbacks (#195)
