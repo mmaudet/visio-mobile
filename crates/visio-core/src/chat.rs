@@ -44,8 +44,8 @@ pub fn derive_chat_key(room_token: &str) -> [u8; 32] {
 ///
 /// Wire format: `[version=0x01][12-byte nonce][ciphertext+tag]`, then base64 encoded.
 pub fn encrypt_message(plaintext: &str, key: &[u8; 32]) -> Result<String, VisioError> {
-    use aes_gcm::aead::OsRng;
     use aes_gcm::AeadCore;
+    use aes_gcm::aead::OsRng;
 
     let cipher = Aes256Gcm::new(key.into());
     let nonce = Aes256Gcm::generate_nonce(&mut OsRng);
@@ -154,7 +154,7 @@ impl ChatService {
         let local = room.local_participant();
 
         // Encrypt if a key is available
-        let key = self.chat_key.lock().unwrap_or_else(|p| p.into_inner()).clone();
+        let key = *self.chat_key.lock().unwrap_or_else(|p| p.into_inner());
         let (wire_text, encrypted) = match key {
             Some(ref k) => (encrypt_message(&text, k)?, true),
             None => (text.clone(), false),

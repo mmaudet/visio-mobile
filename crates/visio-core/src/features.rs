@@ -10,6 +10,12 @@ pub struct FeatureService {
     defaults: HashMap<String, bool>,
 }
 
+impl Default for FeatureService {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl FeatureService {
     pub fn new() -> Self {
         let defaults = HashMap::from([

@@ -203,8 +203,7 @@ async fn read_chat_text_stream(
             let sender_name = lookup_participant_name(&room_ref, &identity).await;
 
             // Attempt decryption if the message looks encrypted
-            let (text, encrypted, decryption_failed) =
-                decrypt_incoming(&wire_text, &chat_key);
+            let (text, encrypted, decryption_failed) = decrypt_incoming(&wire_text, &chat_key);
 
             let msg = crate::events::ChatMessage {
                 id: stream_id,
@@ -236,15 +235,12 @@ async fn read_chat_text_stream(
 }
 
 /// Try to decrypt an incoming message. Returns (text, encrypted, decryption_failed).
-fn decrypt_incoming(
-    wire_text: &str,
-    chat_key: &crate::chat::ChatKey,
-) -> (String, bool, bool) {
+fn decrypt_incoming(wire_text: &str, chat_key: &crate::chat::ChatKey) -> (String, bool, bool) {
     if !crate::chat::is_encrypted_message(wire_text) {
         return (wire_text.to_string(), false, false);
     }
 
-    let key = chat_key.lock().unwrap_or_else(|p| p.into_inner()).clone();
+    let key = *chat_key.lock().unwrap_or_else(|p| p.into_inner());
     match key {
         Some(ref k) => match crate::chat::decrypt_message(wire_text, k) {
             Ok(plaintext) => (plaintext, true, false),
@@ -2162,11 +2158,13 @@ impl EventLoopContext {
         wire_text: String,
         timestamp_ms: u64,
     ) {
-        let (text, encrypted, decryption_failed) =
-            decrypt_incoming(&wire_text, &self.chat_key);
+        let (text, encrypted, decryption_failed) = decrypt_incoming(&wire_text, &self.chat_key);
         tracing::info!(
             "ChatMessage received: id={} text={} encrypted={} decryption_failed={}",
-            id, text, encrypted, decryption_failed,
+            id,
+            text,
+            encrypted,
+            decryption_failed,
         );
         let msg = ChatMessage {
             id,

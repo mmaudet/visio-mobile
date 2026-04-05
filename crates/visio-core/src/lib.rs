@@ -34,11 +34,11 @@ pub use calendar::CalendarService;
 pub use chat::ChatService;
 pub use controls::MeetingControls;
 pub use errors::VisioError;
-pub use features::FeatureService;
 pub use events::{
     ChatMessage, ConnectionQuality, ConnectionState, EventEmitter, InitPhase, InitPhaseError,
     InitResult, ParticipantInfo, TrackInfo, TrackKind, TrackSource, VisioEvent, VisioEventListener,
 };
+pub use features::FeatureService;
 pub use hand_raise::HandRaiseManager;
 pub use init::{InitProgressListener, InitSequence, NoOpListener};
 pub use lobby::{LobbyPollResult, LobbyService, LobbyStatus, WaitingParticipant};
