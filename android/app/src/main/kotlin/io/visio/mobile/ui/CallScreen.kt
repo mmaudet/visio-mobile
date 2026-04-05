@@ -1579,6 +1579,16 @@ private fun PaginatedGridLayout(
 
         val pagerState = rememberPagerState(pageCount = { pageCount })
 
+        // Wire page size to core LayoutEngine for smart subscriptions
+        LaunchedEffect(pageSize) {
+            VisioManager.client.setPageSize(pageSize.toUInt())
+        }
+
+        // Wire current page to core LayoutEngine for smart subscriptions
+        LaunchedEffect(pagerState.currentPage) {
+            VisioManager.client.setCurrentPage(pagerState.currentPage.toUInt())
+        }
+
         Column(modifier = Modifier.fillMaxSize()) {
             HorizontalPager(
                 state = pagerState,
@@ -1694,21 +1704,26 @@ private fun SpeakerLayout(
 ) {
     if (displayItems.isEmpty()) return
 
-    // Determine the main participant: pinned > active speaker > first
-    val mainItem =
-        when {
-            pinnedSpeakerSid != null -> displayItems.find { it.participant.sid == pinnedSpeakerSid }
-            else -> {
-                val speakerSid = activeSpeakers.firstOrNull()
-                if (speakerSid != null) {
-                    displayItems.find { it.participant.sid == speakerSid }
-                } else {
-                    null
-                }
-            }
-        } ?: displayItems.first()
+    // Wire pin state to core LayoutEngine for smart subscriptions
+    LaunchedEffect(pinnedSpeakerSid) {
+        VisioManager.client.pinParticipant(pinnedSpeakerSid)
+    }
 
-    val thumbnailItems = displayItems.filter { it.key != mainItem.key }
+    // Use core LayoutEngine to determine main and thumbnail participants
+    val mainSid = VisioManager.client.mainParticipant()
+    val thumbnailSids = VisioManager.client.thumbnailParticipants()
+
+    val mainItem = mainSid?.let { sid ->
+        displayItems.find { it.participant.sid == sid }
+    } ?: displayItems.first()
+
+    val thumbnailItems = if (thumbnailSids.isNotEmpty()) {
+        thumbnailSids.mapNotNull { sid ->
+            displayItems.find { it.participant.sid == sid }
+        }
+    } else {
+        displayItems.filter { it.key != mainItem.key }
+    }
 
     Column(modifier = Modifier.fillMaxSize()) {
         // Main tile (~70% height)
