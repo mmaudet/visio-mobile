@@ -137,9 +137,10 @@ async fn connect_after_lobby_acceptance(
                 ConnectionState::Connected,
             ));
 
-            // Derive chat key from LiveKit URL (shared by all participants)
+            // Derive chat key from room name (unique per room, shared by all participants)
             {
-                let key = crate::chat::derive_chat_key(&livekit_url);
+                let room_name = lk_room.name();
+                let key = crate::chat::derive_chat_key(&room_name);
                 *chat_key.lock().unwrap_or_else(|p| p.into_inner()) = Some(key);
             }
 
@@ -703,13 +704,6 @@ impl RoomManager {
     ) -> Result<(), VisioError> {
         self.set_connection_state(ConnectionState::Connecting).await;
 
-        // Derive and store the chat encryption key from the LiveKit URL
-        // (shared by all participants in the same room).
-        {
-            let key = crate::chat::derive_chat_key(livekit_url);
-            *self.chat_key.lock().unwrap_or_else(|p| p.into_inner()) = Some(key);
-        }
-
         let high_quality = self
             .high_quality_mode
             .load(std::sync::atomic::Ordering::Relaxed);
@@ -721,6 +715,13 @@ impl RoomManager {
             .map_err(|e| VisioError::Connection(e.to_string()))?;
 
         let room = Arc::new(room);
+
+        // Derive chat key from room name (unique per room, shared by all participants)
+        {
+            let room_name = room.name();
+            let key = crate::chat::derive_chat_key(&room_name);
+            *self.chat_key.lock().unwrap_or_else(|p| p.into_inner()) = Some(key);
+        }
 
         // Store local participant SID
         {

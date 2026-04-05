@@ -31,7 +31,7 @@ const NONCE_SIZE: usize = 12;
 /// Shared chat encryption key, accessible from both ChatService and room event loop.
 pub type ChatKey = Arc<std::sync::Mutex<Option<[u8; 32]>>>;
 
-/// Derive a 256-bit AES-GCM key from a room token using HKDF-SHA256.
+/// Derive a 256-bit AES-GCM key from a room name using HKDF-SHA256.
 pub fn derive_chat_key(room_token: &str) -> [u8; 32] {
     let hk = Hkdf::<Sha256>::new(Some(b"visio-chat-v1"), room_token.as_bytes());
     let mut key = [0u8; 32];
