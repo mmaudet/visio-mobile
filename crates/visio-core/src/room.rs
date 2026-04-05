@@ -137,9 +137,9 @@ async fn connect_after_lobby_acceptance(
                 ConnectionState::Connected,
             ));
 
-            // Derive chat key from lobby token
+            // Derive chat key from LiveKit URL (shared by all participants)
             {
-                let key = crate::chat::derive_chat_key(&token);
+                let key = crate::chat::derive_chat_key(&livekit_url);
                 *chat_key.lock().unwrap_or_else(|p| p.into_inner()) = Some(key);
             }
 
@@ -703,9 +703,10 @@ impl RoomManager {
     ) -> Result<(), VisioError> {
         self.set_connection_state(ConnectionState::Connecting).await;
 
-        // Derive and store the chat encryption key from the room token.
+        // Derive and store the chat encryption key from the LiveKit URL
+        // (shared by all participants in the same room).
         {
-            let key = crate::chat::derive_chat_key(token);
+            let key = crate::chat::derive_chat_key(livekit_url);
             *self.chat_key.lock().unwrap_or_else(|p| p.into_inner()) = Some(key);
         }
 
