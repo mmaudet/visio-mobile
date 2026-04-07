@@ -5017,10 +5017,14 @@ export default function App() {
   }, [])
 
   // Auto-connect listener (CLI args: --livekit-url <url> --token <token>)
+  // Backend retries emission multiple times; we ignore duplicates once connected.
+  const autoConnectedRef = useRef(false)
   useEffect(() => {
     const unlisten = listen<{ livekit_url: string; token: string }>(
       'auto-connect',
       async (event) => {
+        if (autoConnectedRef.current) return
+        autoConnectedRef.current = true
         const { livekit_url, token } = event.payload
         try {
           await invoke('connect_with_token', { livekitUrl: livekit_url, token })

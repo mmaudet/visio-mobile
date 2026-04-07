@@ -2159,16 +2159,20 @@ pub fn run() {
             if let (Some(url), Some(token)) = (cli_livekit_url, cli_token) {
                 tracing::info!("Auto-connect requested via CLI: {}", url);
                 let handle = app.handle().clone();
-                // Emit after a short delay to let the frontend mount
+                // Emit repeatedly until the frontend picks it up (it may not
+                // be mounted yet when the first event fires).
                 std::thread::spawn(move || {
-                    std::thread::sleep(std::time::Duration::from_millis(2000));
-                    let _ = handle.emit(
-                        "auto-connect",
-                        serde_json::json!({
-                            "livekit_url": url,
-                            "token": token,
-                        }),
-                    );
+                    for attempt in 1..=6 {
+                        std::thread::sleep(std::time::Duration::from_millis(2000));
+                        tracing::info!("Emitting auto-connect event (attempt {})", attempt);
+                        let _ = handle.emit(
+                            "auto-connect",
+                            serde_json::json!({
+                                "livekit_url": url,
+                                "token": token,
+                            }),
+                        );
+                    }
                 });
             }
 
