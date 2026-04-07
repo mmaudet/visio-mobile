@@ -9,6 +9,7 @@ struct HomeView: View {
     @State private var resolvedRoomURL: String = ""
     @State private var displayName: String = ""
     @State private var navigateToCall: Bool = false
+    @State private var isTestConnect: Bool = false
     @State private var showSettings: Bool = false
     @State private var roomStatus: String = "idle"
     @State private var meetInstances: [String] = []
@@ -349,14 +350,7 @@ struct HomeView: View {
             }
         }
          .navigationDestination(isPresented: $navigateToCall) {
-             PreJoinView(
-                 roomURL: resolvedRoomURL,
-                 initialDisplayName: displayName.trimmingCharacters(in: .whitespacesAndNewlines),
-                 roomDisplayName: roomDisplayName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                     ? nil
-                     : roomDisplayName.trimmingCharacters(in: .whitespacesAndNewlines),
-                 isPresented: $navigateToCall
-             )
+             callDestination
          }
         .sheet(isPresented: $showSettings) {
             SettingsView()
@@ -414,6 +408,7 @@ struct HomeView: View {
         }
         .onChange(of: manager.pendingTestConnect != nil) { _ in
             if manager.pendingTestConnect != nil {
+                isTestConnect = true
                 navigateToCall = true
             }
         }
@@ -486,6 +481,22 @@ struct HomeView: View {
             Button("OK") { manager.pendingDeepLinkError = nil }
         } message: {
             Text(manager.pendingDeepLinkError ?? "")
+        }
+    }
+
+    @ViewBuilder
+    private var callDestination: some View {
+        if isTestConnect {
+            CallView(roomURL: "e2e-test", displayName: "iOS User")
+        } else {
+            PreJoinView(
+                roomURL: resolvedRoomURL,
+                initialDisplayName: displayName.trimmingCharacters(in: .whitespacesAndNewlines),
+                roomDisplayName: roomDisplayName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                    ? nil
+                    : roomDisplayName.trimmingCharacters(in: .whitespacesAndNewlines),
+                isPresented: $navigateToCall
+            )
         }
     }
 

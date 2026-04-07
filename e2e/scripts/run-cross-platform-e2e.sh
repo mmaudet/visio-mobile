@@ -238,6 +238,10 @@ fi
 if [ "$SKIP_ANDROID" = false ]; then
     info "Launching Android app (auto-connect via deep link)..."
 
+    # Force-stop any existing instance to ensure clean deep link handling
+    adb shell am force-stop io.visio.mobile 2>/dev/null || true
+    sleep 1
+
     # Push test video to device for media file capture
     ANDROID_MEDIA_PATH="/data/local/tmp/test-video.mp4"
     info "Pushing test video to Android device..."
@@ -261,6 +265,10 @@ fi
 # =========================================================================
 if [ "$SKIP_IOS" = false ]; then
     info "Launching iOS app (auto-connect via deep link)..."
+
+    # Terminate any existing instance to ensure clean deep link handling
+    xcrun simctl terminate booted io.visio.mobile 2>/dev/null || true
+    sleep 1
 
     ENCODED_IOS_TOKEN=$(python3 -c "import urllib.parse; print(urllib.parse.quote('$IOS_TOKEN', safe=''))")
 
