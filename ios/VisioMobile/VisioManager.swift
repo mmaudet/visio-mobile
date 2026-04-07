@@ -1219,6 +1219,15 @@ class VisioManager: ObservableObject {
             NSLog("VisioManager: calendar error: %@", message)
             self.calendarLoading = false
             self.calendarSyncResult = .error(message: message)
+
+        case .participantOrderChanged:
+            break
+        case .pageChanged:
+            break
+        case .mainParticipantChanged:
+            break
+        case .layoutModeChanged:
+            break
         }
     }
 }

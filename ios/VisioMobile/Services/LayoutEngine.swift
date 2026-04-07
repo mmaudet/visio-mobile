@@ -3,14 +3,14 @@ import visioFFI
 
 // MARK: - Layout Engine Types
 
-enum LayoutMode {
+enum LocalLayoutMode {
     case grid
     case focus
     case speaker
 }
 
 struct LayoutDecision {
-    let mode: LayoutMode
+    let mode: LocalLayoutMode
     let mainTile: DisplayItem?
     let secondaryTiles: [DisplayItem]
     let speakerIndicatorSid: String?
