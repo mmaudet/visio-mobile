@@ -609,6 +609,8 @@ public protocol VisioClientProtocol: AnyObject, Sendable {
     
     func isMicrophoneEnabled()  -> Bool
     
+    func isOidcEnabled()  -> Bool
+    
     func listAccesses(roomId: String) throws  -> [RoomAccess]
     
     func listWaitingParticipants() throws  -> [WaitingParticipant]
@@ -1055,6 +1057,13 @@ open func isHandRaised() -> Bool  {
 open func isMicrophoneEnabled() -> Bool  {
     return try!  FfiConverterBool.lift(try! rustCall() {
     uniffi_visio_ffi_fn_method_visioclient_is_microphone_enabled(self.uniffiClonePointer(),$0
+    )
+})
+}
+    
+open func isOidcEnabled() -> Bool  {
+    return try!  FfiConverterBool.lift(try! rustCall() {
+    uniffi_visio_ffi_fn_method_visioclient_is_oidc_enabled(self.uniffiClonePointer(),$0
     )
 })
 }
@@ -4949,12 +4958,6 @@ public func initLogging()  {try! rustCall() {
     )
 }
 }
-public func isOidcEnabled() -> Bool  {
-    return try!  FfiConverterBool.lift(try! rustCall() {
-    uniffi_visio_ffi_fn_func_is_oidc_enabled($0
-    )
-})
-}
 
 private enum InitializationResult {
     case ok
@@ -4972,9 +4975,6 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.contractVersionMismatch
     }
     if (uniffi_visio_ffi_checksum_func_init_logging() != 52772) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_visio_ffi_checksum_func_is_oidc_enabled() != 10643) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_visio_ffi_checksum_method_visioclient_active_speakers() != 15815) {
@@ -5083,6 +5083,9 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_visio_ffi_checksum_method_visioclient_is_microphone_enabled() != 33466) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_visio_ffi_checksum_method_visioclient_is_oidc_enabled() != 13017) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_visio_ffi_checksum_method_visioclient_list_accesses() != 20835) {

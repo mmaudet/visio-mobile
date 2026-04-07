@@ -976,8 +976,6 @@ internal interface IntegrityCheckingUniffiLib : Library {
     // Integrity check functions only
     fun uniffi_visio_ffi_checksum_func_init_logging(
 ): Short
-fun uniffi_visio_ffi_checksum_func_is_oidc_enabled(
-): Short
 fun uniffi_visio_ffi_checksum_method_visioclient_active_speakers(
 ): Short
 fun uniffi_visio_ffi_checksum_method_visioclient_adaptive_mode(
@@ -1049,6 +1047,8 @@ fun uniffi_visio_ffi_checksum_method_visioclient_is_feature_enabled(
 fun uniffi_visio_ffi_checksum_method_visioclient_is_hand_raised(
 ): Short
 fun uniffi_visio_ffi_checksum_method_visioclient_is_microphone_enabled(
+): Short
+fun uniffi_visio_ffi_checksum_method_visioclient_is_oidc_enabled(
 ): Short
 fun uniffi_visio_ffi_checksum_method_visioclient_list_accesses(
 ): Short
@@ -1307,6 +1307,8 @@ fun uniffi_visio_ffi_fn_method_visioclient_is_hand_raised(`ptr`: Pointer,uniffi_
 ): Byte
 fun uniffi_visio_ffi_fn_method_visioclient_is_microphone_enabled(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
 ): Byte
+fun uniffi_visio_ffi_fn_method_visioclient_is_oidc_enabled(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
+): Byte
 fun uniffi_visio_ffi_fn_method_visioclient_list_accesses(`ptr`: Pointer,`roomId`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
 ): RustBuffer.ByValue
 fun uniffi_visio_ffi_fn_method_visioclient_list_waiting_participants(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
@@ -1429,8 +1431,6 @@ fun uniffi_visio_ffi_fn_init_callback_vtable_visioeventlistener(`vtable`: Uniffi
 ): Unit
 fun uniffi_visio_ffi_fn_func_init_logging(uniffi_out_err: UniffiRustCallStatus, 
 ): Unit
-fun uniffi_visio_ffi_fn_func_is_oidc_enabled(uniffi_out_err: UniffiRustCallStatus, 
-): Byte
 fun ffi_visio_ffi_rustbuffer_alloc(`size`: Long,uniffi_out_err: UniffiRustCallStatus, 
 ): RustBuffer.ByValue
 fun ffi_visio_ffi_rustbuffer_from_bytes(`bytes`: ForeignBytes.ByValue,uniffi_out_err: UniffiRustCallStatus, 
@@ -1560,9 +1560,6 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if (lib.uniffi_visio_ffi_checksum_func_init_logging() != 52772.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_visio_ffi_checksum_func_is_oidc_enabled() != 10643.toShort()) {
-        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
-    }
     if (lib.uniffi_visio_ffi_checksum_method_visioclient_active_speakers() != 15815.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
@@ -1669,6 +1666,9 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_visio_ffi_checksum_method_visioclient_is_microphone_enabled() != 33466.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_visio_ffi_checksum_method_visioclient_is_oidc_enabled() != 13017.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_visio_ffi_checksum_method_visioclient_list_accesses() != 20835.toShort()) {
@@ -2379,6 +2379,8 @@ public interface VisioClientInterface {
     
     fun `isMicrophoneEnabled`(): kotlin.Boolean
     
+    fun `isOidcEnabled`(): kotlin.Boolean
+    
     fun `listAccesses`(`roomId`: kotlin.String): List<RoomAccess>
     
     fun `listWaitingParticipants`(): List<WaitingParticipant>
@@ -3009,6 +3011,18 @@ open class VisioClient: Disposable, AutoCloseable, VisioClientInterface
     callWithPointer {
     uniffiRustCall() { _status ->
     UniffiLib.INSTANCE.uniffi_visio_ffi_fn_method_visioclient_is_microphone_enabled(
+        it, _status)
+}
+    }
+    )
+    }
+    
+
+    override fun `isOidcEnabled`(): kotlin.Boolean {
+            return FfiConverterBoolean.lift(
+    callWithPointer {
+    uniffiRustCall() { _status ->
+    UniffiLib.INSTANCE.uniffi_visio_ffi_fn_method_visioclient_is_oidc_enabled(
         it, _status)
 }
     }
@@ -6322,15 +6336,6 @@ public object FfiConverterSequenceTypeWaitingParticipant: FfiConverterRustBuffer
         _status)
 }
     
-    
- fun `isOidcEnabled`(): kotlin.Boolean {
-            return FfiConverterBoolean.lift(
-    uniffiRustCall() { _status ->
-    UniffiLib.INSTANCE.uniffi_visio_ffi_fn_func_is_oidc_enabled(
-        _status)
-}
-    )
-    }
     
 
 

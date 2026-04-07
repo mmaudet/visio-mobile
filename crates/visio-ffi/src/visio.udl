@@ -1,6 +1,5 @@
 namespace visio {
     void init_logging();
-    boolean is_oidc_enabled();
 };
 
 [Enum]
@@ -466,5 +465,6 @@ interface VisioClient {
     SubscriptionStats get_subscription_stats();
 
     boolean is_feature_enabled(string feature_name);
+    boolean is_oidc_enabled();
     void set_feature_flags_url(string? url);
 };

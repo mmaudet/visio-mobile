@@ -489,6 +489,11 @@ int8_t uniffi_visio_ffi_fn_method_visioclient_is_hand_raised(void*_Nonnull ptr, 
 int8_t uniffi_visio_ffi_fn_method_visioclient_is_microphone_enabled(void*_Nonnull ptr, RustCallStatus *_Nonnull out_status
 );
 #endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_FN_METHOD_VISIOCLIENT_IS_OIDC_ENABLED
+#define UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_FN_METHOD_VISIOCLIENT_IS_OIDC_ENABLED
+int8_t uniffi_visio_ffi_fn_method_visioclient_is_oidc_enabled(void*_Nonnull ptr, RustCallStatus *_Nonnull out_status
+);
+#endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_FN_METHOD_VISIOCLIENT_LIST_ACCESSES
 #define UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_FN_METHOD_VISIOCLIENT_LIST_ACCESSES
 RustBuffer uniffi_visio_ffi_fn_method_visioclient_list_accesses(void*_Nonnull ptr, RustBuffer room_id, RustCallStatus *_Nonnull out_status
@@ -795,12 +800,6 @@ void uniffi_visio_ffi_fn_func_init_logging(RustCallStatus *_Nonnull out_status
     
 );
 #endif
-#ifndef UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_FN_FUNC_IS_OIDC_ENABLED
-#define UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_FN_FUNC_IS_OIDC_ENABLED
-int8_t uniffi_visio_ffi_fn_func_is_oidc_enabled(RustCallStatus *_Nonnull out_status
-    
-);
-#endif
 #ifndef UNIFFI_FFIDEF_FFI_VISIO_FFI_RUSTBUFFER_ALLOC
 #define UNIFFI_FFIDEF_FFI_VISIO_FFI_RUSTBUFFER_ALLOC
 RustBuffer ffi_visio_ffi_rustbuffer_alloc(uint64_t size, RustCallStatus *_Nonnull out_status
@@ -1087,12 +1086,6 @@ uint16_t uniffi_visio_ffi_checksum_func_init_logging(void
     
 );
 #endif
-#ifndef UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_CHECKSUM_FUNC_IS_OIDC_ENABLED
-#define UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_CHECKSUM_FUNC_IS_OIDC_ENABLED
-uint16_t uniffi_visio_ffi_checksum_func_is_oidc_enabled(void
-    
-);
-#endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_CHECKSUM_METHOD_VISIOCLIENT_ACTIVE_SPEAKERS
 #define UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_CHECKSUM_METHOD_VISIOCLIENT_ACTIVE_SPEAKERS
 uint16_t uniffi_visio_ffi_checksum_method_visioclient_active_speakers(void
@@ -1306,6 +1299,12 @@ uint16_t uniffi_visio_ffi_checksum_method_visioclient_is_hand_raised(void
 #ifndef UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_CHECKSUM_METHOD_VISIOCLIENT_IS_MICROPHONE_ENABLED
 #define UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_CHECKSUM_METHOD_VISIOCLIENT_IS_MICROPHONE_ENABLED
 uint16_t uniffi_visio_ffi_checksum_method_visioclient_is_microphone_enabled(void
+    
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_CHECKSUM_METHOD_VISIOCLIENT_IS_OIDC_ENABLED
+#define UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_CHECKSUM_METHOD_VISIOCLIENT_IS_OIDC_ENABLED
+uint16_t uniffi_visio_ffi_checksum_method_visioclient_is_oidc_enabled(void
     
 );
 #endif

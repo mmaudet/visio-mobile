@@ -26,7 +26,7 @@ struct HomeView: View {
     @State private var now = Date()
     private let minuteTimer = Timer.publish(every: 60, on: .main, in: .common).autoconnect()
 
-    private let oidcEnabled: Bool = isOidcEnabled()
+    private var oidcEnabled: Bool { manager.client.isOidcEnabled() }
 
     private var lang: String { manager.currentLang }
     private var isDark: Bool { manager.currentTheme == "dark" }

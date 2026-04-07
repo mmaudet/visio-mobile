@@ -69,6 +69,7 @@ struct VisioState {
     session: Mutex<SessionManager>,
     settings: Arc<SettingsStore>,
     calendar: Arc<CalendarService>,
+    features: Arc<visio_core::FeatureService>,
     #[cfg(target_os = "macos")]
     camera_capture: std::sync::Mutex<Option<camera_macos::MacCameraCapture>>,
     #[cfg(target_os = "linux")]
@@ -1918,8 +1919,8 @@ async fn get_session_state(
 }
 
 #[tauri::command]
-fn is_oidc_enabled() -> bool {
-    cfg!(feature = "oidc")
+fn is_oidc_enabled(state: tauri::State<'_, VisioState>) -> bool {
+    visio_core::session::is_oidc_enabled_runtime(&state.features)
 }
 
 // ---------------------------------------------------------------------------
@@ -2057,6 +2058,8 @@ pub fn run() {
     // where the async runtime is available.
     let calendar_for_setup = calendar.clone();
 
+    let features = Arc::new(visio_core::FeatureService::new());
+
     let state = VisioState {
         room: room_arc,
         controls: Arc::new(Mutex::new(controls)),
@@ -2064,6 +2067,7 @@ pub fn run() {
         session: Mutex::new(SessionManager::new()),
         settings,
         calendar,
+        features,
         #[cfg(target_os = "macos")]
         camera_capture: std::sync::Mutex::new(None),
         #[cfg(target_os = "linux")]

@@ -83,7 +83,6 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import uniffi.visio.RoomValidationResult
 import uniffi.visio.UserSearchResult
-import uniffi.visio.isOidcEnabled
 
 private const val TAG = "HomeScreen"
 
@@ -113,7 +112,7 @@ fun HomeScreen(
     val upcomingMeetings by VisioManager.upcomingMeetings.collectAsState()
     val calendarLoading by VisioManager.calendarLoading.collectAsState()
     var hasCalendarUrl by remember { mutableStateOf(false) }
-    val oidcEnabled = isOidcEnabled()
+    val oidcEnabled = VisioManager.client.isOidcEnabled()
 
     HomeScreenEffects(
         selectedTab = selectedTab,
