@@ -67,7 +67,8 @@ platform :ios do
       force: true,
       skip_binary_upload: true,
       metadata_path: "./fastlane/metadata",
-      skip_screenshots: true
+      skip_screenshots: true,
+      precheck_include_in_app_purchases: false
     )
   end
 end
