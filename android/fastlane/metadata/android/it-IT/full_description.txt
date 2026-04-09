@@ -1,0 +1,20 @@
+Visio Mobile è un client nativo di videoconferenza open source basato sull'SDK LiveKit. Partecipa alle riunioni direttamente dal tuo iPhone o iPad, senza browser.
+
+Funzionalità:
+- Chiamate audio e video in tempo reale con decine di partecipanti
+- Griglia video paginata con pagine scorrevoli
+- Modalità relatore con oratore dominante e striscia di miniature
+- Abbonamenti video intelligenti per ottimizzazione della banda
+- Messaggi chat crittografati end-to-end (AES-256-GCM)
+- Visualizzazione condivisione schermo con layout a fuoco
+- Sfocatura sfondo e filtri immagine
+- Lobby pre-connessione con anteprima fotocamera e impostazioni audio
+- Integrazione calendario (iCal) con visio imminenti
+- Autenticazione OIDC con feature flag dinamici
+- Creazione stanze (pubbliche, fidate, riservate)
+- Reazioni animate tramite canali dati
+- Routing audio Bluetooth affidabile al cambio dispositivo
+- Modalità contestuali adattive (ufficio, pedone, auto)
+- Localizzazione completa in 6 lingue
+
+Visio Mobile è software libero (AGPL-3.0) sviluppato da LINAGORA. Compatibile con qualsiasi server basato su LiveKit.

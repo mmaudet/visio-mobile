@@ -1,1 +1,11 @@
-Version initiale
+Nouveautés de la version 0.9.0 :
+- Grille vidéo paginée avec pages glissantes
+- Mode intervenant avec locuteur dominant
+- Abonnements vidéo intelligents avec anti-saccades
+- Chat chiffré de bout en bout (AES-256-GCM)
+- Feature flags dynamiques via proxy Unleash
+- Reconnexion améliorée avec cache de tokens
+- Fiabilité du routage audio Bluetooth
+- Tri des participants par activité vocale
+- Partage d'écran toujours en haute qualité
+- Couverture i18n à 100% en 6 langues

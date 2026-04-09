@@ -1,0 +1,11 @@
+Nieuw in versie 0.9.0:
+- Gepagineerd videoraster met veegbare pagina's
+- Sprekermodus met dominante spreker
+- Slimme video-abonnementen met anti-jitter
+- End-to-end versleutelde chat (AES-256-GCM)
+- Dynamische feature flags via Unleash-proxy
+- Verbeterde herverbinding met tokencache
+- Bluetooth-audioroutering betrouwbaarheid (Android & iOS)
+- Deelnemersortering op spraakactiviteit met anti-flicker
+- Schermdeling altijd in hoge kwaliteit
+- Vertaalpijplijn en 100% i18n-dekking

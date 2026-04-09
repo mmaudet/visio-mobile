@@ -1,11 +1,20 @@
-Visio Mobile is a native video conferencing client built on the LiveKit SDK. Join meeting rooms directly from your iPhone or iPad, no browser needed.
+Visio Mobile is a native, open-source video conferencing client built on the LiveKit SDK. Join meeting rooms directly from your iPhone or iPad — no browser needed.
 
 Features:
-- Real-time audio and video calls
-- In-meeting chat
-- Participant list
-- Room link sharing
-- OIDC authentication
+- Real-time audio and video calls with up to dozens of participants
+- Paginated video grid with swipeable pages
+- Speaker mode with dominant speaker and thumbnail strip
+- Smart video subscriptions for bandwidth optimization
+- End-to-end encrypted chat messages (AES-256-GCM)
+- Screen sharing display with focus layout
+- Background blur and image filters
+- Pre-join lobby with camera preview and audio settings
+- Calendar integration (iCal) with upcoming meetings
+- OIDC authentication with runtime feature flags
 - Room creation (public, trusted, restricted)
+- Animated reactions via data channels
+- Bluetooth audio routing with reliable device switching
+- Adaptive context modes (office, pedestrian, car)
+- Full localization in 6 languages
 
-Visio Mobile is free and open-source software developed by LINAGORA. Compatible with any LiveKit server.
+Visio Mobile is free and open-source software (AGPL-3.0) developed by LINAGORA. Compatible with any LiveKit-based server.

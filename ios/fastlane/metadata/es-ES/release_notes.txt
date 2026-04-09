@@ -1,0 +1,11 @@
+Novedades de la versión 0.9.0:
+- Cuadrícula de vídeo paginada con páginas deslizantes
+- Modo ponente con orador dominante
+- Suscripciones de vídeo inteligentes con anti-jitter
+- Chat cifrado de extremo a extremo (AES-256-GCM)
+- Feature flags dinámicos vía proxy Unleash
+- Reconexión mejorada con caché de tokens
+- Fiabilidad del enrutamiento de audio Bluetooth (Android e iOS)
+- Ordenación de participantes por actividad de voz con anti-parpadeo
+- Pantalla compartida siempre en alta calidad
+- Pipeline de traducción y cobertura i18n al 100%

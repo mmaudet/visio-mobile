@@ -1,0 +1,1 @@
+Native open-source videoconferentieclient. Realtime audio, video en chat vanaf uw iPhone of iPad, geen browser nodig.

@@ -1,1 +1,11 @@
-Initial release
+What's new in 0.9.0:
+- Paginated video grid with swipeable pages
+- Speaker mode with dominant speaker tile
+- Smart video subscriptions with anti-jitter delays
+- End-to-end encrypted chat (AES-256-GCM)
+- Runtime feature flags via Unleash proxy
+- Improved reconnection with token cache
+- Bluetooth audio routing reliability
+- Voice-activity participant sorting
+- Screen share always at high quality
+- 100% i18n coverage in 6 languages

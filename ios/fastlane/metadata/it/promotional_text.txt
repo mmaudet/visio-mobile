@@ -1,0 +1,1 @@
+Client nativo di videoconferenza open source. Audio, video e chat in tempo reale dal tuo iPhone o iPad, senza browser.

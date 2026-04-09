@@ -7,6 +7,11 @@ on:
         description: "Release notes for testers"
         required: false
         default: ""
+      publish_to_app_store:
+        description: "Upload to App Store Connect (metadata + binary)"
+        required: false
+        type: boolean
+        default: false
 
 jobs:
   build-ios:
@@ -47,7 +52,7 @@ jobs:
         with:
           ssh-private-key: ${{ secrets.MATCH_DEPLOY_KEY }}
 
-      - name: Build & distribute via Fastlane
+      - name: Build & distribute to TestFlight
         timeout-minutes: 20
         working-directory: ios
         env:
@@ -60,6 +65,17 @@ jobs:
           GITHUB_RUN_NUMBER: ${{ github.run_number }}
           RELEASE_NOTES: ${{ github.event.inputs.release_notes }}
         run: bundle exec fastlane distribute
+
+      - name: Upload to App Store Connect
+        if: inputs.publish_to_app_store == true
+        timeout-minutes: 20
+        working-directory: ios
+        env:
+          APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
+          APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          APP_STORE_CONNECT_API_KEY_CONTENT: ${{ secrets.APP_STORE_CONNECT_API_KEY_CONTENT }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: bundle exec fastlane release
 
       - name: Upload IPA artifact
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7
