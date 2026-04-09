@@ -51,10 +51,8 @@ platform :ios do
     )
   end
 
-  desc "Build and upload to App Store Connect (metadata + binary)"
+  desc "Upload metadata to App Store Connect (uses IPA already built by distribute)"
   lane :release do
-    setup_ci
-
     api_key = app_store_connect_api_key(
       key_id: ENV["APP_STORE_CONNECT_API_KEY_ID"],
       issuer_id: ENV["APP_STORE_CONNECT_ISSUER_ID"],
@@ -62,42 +60,12 @@ platform :ios do
       is_key_content_base64: true
     )
 
-    match(
-      type: "appstore",
-      app_identifier: "io.visio.mobile",
-      git_url: ENV["MATCH_GIT_URL"],
-      api_key: api_key,
-      readonly: true
-    )
-
-    increment_build_number(
-      build_number: ENV["GITHUB_RUN_NUMBER"] || "1",
-      xcodeproj: "VisioMobile.xcodeproj"
-    )
-
-    gym(
-      scheme: "VisioMobile",
-      project: "VisioMobile.xcodeproj",
-      export_method: "app-store",
-      output_directory: "build",
-      output_name: "VisioMobile.ipa",
-      clean: true,
-      xcargs: "DEVELOPMENT_TEAM='#{ENV["APPLE_TEAM_ID"]}' CODE_SIGN_STYLE=Manual PROVISIONING_PROFILE_SPECIFIER='match AppStore io.visio.mobile' CODE_SIGN_IDENTITY='iPhone Distribution'",
-      export_options: {
-        teamID: ENV["APPLE_TEAM_ID"],
-        signingStyle: "manual",
-        provisioningProfiles: {
-          "io.visio.mobile" => "match AppStore io.visio.mobile"
-        }
-      }
-    )
-
     deliver(
       api_key: api_key,
-      ipa: "build/VisioMobile.ipa",
       app_identifier: "io.visio.mobile",
       submit_for_review: false,
       force: true,
+      skip_binary_upload: true,
       metadata_path: "./fastlane/metadata",
       skip_screenshots: true
     )
