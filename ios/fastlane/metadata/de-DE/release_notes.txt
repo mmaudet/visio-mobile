@@ -5,7 +5,7 @@ Neu in Version 0.9.0:
 - Ende-zu-Ende-verschlüsselter Chat (AES-256-GCM)
 - Dynamische Feature-Flags über Unleash-Proxy
 - Verbesserte Wiederverbindung mit Token-Cache
-- Bluetooth-Audio-Routing-Zuverlässigkeit (Android & iOS)
+- Verbesserte Bluetooth-Audio-Routing-Zuverlässigkeit
 - Teilnehmer-Sortierung nach Sprachaktivität mit Anti-Flicker
 - Bildschirmfreigabe immer in hoher Qualität
 - Übersetzungs-Pipeline und 100% i18n-Abdeckung
