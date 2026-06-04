@@ -90,9 +90,25 @@ jobs:
           # (vs. discovering it 4 minutes later at signReleaseBundle time).
           # 'keytool -list' rejects with a clear message if the storepass is
           # wrong for the embedded PKCS12.
+          # Test the storepass only first (opens the keystore).
           keytool -list -keystore android/app/release.keystore \
             -storepass "${{ secrets.ANDROID_KEYSTORE_PASSWORD }}" \
-            -v | head -20
+            -v | head -10
+          # Now test the alias + keypass — this is what gradle's
+          # signReleaseBundle does internally and will fail with the same
+          # 'password was incorrect' message if either is wrong.
+          echo "--- alias+keypass check ---"
+          keytool -keypasswd -list \
+            -keystore android/app/release.keystore \
+            -storepass "${{ secrets.ANDROID_KEYSTORE_PASSWORD }}" \
+            -alias "${{ secrets.ANDROID_KEY_ALIAS }}" \
+            -keypass "${{ secrets.ANDROID_KEY_PASSWORD }}" 2>&1 | head -5 || true
+          # And a non-destructive way: keytool -certreq probes the key.
+          keytool -certreq \
+            -keystore android/app/release.keystore \
+            -storepass "${{ secrets.ANDROID_KEYSTORE_PASSWORD }}" \
+            -alias "${{ secrets.ANDROID_KEY_ALIAS }}" \
+            -keypass "${{ secrets.ANDROID_KEY_PASSWORD }}" 2>&1 | head -3
 
       - name: Decode Firebase service account
         run: |
