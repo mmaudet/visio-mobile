@@ -277,7 +277,7 @@ pub struct RoomManager {
     last_username: Arc<Mutex<Option<String>>>,
     /// Lobby (waiting room) state.
     lobby_cookie: Arc<Mutex<Option<String>>>,
-    session_cookie: Arc<Mutex<Option<String>>>,
+    access_token: Arc<Mutex<Option<String>>>,
     lobby_cancel: Arc<tokio::sync::Notify>,
     /// Chat unread tracking (shared with event loop).
     chat_open: Arc<AtomicBool>,
@@ -336,7 +336,7 @@ impl RoomManager {
             last_meet_url: Arc::new(Mutex::new(None)),
             last_username: Arc::new(Mutex::new(None)),
             lobby_cookie: Arc::new(Mutex::new(None)),
-            session_cookie: Arc::new(Mutex::new(None)),
+            access_token: Arc::new(Mutex::new(None)),
             lobby_cancel: Arc::new(tokio::sync::Notify::new()),
             chat_open: Arc::new(AtomicBool::new(false)),
             unread_count: Arc::new(AtomicU32::new(0)),
@@ -635,8 +635,8 @@ impl RoomManager {
     }
 
     /// Set a session cookie for authenticated Meet instances.
-    pub async fn set_session_cookie(&self, cookie: Option<String>) {
-        *self.session_cookie.lock().await = cookie;
+    pub async fn set_access_token(&self, cookie: Option<String>) {
+        *self.access_token.lock().await = cookie;
     }
 
     /// Connect to a room using the Meet API.
@@ -646,16 +646,16 @@ impl RoomManager {
         &self,
         meet_url: &str,
         username: Option<&str>,
-        session_cookie: Option<&str>,
+        access_token: Option<&str>,
     ) -> Result<(), VisioError> {
         // Store connection info for potential reconnection
         *self.last_meet_url.lock().await = Some(meet_url.to_string());
         *self.last_username.lock().await = username.map(|s| s.to_string());
-        *self.session_cookie.lock().await = session_cookie.map(|s| s.to_string());
+        *self.access_token.lock().await = access_token.map(|s| s.to_string());
 
         self.set_connection_state(ConnectionState::Connecting).await;
 
-        match AuthService::request_token(meet_url, username, session_cookie).await {
+        match AuthService::request_token(meet_url, username, access_token).await {
             Ok(token_info) => {
                 self.token_cache
                     .store(token_info.token.clone(), token_info.livekit_url.clone());
@@ -663,7 +663,7 @@ impl RoomManager {
                     .await?;
 
                 // Start lobby polling for host (authenticated users)
-                if session_cookie.is_some() {
+                if access_token.is_some() {
                     tracing::info!("LOBBY: cookie present, starting host polling");
                     self.start_lobby_host_polling().await;
                 } else {
@@ -1206,7 +1206,7 @@ impl RoomManager {
             .clone()
             .ok_or_else(|| VisioError::Room("not connected".to_string()))?;
         let cookie = self
-            .session_cookie
+            .access_token
             .lock()
             .await
             .clone()
@@ -1227,7 +1227,7 @@ impl RoomManager {
             .clone()
             .ok_or_else(|| VisioError::Room("not connected".to_string()))?;
         let cookie = self
-            .session_cookie
+            .access_token
             .lock()
             .await
             .clone()
@@ -1245,7 +1245,7 @@ impl RoomManager {
     /// Emits LobbyParticipantJoined/Left events when changes are detected.
     async fn start_lobby_host_polling(&self) {
         let meet_url = self.last_meet_url.lock().await.clone();
-        let cookie = self.session_cookie.lock().await.clone();
+        let cookie = self.access_token.lock().await.clone();
 
         let (meet_url, cookie) = match (meet_url, cookie) {
             (Some(u), Some(c)) => (u, c),
