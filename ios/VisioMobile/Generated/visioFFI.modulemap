@@ -1,5 +1,6 @@
 module visioFFI {
     header "visioFFI.h"
+    header "visio_native.h"
     export *
     use "Darwin"
     use "_Builtin_stdbool"
