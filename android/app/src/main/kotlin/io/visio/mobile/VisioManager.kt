@@ -43,6 +43,20 @@ sealed class CalendarSyncResult {
     data class Error(val message: String) : CalendarSyncResult()
 }
 
+/**
+ * Pick `http` for loopback/private hosts (Android emulator points at the host
+ * dev backend via 10.0.2.2), `https` for real public hostnames.
+ */
+internal fun schemeFor(host: String): String {
+    val h = host.substringBefore(':').lowercase()
+    val isLocal = h == "localhost" || h == "127.0.0.1" || h == "10.0.2.2" || h == "10.0.3.2" ||
+        h.startsWith("192.168.") || h.startsWith("10.") ||
+        (h.startsWith("172.") && (16..31).any { h.startsWith("172.$it.") })
+    return if (isLocal) "http" else "https"
+}
+
+internal fun meetBaseUrl(host: String): String = "${schemeFor(host)}://$host"
+
 object VisioManager : VisioEventListener {
     const val MEETING_CHANNEL_ID = "meetings"
 
@@ -290,19 +304,32 @@ object VisioManager : VisioEventListener {
 
     fun initAuth(context: Context) {
         authManager = OidcAuthManager(context)
-        // Try to restore session on launch
-        val savedCookie = authManager.getSavedCookie()
-        if (savedCookie != null) {
+        // Try to restore session on launch — use the meet instance the tokens
+        // were minted for, not `firstOrNull()` (which could be any attacker
+        // entry that landed in the user's instance list at some point).
+        val savedAccess = authManager.getSavedAccessToken()
+        val savedRefresh = authManager.getSavedRefreshToken()
+        val savedInstance = authManager.getSavedMeetInstance()
+        if (savedAccess != null && savedRefresh != null && savedInstance != null) {
             CoroutineScope(Dispatchers.IO).launch {
                 try {
-                    val meetInstance = client.getMeetInstances().firstOrNull() ?: return@launch
-                    client.authenticate("https://$meetInstance", savedCookie)
+                    client.setTokens(meetBaseUrl(savedInstance), savedAccess, savedRefresh)
                     val state = client.getSessionState()
                     withContext(Dispatchers.Main) {
                         updateSessionFromState(state)
                     }
                 } catch (e: Exception) {
-                    authManager.clearCookie()
+                    // Access token may have expired during downtime — try refresh once.
+                    try {
+                        client.setTokens(meetBaseUrl(savedInstance), savedAccess, savedRefresh)
+                        client.refreshTokens(savedInstance)
+                        val state = client.getSessionState()
+                        withContext(Dispatchers.Main) {
+                            updateSessionFromState(state)
+                        }
+                    } catch (_: Exception) {
+                        authManager.clearTokens()
+                    }
                 }
             }
         }
@@ -328,25 +355,27 @@ object VisioManager : VisioEventListener {
         }
     }
 
-    fun exchangeOidcCode(
+    fun exchangePkceCode(
         code: String,
+        codeVerifier: String,
         meetInstance: String,
     ) {
         scope.launch {
             try {
-                val sessionId = client.exchangeOidcCode(meetInstance, code)
-                onAuthCookieReceived(sessionId, meetInstance)
+                val pair = client.exchangePkceCode(meetInstance, code, codeVerifier)
+                onTokensReceived(pair.access, pair.refresh, meetInstance)
             } catch (e: Exception) {
-                Log.e("VISIO", "OIDC code exchange failed: ${e.message}")
+                Log.e("VISIO", "PKCE code exchange failed: ${e.message}")
             }
         }
     }
 
-    fun onAuthCookieReceived(
-        cookie: String,
+    fun onTokensReceived(
+        access: String,
+        refresh: String,
         meetInstance: String,
     ) {
-        authManager.saveCookie(cookie)
+        authManager.saveTokens(access, refresh, meetInstance)
         // Auto-add the instance to saved Meet instances
         val instances = client.getMeetInstances().toMutableList()
         if (!instances.contains(meetInstance)) {
@@ -355,14 +384,14 @@ object VisioManager : VisioEventListener {
         }
         CoroutineScope(Dispatchers.IO).launch {
             try {
-                client.authenticate("https://$meetInstance", cookie)
+                client.setTokens(meetBaseUrl(meetInstance), access, refresh)
                 val state = client.getSessionState()
                 withContext(Dispatchers.Main) {
                     updateSessionFromState(state)
                 }
             } catch (e: Exception) {
                 Log.e("VisioManager", "Authentication failed", e)
-                authManager.clearCookie()
+                authManager.clearTokens()
             }
         }
     }
@@ -375,12 +404,12 @@ object VisioManager : VisioEventListener {
                         client.getMeetInstances().firstOrNull() ?: ""
                     }
                 if (instance.isNotEmpty()) {
-                    client.logout("https://$instance")
+                    client.logout(meetBaseUrl(instance))
                 }
             } catch (_: Exception) {
                 // No-op
             }
-            authManager.clearCookie()
+            authManager.clearTokens()
             withContext(Dispatchers.Main) {
                 isAuthenticated = false
                 authenticatedDisplayName = ""

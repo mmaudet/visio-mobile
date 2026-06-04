@@ -75,6 +75,7 @@ import androidx.compose.ui.unit.sp
 import io.visio.mobile.CalendarSyncResult
 import io.visio.mobile.R
 import io.visio.mobile.VisioManager
+import io.visio.mobile.meetBaseUrl
 import io.visio.mobile.ui.i18n.Strings
 import io.visio.mobile.ui.theme.VisioColors
 import kotlinx.coroutines.Dispatchers
@@ -1443,7 +1444,7 @@ private fun CreateRoomDialog(
                             try {
                                 val result =
                                     VisioManager.client.createRoom(
-                                        "https://$meetInstance",
+                                        meetBaseUrl(meetInstance),
                                         accessLevel,
                                     )
                                 // Add accesses for invited users
@@ -1458,7 +1459,7 @@ private fun CreateRoomDialog(
                                 }
                                 withContext(Dispatchers.Main) {
                                     createdRoomId = result.id
-                                    val baseUrl = "https://$meetInstance/${result.slug}"
+                                    val baseUrl = "${meetBaseUrl(meetInstance)}/${result.slug}"
                                     val trimmedName = roomDisplayName.trim()
                                     createdUrl =
                                         if (trimmedName.isNotBlank()) {
