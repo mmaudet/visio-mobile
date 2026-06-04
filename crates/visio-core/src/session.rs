@@ -1,8 +1,11 @@
 #[cfg(feature = "oidc")]
-use reqwest::header::{COOKIE, HeaderMap, HeaderValue};
+use reqwest::header::{AUTHORIZATION, HeaderMap, HeaderValue};
 use serde::{Deserialize, Serialize};
 
 use crate::errors::VisioError;
+#[cfg(feature = "oidc")]
+use crate::http::{MAX_JSON_BODY, bounded_text, shared_http_client};
+use crate::tokens::TokenPair;
 
 /// Returns whether OIDC authentication support is compiled in.
 pub fn is_oidc_enabled() -> bool {
@@ -58,7 +61,7 @@ pub enum SessionState {
     Anonymous,
     Authenticated {
         user: UserInfo,
-        cookie: String,
+        tokens: TokenPair,
         meet_instance: String,
     },
 }
@@ -84,21 +87,42 @@ impl SessionManager {
         &self.state
     }
 
-    pub fn set_authenticated(&mut self, user: UserInfo, cookie: String, meet_instance: String) {
+    pub fn set_authenticated(&mut self, user: UserInfo, tokens: TokenPair, meet_instance: String) {
         self.state = SessionState::Authenticated {
             user,
-            cookie,
+            tokens,
             meet_instance,
         };
+    }
+
+    /// Replace just the token pair (used after a refresh).
+    pub fn update_tokens(&mut self, new_tokens: TokenPair) {
+        if let SessionState::Authenticated { tokens, .. } = &mut self.state {
+            *tokens = new_tokens;
+        }
     }
 
     pub fn clear(&mut self) {
         self.state = SessionState::Anonymous;
     }
 
-    pub fn cookie(&self) -> Option<String> {
+    pub fn access_token(&self) -> Option<String> {
         match &self.state {
-            SessionState::Authenticated { cookie, .. } => Some(cookie.clone()),
+            SessionState::Authenticated { tokens, .. } => Some(tokens.access.clone()),
+            SessionState::Anonymous => None,
+        }
+    }
+
+    pub fn refresh_token(&self) -> Option<String> {
+        match &self.state {
+            SessionState::Authenticated { tokens, .. } => Some(tokens.refresh.clone()),
+            SessionState::Anonymous => None,
+        }
+    }
+
+    pub fn tokens(&self) -> Option<TokenPair> {
+        match &self.state {
+            SessionState::Authenticated { tokens, .. } => Some(tokens.clone()),
             SessionState::Anonymous => None,
         }
     }
@@ -117,65 +141,18 @@ impl SessionManager {
         }
     }
 
-    /// Exchange a one-time OIDC code for a session ID.
-    ///
-    /// The Meet server generates a short-lived UUID code and redirects to
-    /// `visio://auth-callback?code={uuid}`. This method POSTs the code to the
-    /// exchange endpoint and returns the session cookie value.
     #[cfg(feature = "oidc")]
-    pub async fn exchange_oidc_code(meet_instance: &str, code: &str) -> Result<String, VisioError> {
-        let url = format!("https://{}/api/v1.0/auth/session-exchange/", meet_instance);
-
-        let client = reqwest::Client::new();
-        let response = client
-            .post(&url)
-            .json(&serde_json::json!({ "code": code }))
-            .send()
-            .await
-            .map_err(|e| VisioError::Http(e.to_string()))?;
-
-        let status = response.status();
-        if !status.is_success() {
-            let body = response.text().await.unwrap_or_default();
-            return Err(VisioError::Auth(format!(
-                "code exchange failed ({status}): {body}"
-            )));
-        }
-
-        let body: serde_json::Value = response
-            .json()
-            .await
-            .map_err(|e| VisioError::Http(e.to_string()))?;
-
-        // The response key matches SESSION_COOKIE_NAME on the server (default: "meet_sessionid")
-        body.get("meet_sessionid")
-            .or_else(|| body.get("sessionid"))
-            .and_then(|v| v.as_str())
-            .map(|s| s.to_string())
-            .ok_or_else(|| VisioError::Auth("no session ID in exchange response".into()))
-    }
-
-    #[cfg(not(feature = "oidc"))]
-    pub async fn exchange_oidc_code(
-        _meet_instance: &str,
-        _code: &str,
-    ) -> Result<String, VisioError> {
-        Err(VisioError::Auth("OIDC support is not enabled".into()))
-    }
-
-    #[cfg(feature = "oidc")]
-    pub async fn fetch_user(meet_url: &str, cookie: &str) -> Result<UserInfo, VisioError> {
+    pub async fn fetch_user(meet_url: &str, access_token: &str) -> Result<UserInfo, VisioError> {
         let url = format!("{}/api/v1.0/users/me/", meet_url);
 
         let mut headers = HeaderMap::new();
-        let cookie_value = format!("sessionid={}", cookie);
+        let bearer = format!("Bearer {}", access_token);
         headers.insert(
-            COOKIE,
-            HeaderValue::from_str(&cookie_value).map_err(|e| VisioError::Http(e.to_string()))?,
+            AUTHORIZATION,
+            HeaderValue::from_str(&bearer).map_err(|e| VisioError::Http(e.to_string()))?,
         );
 
-        let client = reqwest::Client::new();
-        let response = client
+        let response = shared_http_client()
             .get(&url)
             .headers(headers)
             .send()
@@ -189,24 +166,21 @@ impl SessionManager {
             ));
         }
 
-        let body = response
-            .text()
-            .await
-            .map_err(|e| VisioError::Http(e.to_string()))?;
+        let body = bounded_text(response, MAX_JSON_BODY).await?;
 
         serde_json::from_str::<UserInfo>(&body)
             .map_err(|e| VisioError::Session(format!("Failed to parse user info: {}", e)))
     }
 
     #[cfg(not(feature = "oidc"))]
-    pub async fn fetch_user(_meet_url: &str, _cookie: &str) -> Result<UserInfo, VisioError> {
+    pub async fn fetch_user(_meet_url: &str, _access_token: &str) -> Result<UserInfo, VisioError> {
         Err(VisioError::Session("OIDC support is not enabled".into()))
     }
 
     #[cfg(feature = "oidc")]
     pub async fn validate_session(&mut self, meet_url: &str) -> Result<bool, VisioError> {
-        let cookie = match self.cookie() {
-            Some(c) => c,
+        let tokens = match self.tokens() {
+            Some(t) => t,
             None => return Ok(false),
         };
         let instance = meet_url
@@ -215,11 +189,11 @@ impl SessionManager {
             .trim_start_matches("http://")
             .to_string();
 
-        match Self::fetch_user(meet_url, &cookie).await {
+        match Self::fetch_user(meet_url, &tokens.access).await {
             Ok(user) => {
                 self.state = SessionState::Authenticated {
                     user,
-                    cookie,
+                    tokens,
                     meet_instance: instance,
                 };
                 Ok(true)
@@ -236,43 +210,25 @@ impl SessionManager {
         Err(VisioError::Auth("OIDC support is not enabled".into()))
     }
 
-    #[cfg(feature = "oidc")]
-    pub async fn logout(&mut self, meet_url: &str) -> Result<(), VisioError> {
-        if let Some(cookie) = self.cookie() {
-            let url = format!("{}/logout", meet_url);
-            let mut headers = HeaderMap::new();
-            let cookie_value = format!("sessionid={}", cookie);
-            if let Ok(val) = HeaderValue::from_str(&cookie_value) {
-                headers.insert(COOKIE, val);
-                let client = reqwest::Client::new();
-                let _ = client.get(&url).headers(headers).send().await;
-            }
-        }
+    /// Clear the local session. With JWT tokens we don't strictly need to call
+    /// the server — the refresh token will simply expire. We blacklist it via
+    /// the refresh-rotation flow on the server side. For now, drop local state.
+    pub async fn logout(&mut self, _meet_url: &str) -> Result<(), VisioError> {
         self.clear();
         Ok(())
-    }
-
-    #[cfg(not(feature = "oidc"))]
-    pub async fn logout(&mut self, _meet_url: &str) -> Result<(), VisioError> {
-        Err(VisioError::Auth("OIDC support is not enabled".into()))
     }
 
     #[cfg(feature = "oidc")]
     pub async fn create_room(
         meet_url: &str,
-        cookie: &str,
+        access_token: &str,
         access_level: &str,
     ) -> Result<CreateRoomResponse, VisioError> {
         use rand::Rng;
 
         let url = format!("{}/api/v1.0/rooms/", meet_url.trim_end_matches('/'));
 
-        let csrf_bytes: [u8; 32] = rand::thread_rng().r#gen();
-        let csrf_token: String = csrf_bytes.iter().map(|b| format!("{:02x}", b)).collect();
-
-        let cookie_header = format!("sessionid={}; csrftoken={}", cookie, csrf_token);
-
-        // Generate a random slug in xxx-yyyy-zzz format (lowercase letters only)
+        // Random slug in xxx-yyyy-zzz format (lowercase letters only).
         let slug_name = {
             let mut rng = rand::thread_rng();
             let mut rand_char = || (b'a' + rng.r#gen::<u8>() % 26) as char;
@@ -287,12 +243,9 @@ impl SessionManager {
             "access_level": access_level,
         });
 
-        let client = reqwest::Client::new();
-        let response = client
+        let response = shared_http_client()
             .post(&url)
-            .header(COOKIE, &cookie_header)
-            .header("X-CSRFToken", &csrf_token)
-            .header("Referer", format!("{}/", meet_url.trim_end_matches('/')))
+            .header(AUTHORIZATION, format!("Bearer {}", access_token))
             .json(&body)
             .send()
             .await
@@ -306,29 +259,28 @@ impl SessionManager {
         }
 
         if !status.is_success() {
-            let body = response.text().await.unwrap_or_default();
+            let body = bounded_text(response, MAX_JSON_BODY)
+                .await
+                .unwrap_or_default();
             return Err(VisioError::Session(format!(
                 "Room creation failed ({}): {}",
                 status, body
             )));
         }
 
-        let body = response
-            .text()
-            .await
-            .map_err(|e| VisioError::Http(e.to_string()))?;
+        let body = bounded_text(response, MAX_JSON_BODY).await?;
 
-        tracing::debug!("create_room response body: {}", body);
+        // Body contains a LiveKit JWT — never log it. Status + length only.
+        tracing::debug!("create_room status={} body_len={}", status, body.len());
 
-        serde_json::from_str::<CreateRoomResponse>(&body).map_err(|e| {
-            VisioError::Session(format!("Invalid room response: {} — body: {}", e, body))
-        })
+        serde_json::from_str::<CreateRoomResponse>(&body)
+            .map_err(|e| VisioError::Session(format!("Invalid room response: {}", e)))
     }
 
     #[cfg(not(feature = "oidc"))]
     pub async fn create_room(
         _meet_url: &str,
-        _cookie: &str,
+        _access_token: &str,
         _access_level: &str,
     ) -> Result<CreateRoomResponse, VisioError> {
         Err(VisioError::Session("OIDC support is not enabled".into()))
@@ -339,6 +291,13 @@ impl SessionManager {
 mod tests {
     use super::*;
 
+    fn sample_tokens() -> TokenPair {
+        TokenPair {
+            access: "access-jwt".to_string(),
+            refresh: "refresh-jwt".to_string(),
+        }
+    }
+
     #[test]
     fn test_session_state_default_is_anonymous() {
         let session = SessionManager::new();
@@ -346,7 +305,7 @@ mod tests {
     }
 
     #[test]
-    fn test_set_cookie_changes_state() {
+    fn test_set_authenticated_changes_state() {
         let mut session = SessionManager::new();
         let user = UserInfo {
             id: "123".to_string(),
@@ -356,7 +315,7 @@ mod tests {
         };
         session.set_authenticated(
             user.clone(),
-            "abc123".to_string(),
+            sample_tokens(),
             "meet.example.com".to_string(),
         );
         match session.state() {
@@ -376,19 +335,20 @@ mod tests {
             full_name: Some("Test".to_string()),
             short_name: None,
         };
-        session.set_authenticated(user, "abc123".to_string(), "meet.example.com".to_string());
+        session.set_authenticated(user, sample_tokens(), "meet.example.com".to_string());
         session.clear();
         assert!(matches!(session.state(), SessionState::Anonymous));
     }
 
     #[test]
-    fn test_cookie_returns_none_when_anonymous() {
+    fn test_access_token_returns_none_when_anonymous() {
         let session = SessionManager::new();
-        assert!(session.cookie().is_none());
+        assert!(session.access_token().is_none());
+        assert!(session.refresh_token().is_none());
     }
 
     #[test]
-    fn test_cookie_returns_value_when_authenticated() {
+    fn test_tokens_returned_when_authenticated() {
         let mut session = SessionManager::new();
         let user = UserInfo {
             id: "1".to_string(),
@@ -396,13 +356,32 @@ mod tests {
             full_name: Some("A".to_string()),
             short_name: None,
         };
-        session.set_authenticated(user, "mycookie".to_string(), "meet.example.com".to_string());
-        assert_eq!(session.cookie(), Some("mycookie".to_string()));
+        session.set_authenticated(user, sample_tokens(), "meet.example.com".to_string());
+        assert_eq!(session.access_token().as_deref(), Some("access-jwt"));
+        assert_eq!(session.refresh_token().as_deref(), Some("refresh-jwt"));
+    }
+
+    #[test]
+    fn test_update_tokens_after_refresh() {
+        let mut session = SessionManager::new();
+        let user = UserInfo {
+            id: "1".to_string(),
+            email: "a@b.com".to_string(),
+            full_name: None,
+            short_name: None,
+        };
+        session.set_authenticated(user, sample_tokens(), "meet.example.com".to_string());
+        session.update_tokens(TokenPair {
+            access: "new-access".into(),
+            refresh: "new-refresh".into(),
+        });
+        assert_eq!(session.access_token().as_deref(), Some("new-access"));
+        assert_eq!(session.refresh_token().as_deref(), Some("new-refresh"));
     }
 
     #[tokio::test]
-    async fn test_fetch_user_with_invalid_cookie_returns_error() {
-        let result = SessionManager::fetch_user("https://meet.example.com", "invalid_cookie").await;
+    async fn test_fetch_user_with_invalid_token_returns_error() {
+        let result = SessionManager::fetch_user("https://meet.example.com", "invalid-token").await;
         assert!(result.is_err());
     }
 
@@ -431,26 +410,8 @@ mod tests {
     #[tokio::test]
     async fn test_create_room_without_auth_returns_error() {
         let result =
-            SessionManager::create_room("https://meet.example.com", "invalid_cookie", "public")
+            SessionManager::create_room("https://meet.example.com", "invalid-token", "public")
                 .await;
-        assert!(result.is_err());
-    }
-
-    #[tokio::test]
-    async fn test_exchange_oidc_code_with_invalid_code() {
-        let result =
-            SessionManager::exchange_oidc_code("dev-meet.linagora.com", "invalid-code-too-short")
-                .await;
-        assert!(result.is_err());
-    }
-
-    #[tokio::test]
-    async fn test_exchange_oidc_code_formats_url_correctly() {
-        let result = SessionManager::exchange_oidc_code(
-            "nonexistent.example.com",
-            "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
-        )
-        .await;
         assert!(result.is_err());
     }
 }

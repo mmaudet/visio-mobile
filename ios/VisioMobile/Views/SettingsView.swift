@@ -11,7 +11,7 @@ struct SettingsView: View {
     @State private var adaptiveModeEnabled: Bool = false
     @State private var language: String = Strings.detectSystemLang()
     @State private var theme: String = "light"
-    @State private var meetInstances: [String] = ["meet.numerique.gouv.fr"]
+    @State private var meetInstances: [String] = ["visio.numerique.gouv.fr"]
     @State private var newInstance: String = ""
     @State private var calendarUrl: String = ""
     @State private var calendarRefreshInterval: CalendarRefreshInterval = .minutes15

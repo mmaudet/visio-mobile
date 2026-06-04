@@ -1,5 +1,17 @@
 namespace visio {
     void init_logging();
+    PkceChallenge pkce_generate();
+};
+
+dictionary PkceChallenge {
+    string verifier;
+    string challenge;
+    string state;
+};
+
+dictionary TokenPair {
+    string access;
+    string refresh;
 };
 
 [Enum]
@@ -359,10 +371,13 @@ interface VisioClient {
     RoomValidationResult validate_room(string url, string? username);
 
     [Throws=VisioError]
-    void authenticate(string meet_url, string cookie);
+    TokenPair exchange_pkce_code(string meet_instance, string code, string code_verifier);
 
     [Throws=VisioError]
-    string exchange_oidc_code(string meet_instance, string code);
+    void set_tokens(string meet_url, string access, string refresh);
+
+    [Throws=VisioError]
+    void refresh_tokens(string meet_instance);
 
     SessionState get_session_state();
 

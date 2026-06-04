@@ -78,11 +78,11 @@ class MainActivity : ComponentActivity() {
     private fun handleAuthCallback(uri: android.net.Uri) {
         val result = VisioManager.authManager.handleAuthCallback(uri)
         if (result != null) {
-            val (code, meetInstance) = result
-            Log.i(TAG, "Auth callback: exchange code received for $meetInstance")
-            VisioManager.exchangeOidcCode(code, meetInstance)
+            val (code, codeVerifier, meetInstance) = result
+            Log.i(TAG, "Auth callback: PKCE code received for $meetInstance")
+            VisioManager.exchangePkceCode(code, codeVerifier, meetInstance)
         } else {
-            Log.w(TAG, "Auth callback: failed to extract exchange code")
+            Log.w(TAG, "Auth callback: failed to extract PKCE code")
         }
     }
 

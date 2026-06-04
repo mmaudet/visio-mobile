@@ -19,6 +19,8 @@
         android:icon="@mipmap/ic_launcher"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:theme="@style/Theme.VisioMobile"
+        android:allowBackup="false"
+        android:dataExtractionRules="@xml/data_extraction_rules"
         android:supportsRtl="true">
 
         <activity
@@ -38,11 +40,8 @@
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="visio" />
             </intent-filter>
-            <intent-filter>
-                <action android:name="android.intent.action.VIEW" />
-                <category android:name="android.intent.category.DEFAULT" />
-                <data android:scheme="visio-test" android:host="connect" />
-            </intent-filter>
+            <!-- visio-test://connect is debug-only; the intent filter lives in
+                 src/debug/AndroidManifest.xml so release APKs never expose it. -->
         </activity>
 
         <service

@@ -616,21 +616,35 @@ class VisioManager: ObservableObject {
     // MARK: - Authentication
 
     func initAuth() {
-        guard let cookie = authManager.getSavedCookie(),
-              let meetInstance = client.getMeetInstances().first else { return }
+        // Restore session using the instance the tokens were minted for —
+        // never `getMeetInstances().first`, which could be an attacker entry
+        // appended to the user's instance list.
+        guard let access = authManager.getSavedAccessToken(),
+              let refresh = authManager.getSavedRefreshToken(),
+              let meetInstance = authManager.getSavedMeetInstance() else { return }
 
         let client = self.client
         let authManager = self.authManager
         Task.detached {
             do {
-                try client.authenticate(meetUrl: "https://\(meetInstance)", cookie: cookie)
+                try client.setTokens(meetUrl: "https://\(meetInstance)", access: access, refresh: refresh)
                 let state = client.getSessionState()
                 await MainActor.run { [weak self] in
                     self?.updateSessionFromState(state)
                 }
             } catch {
-                await MainActor.run {
-                    authManager.clearCookie()
+                // Access token may have expired during downtime — try refresh once.
+                do {
+                    try client.setTokens(meetUrl: "https://\(meetInstance)", access: access, refresh: refresh)
+                    try client.refreshTokens(meetInstance: meetInstance)
+                    let state = client.getSessionState()
+                    await MainActor.run { [weak self] in
+                        self?.updateSessionFromState(state)
+                    }
+                } catch {
+                    await MainActor.run {
+                        authManager.clearTokens()
+                    }
                 }
             }
         }
@@ -654,8 +668,33 @@ class VisioManager: ObservableObject {
         }
     }
 
-    func onAuthCookieReceived(_ cookie: String, meetInstance: String) {
-        authManager.saveCookie(cookie)
+    /// Exchange a PKCE (code, verifier) pair for JWTs, then activate the session.
+    ///
+    /// Called by views after `OidcAuthManager.launchOidcFlow` returns a valid
+    /// `PkceCallback`. On success the tokens are saved to the Keychain and the
+    /// session manager in the Rust core is set to `Authenticated`.
+    func exchangePkceCode(code: String, verifier: String, meetInstance: String) {
+        let client = self.client
+        let authManager = self.authManager
+        Task.detached {
+            do {
+                let pair = try client.exchangePkceCode(
+                    meetInstance: meetInstance,
+                    code: code,
+                    codeVerifier: verifier
+                )
+                await MainActor.run { [weak self] in
+                    self?.onTokensReceived(access: pair.access, refresh: pair.refresh, meetInstance: meetInstance)
+                }
+            } catch {
+                NSLog("[VisioManager] PKCE code exchange failed: \(error)")
+                await MainActor.run { authManager.clearTokens() }
+            }
+        }
+    }
+
+    private func onTokensReceived(access: String, refresh: String, meetInstance: String) {
+        authManager.saveTokens(access: access, refresh: refresh, meetInstance: meetInstance)
         // Auto-add the instance to saved Meet instances
         var instances = client.getMeetInstances()
         if !instances.contains(meetInstance) {
@@ -667,14 +706,14 @@ class VisioManager: ObservableObject {
         let authManager = self.authManager
         Task.detached {
             do {
-                try client.authenticate(meetUrl: "https://\(meetInstance)", cookie: cookie)
+                try client.setTokens(meetUrl: "https://\(meetInstance)", access: access, refresh: refresh)
                 let state = client.getSessionState()
                 await MainActor.run { [weak self] in
                     self?.updateSessionFromState(state)
                 }
             } catch {
                 await MainActor.run {
-                    authManager.clearCookie()
+                    authManager.clearTokens()
                 }
             }
         }
@@ -690,7 +729,7 @@ class VisioManager: ObservableObject {
         Task.detached {
             try? client.logout(meetUrl: "https://\(instance)")
             await MainActor.run { [weak self] in
-                authManager.clearCookie()
+                authManager.clearTokens()
                 self?.isAuthenticated = false
                 self?.authenticatedDisplayName = ""
                 self?.authenticatedEmail = ""

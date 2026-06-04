@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Backup / device-transfer policy. We deny everything by default — and in
+  particular `shared_prefs/visio_auth.xml`, which holds the access + refresh
+  JWTs (and any in-flight PKCE verifier). Even with EncryptedSharedPreferences,
+  exporting that file via `adb backup` or Auto Backup → Google Drive moves
+  attack surface off-device. The user can re-authenticate on a new device.
+-->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="sharedpref" path="visio_auth.xml" />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="sharedpref" path="visio_auth.xml" />
+    </device-transfer>
+</data-extraction-rules>

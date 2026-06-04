@@ -73,7 +73,7 @@ fun SettingsScreen(onBack: () -> Unit) {
     var micOnJoin by remember { mutableStateOf(true) }
     var cameraOnJoin by remember { mutableStateOf(false) }
     var adaptiveModeEnabled by remember { mutableStateOf(false) }
-    var meetInstances by remember { mutableStateOf(listOf("meet.numerique.gouv.fr")) }
+    var meetInstances by remember { mutableStateOf(listOf("visio.numerique.gouv.fr")) }
     var newInstance by remember { mutableStateOf("") }
     var calendarUrl by remember { mutableStateOf("") }
     var calendarRefreshInterval by remember { mutableStateOf(CalendarRefreshInterval.MINUTES15) }

@@ -80,7 +80,7 @@ Native video conferencing client for [La Suite Meet](https://github.com/suitenum
 
 ## Get started
 
-Connect to any [La Suite Meet](https://github.com/suitenumerique/meet) instance. The default instance `meet.numerique.gouv.fr` is pre-configured. Add your own servers in Settings.
+Connect to any [La Suite Meet](https://github.com/suitenumerique/meet) instance. The default instance `visio.numerique.gouv.fr` (official French State instance) is pre-configured. Add your own servers in Settings.
 
 ## Architecture
 
@@ -230,7 +230,7 @@ Translations are stored as shared JSON files in `i18n/`. All platforms load from
 
 The app registers the `visio://` URL scheme on all platforms.
 
-**Format:** `visio://host/slug` — e.g., `visio://meet.numerique.gouv.fr/abc-defg-hij`
+**Format:** `visio://host/slug` — e.g., `visio://visio.numerique.gouv.fr/abc-defg-hij`
 
 ## Running tests
 
