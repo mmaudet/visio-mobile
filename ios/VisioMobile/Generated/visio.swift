@@ -551,8 +551,6 @@ public protocol VisioClientProtocol: AnyObject, Sendable {
     
     func admitParticipant(participantId: String) throws 
     
-    func authenticate(meetUrl: String, cookie: String) throws 
-    
     func cancelLobby() 
     
     func chatMessages()  -> [ChatMessage]
@@ -573,7 +571,7 @@ public protocol VisioClientProtocol: AnyObject, Sendable {
     
     func disconnect() 
     
-    func exchangeOidcCode(meetInstance: String, code: String) throws  -> String
+    func exchangePkceCode(meetInstance: String, code: String, codeVerifier: String) throws  -> TokenPair
     
     func extractRoomDisplayName(url: String)  -> String?
     
@@ -645,6 +643,8 @@ public protocol VisioClientProtocol: AnyObject, Sendable {
     
     func refreshCalendarNow() 
     
+    func refreshTokens(meetInstance: String) throws 
+    
     func removeAccess(accessId: String) throws 
     
     func reportBluetoothCarKit(connected: Bool) 
@@ -710,6 +710,8 @@ public protocol VisioClientProtocol: AnyObject, Sendable {
     func setPageSize(size: UInt32) 
     
     func setTheme(theme: String) 
+    
+    func setTokens(meetUrl: String, access: String, refresh: String) throws 
     
     func startVideoRenderer(trackSid: String) 
     
@@ -850,14 +852,6 @@ open func admitParticipant(participantId: String)throws   {try rustCallWithError
 }
 }
     
-open func authenticate(meetUrl: String, cookie: String)throws   {try rustCallWithError(FfiConverterTypeVisioError_lift) {
-    uniffi_visio_ffi_fn_method_visioclient_authenticate(self.uniffiClonePointer(),
-        FfiConverterString.lower(meetUrl),
-        FfiConverterString.lower(cookie),$0
-    )
-}
-}
-    
 open func cancelLobby()  {try! rustCall() {
     uniffi_visio_ffi_fn_method_visioclient_cancel_lobby(self.uniffiClonePointer(),$0
     )
@@ -931,11 +925,12 @@ open func disconnect()  {try! rustCall() {
 }
 }
     
-open func exchangeOidcCode(meetInstance: String, code: String)throws  -> String  {
-    return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypeVisioError_lift) {
-    uniffi_visio_ffi_fn_method_visioclient_exchange_oidc_code(self.uniffiClonePointer(),
+open func exchangePkceCode(meetInstance: String, code: String, codeVerifier: String)throws  -> TokenPair  {
+    return try  FfiConverterTypeTokenPair_lift(try rustCallWithError(FfiConverterTypeVisioError_lift) {
+    uniffi_visio_ffi_fn_method_visioclient_exchange_pkce_code(self.uniffiClonePointer(),
         FfiConverterString.lower(meetInstance),
-        FfiConverterString.lower(code),$0
+        FfiConverterString.lower(code),
+        FfiConverterString.lower(codeVerifier),$0
     )
 })
 }
@@ -1183,6 +1178,13 @@ open func refreshCalendarNow()  {try! rustCall() {
 }
 }
     
+open func refreshTokens(meetInstance: String)throws   {try rustCallWithError(FfiConverterTypeVisioError_lift) {
+    uniffi_visio_ffi_fn_method_visioclient_refresh_tokens(self.uniffiClonePointer(),
+        FfiConverterString.lower(meetInstance),$0
+    )
+}
+}
+    
 open func removeAccess(accessId: String)throws   {try rustCallWithError(FfiConverterTypeVisioError_lift) {
     uniffi_visio_ffi_fn_method_visioclient_remove_access(self.uniffiClonePointer(),
         FfiConverterString.lower(accessId),$0
@@ -1413,6 +1415,15 @@ open func setPageSize(size: UInt32)  {try! rustCall() {
 open func setTheme(theme: String)  {try! rustCall() {
     uniffi_visio_ffi_fn_method_visioclient_set_theme(self.uniffiClonePointer(),
         FfiConverterString.lower(theme),$0
+    )
+}
+}
+    
+open func setTokens(meetUrl: String, access: String, refresh: String)throws   {try rustCallWithError(FfiConverterTypeVisioError_lift) {
+    uniffi_visio_ffi_fn_method_visioclient_set_tokens(self.uniffiClonePointer(),
+        FfiConverterString.lower(meetUrl),
+        FfiConverterString.lower(access),
+        FfiConverterString.lower(refresh),$0
     )
 }
 }
@@ -2067,6 +2078,84 @@ public func FfiConverterTypeParticipantInfo_lower(_ value: ParticipantInfo) -> R
 }
 
 
+public struct PkceChallenge {
+    public var verifier: String
+    public var challenge: String
+    public var state: String
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(verifier: String, challenge: String, state: String) {
+        self.verifier = verifier
+        self.challenge = challenge
+        self.state = state
+    }
+}
+
+#if compiler(>=6)
+extension PkceChallenge: Sendable {}
+#endif
+
+
+extension PkceChallenge: Equatable, Hashable {
+    public static func ==(lhs: PkceChallenge, rhs: PkceChallenge) -> Bool {
+        if lhs.verifier != rhs.verifier {
+            return false
+        }
+        if lhs.challenge != rhs.challenge {
+            return false
+        }
+        if lhs.state != rhs.state {
+            return false
+        }
+        return true
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(verifier)
+        hasher.combine(challenge)
+        hasher.combine(state)
+    }
+}
+
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypePkceChallenge: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> PkceChallenge {
+        return
+            try PkceChallenge(
+                verifier: FfiConverterString.read(from: &buf), 
+                challenge: FfiConverterString.read(from: &buf), 
+                state: FfiConverterString.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: PkceChallenge, into buf: inout [UInt8]) {
+        FfiConverterString.write(value.verifier, into: &buf)
+        FfiConverterString.write(value.challenge, into: &buf)
+        FfiConverterString.write(value.state, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypePkceChallenge_lift(_ buf: RustBuffer) throws -> PkceChallenge {
+    return try FfiConverterTypePkceChallenge.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypePkceChallenge_lower(_ value: PkceChallenge) -> RustBuffer {
+    return FfiConverterTypePkceChallenge.lower(value)
+}
+
+
 public struct RoomAccess {
     public var id: String
     public var user: UserSearchResult
@@ -2434,6 +2523,76 @@ public func FfiConverterTypeSubscriptionStats_lift(_ buf: RustBuffer) throws -> 
 #endif
 public func FfiConverterTypeSubscriptionStats_lower(_ value: SubscriptionStats) -> RustBuffer {
     return FfiConverterTypeSubscriptionStats.lower(value)
+}
+
+
+public struct TokenPair {
+    public var access: String
+    public var refresh: String
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(access: String, refresh: String) {
+        self.access = access
+        self.refresh = refresh
+    }
+}
+
+#if compiler(>=6)
+extension TokenPair: Sendable {}
+#endif
+
+
+extension TokenPair: Equatable, Hashable {
+    public static func ==(lhs: TokenPair, rhs: TokenPair) -> Bool {
+        if lhs.access != rhs.access {
+            return false
+        }
+        if lhs.refresh != rhs.refresh {
+            return false
+        }
+        return true
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(access)
+        hasher.combine(refresh)
+    }
+}
+
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeTokenPair: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> TokenPair {
+        return
+            try TokenPair(
+                access: FfiConverterString.read(from: &buf), 
+                refresh: FfiConverterString.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: TokenPair, into buf: inout [UInt8]) {
+        FfiConverterString.write(value.access, into: &buf)
+        FfiConverterString.write(value.refresh, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeTokenPair_lift(_ buf: RustBuffer) throws -> TokenPair {
+    return try FfiConverterTypeTokenPair.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeTokenPair_lower(_ value: TokenPair) -> RustBuffer {
+    return FfiConverterTypeTokenPair.lower(value)
 }
 
 
@@ -4958,6 +5117,12 @@ public func initLogging()  {try! rustCall() {
     )
 }
 }
+public func pkceGenerate() -> PkceChallenge  {
+    return try!  FfiConverterTypePkceChallenge_lift(try! rustCall() {
+    uniffi_visio_ffi_fn_func_pkce_generate($0
+    )
+})
+}
 
 private enum InitializationResult {
     case ok
@@ -4975,6 +5140,9 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.contractVersionMismatch
     }
     if (uniffi_visio_ffi_checksum_func_init_logging() != 52772) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_visio_ffi_checksum_func_pkce_generate() != 46604) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_visio_ffi_checksum_method_visioclient_active_speakers() != 15815) {
@@ -4996,9 +5164,6 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_visio_ffi_checksum_method_visioclient_admit_participant() != 6663) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_visio_ffi_checksum_method_visioclient_authenticate() != 9943) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_visio_ffi_checksum_method_visioclient_cancel_lobby() != 33806) {
@@ -5031,7 +5196,7 @@ private let initializationResult: InitializationResult = {
     if (uniffi_visio_ffi_checksum_method_visioclient_disconnect() != 52651) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_visio_ffi_checksum_method_visioclient_exchange_oidc_code() != 58208) {
+    if (uniffi_visio_ffi_checksum_method_visioclient_exchange_pkce_code() != 57984) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_visio_ffi_checksum_method_visioclient_extract_room_display_name() != 14190) {
@@ -5139,6 +5304,9 @@ private let initializationResult: InitializationResult = {
     if (uniffi_visio_ffi_checksum_method_visioclient_refresh_calendar_now() != 46332) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_visio_ffi_checksum_method_visioclient_refresh_tokens() != 35202) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_visio_ffi_checksum_method_visioclient_remove_access() != 62026) {
         return InitializationResult.apiChecksumMismatch
     }
@@ -5236,6 +5404,9 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_visio_ffi_checksum_method_visioclient_set_theme() != 58689) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_visio_ffi_checksum_method_visioclient_set_tokens() != 52108) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_visio_ffi_checksum_method_visioclient_start_video_renderer() != 53000) {

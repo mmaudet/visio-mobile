@@ -344,11 +344,6 @@ void uniffi_visio_ffi_fn_method_visioclient_add_visio_to_history(void*_Nonnull p
 void uniffi_visio_ffi_fn_method_visioclient_admit_participant(void*_Nonnull ptr, RustBuffer participant_id, RustCallStatus *_Nonnull out_status
 );
 #endif
-#ifndef UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_FN_METHOD_VISIOCLIENT_AUTHENTICATE
-#define UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_FN_METHOD_VISIOCLIENT_AUTHENTICATE
-void uniffi_visio_ffi_fn_method_visioclient_authenticate(void*_Nonnull ptr, RustBuffer meet_url, RustBuffer cookie, RustCallStatus *_Nonnull out_status
-);
-#endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_FN_METHOD_VISIOCLIENT_CANCEL_LOBBY
 #define UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_FN_METHOD_VISIOCLIENT_CANCEL_LOBBY
 void uniffi_visio_ffi_fn_method_visioclient_cancel_lobby(void*_Nonnull ptr, RustCallStatus *_Nonnull out_status
@@ -399,9 +394,9 @@ void uniffi_visio_ffi_fn_method_visioclient_deny_participant(void*_Nonnull ptr, 
 void uniffi_visio_ffi_fn_method_visioclient_disconnect(void*_Nonnull ptr, RustCallStatus *_Nonnull out_status
 );
 #endif
-#ifndef UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_FN_METHOD_VISIOCLIENT_EXCHANGE_OIDC_CODE
-#define UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_FN_METHOD_VISIOCLIENT_EXCHANGE_OIDC_CODE
-RustBuffer uniffi_visio_ffi_fn_method_visioclient_exchange_oidc_code(void*_Nonnull ptr, RustBuffer meet_instance, RustBuffer code, RustCallStatus *_Nonnull out_status
+#ifndef UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_FN_METHOD_VISIOCLIENT_EXCHANGE_PKCE_CODE
+#define UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_FN_METHOD_VISIOCLIENT_EXCHANGE_PKCE_CODE
+RustBuffer uniffi_visio_ffi_fn_method_visioclient_exchange_pkce_code(void*_Nonnull ptr, RustBuffer meet_instance, RustBuffer code, RustBuffer code_verifier, RustCallStatus *_Nonnull out_status
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_FN_METHOD_VISIOCLIENT_EXTRACT_ROOM_DISPLAY_NAME
@@ -579,6 +574,11 @@ void uniffi_visio_ffi_fn_method_visioclient_reconnect(void*_Nonnull ptr, RustCal
 void uniffi_visio_ffi_fn_method_visioclient_refresh_calendar_now(void*_Nonnull ptr, RustCallStatus *_Nonnull out_status
 );
 #endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_FN_METHOD_VISIOCLIENT_REFRESH_TOKENS
+#define UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_FN_METHOD_VISIOCLIENT_REFRESH_TOKENS
+void uniffi_visio_ffi_fn_method_visioclient_refresh_tokens(void*_Nonnull ptr, RustBuffer meet_instance, RustCallStatus *_Nonnull out_status
+);
+#endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_FN_METHOD_VISIOCLIENT_REMOVE_ACCESS
 #define UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_FN_METHOD_VISIOCLIENT_REMOVE_ACCESS
 void uniffi_visio_ffi_fn_method_visioclient_remove_access(void*_Nonnull ptr, RustBuffer access_id, RustCallStatus *_Nonnull out_status
@@ -744,6 +744,11 @@ void uniffi_visio_ffi_fn_method_visioclient_set_page_size(void*_Nonnull ptr, uin
 void uniffi_visio_ffi_fn_method_visioclient_set_theme(void*_Nonnull ptr, RustBuffer theme, RustCallStatus *_Nonnull out_status
 );
 #endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_FN_METHOD_VISIOCLIENT_SET_TOKENS
+#define UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_FN_METHOD_VISIOCLIENT_SET_TOKENS
+void uniffi_visio_ffi_fn_method_visioclient_set_tokens(void*_Nonnull ptr, RustBuffer meet_url, RustBuffer access, RustBuffer refresh, RustCallStatus *_Nonnull out_status
+);
+#endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_FN_METHOD_VISIOCLIENT_START_VIDEO_RENDERER
 #define UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_FN_METHOD_VISIOCLIENT_START_VIDEO_RENDERER
 void uniffi_visio_ffi_fn_method_visioclient_start_video_renderer(void*_Nonnull ptr, RustBuffer track_sid, RustCallStatus *_Nonnull out_status
@@ -797,6 +802,12 @@ void uniffi_visio_ffi_fn_init_callback_vtable_visioeventlistener(const UniffiVTa
 #ifndef UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_FN_FUNC_INIT_LOGGING
 #define UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_FN_FUNC_INIT_LOGGING
 void uniffi_visio_ffi_fn_func_init_logging(RustCallStatus *_Nonnull out_status
+    
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_FN_FUNC_PKCE_GENERATE
+#define UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_FN_FUNC_PKCE_GENERATE
+RustBuffer uniffi_visio_ffi_fn_func_pkce_generate(RustCallStatus *_Nonnull out_status
     
 );
 #endif
@@ -1086,6 +1097,12 @@ uint16_t uniffi_visio_ffi_checksum_func_init_logging(void
     
 );
 #endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_CHECKSUM_FUNC_PKCE_GENERATE
+#define UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_CHECKSUM_FUNC_PKCE_GENERATE
+uint16_t uniffi_visio_ffi_checksum_func_pkce_generate(void
+    
+);
+#endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_CHECKSUM_METHOD_VISIOCLIENT_ACTIVE_SPEAKERS
 #define UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_CHECKSUM_METHOD_VISIOCLIENT_ACTIVE_SPEAKERS
 uint16_t uniffi_visio_ffi_checksum_method_visioclient_active_speakers(void
@@ -1125,12 +1142,6 @@ uint16_t uniffi_visio_ffi_checksum_method_visioclient_add_visio_to_history(void
 #ifndef UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_CHECKSUM_METHOD_VISIOCLIENT_ADMIT_PARTICIPANT
 #define UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_CHECKSUM_METHOD_VISIOCLIENT_ADMIT_PARTICIPANT
 uint16_t uniffi_visio_ffi_checksum_method_visioclient_admit_participant(void
-    
-);
-#endif
-#ifndef UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_CHECKSUM_METHOD_VISIOCLIENT_AUTHENTICATE
-#define UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_CHECKSUM_METHOD_VISIOCLIENT_AUTHENTICATE
-uint16_t uniffi_visio_ffi_checksum_method_visioclient_authenticate(void
     
 );
 #endif
@@ -1194,9 +1205,9 @@ uint16_t uniffi_visio_ffi_checksum_method_visioclient_disconnect(void
     
 );
 #endif
-#ifndef UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_CHECKSUM_METHOD_VISIOCLIENT_EXCHANGE_OIDC_CODE
-#define UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_CHECKSUM_METHOD_VISIOCLIENT_EXCHANGE_OIDC_CODE
-uint16_t uniffi_visio_ffi_checksum_method_visioclient_exchange_oidc_code(void
+#ifndef UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_CHECKSUM_METHOD_VISIOCLIENT_EXCHANGE_PKCE_CODE
+#define UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_CHECKSUM_METHOD_VISIOCLIENT_EXCHANGE_PKCE_CODE
+uint16_t uniffi_visio_ffi_checksum_method_visioclient_exchange_pkce_code(void
     
 );
 #endif
@@ -1410,6 +1421,12 @@ uint16_t uniffi_visio_ffi_checksum_method_visioclient_refresh_calendar_now(void
     
 );
 #endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_CHECKSUM_METHOD_VISIOCLIENT_REFRESH_TOKENS
+#define UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_CHECKSUM_METHOD_VISIOCLIENT_REFRESH_TOKENS
+uint16_t uniffi_visio_ffi_checksum_method_visioclient_refresh_tokens(void
+    
+);
+#endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_CHECKSUM_METHOD_VISIOCLIENT_REMOVE_ACCESS
 #define UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_CHECKSUM_METHOD_VISIOCLIENT_REMOVE_ACCESS
 uint16_t uniffi_visio_ffi_checksum_method_visioclient_remove_access(void
@@ -1605,6 +1622,12 @@ uint16_t uniffi_visio_ffi_checksum_method_visioclient_set_page_size(void
 #ifndef UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_CHECKSUM_METHOD_VISIOCLIENT_SET_THEME
 #define UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_CHECKSUM_METHOD_VISIOCLIENT_SET_THEME
 uint16_t uniffi_visio_ffi_checksum_method_visioclient_set_theme(void
+    
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_CHECKSUM_METHOD_VISIOCLIENT_SET_TOKENS
+#define UNIFFI_FFIDEF_UNIFFI_VISIO_FFI_CHECKSUM_METHOD_VISIOCLIENT_SET_TOKENS
+uint16_t uniffi_visio_ffi_checksum_method_visioclient_set_tokens(void
     
 );
 #endif
