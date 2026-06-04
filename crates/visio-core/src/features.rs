@@ -25,7 +25,7 @@ impl FeatureService {
             ("chat_encryption".into(), false),
             ("speaker_mode".into(), true),
             ("smart_subscriptions".into(), true),
-            ("oidc_auth".into(), false),
+            ("oidc_auth".into(), true),
         ]);
         Self {
             proxy_url: RwLock::new(None),
