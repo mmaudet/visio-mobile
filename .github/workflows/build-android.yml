@@ -78,12 +78,18 @@ jobs:
           fi
 
       - name: Decode keystore
+        # echo adds a trailing newline that can corrupt the decoded binary.
+        # printf '%s' emits the secret verbatim and base64 -d ignores
+        # whitespace, so we get byte-identical output to the source file.
         run: |
-          echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > android/app/release.keystore
+          printf '%s' "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" \
+            | base64 -d > android/app/release.keystore
+          ls -la android/app/release.keystore
 
       - name: Decode Firebase service account
         run: |
-          echo "${{ secrets.FIREBASE_SERVICE_ACCOUNT_BASE64 }}" | base64 -d > /tmp/firebase-sa.json
+          printf '%s' "${{ secrets.FIREBASE_SERVICE_ACCOUNT_BASE64 }}" \
+            | base64 -d > /tmp/firebase-sa.json
 
       - name: Set up Ruby
         uses: ruby/setup-ruby@v1
