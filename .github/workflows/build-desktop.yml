@@ -15,7 +15,10 @@ jobs:
       matrix:
         include:
           - platform: macos
-            runner: macos-15
+            # macos-14: pin to Sonoma. macos-15 (Sequoia) breaks Tauri's
+            # bundle_dmg.sh — `hdiutil`/`create-dmg` interactions changed
+            # and the bundling step exits 1 instantly with no useful output.
+            runner: macos-14
             rust-targets: aarch64-apple-darwin
             label: macos-arm64
           - platform: windows
