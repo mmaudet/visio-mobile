@@ -15,10 +15,12 @@ jobs:
       matrix:
         include:
           - platform: macos
-            # macos-14: pin to Sonoma. macos-15 (Sequoia) breaks Tauri's
-            # bundle_dmg.sh — `hdiutil`/`create-dmg` interactions changed
-            # and the bundling step exits 1 instantly with no useful output.
-            runner: macos-14
+            # macos-15: Sequoia. macos-14 breaks webrtc-sys C++20
+            # compilation (libc++ contiguous_range concept on rust::Slice)
+            # against the SDK 14.5 shipped with Xcode 15.4. Stay on macos-15
+            # and skip DMG bundling (bundle_dmg.sh fails reliably there) —
+            # the .app + .app.tar.gz artefacts are sufficient for distrib.
+            runner: macos-15
             rust-targets: aarch64-apple-darwin
             label: macos-arm64
           - platform: windows
@@ -91,13 +93,23 @@ jobs:
         working-directory: crates/visio-desktop
         run: cargo tauri build --features pipewire-camera
 
-      - name: Build Tauri app (macOS/Windows)
-        if: matrix.platform != 'linux'
+      - name: Build Tauri app (macOS)
+        if: matrix.platform == 'macos'
+        working-directory: crates/visio-desktop
+        shell: bash
+        # `-b app` skips the DMG target; bundle_dmg.sh fails reliably on the
+        # GitHub macos-15 runner (Sequoia + the create-dmg ship'd with Tauri
+        # 2.x at this point). The .app and .app.tar.gz artefacts are enough
+        # for distribution; users can drag the .app to /Applications.
+        run: cargo tauri build -b app
+        env:
+          APPLE_SIGNING_IDENTITY: "-"
+
+      - name: Build Tauri app (Windows)
+        if: matrix.platform == 'windows'
         working-directory: crates/visio-desktop
         shell: bash
         run: cargo tauri build
-        env:
-          APPLE_SIGNING_IDENTITY: "-"
 
       - name: Inject macOS privacy permissions into Info.plist
         if: matrix.platform == 'macos'
@@ -150,8 +162,8 @@ jobs:
         with:
           name: desktop-macos-arm64
           path: |
-            target/release/bundle/dmg/*.dmg
             target/release/bundle/macos/*.app.tar.gz
+            target/release/bundle/macos/*.app.tar.gz.sig
 
       - name: Upload Windows artifacts
         if: matrix.platform == 'windows'
