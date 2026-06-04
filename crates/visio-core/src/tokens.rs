@@ -96,10 +96,13 @@ impl std::fmt::Debug for TokenPair {
 /// `Arc<RwLock<...>>` lets read-only access (extracting current access token
 /// for an outgoing request) coexist with refresh writes. A separate `Mutex`
 /// gates the refresh task so concurrent expirations collapse to a single
-/// network call.
+/// network call. The lock is only consulted by `refresh_tokens` which is
+/// gated on the `oidc` feature, so we silence the dead-code warning on
+/// builds without it.
 #[derive(Default)]
 pub struct TokenStore {
     pair: RwLock<Option<TokenPair>>,
+    #[cfg_attr(not(feature = "oidc"), allow(dead_code))]
     refresh_lock: Mutex<()>,
 }
 
