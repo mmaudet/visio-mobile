@@ -8,6 +8,8 @@ and this project adheres to
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-06-04
+
 ### Added
 
 - Core: OAuth2 + PKCE (RFC 7636 / RFC 8252) login flow with JWT
