@@ -6,6 +6,65 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0),
 and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- Core: OAuth2 + PKCE (RFC 7636 / RFC 8252) login flow with JWT
+  access + rotating refresh tokens (`pkce`, `tokens` modules)
+- Core: shared HTTP client with no-redirect policy, 30s timeout,
+  HTTPS-only in release; bounded JSON body reads (10 MiB cap)
+- FFI: `pkce_generate`, `exchange_pkce_code`, `set_tokens`,
+  `refresh_tokens`, `TokenPair`; panic guards on every entry point
+- Android: PKCE flow via Chrome Custom Tabs; tokens stored in
+  EncryptedSharedPreferences with the originating meet instance
+- iOS: PKCE flow via ASWebAuthenticationSession; tokens, verifier,
+  state and meet instance stored in Keychain
+- Desktop: PKCE flow via system browser + deep-link callback;
+  in-process PendingPkce slot validates state before exchange
+- Docs: three security audit reports under `docs/security/`
+  (Android, Rust, cross-layer) dated 2026-06-04
+
+### Changed
+
+- Core: `SessionState::Authenticated` now carries a `TokenPair`
+  instead of a session cookie; all Bearer plumbing flows from
+  the new `access_token()` accessor
+- Core: default Meet instances become
+  `[visio.numerique.gouv.fr, meet.linagora.com]`; the
+  `visio.numerique.gouv.fr` host is the official French State
+  instance, replacing `meet.numerique.gouv.fr`
+- Android: `network_security_config` (cleartext HTTP to loopback
+  hosts) is now debug-only via the `src/debug/` source set
+
+### Fixed
+
+- Core: `scheme_for` now parses bare hosts via `IpAddr` so
+  `10.attacker.com` no longer downgrades to plaintext HTTP, and
+  IPv6 literals (`::1`, `[::1]:8080`) are handled correctly
+- Core: `TokenPair` and FFI `TokenPair` redact JWTs in their
+  `Debug` impl so accidental `tracing::error!("{:?}", _)` cannot
+  leak meeting credentials
+- Core: `create_room` no longer logs the response body (the body
+  carries the LiveKit JWT) — status + body length only
+- Core: PKCE verifier and state now use `rand::rngs::OsRng`
+  directly instead of `ThreadRng`
+- Android: `android:allowBackup=false` + `dataExtractionRules`
+  exclude `visio_auth.xml` from `adb backup` and Auto Backup
+- Android: `visio-test://connect` intent filter moved to the
+  `src/debug/` source set so release APKs cannot be driven via it
+- Android: `EncryptedSharedPreferences` failures no longer wipe
+  storage silently — narrower exception catch, callers can
+  detect via `secureStorageAvailable`
+- Android: PKCE state comparison uses `MessageDigest.isEqual`
+  (constant-time)
+- Android / iOS: session restore uses the meet instance the
+  tokens were minted for, not `getMeetInstances().first`, so a
+  hostile entry in the instance list cannot redirect Bearer
+  traffic on relaunch
+- iOS: PKCE state comparison uses a constant-time UTF-8 byte
+  compare
+
 ## [0.9.0] - 2026-04-07
 
 ### Added
