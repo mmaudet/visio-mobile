@@ -15,11 +15,10 @@ jobs:
       matrix:
         include:
           - platform: macos
-            # macos-15: Sequoia. macos-14 breaks webrtc-sys C++20
-            # compilation (libc++ contiguous_range concept on rust::Slice)
-            # against the SDK 14.5 shipped with Xcode 15.4. Stay on macos-15
-            # and skip DMG bundling (bundle_dmg.sh fails reliably there) —
-            # the .app + .app.tar.gz artefacts are sufficient for distrib.
+            # macos-15: Sequoia. macos-14 (Sonoma + Xcode 15.4 + SDK 14.5)
+            # breaks webrtc-sys C++20 compilation. A Homebrew create-dmg is
+            # installed in a pre-build step so Tauri delegates to it
+            # instead of its broken internal bundle_dmg.sh on Sequoia.
             runner: macos-15
             rust-targets: aarch64-apple-darwin
             label: macos-arm64
@@ -88,6 +87,14 @@ jobs:
       - name: Install Tauri CLI
         run: cargo install tauri-cli --version "^2" --locked
 
+      - name: Install create-dmg (macOS)
+        # Tauri 2.x ships an internal bundle_dmg.sh that fails on the
+        # macos-15 (Sequoia) runner. If a system `create-dmg` is on PATH,
+        # Tauri delegates to it instead — and the Homebrew build of
+        # create-dmg works fine on Sequoia.
+        if: matrix.platform == 'macos'
+        run: brew install create-dmg
+
       - name: Build Tauri app (Linux with PipeWire)
         if: matrix.platform == 'linux'
         working-directory: crates/visio-desktop
@@ -97,11 +104,7 @@ jobs:
         if: matrix.platform == 'macos'
         working-directory: crates/visio-desktop
         shell: bash
-        # `-b app` skips the DMG target; bundle_dmg.sh fails reliably on the
-        # GitHub macos-15 runner (Sequoia + the create-dmg ship'd with Tauri
-        # 2.x at this point). The .app and .app.tar.gz artefacts are enough
-        # for distribution; users can drag the .app to /Applications.
-        run: cargo tauri build -b app
+        run: cargo tauri build
         env:
           APPLE_SIGNING_IDENTITY: "-"
 
@@ -162,6 +165,7 @@ jobs:
         with:
           name: desktop-macos-arm64
           path: |
+            target/release/bundle/dmg/*.dmg
             target/release/bundle/macos/*.app.tar.gz
             target/release/bundle/macos/*.app.tar.gz.sig
 
