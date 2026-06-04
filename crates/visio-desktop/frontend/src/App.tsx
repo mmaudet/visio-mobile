@@ -4918,18 +4918,23 @@ export default function App() {
         if (parsed.protocol !== 'visio:') return
         const host = parsed.hostname
 
-        // Handle OIDC auth callback: visio://auth-callback?code={uuid}
+        // Handle PKCE auth callback: visio://auth-callback?code={...}&state={...}
         if (host === 'auth-callback') {
           const code = parsed.searchParams.get('code')
+          const stateParam = parsed.searchParams.get('state')
           const meetInstance = pendingOidcRef.current
-          if (code && meetInstance) {
+          if (code && stateParam && meetInstance) {
             pendingOidcRef.current = null
             setPendingOidcInstance(null)
             invoke<{
               display_name?: string
               email?: string
               meet_instance?: string
-            }>('exchange_oidc_code', { meetInstance, code })
+            }>('exchange_pkce_code', {
+              meetInstance,
+              code,
+              stateParam,
+            })
               .then((result) => {
                 setIsAuthenticated(true)
                 setAuthenticatedMeetInstance(meetInstance)
@@ -4951,7 +4956,7 @@ export default function App() {
                   .catch(() => {})
               })
               .catch((e) => {
-                console.error('OIDC code exchange failed:', e)
+                console.error('PKCE code exchange failed:', e)
               })
           }
           return

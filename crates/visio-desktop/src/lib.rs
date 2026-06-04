@@ -3,8 +3,9 @@ use tokio::sync::Mutex;
 
 use tauri::{AppHandle, Emitter, Listener, Manager};
 use visio_core::{
-    AudioPlayoutBuffer, CalendarService, ChatService, MeetingControls, RoomManager, SessionManager,
-    SessionState, SettingsStore, TrackInfo, TrackKind, TrackSource, VisioEvent, VisioEventListener,
+    AudioPlayoutBuffer, CalendarService, ChatService, MeetingControls, PkceChallenge, RoomManager,
+    SessionManager, SessionState, SettingsStore, TokenPair, TrackInfo, TrackKind, TrackSource,
+    VisioEvent, VisioEventListener,
 };
 
 mod audio_engine;
@@ -62,11 +63,23 @@ unsafe extern "C" fn on_desktop_frame(
 // Shared state
 // ---------------------------------------------------------------------------
 
+/// In-flight PKCE OAuth2 flow state.
+///
+/// Stored on `VisioState` between `launch_oidc_browser` (generates verifier +
+/// state) and `exchange_pkce_code` (consumes them after the deep-link
+/// callback). Single-use: cleared on the next callback or new browser launch.
+struct PendingPkce {
+    verifier: String,
+    state: String,
+    meet_instance: String,
+}
+
 struct VisioState {
     room: Arc<Mutex<RoomManager>>,
     controls: Arc<Mutex<MeetingControls>>,
     chat: Arc<Mutex<ChatService>>,
     session: Mutex<SessionManager>,
+    pending_pkce: std::sync::Mutex<Option<PendingPkce>>,
     settings: Arc<SettingsStore>,
     calendar: Arc<CalendarService>,
     features: Arc<visio_core::FeatureService>,
@@ -454,7 +467,7 @@ async fn validate_room(
     }
     let cookie = {
         let session = state.session.lock().await;
-        session.cookie()
+        session.access_token()
     };
     match visio_core::AuthService::validate_room(&url, username.as_deref(), cookie.as_deref()).await
     {
@@ -496,7 +509,7 @@ async fn connect(
 
     let cookie = {
         let session = state.session.lock().await;
-        session.cookie()
+        session.access_token()
     };
     let room = state.room.lock().await;
     room.connect(&meet_url, username.as_deref(), cookie.as_deref())
@@ -993,7 +1006,9 @@ fn add_visio_to_history(
     let clean_url = visio_core::strip_room_display_name_param(&url);
     let extracted_name = visio_core::extract_room_display_name(&url);
     let name = display_name.or(extracted_name);
-    state.settings.add_visio_to_history(clean_url.clone(), name.clone());
+    state
+        .settings
+        .add_visio_to_history(clean_url.clone(), name.clone());
     if let Some(n) = name {
         state.settings.add_visio_alias(n, clean_url);
     }
@@ -1687,7 +1702,7 @@ async fn search_users(
     query: String,
 ) -> Result<serde_json::Value, String> {
     let session = state.session.lock().await;
-    let cookie = session.cookie().ok_or("Not authenticated")?;
+    let cookie = session.access_token().ok_or("Not authenticated")?;
     let meet_instance = session
         .meet_instance()
         .ok_or("No meet instance")?
@@ -1708,7 +1723,7 @@ async fn list_accesses(
     room_id: String,
 ) -> Result<serde_json::Value, String> {
     let session = state.session.lock().await;
-    let cookie = session.cookie().ok_or("Not authenticated")?;
+    let cookie = session.access_token().ok_or("Not authenticated")?;
     let meet_instance = session
         .meet_instance()
         .ok_or("No meet instance")?
@@ -1730,7 +1745,7 @@ async fn add_access(
     room_id: String,
 ) -> Result<serde_json::Value, String> {
     let session = state.session.lock().await;
-    let cookie = session.cookie().ok_or("Not authenticated")?;
+    let cookie = session.access_token().ok_or("Not authenticated")?;
     let meet_instance = session
         .meet_instance()
         .ok_or("No meet instance")?
@@ -1751,7 +1766,7 @@ async fn remove_access(
     access_id: String,
 ) -> Result<(), String> {
     let session = state.session.lock().await;
-    let cookie = session.cookie().ok_or("Not authenticated")?;
+    let cookie = session.access_token().ok_or("Not authenticated")?;
     let meet_instance = session
         .meet_instance()
         .ok_or("No meet instance")?
@@ -1765,20 +1780,48 @@ async fn remove_access(
 }
 
 // ---------------------------------------------------------------------------
-// OIDC authentication commands
+// OAuth2 + PKCE authentication commands
 // ---------------------------------------------------------------------------
 
-/// Open the system browser for OIDC authentication.
-/// The browser has the user's existing SSO session, so login is seamless.
-/// After auth, the server redirects to visio://auth-callback?code={uuid}
-/// which the deep link plugin delivers to the frontend.
+/// Open the system browser for the OAuth2 + PKCE login flow.
+///
+/// Generates a fresh code_verifier / code_challenge / state, stores the
+/// verifier+state on `VisioState.pending_pkce`, and opens the system browser
+/// at `<meet>/api/v1.0/authenticate/` with the PKCE parameters and
+/// `returnTo=/mobile-login`. After SSO, the Meet server redirects the
+/// browser to `visio://auth-callback?code=…&state=…`; the deep-link plugin
+/// delivers that URL to the frontend, which then calls `exchange_pkce_code`.
 #[tauri::command]
-fn launch_oidc_browser(meet_instance: String) -> Result<(), String> {
+fn launch_oidc_browser(
+    state: tauri::State<'_, VisioState>,
+    meet_instance: String,
+) -> Result<(), String> {
+    let pkce: PkceChallenge = PkceChallenge::generate();
+
+    // Record the in-flight flow so the callback can validate state and supply
+    // the verifier to the token endpoint. Overwrites any prior in-flight flow
+    // (last-launch wins — matches the Android Custom Tab behaviour).
+    {
+        let mut slot = state.pending_pkce.lock().unwrap_or_else(|p| p.into_inner());
+        *slot = Some(PendingPkce {
+            verifier: pkce.verifier.clone(),
+            state: pkce.state.clone(),
+            meet_instance: meet_instance.clone(),
+        });
+    }
+
     let auth_url = format!(
-        "https://{}/api/v1.0/authenticate/?returnTo=visio%3A%2F%2Fauth-callback&prompt=login",
-        meet_instance
+        "https://{meet_instance}/api/v1.0/authenticate/?response_type=code\
+         &code_challenge={challenge}&code_challenge_method=S256\
+         &state={state}&returnTo={return_to}&prompt=login",
+        meet_instance = meet_instance,
+        challenge = urlencoding::encode(&pkce.challenge),
+        state = urlencoding::encode(&pkce.state),
+        return_to = urlencoding::encode("/mobile-login"),
     );
-    tracing::info!("Opening system browser for OIDC: {}", auth_url);
+
+    tracing::info!("Opening system browser for PKCE OIDC login on {meet_instance}");
+
     #[cfg(target_os = "macos")]
     {
         std::process::Command::new("open")
@@ -1803,27 +1846,44 @@ fn launch_oidc_browser(meet_instance: String) -> Result<(), String> {
     Ok(())
 }
 
-/// Exchange a one-time OIDC code for a session, completing authentication.
-/// Called by the frontend after receiving the visio://auth-callback?code= deep link.
+/// Exchange a PKCE authorization code (+ state) for an access+refresh JWT pair.
+///
+/// Verifies the returned `state` against the stored value (CSRF / deep-link
+/// hijack defence) before consuming the verifier. Stored PKCE material is
+/// cleared regardless of outcome so a stale verifier cannot be replayed.
 #[tauri::command]
-async fn exchange_oidc_code(
+async fn exchange_pkce_code(
     state: tauri::State<'_, VisioState>,
     meet_instance: String,
     code: String,
+    state_param: String,
 ) -> Result<serde_json::Value, String> {
-    tracing::info!("Exchanging OIDC code for session on {}", meet_instance);
+    // Atomically take the pending PKCE tuple — single-use, can't be replayed.
+    let pending = {
+        let mut slot = state.pending_pkce.lock().unwrap_or_else(|p| p.into_inner());
+        slot.take().ok_or("No pending PKCE flow")?
+    };
 
-    let session_cookie = SessionManager::exchange_oidc_code(&meet_instance, &code)
+    if pending.meet_instance != meet_instance {
+        return Err("Meet instance mismatch in PKCE callback".to_string());
+    }
+    if pending.state != state_param {
+        return Err("PKCE state mismatch — possible CSRF attempt".to_string());
+    }
+
+    tracing::info!("Exchanging PKCE code for tokens on {meet_instance}");
+
+    let pair = visio_core::exchange_pkce_code(&meet_instance, &code, &pending.verifier)
         .await
         .map_err(|e| e.to_string())?;
 
     let meet_url = format!("https://{}", meet_instance);
-    let user = SessionManager::fetch_user(&meet_url, &session_cookie)
+    let user = SessionManager::fetch_user(&meet_url, &pair.access)
         .await
         .map_err(|e| e.to_string())?;
 
     let mut session = state.session.lock().await;
-    session.set_authenticated(user.clone(), session_cookie, meet_instance.clone());
+    session.set_authenticated(user.clone(), pair, meet_instance.clone());
 
     Ok(serde_json::json!({
         "display_name": user.display_name(),
@@ -1832,26 +1892,40 @@ async fn exchange_oidc_code(
     }))
 }
 
+/// Refresh the access token using the stored refresh token.
+///
+/// Mirrors the visio-ffi `refresh_tokens` entry point. Updates the session
+/// in place with the rotated pair; clears the session on auth failure so the
+/// frontend can prompt the user to re-login.
 #[tauri::command]
-async fn authenticate(
+async fn refresh_tokens(
     state: tauri::State<'_, VisioState>,
-    meet_url: String,
-    cookie: String,
-) -> Result<serde_json::Value, String> {
-    let user = SessionManager::fetch_user(&meet_url, &cookie)
+    meet_instance: String,
+) -> Result<(), String> {
+    let current = {
+        let session = state.session.lock().await;
+        session.tokens().ok_or("Not authenticated")?
+    };
+
+    let url = format!("https://{}/api/v1.0/oauth/token/refresh/", meet_instance);
+    let resp = reqwest::Client::new()
+        .post(&url)
+        .json(&serde_json::json!({ "refresh": current.refresh }))
+        .send()
         .await
         .map_err(|e| e.to_string())?;
-    let mut session = state.session.lock().await;
-    let instance = meet_url
-        .trim_end_matches('/')
-        .trim_start_matches("https://")
-        .trim_start_matches("http://")
-        .to_string();
-    session.set_authenticated(user.clone(), cookie, instance);
-    Ok(serde_json::json!({
-        "display_name": user.display_name(),
-        "email": user.email,
-    }))
+
+    if !resp.status().is_success() {
+        let status = resp.status();
+        let body = resp.text().await.unwrap_or_default();
+        // Drop the local session so the UI re-prompts for login.
+        state.session.lock().await.clear();
+        return Err(format!("token refresh failed ({status}): {body}"));
+    }
+
+    let new_pair: TokenPair = resp.json().await.map_err(|e| e.to_string())?;
+    state.session.lock().await.update_tokens(new_pair);
+    Ok(())
 }
 
 #[tauri::command]
@@ -1871,7 +1945,7 @@ async fn create_room(
     access_level: String,
 ) -> Result<serde_json::Value, String> {
     let session = state.session.lock().await;
-    let cookie = session.cookie().ok_or("Not authenticated")?;
+    let cookie = session.access_token().ok_or("Not authenticated")?;
     drop(session);
 
     let result = visio_core::SessionManager::create_room(&meet_url, &cookie, &access_level)
@@ -1928,10 +2002,7 @@ fn is_oidc_enabled(state: tauri::State<'_, VisioState>) -> bool {
 // ---------------------------------------------------------------------------
 
 #[tauri::command]
-async fn set_layout_mode(
-    state: tauri::State<'_, VisioState>,
-    mode: String,
-) -> Result<(), String> {
+async fn set_layout_mode(state: tauri::State<'_, VisioState>, mode: String) -> Result<(), String> {
     let layout_mode = match mode.as_str() {
         "speaker" => visio_core::layout::LayoutMode::Speaker,
         "grid" => visio_core::layout::LayoutMode::Grid,
@@ -2065,6 +2136,7 @@ pub fn run() {
         controls: Arc::new(Mutex::new(controls)),
         chat: Arc::new(Mutex::new(chat)),
         session: Mutex::new(SessionManager::new()),
+        pending_pkce: std::sync::Mutex::new(None),
         settings,
         calendar,
         features,
@@ -2267,8 +2339,8 @@ pub fn run() {
             add_access,
             remove_access,
             launch_oidc_browser,
-            exchange_oidc_code,
-            authenticate,
+            exchange_pkce_code,
+            refresh_tokens,
             logout_session,
             create_room,
             get_session_state,
