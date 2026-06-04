@@ -18,10 +18,23 @@ platform :android do
 
   desc "Build AAB and upload to Google Play (internal track)"
   lane :release do
+    # `signReleaseBundle` (AAB finalization) runs inside a Gradle worker
+    # process that doesn't reliably inherit env vars on every AGP version —
+    # `assembleRelease` (APK) signs fine, `bundleRelease` (AAB) fails with
+    # "keystore password was incorrect" even when the env-derived
+    # signingConfig in build.gradle.kts is correct. Pass the signing
+    # config via Android's `android.injected.signing.*` project properties
+    # (recognised by AGP and serialised to workers).
     gradle(
       task: "bundle",
       build_type: "Release",
-      project_dir: "."
+      project_dir: ".",
+      properties: {
+        "android.injected.signing.store.file" => File.expand_path("app/release.keystore", Dir.pwd),
+        "android.injected.signing.store.password" => ENV["KEYSTORE_PASSWORD"],
+        "android.injected.signing.key.alias" => ENV["KEY_ALIAS"],
+        "android.injected.signing.key.password" => ENV["KEY_PASSWORD"]
+      }
     )
     supply(
       track: "internal",
