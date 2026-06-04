@@ -85,6 +85,14 @@ jobs:
           printf '%s' "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" \
             | base64 -d > android/app/release.keystore
           ls -la android/app/release.keystore
+          sha256sum android/app/release.keystore
+          # The keytool check below catches password-vs-keystore drift early
+          # (vs. discovering it 4 minutes later at signReleaseBundle time).
+          # 'keytool -list' rejects with a clear message if the storepass is
+          # wrong for the embedded PKCS12.
+          keytool -list -keystore android/app/release.keystore \
+            -storepass "${{ secrets.ANDROID_KEYSTORE_PASSWORD }}" \
+            -v | head -20
 
       - name: Decode Firebase service account
         run: |
