@@ -49,9 +49,10 @@ sealed class CalendarSyncResult {
  */
 internal fun schemeFor(host: String): String {
     val h = host.substringBefore(':').lowercase()
-    val isLocal = h == "localhost" || h == "127.0.0.1" || h == "10.0.2.2" || h == "10.0.3.2" ||
-        h.startsWith("192.168.") || h.startsWith("10.") ||
-        (h.startsWith("172.") && (16..31).any { h.startsWith("172.$it.") })
+    val isLocal =
+        h == "localhost" || h == "127.0.0.1" || h == "10.0.2.2" || h == "10.0.3.2" ||
+            h.startsWith("192.168.") || h.startsWith("10.") ||
+            (h.startsWith("172.") && (16..31).any { h.startsWith("172.$it.") })
     return if (isLocal) "http" else "https"
 }
 

@@ -8,9 +8,9 @@ import androidx.browser.customtabs.CustomTabsIntent
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
 import io.visio.mobile.meetBaseUrl
-import java.security.GeneralSecurityException
 import uniffi.visio.PkceChallenge
 import uniffi.visio.pkceGenerate
+import java.security.GeneralSecurityException
 
 class OidcAuthManager(context: Context) {
     companion object {
@@ -76,11 +76,26 @@ class OidcAuthManager(context: Context) {
      *   5. The intent filter on `visio://auth-callback` brings the activity back;
      *      we extract `code+state` in `handleAuthCallback` and exchange it
      *      via `VisioClient.exchangePkceCode(...)` to obtain JWT tokens.
+     *
+     * Returns `true` if the browser was launched, `false` if the flow was
+     * refused (currently: when secure storage is unavailable, since the
+     * verifier could not be persisted across the browser hop). Callers can
+     * surface a UI warning in the `false` case.
      */
     fun launchOidcFlow(
         context: Context,
         meetInstance: String,
-    ) {
+    ): Boolean {
+        // Bail before opening the browser if the Keystore-backed prefs are
+        // unavailable — otherwise saveVerifier/saveState silently no-op,
+        // the user logs in, and the callback fails with a confusing
+        // "PKCE state mismatch" error. Callers can check this return value
+        // (or `secureStorageAvailable` upfront) to surface a UI warning.
+        if (!secureStorageAvailable) {
+            Log.e(TAG, "Refusing OIDC flow: secure storage unavailable")
+            return false
+        }
+
         pendingAuthInstance = meetInstance
 
         val pkce: PkceChallenge = pkceGenerate()
@@ -88,15 +103,16 @@ class OidcAuthManager(context: Context) {
         saveState(pkce.state)
 
         val returnTo = "visio://$AUTH_CALLBACK_HOST"
-        val authUrl = buildString {
-            append("${meetBaseUrl(meetInstance)}/api/v1.0/authenticate/?")
-            append("response_type=code")
-            append("&code_challenge=").append(java.net.URLEncoder.encode(pkce.challenge, "UTF-8"))
-            append("&code_challenge_method=S256")
-            append("&state=").append(java.net.URLEncoder.encode(pkce.state, "UTF-8"))
-            append("&returnTo=").append(java.net.URLEncoder.encode("/mobile-login", "UTF-8"))
-            append("&prompt=login")
-        }
+        val authUrl =
+            buildString {
+                append("${meetBaseUrl(meetInstance)}/api/v1.0/authenticate/?")
+                append("response_type=code")
+                append("&code_challenge=").append(java.net.URLEncoder.encode(pkce.challenge, "UTF-8"))
+                append("&code_challenge_method=S256")
+                append("&state=").append(java.net.URLEncoder.encode(pkce.state, "UTF-8"))
+                append("&returnTo=").append(java.net.URLEncoder.encode("/mobile-login", "UTF-8"))
+                append("&prompt=login")
+            }
 
         Log.d(TAG, "Starting PKCE OIDC flow via Custom Tab")
 
@@ -105,6 +121,7 @@ class OidcAuthManager(context: Context) {
                 .setShowTitle(true)
                 .build()
         customTabsIntent.launchUrl(context, Uri.parse(authUrl))
+        return true
     }
 
     /**
@@ -167,7 +184,11 @@ class OidcAuthManager(context: Context) {
     // can still join meetings as a guest without persistent auth.
 
     /** Persist tokens together with the meet instance they were minted for. */
-    fun saveTokens(access: String, refresh: String, meetInstance: String) {
+    fun saveTokens(
+        access: String,
+        refresh: String,
+        meetInstance: String,
+    ) {
         prefs?.edit()
             ?.putString(KEY_ACCESS_TOKEN, access)
             ?.putString(KEY_REFRESH_TOKEN, refresh)
