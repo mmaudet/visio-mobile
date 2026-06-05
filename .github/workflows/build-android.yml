@@ -146,6 +146,10 @@ jobs:
           KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          # Same monotonic versionCode as the APK step. Without this the
+          # build.gradle.kts fallback (`?: 1`) ships a version_code=1 AAB
+          # to Play Store — which rejects it as already-used by 0.8.0.
+          VERSION_CODE: ${{ github.run_number }}
         run: ./gradlew bundleRelease
 
       - name: Upload AAB to Google Play (internal track)
