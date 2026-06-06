@@ -66,8 +66,8 @@ jobs:
           fi
           echo "Edit ID: $EDIT_ID"
 
-          echo "=== Updating production track (inProgress + countryTargeting) ==="
-          PAYLOAD1='{"track":"production","releases":[{"versionCodes":["'$VERSION_CODE'"],"status":"inProgress","countryTargeting":{"includeRestOfWorld":true,"countries":[]}}]}'
+          echo "=== Stage 1: draft + countryTargeting ==="
+          PAYLOAD1='{"track":"production","releases":[{"versionCodes":["'$VERSION_CODE'"],"status":"draft","countryTargeting":{"includeRestOfWorld":true,"countries":[]}}]}'
           UPDATE1=$(curl -s -X PUT \
             -H "Authorization: Bearer $ACCESS_TOKEN" \
             -H "Content-Type: application/json" \
@@ -75,14 +75,14 @@ jobs:
             "https://androidpublisher.googleapis.com/androidpublisher/v3/applications/$PACKAGE_NAME/edits/$EDIT_ID/tracks/production")
 
           if echo "$UPDATE1" | python3 -c "import json,sys;d=json.load(sys.stdin);assert 'track' in d" 2>/dev/null; then
-            echo "✅ Stage 1 (inProgress + countryTargeting) — OK"
+            echo "✅ Stage 1 (draft + countryTargeting) — OK"
           else
             echo "❌ Stage 1 failed:"
             echo "$UPDATE1"
             exit 1
           fi
 
-          echo "=== Setting release to completed ==="
+          echo "=== Stage 2: completed ==="
           PAYLOAD2='{"track":"production","releases":[{"versionCodes":["'$VERSION_CODE'"],"status":"completed"}]}'
           UPDATE2=$(curl -s -X PUT \
             -H "Authorization: Bearer $ACCESS_TOKEN" \
