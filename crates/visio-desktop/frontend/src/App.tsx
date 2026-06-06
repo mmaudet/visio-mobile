@@ -54,6 +54,15 @@ import {
   type NativeAudioDevice,
   type NativeVideoDevice,
 } from './useDeviceEnumeration'
+import { DeskWindow } from './components/layout/DeskWindow'
+import { DeskSidebar, type NavKey } from './components/layout/DeskSidebar'
+import { Button as VButton } from './components/ui/Button'
+import { Icon as VIcon } from './components/Icon'
+import { HomeScreen } from './screens/HomeScreen'
+import { SettingsScreen } from './screens/SettingsScreen'
+import { LobbyScreen } from './screens/LobbyScreen'
+import { CallScreen } from './screens/CallScreen'
+import type { ThemeChoice } from './hooks/useTheme'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -229,6 +238,38 @@ function extractSlug(input: string): string | null {
 function detectSystemLang(): string {
   const navLang = navigator.language?.split('-')[0]
   return SUPPORTED_LANGS.includes(navLang) ? navLang : 'en'
+}
+
+function isDarkTheme(theme: string): boolean {
+  if (theme === 'dark') return true
+  if (theme === 'light') return false
+  // 'system' or unknown: trust the media query
+  return (
+    typeof window !== 'undefined' &&
+    window.matchMedia?.('(prefers-color-scheme: dark)').matches
+  )
+}
+
+function profileDisplayName(local: string, fromOidc: string): string {
+  return (fromOidc || local || '').trim() || 'Visio'
+}
+
+function profileSubtitle(
+  isAuth: boolean,
+  meetInstance: string,
+  email: string
+): string {
+  if (!isAuth) return 'Anonyme'
+  if (meetInstance && /\bgouv\.fr\b/.test(meetInstance)) return 'ProConnect'
+  if (email) return email
+  if (meetInstance) return meetInstance
+  return ''
+}
+
+function firstName(full: string): string {
+  const trimmed = full.trim()
+  if (!trimmed || trimmed === 'Visio') return ''
+  return trimmed.split(/\s+/)[0]
 }
 
 // ---------------------------------------------------------------------------
@@ -4860,6 +4901,17 @@ export default function App() {
   const [bandwidthMode, setBandwidthMode] = useState<string>('full')
   const settingsRef = useRef<Settings | null>(null)
 
+  // ---- Refonte UI desktop ------------------------------------------------
+  const [showCreateRoom, setShowCreateRoom] = useState(false)
+  const [upcomingMeetings, setUpcomingMeetings] = useState<Meeting[]>([])
+  const [imminentMeetingsCount, setImminentMeetingsCount] = useState(0)
+  const [homeJoinError, setHomeJoinError] = useState<string | null>(null)
+  const [homeJoinPending, setHomeJoinPending] = useState(false)
+  const [showLegacySettings, setShowLegacySettings] = useState(false)
+  const [visioLinksEnabled, setVisioLinksEnabled] = useState(true)
+  const [notificationsEnabled, setNotificationsEnabled] = useState(true)
+  const [appBgMode, setAppBgMode] = useState<string>('off')
+
   const t = useCallback(
     (key: string) => translations[lang]?.[key] ?? translations.en[key] ?? key,
     [lang]
@@ -4905,6 +4957,11 @@ export default function App() {
     // Load ONNX segmentation model for background blur
     resolveResource('models/selfie_segmentation.onnx')
       .then((path) => invoke('load_blur_model', { modelPath: path }))
+      .catch(() => {})
+
+    // Background mode (sync from Rust SettingsStore)
+    invoke<string>('get_background_mode')
+      .then((m) => setAppBgMode(m || 'off'))
       .catch(() => {})
   }, [])
 
@@ -5120,9 +5177,32 @@ export default function App() {
     }
   }, [])
 
-  // Apply theme to document
+  // Dev/debug only: navigate via URL hash. Lets a Playwright run jump straight
+  // to a screen without going through Tauri. Honored only when the hash is one
+  // of the known views.
   useEffect(() => {
-    document.documentElement.dataset.theme = theme
+    const apply = () => {
+      const h = window.location.hash.replace(/^#/, '')
+      if (h === 'home' || h === 'lobby' || h === 'call' || h === 'settings') {
+        setView(h as View)
+      }
+    }
+    apply()
+    window.addEventListener('hashchange', apply)
+    return () => window.removeEventListener('hashchange', apply)
+  }, [])
+
+  // Apply theme to document. 'system' removes the attribute so that the CSS
+  // @media(prefers-color-scheme) fallback kicks in.
+  useEffect(() => {
+    if (theme === 'system') {
+      document.documentElement.removeAttribute('data-theme')
+    } else if (theme === 'dark' || theme === 'light') {
+      document.documentElement.setAttribute('data-theme', theme)
+    } else {
+      // Legacy or unknown — assume light.
+      document.documentElement.setAttribute('data-theme', 'light')
+    }
   }, [theme])
 
   // ---- Unified device enumeration (in-call context) -----------------------
@@ -5393,6 +5473,121 @@ export default function App() {
   }, [t])
 
   // ---- Handlers -----------------------------------------------------------
+  // ---- Refonte: chargement des réunions pour la home ---------------------
+  useEffect(() => {
+    invoke<Meeting[]>('get_upcoming_meetings')
+      .then((list) => {
+        setUpcomingMeetings(list)
+        setImminentMeetingsCount(
+          list.filter((m) => isMeetingImminent(m) || isMeetingOngoing(m)).length
+        )
+      })
+      .catch(() => {})
+    let off: UnlistenFn | null = null
+    listen<Meeting[]>('meetings-updated', (event) => {
+      if (event.payload.length > 0) {
+        setUpcomingMeetings(event.payload)
+        setImminentMeetingsCount(
+          event.payload.filter(
+            (m) => isMeetingImminent(m) || isMeetingOngoing(m)
+          ).length
+        )
+      }
+    }).then((fn) => {
+      off = fn
+    })
+    return () => {
+      off?.()
+    }
+  }, [])
+
+  // ---- Refonte: helpers Home → handleJoin --------------------------------
+  const handleNewMeeting = useCallback(() => {
+    if (!isAuthenticated && oidcEnabled) {
+      // Pas connecté : kicker l'OIDC sur l'instance par défaut.
+      const target = meetInstances[0] || authenticatedMeetInstance
+      if (target) {
+        setPendingOidcInstance(target)
+        pendingOidcRef.current = target
+        invoke('launch_oidc_browser', { meetInstance: target }).catch((e) =>
+          console.error('OIDC launch failed:', e)
+        )
+        return
+      }
+    }
+    setShowCreateRoom(true)
+  }, [isAuthenticated, oidcEnabled, meetInstances, authenticatedMeetInstance])
+
+  const handleJoinByCode = useCallback(
+    async (raw: string) => {
+      setHomeJoinError(null)
+      setHomeJoinPending(true)
+      try {
+        const trimmed = raw.trim().replace(/\/$/, '')
+        const candidates: string[] = []
+        if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+          candidates.push(trimmed)
+        } else if (trimmed.includes('/')) {
+          candidates.push(`https://${trimmed}`)
+        } else if (SLUG_REGEX.test(trimmed)) {
+          // slug seul → essayer chaque instance connue
+          for (const inst of meetInstances) {
+            candidates.push(`https://${inst}/${trimmed}`)
+          }
+          if (authenticatedMeetInstance) {
+            candidates.unshift(
+              `https://${authenticatedMeetInstance}/${trimmed}`
+            )
+          }
+        } else {
+          // alias éventuel
+          try {
+            const resolved = await invoke<string | null>(
+              'resolve_visio_alias',
+              {
+                name: trimmed,
+              }
+            )
+            if (resolved) candidates.push(resolved)
+          } catch {
+            /* ignore */
+          }
+        }
+        if (candidates.length === 0) {
+          setHomeJoinError(t('home.error.noUrl'))
+          return
+        }
+        for (const url of candidates) {
+          const result = await invoke<{
+            status: string
+            livekit_url?: string
+            token?: string
+          }>('validate_room', {
+            url,
+            username: displayName.trim() || null,
+          })
+          if (result.status === 'valid' || result.status === 'auth_required') {
+            await handleJoin(
+              url,
+              displayName.trim() || null,
+              undefined,
+              undefined,
+              result.livekit_url,
+              result.token
+            )
+            return
+          }
+        }
+        setHomeJoinError(t('home.room.notFound'))
+      } catch (e) {
+        setHomeJoinError(String(e))
+      } finally {
+        setHomeJoinPending(false)
+      }
+    },
+    [authenticatedMeetInstance, displayName, meetInstances, t]
+  )
+
   const handleJoin = async (
     meetUrl: string,
     username?: string | null,
@@ -5572,145 +5767,272 @@ export default function App() {
   // ---- Render -------------------------------------------------------------
   return (
     <I18nContext.Provider value={t}>
-      {(view === 'call' || connectionState === 'waiting_for_host') && (
-        <header>
-          <h1>{currentRoomDisplayName || t('app.title')}</h1>
-          <StatusBadge state={connectionState} />
-        </header>
-      )}
       {view === 'call' && bandwidthMode !== 'full' && (
-        <div className="bandwidth-indicator">
+        <div
+          className="bandwidth-indicator"
+          style={{
+            position: 'fixed',
+            top: 12,
+            left: '50%',
+            transform: 'translateX(-50%)',
+            zIndex: 50,
+            background: 'var(--warn)',
+            color: '#fff',
+            padding: '6px 14px',
+            borderRadius: 'var(--r-card)',
+            fontSize: 12,
+            fontWeight: 600,
+            boxShadow: 'var(--shadow-pop)',
+          }}
+        >
           {bandwidthMode === 'reduced_video'
             ? t('bandwidth.reducedVideo')
             : t('bandwidth.audioOnly')}
         </div>
       )}
-      <main>
+      <main
+        style={{ height: '100vh', display: 'flex', flexDirection: 'column' }}
+      >
         {view === 'home' && (
-          <>
-            <HomeView
-              onJoin={handleJoin}
-              onOpenSettings={() => setView('settings')}
-              displayName={displayName}
-              onDisplayNameChange={setDisplayName}
-              deepLinkUrl={deepLinkUrl}
-              onDeepLinkConsumed={() => setDeepLinkUrl(null)}
-              oidcEnabled={oidcEnabled}
-              isAuthenticated={isAuthenticated}
-              authenticatedMeetInstance={authenticatedMeetInstance}
-              displayNameFromOidc={displayNameFromOidc}
-              emailFromOidc={emailFromOidc}
-              onLaunchOidc={async (meetInstance: string) => {
-                try {
-                  setPendingOidcInstance(meetInstance)
-                  pendingOidcRef.current = meetInstance
-                  await invoke('launch_oidc_browser', { meetInstance })
-                } catch (e) {
-                  console.error('Failed to open browser for OIDC:', e)
-                  setPendingOidcInstance(null)
-                  pendingOidcRef.current = null
-                }
+          <DeskWindow>
+            <DeskSidebar
+              active="home"
+              onNavigate={(k: NavKey) => {
+                if (k === 'settings') setView('settings')
               }}
-              meetInstances={meetInstances}
-              onLogout={() => {
-                if (authenticatedMeetInstance) {
-                  invoke('logout_session', {
-                    meetUrl: `https://${authenticatedMeetInstance}`,
-                  }).then(() => {
-                    setIsAuthenticated(false)
-                    setAuthenticatedMeetInstance('')
-                    setDisplayNameFromOidc('')
-                    setEmailFromOidc('')
-                  })
-                }
+              themeIsDark={isDarkTheme(theme)}
+              profile={{
+                name: profileDisplayName(displayName, displayNameFromOidc),
+                subtitle: profileSubtitle(
+                  isAuthenticated,
+                  authenticatedMeetInstance,
+                  emailFromOidc
+                ),
               }}
+              labels={{
+                home: t('sidebar.home'),
+                rooms: t('sidebar.rooms'),
+                calendar: t('sidebar.calendar'),
+                recordings: t('sidebar.recordings'),
+                settings: t('sidebar.settings'),
+              }}
+              newMeetingSlot={
+                <VButton
+                  variant="primary"
+                  full
+                  onClick={handleNewMeeting}
+                  icon={<VIcon name="video" size={18} />}
+                >
+                  {t('home.newMeetingButton')}
+                </VButton>
+              }
             />
-            {deepLinkError && (
-              <div className="deep-link-error">
-                <span>{deepLinkError}</span>
-                <button onClick={() => setDeepLinkError(null)}>
+            <HomeScreen
+              t={t}
+              userFirstName={firstName(
+                profileDisplayName(displayName, displayNameFromOidc)
+              )}
+              instanceHost={
+                authenticatedMeetInstance || meetInstances[0] || null
+              }
+              meetings={upcomingMeetings}
+              notifBadge={imminentMeetingsCount}
+              onNewMeeting={handleNewMeeting}
+              onJoinByCode={handleJoinByCode}
+              onOpenMeeting={(m) => {
+                const uname = displayName.trim() || null
+                invoke('set_display_name', { name: uname })
+                  .then(() => handleJoin(m.room_url, uname))
+                  .catch((e) => setHomeJoinError(String(e)))
+              }}
+              onOpenCalendar={() => setView('home')}
+            />
+            {(homeJoinError || deepLinkError) && (
+              <div
+                style={{
+                  position: 'absolute',
+                  bottom: 24,
+                  left: 274,
+                  right: 28,
+                  background: 'var(--danger)',
+                  color: '#fff',
+                  padding: '12px 16px',
+                  borderRadius: 'var(--r-card)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: 12,
+                  boxShadow: 'var(--shadow-pop)',
+                  fontSize: 14,
+                  fontWeight: 600,
+                }}
+              >
+                <span>{homeJoinError || deepLinkError}</span>
+                <button
+                  onClick={() => {
+                    setHomeJoinError(null)
+                    setDeepLinkError(null)
+                  }}
+                  style={{
+                    background: 'transparent',
+                    border: 'none',
+                    color: '#fff',
+                    cursor: 'pointer',
+                    padding: 4,
+                    display: 'inline-flex',
+                  }}
+                  aria-label="dismiss"
+                >
                   <RiCloseLine size={16} />
                 </button>
               </div>
             )}
-          </>
+            {homeJoinPending && (
+              <div
+                style={{
+                  position: 'absolute',
+                  top: 14,
+                  right: 18,
+                  background: 'var(--surface)',
+                  color: 'var(--text-2)',
+                  padding: '8px 14px',
+                  borderRadius: 'var(--r-card)',
+                  fontSize: 13,
+                  boxShadow: 'var(--shadow-pop)',
+                }}
+              >
+                {t('home.connecting')}
+              </div>
+            )}
+          </DeskWindow>
         )}
+        {view === 'home' &&
+          oidcEnabled &&
+          showCreateRoom &&
+          authenticatedMeetInstance && (
+            <CreateRoomDialog
+              meetInstance={authenticatedMeetInstance}
+              onCreated={async (
+                createdUrl,
+                roomId,
+                accessLevel,
+                livekitUrl,
+                livekitToken
+              ) => {
+                setShowCreateRoom(false)
+                const uname = displayName.trim() || null
+                try {
+                  await invoke('set_display_name', { name: uname })
+                  handleJoin(
+                    createdUrl,
+                    uname,
+                    roomId,
+                    accessLevel,
+                    livekitUrl,
+                    livekitToken
+                  )
+                } catch (e) {
+                  setHomeJoinError(String(e))
+                }
+              }}
+              onCancel={() => setShowCreateRoom(false)}
+            />
+          )}
         {view === 'lobby' && (
-          <PreJoinScreen
-            roomUrl={lobbyRoomUrl}
-            username={lobbyUsername}
-            roomDisplayName={currentRoomDisplayName}
-            lang={lang}
-            isDark={theme === 'dark'}
-            onJoin={async (_username, micOn, camOn, lobbyAudioMode) => {
-              // Apply lobby mic/camera overrides before showing the call view.
-              // Without this, micEnabled/camEnabled stay at their initial false
-              // values and the lobby toggles are silently ignored (#172).
-              const wantMic = micOn && lobbyAudioMode !== 'none'
-              if (wantMic) {
-                try {
-                  await invoke('toggle_mic', { enabled: true })
-                  setMicEnabled(true)
-                } catch (e) {
-                  console.error('Failed to enable mic on join:', e)
+          <DeskWindow>
+            <LobbyScreen
+              t={t}
+              themeIsDark={isDarkTheme(theme)}
+              roomTitle={currentRoomDisplayName || ''}
+              roomUrl={lobbyRoomUrl}
+              livekitUrl={lobbyLivekitUrl}
+              livekitToken={lobbyLivekitToken}
+              initialUsername={lobbyUsername}
+              waitingParticipants={waitingParticipants}
+              onAdmit={(id) => {
+                invoke('admit_participant', { sid: id }).catch(() => {})
+                setWaitingParticipants((prev) =>
+                  prev.filter((p) => p.id !== id)
+                )
+              }}
+              onDeny={(id) => {
+                invoke('deny_participant', { sid: id }).catch(() => {})
+                setWaitingParticipants((prev) =>
+                  prev.filter((p) => p.id !== id)
+                )
+              }}
+              onAdmitAll={() => {
+                waitingParticipants.forEach((p) => {
+                  invoke('admit_participant', { sid: p.id }).catch(() => {})
+                })
+                setWaitingParticipants([])
+              }}
+              onJoined={async (_username, micOn, camOn, lobbyAudioMode) => {
+                const wantMic = micOn && lobbyAudioMode !== 'none'
+                if (wantMic) {
+                  try {
+                    await invoke('toggle_mic', { enabled: true })
+                    setMicEnabled(true)
+                  } catch (e) {
+                    console.error('Failed to enable mic on join:', e)
+                  }
                 }
-              }
-              if (camOn) {
-                try {
-                  await invoke('toggle_camera', { enabled: true })
-                  setCamEnabled(true)
-                } catch (e) {
-                  console.error('Failed to enable camera on join:', e)
+                if (camOn) {
+                  try {
+                    await invoke('toggle_camera', { enabled: true })
+                    setCamEnabled(true)
+                  } catch (e) {
+                    console.error('Failed to enable camera on join:', e)
+                  }
                 }
-              }
-              setView('call')
-            }}
-            onCancel={() => setView('home')}
-            livekitUrl={lobbyLivekitUrl}
-            livekitToken={lobbyLivekitToken}
-          />
+                setView('call')
+              }}
+              onCancel={() => setView('home')}
+            />
+          </DeskWindow>
         )}
         {view === 'call' && connectionState !== 'waiting_for_host' && (
-          <CallView
+          <CallScreen
+            t={t}
+            roomTitle={currentRoomDisplayName}
             participants={participants}
             localParticipant={localParticipant}
             micEnabled={micEnabled}
             camEnabled={camEnabled}
-            videoFrames={videoFrames}
-            messages={messages}
-            handRaisedMap={handRaisedMap}
-            activeSpeakers={activeSpeakers}
             isHandRaised={isHandRaised}
+            videoFrames={videoFrames}
+            activeSpeakers={activeSpeakers}
+            handRaisedMap={handRaisedMap}
+            messages={messages}
             unreadCount={unreadCount}
-            showChat={showChat}
+            encrypted={messages.some((m) => m.encrypted)}
+            onSendChat={(text) => {
+              handleSendChat(text).catch(() => {})
+            }}
             onToggleMic={handleToggleMic}
             onToggleCam={handleToggleCam}
             onHangUp={handleHangUp}
             onToggleHandRaise={handleToggleHandRaise}
-            onToggleChat={handleToggleChat}
-            onSendChat={handleSendChat}
-            onToggleParticipants={() => setShowParticipants(!showParticipants)}
-            showParticipants={showParticipants}
-            onToggleInfo={() => {
-              setShowInfo(!showInfo)
-              if (showInfo) setShowTranscription(false)
+            onToggleScreenShare={async () => {
+              if (localParticipant?.has_screen_share) {
+                await invoke('stop_screen_share').catch(() => {})
+                return
+              }
+              try {
+                const sources = await invoke<ScreenSource[]>(
+                  'list_screen_sources'
+                )
+                const first = sources[0]
+                if (first) {
+                  await invoke('start_screen_share', { sourceId: first.id })
+                }
+              } catch (e) {
+                console.error('screen share failed', e)
+              }
             }}
-            showInfo={showInfo}
-            meetUrl={currentMeetUrl}
-            onToggleTranscription={() =>
-              setShowTranscription(!showTranscription)
-            }
-            showTranscription={showTranscription}
-            onShowMicPicker={() => {
-              setShowMicPicker(!showMicPicker)
-              setShowCamPicker(false)
+            onReact={(emoji) => {
+              invoke('send_reaction', { emoji }).catch(() => {})
             }}
-            onShowCamPicker={() => {
-              setShowCamPicker(!showCamPicker)
-              setShowMicPicker(false)
-            }}
-            showMicPicker={showMicPicker}
-            showCamPicker={showCamPicker}
             audioInputs={audioInputs}
             audioOutputs={audioOutputs}
             videoInputs={videoInputs}
@@ -5720,12 +6042,28 @@ export default function App() {
             onSelectAudioInput={handleSelectAudioInput}
             onSelectAudioOutput={handleSelectAudioOutput}
             onSelectVideoInput={handleSelectVideoInput}
-            waitingParticipants={waitingParticipants}
-            setWaitingParticipants={setWaitingParticipants}
-            roomId={currentRoomId || undefined}
-            accessLevel={currentAccessLevel || undefined}
-            roomDisplayName={currentRoomDisplayName}
-            bandwidthMode={bandwidthMode}
+            onShowMicPicker={() => {
+              setShowMicPicker((v) => !v)
+              setShowCamPicker(false)
+            }}
+            onShowCamPicker={() => {
+              setShowCamPicker((v) => !v)
+              setShowMicPicker(false)
+            }}
+            showMicPicker={showMicPicker}
+            showCamPicker={showCamPicker}
+            onClosePickers={() => {
+              setShowMicPicker(false)
+              setShowCamPicker(false)
+            }}
+            onOpenSettings={() => {
+              setShowLegacySettings(true)
+            }}
+            bgMode={appBgMode}
+            onSetBgMode={(mode) => {
+              setAppBgMode(mode)
+              invoke('set_background_mode', { mode }).catch(() => {})
+            }}
           />
         )}
         {connectionState === 'waiting_for_host' && (
@@ -5748,9 +6086,99 @@ export default function App() {
           />
         )}
         {view === 'settings' && (
+          <DeskWindow>
+            <DeskSidebar
+              active="settings"
+              onNavigate={(k: NavKey) => {
+                if (k === 'home') setView('home')
+              }}
+              themeIsDark={isDarkTheme(theme)}
+              profile={{
+                name: profileDisplayName(displayName, displayNameFromOidc),
+                subtitle: profileSubtitle(
+                  isAuthenticated,
+                  authenticatedMeetInstance,
+                  emailFromOidc
+                ),
+              }}
+              labels={{
+                home: t('sidebar.home'),
+                rooms: t('sidebar.rooms'),
+                calendar: t('sidebar.calendar'),
+                recordings: t('sidebar.recordings'),
+                settings: t('sidebar.settings'),
+              }}
+              newMeetingSlot={
+                <VButton
+                  variant="primary"
+                  full
+                  onClick={handleNewMeeting}
+                  icon={<VIcon name="video" size={18} />}
+                >
+                  {t('home.newMeetingButton')}
+                </VButton>
+              }
+            />
+            <SettingsScreen
+              t={t}
+              displayName={profileDisplayName(displayName, displayNameFromOidc)}
+              email={emailFromOidc}
+              isAuthenticated={isAuthenticated}
+              theme={(theme as ThemeChoice) || 'system'}
+              onChangeTheme={(next) => {
+                setTheme(next)
+                invoke('set_theme', { theme: next }).catch(() => {})
+              }}
+              instanceHost={authenticatedMeetInstance || meetInstances[0] || ''}
+              language={t(`lang.${lang}`)}
+              onOpenLanguage={() => setShowLegacySettings(true)}
+              microphoneLabel={
+                audioInputs.find((d) => d.name === selectedAudioInput)?.name ||
+                t('settings.row.background.off')
+              }
+              cameraLabel={
+                videoInputs.find((d) => d.unique_id === selectedVideoInput)
+                  ?.name || t('settings.row.background.off')
+              }
+              backgroundLabel={
+                appBgMode === 'off'
+                  ? t('settings.row.background.off')
+                  : t('settings.row.background.blur')
+              }
+              visioLinksEnabled={visioLinksEnabled}
+              onToggleVisioLinks={setVisioLinksEnabled}
+              notificationsEnabled={notificationsEnabled}
+              onToggleNotifications={setNotificationsEnabled}
+              onManageAccount={() => setShowLegacySettings(true)}
+              onSignOut={() => {
+                if (authenticatedMeetInstance) {
+                  invoke('logout_session', {
+                    meetUrl: `https://${authenticatedMeetInstance}`,
+                  })
+                    .then(() => {
+                      setIsAuthenticated(false)
+                      setAuthenticatedMeetInstance('')
+                      setDisplayNameFromOidc('')
+                      setEmailFromOidc('')
+                    })
+                    .catch(() => {})
+                }
+              }}
+              onOpenMicrophone={() => setShowLegacySettings(true)}
+              onOpenCamera={() => setShowLegacySettings(true)}
+              onOpenBackground={() => setShowLegacySettings(true)}
+              onClearLocalData={() => {
+                // Placeholder: existing logic gated to advanced panel.
+                setShowLegacySettings(true)
+              }}
+              appVersion="0.10.0"
+            />
+          </DeskWindow>
+        )}
+        {showLegacySettings && (
           <SettingsView
             onClose={() => {
-              setView('home')
+              setShowLegacySettings(false)
               invoke<string[]>('get_meet_instances')
                 .then(setMeetInstances)
                 .catch(() => {})

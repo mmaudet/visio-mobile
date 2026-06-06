@@ -1,0 +1,149 @@
+/* ===========================================================================
+   Visio Desktop — Design tokens (refonte 2026)
+   Defaults: rayons "net", densité "compacte", accent Bleu France #000091.
+   Theming is driven by [data-theme="dark"] on <html>, already wired to the
+   Rust SettingsStore via the set_theme command.
+   =========================================================================== */
+
+:root {
+  /* Typography */
+  --font-ui:
+    'Hanken Grotesk', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI',
+    Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --font-mono:
+    'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+
+  /* Accent — Bleu France (identité État) */
+  --accent: #000091;
+  --on-accent: #ffffff;
+
+  /* Marque officielle */
+  --brand-arc-light: #000091;
+  --brand-arc-dark: #8c9cff;
+  --brand-dot: #e1000f;
+
+  /* Rayons — variante "net" */
+  --r-btn: 8px;
+  --r-input: 9px;
+  --r-card: 12px;
+  --r-tile: 10px;
+  --r-sheet: 14px;
+  --r-chip: 6px;
+  --r-pill: 999px;
+
+  /* Densité — variante "compacte" */
+  --ctl-h: 46px;
+  --pad: 16px;
+  --row-pad: 10px;
+  --gap: 10px;
+
+  /* Palette — thème CLAIR */
+  --bg: #f5f6f8;
+  --surface: #ffffff;
+  --surface-2: #f1f3f6;
+  --surface-3: #e9ecf1;
+  --border: #e4e7ec;
+  --hair: #eef0f4;
+  --text: #14181f;
+  --text-2: #5c6675;
+  --text-3: #97a0ad;
+  --live: #16a07a;
+  --danger: #e5484d;
+  --warn: #e0962a;
+  --ok: #16a07a;
+  --accent-soft: color-mix(in oklab, var(--accent) 12%, #ffffff);
+  --accent-line: color-mix(in oklab, var(--accent) 22%, #ffffff);
+  --ring-color: #ffffff;
+  --shadow-card:
+    0 1px 2px rgba(20, 30, 55, 0.04), 0 8px 24px rgba(20, 30, 55, 0.06);
+  --shadow-pop: 0 12px 40px rgba(20, 30, 55, 0.16);
+
+  /* Aliases pour l'ancien code App.css qui utilise --bg-secondary, etc. */
+  --bg-secondary: var(--surface-2);
+  --bg-tertiary: var(--surface-3);
+  --text-secondary: var(--text-2);
+  --text-tertiary: var(--text-3);
+  --error: var(--danger);
+  --error-bg: color-mix(in oklab, var(--danger) 16%, var(--surface));
+  --error-text: var(--danger);
+  --success: var(--live);
+  --warning: var(--warn);
+  --hand-raise: #fde047;
+  --radius: var(--r-btn);
+}
+
+[data-theme='dark'] {
+  --bg: #0e1014;
+  --surface: #181b21;
+  --surface-2: #1f242c;
+  --surface-3: #272d37;
+  --border: #2a313c;
+  --hair: #222831;
+  --text: #f3f5f8;
+  --text-2: #a4adbb;
+  --text-3: #6c7682;
+  --live: #2bbd8e;
+  --danger: #ff5a5f;
+  --warn: #f0a73a;
+  --ok: #2bbd8e;
+  --accent: #8c9cff;
+  --accent-soft: color-mix(in oklab, var(--accent) 26%, #181b21);
+  --accent-line: color-mix(in oklab, var(--accent) 38%, #181b21);
+  --ring-color: #181b21;
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.3), 0 10px 30px rgba(0, 0, 0, 0.35);
+  --shadow-pop: 0 16px 50px rgba(0, 0, 0, 0.5);
+
+  /* Aliases legacy */
+  --error-bg: color-mix(in oklab, var(--danger) 20%, var(--surface));
+  --error-text: #ee6a66;
+}
+
+/* Détection système — appliquée quand l'utilisateur a choisi le mode Système
+   et qu'aucun attribut explicite n'est posé sur <html>. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) {
+    --bg: #0e1014;
+    --surface: #181b21;
+    --surface-2: #1f242c;
+    --surface-3: #272d37;
+    --border: #2a313c;
+    --hair: #222831;
+    --text: #f3f5f8;
+    --text-2: #a4adbb;
+    --text-3: #6c7682;
+    --live: #2bbd8e;
+    --danger: #ff5a5f;
+    --warn: #f0a73a;
+    --ok: #2bbd8e;
+    --accent: #8c9cff;
+    --accent-soft: color-mix(in oklab, var(--accent) 26%, #181b21);
+    --accent-line: color-mix(in oklab, var(--accent) 38%, #181b21);
+    --ring-color: #181b21;
+    --shadow-card:
+      0 1px 2px rgba(0, 0, 0, 0.3), 0 10px 30px rgba(0, 0, 0, 0.35);
+    --shadow-pop: 0 16px 50px rgba(0, 0, 0, 0.5);
+    --error-bg: color-mix(in oklab, var(--danger) 20%, var(--surface));
+    --error-text: #ee6a66;
+  }
+}
+
+html,
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-ui);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+#root {
+  width: 100%;
+  height: 100vh;
+  background: var(--bg);
+  color: var(--text);
+}
