@@ -17,9 +17,12 @@ platform :android do
 
   desc "Promote the latest internal build to production (general availability)"
   lane :promote_to_production do
+    vc = ENV["VERSION_CODE"]
+    UI.user_error!("VERSION_CODE env var is required") unless vc
     supply(
       track: "internal",
       track_promote_to: "production",
+      version_code: vc,
       json_key: ENV["SUPPLY_JSON_KEY_PATH"],
       package_name: "io.visio.mobile",
       skip_upload_aab: true,

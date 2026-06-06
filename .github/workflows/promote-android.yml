@@ -3,6 +3,10 @@ name: Promote Android to Production
 on:
   workflow_dispatch:
     inputs:
+      version_code:
+        description: "Version code of the build to promote (from github.run_number)"
+        required: true
+        type: string
       source_track:
         description: "Source track to promote from"
         required: false
@@ -48,4 +52,5 @@ jobs:
         working-directory: android
         env:
           SUPPLY_JSON_KEY_PATH: ${{ env.GOOGLE_APPLICATION_CREDENTIALS }}
+          VERSION_CODE: ${{ inputs.version_code || github.event.inputs.version_code }}
         run: bundle exec fastlane promote_to_production
