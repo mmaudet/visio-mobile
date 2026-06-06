@@ -156,15 +156,25 @@ jobs:
       - name: Write App Store Connect API key to file (macOS)
         # Tauri's notarize step uses xcrun notarytool with --key (file path),
         # so we materialize APP_STORE_CONNECT_API_KEY_CONTENT (already used
-        # by iOS) into a temp .p8 file.
+        # by iOS via fastlane) into a temp .p8 file.
+        #
+        # The secret is stored base64-encoded — ios/Fastfile passes it with
+        # is_key_content_base64: true. We decode it here before writing so
+        # the file is real PKCS#8 PEM that notarytool / openssl accept.
+        # Writing the raw base64 produces "invalidAsn1" at notarize time.
         if: matrix.platform == 'macos'
         shell: bash
         env:
           APP_STORE_CONNECT_API_KEY_CONTENT: ${{ secrets.APP_STORE_CONNECT_API_KEY_CONTENT }}
         run: |
           mkdir -p "$RUNNER_TEMP/asc"
-          printf '%s' "$APP_STORE_CONNECT_API_KEY_CONTENT" > "$RUNNER_TEMP/asc/AuthKey.p8"
+          printf '%s' "$APP_STORE_CONNECT_API_KEY_CONTENT" \
+            | base64 -d > "$RUNNER_TEMP/asc/AuthKey.p8"
           chmod 600 "$RUNNER_TEMP/asc/AuthKey.p8"
+          # Sanity check — fail early with a clear message if the .p8 is
+          # malformed, instead of a cryptic "invalidAsn1" inside Tauri.
+          openssl pkcs8 -in "$RUNNER_TEMP/asc/AuthKey.p8" -inform PEM -nocrypt -noout
+          echo "ASC API key .p8 is valid PKCS#8 PEM"
 
       - name: Build Tauri app (Linux with PipeWire)
         if: matrix.platform == 'linux'
