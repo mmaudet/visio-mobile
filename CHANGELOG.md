@@ -26,6 +26,17 @@ and this project adheres to
 - CI: pin `ubuntu-latest` -> `ubuntu-24.04` and `windows-latest` ->
   `windows-2022` so a GitHub-side image bump doesn't break a release
   the day it ships
+- CI: dispatch input names are now uniform across the three workflows.
+  Android `publish_to_play_store` and iOS `publish_to_app_store` are
+  renamed to `publish`. Desktop gets a new `publish` input (default
+  false) — a default dispatch builds artifacts without creating a
+  `desktop-build-N` GitHub Release. Tag-triggered runs ignore the
+  input and always publish.
+- CI: Android `native-debug-symbols` artifact renamed to
+  `android-debug-symbols` so the platform prefix matches the other
+  artifacts (`android-aab`, `ios-ipa`, `desktop-*`)
+- CI: Desktop workflow display name aligned with the others:
+  "Build Desktop" -> "Build & Distribute Desktop"
 
 ## [0.10.0] - 2026-06-04
 

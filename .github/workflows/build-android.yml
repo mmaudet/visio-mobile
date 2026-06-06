@@ -7,8 +7,8 @@ on:
         description: "Release notes for testers"
         required: false
         default: ""
-      publish_to_play_store:
-        description: "Upload AAB to Google Play (internal track)"
+      publish:
+        description: "Upload AAB to Play Store internal track"
         required: false
         type: boolean
         default: false
@@ -142,7 +142,7 @@ jobs:
         # Publish when explicitly requested via workflow_dispatch input OR
         # when triggered by a non-RC semver tag push (vX.Y.Z, not -rcN).
         if: >-
-          (github.event_name == 'workflow_dispatch' && inputs.publish_to_play_store == true) ||
+          (github.event_name == 'workflow_dispatch' && inputs.publish == true) ||
           (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') && !contains(github.ref, '-rc'))
         working-directory: android
         env:
@@ -159,7 +159,7 @@ jobs:
               cp "$UNSTRIPPED" "$SYMBOLS_DIR/lib/arm64-v8a/"
             fi
           done
-          cd "$SYMBOLS_DIR" && zip -r "$GITHUB_WORKSPACE/native-debug-symbols.zip" lib/
+          cd "$SYMBOLS_DIR" && zip -r "$GITHUB_WORKSPACE/android-debug-symbols.zip" lib/
 
       - name: Find built AAB
         id: find-aab
@@ -185,7 +185,7 @@ jobs:
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7
         if: always()
         with:
-          name: native-debug-symbols
-          path: native-debug-symbols.zip
+          name: android-debug-symbols
+          path: android-debug-symbols.zip
           if-no-files-found: warn
           retention-days: 30
