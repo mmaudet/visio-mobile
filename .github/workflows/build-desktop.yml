@@ -54,6 +54,15 @@ jobs:
     # Linux Tauri (webrtc-sys + flatpak) is the long pole at ~20-30 min;
     # cap at 60 so a hung step fails in minutes.
     timeout-minutes: 60
+    # id-token + attestations enable SLSA build provenance: the runner
+    # mints an OIDC token, Sigstore signs an attestation over each
+    # artifact hash, and the result is stored against the repo so
+    # anyone can verify "this .dmg / .msi / .deb really came from this
+    # commit on this workflow" via `gh attestation verify`.
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
     defaults:
       run:
         working-directory: .
@@ -300,6 +309,15 @@ jobs:
             target/release/bundle/macos/*.app.tar.gz.sig
           retention-days: 14
 
+      - name: Attest macOS build provenance
+        # SLSA build provenance for the shipping .dmg. The .app.tar.gz
+        # and .sig are the Tauri updater bundle — internal mechanism,
+        # not directly distributed, so left out of the attestation.
+        if: matrix.platform == 'macos'
+        uses: actions/attest-build-provenance@b3e506e8c389afc651c5bacf2b8f2a1ea0557215 # v4
+        with:
+          subject-path: target/release/bundle/dmg/*.dmg
+
       - name: Upload Windows artifacts
         if: matrix.platform == 'windows'
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7
@@ -309,6 +327,17 @@ jobs:
             target/release/bundle/msi/*.msi
             target/release/bundle/nsis/*.exe
           retention-days: 14
+
+      - name: Attest Windows build provenance
+        # SLSA build provenance for both Windows distribution formats:
+        # the WiX .msi (preferred for admin install) and the NSIS .exe
+        # (preferred for user-mode install).
+        if: matrix.platform == 'windows'
+        uses: actions/attest-build-provenance@b3e506e8c389afc651c5bacf2b8f2a1ea0557215 # v4
+        with:
+          subject-path: |
+            target/release/bundle/msi/*.msi
+            target/release/bundle/nsis/*.exe
 
       - name: Upload Linux artifacts
         if: matrix.platform == 'linux'
@@ -320,6 +349,18 @@ jobs:
             target/release/bundle/deb/*.deb
             target/release/bundle/flatpak/*.flatpak
           retention-days: 14
+
+      - name: Attest Linux build provenance
+        # SLSA build provenance for the three Linux distribution
+        # formats we ship: AppImage (portable), .deb (Debian/Ubuntu),
+        # .flatpak (Flathub-ready).
+        if: matrix.platform == 'linux'
+        uses: actions/attest-build-provenance@b3e506e8c389afc651c5bacf2b8f2a1ea0557215 # v4
+        with:
+          subject-path: |
+            target/release/bundle/appimage/*.AppImage
+            target/release/bundle/deb/*.deb
+            target/release/bundle/flatpak/*.flatpak
 
   # --- GitHub Release with all artifacts ---
   release:
