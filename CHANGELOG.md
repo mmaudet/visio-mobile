@@ -52,6 +52,11 @@ and this project adheres to
   artifacts (`android-aab`, `ios-ipa`, `desktop-*`)
 - CI: Desktop workflow display name aligned with the others:
   "Build Desktop" -> "Build & Distribute Desktop"
+- CI: the shared Rust toolchain + cache setup is now a single
+  composite action at `.github/actions/setup-rust-toolchain/`
+  instead of being duplicated across the three build workflows.
+  Future SHA bumps for `dtolnay/rust-toolchain` or
+  `Swatinem/rust-cache` are a one-file edit.
 
 ## [0.10.0] - 2026-06-04
 
