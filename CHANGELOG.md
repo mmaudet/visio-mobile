@@ -8,12 +8,24 @@ and this project adheres to
 
 ## [Unreleased]
 
+### Added
+
+- CI: pushing a semver tag (`vX.Y.Z` or `vX.Y.Z-rcN`) now triggers
+  the three build workflows automatically. Non-RC tags publish to
+  Play Store internal / App Store Connect; RC tags build only.
+  Desktop releases use the semver tag as the GitHub Release tag.
+
 ### Changed
 
 - CI: Android publish now goes through Play Store internal track only;
   the Firebase App Distribution channel and the per-run
   `build-N` GitHub prereleases are dropped
 - CI: artifact retention reduced to 14 days across all build workflows
+- CI: every build workflow has explicit `concurrency: cancel-in-progress`
+  and `timeout-minutes` instead of relying on the GitHub defaults
+- CI: pin `ubuntu-latest` -> `ubuntu-24.04` and `windows-latest` ->
+  `windows-2022` so a GitHub-side image bump doesn't break a release
+  the day it ships
 
 ## [0.10.0] - 2026-06-04
 
