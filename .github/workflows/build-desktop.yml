@@ -1,4 +1,4 @@
-name: Build Desktop
+name: Build & Distribute Desktop
 
 on:
   workflow_dispatch:
@@ -7,6 +7,11 @@ on:
         description: "Release notes"
         required: false
         default: ""
+      publish:
+        description: "Publish a desktop-build-N GitHub prerelease for this dispatch"
+        required: false
+        type: boolean
+        default: false
   push:
     # Pushing a semver tag triggers a Desktop build and a GitHub Release
     # attached to that tag (assets: .dmg, .msi, .exe, .deb, .AppImage,
@@ -216,6 +221,14 @@ jobs:
   # --- GitHub Release with all artifacts ---
   release:
     needs: build
+    # Publish when a semver tag is pushed, OR on workflow_dispatch with
+    # publish=true. Default dispatch (publish=false) builds artifacts and
+    # uploads them to the run page but creates no GitHub Release —
+    # symmetric with Android (`publish` gates Play Store upload) and iOS
+    # (`publish` gates App Store Connect upload).
+    if: >-
+      github.event_name == 'push' ||
+      (github.event_name == 'workflow_dispatch' && inputs.publish == true)
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     permissions:
