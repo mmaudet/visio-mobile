@@ -10,6 +10,14 @@ and this project adheres to
 
 ### Added
 
+- Desktop: the macOS `.app` and `.dmg` are now signed with a real
+  Developer ID Application certificate (Linagora, KUT463DS29) and
+  notarized via Apple's notarytool API. End users no longer see the
+  "unidentified developer" Gatekeeper warning; the app launches by
+  double-click. Hardened runtime is on; the existing camera / mic
+  entitlements (`com.apple.security.device.camera`,
+  `com.apple.security.device.audio-input`) carry the privacy
+  authorizations the app needs.
 - CI: pushing a semver tag (`vX.Y.Z` or `vX.Y.Z-rcN`) now triggers
   the three build workflows automatically. Non-RC tags publish to
   Play Store internal / App Store Connect; RC tags build only.
