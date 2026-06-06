@@ -7,15 +7,6 @@ on:
         description: "Version code of the build to promote (from github.run_number)"
         required: true
         type: string
-      source_track:
-        description: "Source track to promote from"
-        required: false
-        default: "internal"
-        type: choice
-        options:
-          - internal
-          - alpha
-          - beta
 
 permissions:
   contents: read
@@ -35,72 +26,96 @@ jobs:
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
-      - name: Authenticate to Google Cloud via Workload Identity Federation
-        id: auth
+      - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3
         with:
           workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
           service_account: ${{ secrets.GCP_PLAY_STORE_SA }}
           create_credentials_file: true
-          token_format: access_token
 
-      - name: Promote to production via Google Play API
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.2"
+          bundler-cache: true
+
+      - name: 1 — Promote internal → production (fastlane)
+        continue-on-error: true
+        working-directory: android
+        env:
+          SUPPLY_JSON_KEY_PATH: ${{ env.GOOGLE_APPLICATION_CREDENTIALS }}
+          VERSION_CODE: ${{ inputs.version_code || github.event.inputs.version_code }}
+        run: bundle exec fastlane promote_to_production 2>&1 || true
+
+      - name: 2 — Install gcloud CLI
+        run: |
+          if ! command -v gcloud &>/dev/null; then
+            curl -sSL https://sdk.cloud.google.com | bash
+            export PATH=$PATH:$HOME/google-cloud-sdk/bin
+          fi
+
+      - name: 3 — Update country targeting via Play API
         env:
           PACKAGE_NAME: io.visio.mobile
           VERSION_CODE: ${{ inputs.version_code || github.event.inputs.version_code }}
-          ACCESS_TOKEN: ${{ steps.auth.outputs.access_token }}
         run: |
           set -e
+          export PATH="$HOME/google-cloud-sdk/bin:$PATH"
 
-          echo "=== Step 1: Create a new edit ==="
+          echo "Getting Play API access token..."
+          gcloud auth activate-service-account --key-file="$GOOGLE_APPLICATION_CREDENTIALS" 2>/dev/null || true
+          ACCESS_TOKEN=$(gcloud auth print-access-token --scopes=https://www.googleapis.com/auth/androidpublisher)
+          echo "Token obtained: $(echo $ACCESS_TOKEN | head -c 20)..."
+
+          echo "=== Creating edit ==="
           EDIT_RESPONSE=$(curl -s -X POST \
             -H "Authorization: Bearer $ACCESS_TOKEN" \
             -H "Content-Type: application/json" \
             "https://androidpublisher.googleapis.com/androidpublisher/v3/applications/$PACKAGE_NAME/edits")
-          EDIT_ID=$(echo "$EDIT_RESPONSE" | python3 -c "import json,sys;print(json.load(sys.stdin)['id'])")
-          echo "Edit ID: $EDIT_ID"
-
-          echo "=== Step 2: Promote internal track release to production with country targeting ==="
-          RESPONSE=$(curl -s -X PUT \
-            -H "Authorization: Bearer $ACCESS_TOKEN" \
-            -H "Content-Type: application/json" \
-            -d "{
-              \"track\": \"production\",
-              \"releases\": [
-                {
-                  \"versionCodes\": [\"$VERSION_CODE\"],
-                  \"status\": \"completed\",
-                  \"countryTargeting\": {
-                    \"includeRestOfWorld\": true,
-                    \"countries\": []
-                  }
-                }
-              ]
-            }" \
-            "https://androidpublisher.googleapis.com/androidpublisher/v3/applications/$PACKAGE_NAME/edits/$EDIT_ID/tracks/production")
-          echo "Track update response:"
-          echo "$RESPONSE" | python3 -m json.tool 2>/dev/null || echo "$RESPONSE"
-
-          # Check for API errors
-          if echo "$RESPONSE" | python3 -c "import json,sys;d=json.load(sys.stdin);sys.exit(0 if 'track' in d else 1)" 2>/dev/null; then
-            echo "✅ Production track updated successfully"
-          else
-            echo "❌ Failed to update production track"
-            echo "$RESPONSE"
+          EDIT_ID=$(echo "$EDIT_RESPONSE" | python3 -c "import json,sys;d=json.load(sys.stdin);print(d.get('id',''))" 2>/dev/null)
+          if [ -z "$EDIT_ID" ]; then
+            echo "❌ Edit creation failed:"
+            echo "$EDIT_RESPONSE" | python3 -m json.tool 2>/dev/null || echo "$EDIT_RESPONSE"
             exit 1
           fi
+          echo "Edit ID: $EDIT_ID"
 
-          echo "=== Step 3: Commit the edit ==="
+          echo "=== Updating production track with all countries ==="
+          UPDATE=$(curl -s -X PUT \
+            -H "Authorization: Bearer $ACCESS_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d '{
+              "track": "production",
+              "releases": [{
+                "versionCodes": ["'$VERSION_CODE'"],
+                "status": "completed",
+                "countryTargeting": {
+                  "includeRestOfWorld": true,
+                  "countries": []
+                }
+              }]
+            }' \
+            "https://androidpublisher.googleapis.com/androidpublisher/v3/applications/$PACKAGE_NAME/edits/$EDIT_ID/tracks/production")
+          echo "$UPDATE" | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+if 'track' in d:
+    print('✅ Production track updated')
+else:
+    print('❌ Failed:', d.get('error',{}).get('message',str(d)))
+" 2>/dev/null || echo "$UPDATE"
+
+          echo "=== Committing edit ==="
           COMMIT=$(curl -s -X POST \
             -H "Authorization: Bearer $ACCESS_TOKEN" \
             "https://androidpublisher.googleapis.com/androidpublisher/v3/applications/$PACKAGE_NAME/edits/$EDIT_ID:commit")
-          echo "Commit response:"
-          echo "$COMMIT" | python3 -m json.tool 2>/dev/null || echo "$COMMIT"
-
-          if echo "$COMMIT" | python3 -c "import json,sys;d=json.load(sys.stdin);sys.exit(0 if 'id' in d else 1)" 2>/dev/null; then
-            echo "🎉 Promotion to production successful! Visio Mobile is now in general availability!"
-          else
-            echo "❌ Failed to commit promotion"
-            echo "$COMMIT"
-            exit 1
-          fi
+          echo "$COMMIT" | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+if 'id' in d:
+    print('')
+    print('🎉🎉🎉 VISIO MOBILE EST EN PRODUCTION !!! 🎉🎉🎉')
+else:
+    print('❌ Commit failed:', d.get('error',{}).get('message',str(d)))
+    sys.exit(1)
+" 2>/dev/null || (echo "$COMMIT" && exit 1)
