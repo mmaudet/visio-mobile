@@ -81,7 +81,7 @@ jobs:
           echo "Edit ID: $EDIT_ID"
 
           echo "=== Updating production track ==="
-          PAYLOAD='{"track":"production","releases":[{"versionCodes":["'$VERSION_CODE'"],"status":"completed","countryTargeting":{"includeRestOfWorld":true,"countries":[]}}]}'
+          PAYLOAD='{"track":"production","releases":[{"versionCodes":["'$VERSION_CODE'"],"status":"completed"}]}'
           UPDATE=$(curl -s -X PUT \
             -H "Authorization: Bearer $ACCESS_TOKEN" \
             -H "Content-Type: application/json" \
