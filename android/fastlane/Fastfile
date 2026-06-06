@@ -1,21 +1,6 @@
 default_platform(:android)
 
 platform :android do
-  desc "Build release APK and distribute via Firebase App Distribution"
-  lane :distribute do
-    gradle(
-      task: "assembleRelease",
-      project_dir: "."
-    )
-
-    firebase_app_distribution(
-      app: ENV["FIREBASE_APP_ID"],
-      service_credentials_file: ENV["GOOGLE_APPLICATION_CREDENTIALS"],
-      groups: "testers",
-      release_notes: ENV["RELEASE_NOTES"].to_s.empty? ? "Build #{ENV['GITHUB_RUN_NUMBER'] || 'local'} — #{`git log -1 --pretty=%s`.strip}" : ENV["RELEASE_NOTES"]
-    )
-  end
-
   desc "Upload an already-built AAB to Google Play (internal track)"
   lane :release do
     # The AAB is produced and signed by the previous workflow step
