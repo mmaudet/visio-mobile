@@ -205,6 +205,34 @@ jobs:
         shell: bash
         run: cargo tauri build
 
+      - name: Notarize and staple .dmg (macOS)
+        # Tauri notarizes and staples the .app inside the .dmg, but the
+        # .dmg itself is only signed (with the same Developer ID cert) —
+        # not notarized. End users don't actually hit a Gatekeeper prompt
+        # on the .dmg in practice (they open it, drag the .app, run the
+        # .app which carries its own stapled ticket), but Apple's
+        # documented best practice is to notarize the .dmg as well so
+        # online-stapling caches and any Gatekeeper edge case on the .dmg
+        # see a valid ticket.
+        if: matrix.platform == 'macos'
+        shell: bash
+        env:
+          APPLE_API_KEY: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
+          APPLE_API_ISSUER: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          APPLE_API_KEY_PATH: ${{ runner.temp }}/asc/AuthKey.p8
+        run: |
+          DMG=$(find target/release/bundle/dmg -name "*.dmg" -type f | head -1)
+          if [ -z "$DMG" ]; then
+            echo "::error::No .dmg found to notarize"
+            exit 1
+          fi
+          xcrun notarytool submit "$DMG" \
+            --key "$APPLE_API_KEY_PATH" \
+            --key-id "$APPLE_API_KEY" \
+            --issuer "$APPLE_API_ISSUER" \
+            --wait
+          xcrun stapler staple "$DMG"
+
       - name: Verify macOS signature and Gatekeeper acceptance
         # Fails the build if the .app or .dmg is unsigned, signature is
         # broken, or Gatekeeper rejects it. Catches a regression *before*
