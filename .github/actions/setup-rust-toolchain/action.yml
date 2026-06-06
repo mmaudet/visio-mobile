@@ -1,0 +1,29 @@
+name: Setup Rust toolchain with caching
+description: |
+  Installs the Rust stable toolchain with the requested targets and
+  restores the Swatinem cargo cache. The action's SHA pins for
+  dtolnay/rust-toolchain and Swatinem/rust-cache live here, so a future
+  version bump is a single-file edit (instead of 3 workflow files).
+
+  Note: the caller is still responsible for the initial checkout —
+  composite actions live on disk under .github/actions/, so the runner
+  needs the repo checked out before it can read this file.
+
+inputs:
+  rust-targets:
+    description: Comma-separated list of cargo targets (e.g. aarch64-apple-ios)
+    required: true
+  cache-key:
+    description: Cache key for Swatinem/rust-cache (one per platform/arch)
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - uses: dtolnay/rust-toolchain@631a55b12751854ce901bb631d5902ceb48146f7 # stable
+      with:
+        targets: ${{ inputs.rust-targets }}
+
+    - uses: Swatinem/rust-cache@f51f967e158417aafa338a1e46ab22095f07aa01 # v2
+      with:
+        key: ${{ inputs.cache-key }}

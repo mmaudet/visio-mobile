@@ -58,18 +58,14 @@ jobs:
         with:
           ref: ${{ github.sha }}
 
-      - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@631a55b12751854ce901bb631d5902ceb48146f7 # stable
+      - name: Setup Rust toolchain
+        uses: ./.github/actions/setup-rust-toolchain
         with:
-          targets: aarch64-linux-android
+          rust-targets: aarch64-linux-android
+          cache-key: android-arm64
 
       - name: Install cargo-ndk
         run: cargo install cargo-ndk
-
-      - name: Cache Rust build artifacts
-        uses: Swatinem/rust-cache@f51f967e158417aafa338a1e46ab22095f07aa01 # v2
-        with:
-          key: android-arm64
 
       - name: Set up Android NDK
         uses: android-actions/setup-android@651bceb6f9ca583f16b8d75b62c36ded2ae6fc9c # v4
