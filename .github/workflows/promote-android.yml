@@ -44,8 +44,10 @@ jobs:
         working-directory: android
         env:
           SUPPLY_JSON_KEY_PATH: ${{ env.GOOGLE_APPLICATION_CREDENTIALS }}
-          VERSION_CODE: ${{ inputs.version_code || github.event.inputs.version_code }}
-        run: bundle exec fastlane promote_to_production 2>&1 || true
+        run: | 
+          VC="${{ inputs.version_code || github.event.inputs.version_code }}"
+          echo "VERSION_CODE=$VC"
+          VERSION_CODE="$VC" bundle exec fastlane promote_to_production 2>&1 || true
 
       - name: Step 2 — Install gcloud SDK
         run: |
