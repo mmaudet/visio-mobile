@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { invoke } from '@tauri-apps/api/core'
 import { Icon } from '../components/Icon'
 import { IconBtn } from '../components/ui/IconBtn'
 import { Tag } from '../components/ui/Tag'
@@ -902,8 +903,21 @@ export function CallScreen(props: CallScreenProps) {
     onSetBgMode,
   } = props
 
-  const [chatOpen, setChatOpen] = useState(true)
+  const [chatOpen, setChatOpenState] = useState(true)
   const [reactionOpen, setReactionOpen] = useState(false)
+
+  // Keep Rust's chat_open state in sync so the unread badge stays consistent
+  // (Rust only increments unread when the panel is hidden).
+  const setChatOpen = (next: boolean) => {
+    setChatOpenState(next)
+    invoke('set_chat_open', { open: next }).catch(() => {})
+  }
+  useEffect(() => {
+    invoke('set_chat_open', { open: true }).catch(() => {})
+    return () => {
+      invoke('set_chat_open', { open: false }).catch(() => {})
+    }
+  }, [])
 
   // Timer ticking once per second
   const startRef = useRef(Date.now())

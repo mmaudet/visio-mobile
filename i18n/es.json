@@ -345,5 +345,11 @@
   "devicePicker.video.effects": "Efectos",
   "devicePicker.video.effects.blur": "Desenfoque de fondo",
   "devicePicker.video.effects.image": "Reemplazar fondo",
-  "devicePicker.video.openSettings": "Ajustes de vídeo"
+  "devicePicker.video.openSettings": "Ajustes de vídeo",
+  "prejoin.denied": "El anfitrión rechazó tu solicitud.",
+  "prejoin.timeout": "El anfitrión no respondió.",
+  "home.upcoming.live": "En vivo",
+  "home.access.public": "Público",
+  "home.access.restricted": "Restringido",
+  "home.access.invite": "Solo por invitación"
 }

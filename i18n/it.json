@@ -345,5 +345,11 @@
   "devicePicker.video.effects": "Effetti",
   "devicePicker.video.effects.blur": "Sfocatura sfondo",
   "devicePicker.video.effects.image": "Sostituisci sfondo",
-  "devicePicker.video.openSettings": "Impostazioni video"
+  "devicePicker.video.openSettings": "Impostazioni video",
+  "prejoin.denied": "L'host ha rifiutato la tua richiesta.",
+  "prejoin.timeout": "L'host non ha risposto.",
+  "home.upcoming.live": "Live",
+  "home.access.public": "Pubblico",
+  "home.access.restricted": "Limitato",
+  "home.access.invite": "Solo su invito"
 }

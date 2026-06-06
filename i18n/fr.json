@@ -345,5 +345,11 @@
   "devicePicker.video.effects": "Effets",
   "devicePicker.video.effects.blur": "Flou d'arrière-plan",
   "devicePicker.video.effects.image": "Remplacer le fond",
-  "devicePicker.video.openSettings": "Réglages vidéo"
+  "devicePicker.video.openSettings": "Réglages vidéo",
+  "prejoin.denied": "L'hôte a refusé votre demande.",
+  "prejoin.timeout": "L'hôte n'a pas répondu.",
+  "home.upcoming.live": "Live",
+  "home.access.public": "Public",
+  "home.access.restricted": "Restreint",
+  "home.access.invite": "Sur invitation"
 }

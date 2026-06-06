@@ -5,7 +5,7 @@ import { Button } from '../components/ui/Button'
 import { Tag } from '../components/ui/Tag'
 import { Row } from '../components/ui/Row'
 import { Toggle } from '../components/ui/Toggle'
-import type { ThemeChoice } from '../hooks/useTheme'
+import type { ThemeChoice } from '../types'
 
 type TFunction = (key: string) => string
 
