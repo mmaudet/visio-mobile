@@ -10,6 +10,13 @@ and this project adheres to
 
 ### Added
 
+- CI: Android publish authenticates to Play Store via Google Cloud
+  Workload Identity Federation instead of a long-lived service-account
+  JSON. The job mints a GitHub OIDC token, GCP STS exchanges it for a
+  ~1h access token bound to the Play Store SA. No JSON private key is
+  stored in repo secrets. `FIREBASE_SERVICE_ACCOUNT_BASE64` is now
+  unused and will be removed once the next publish run confirms WIF
+  works end-to-end.
 - Desktop: the macOS `.app` and `.dmg` are now signed with a real
   Developer ID Application certificate (Linagora, KUT463DS29) and
   notarized via Apple's notarytool API. End users no longer see the
