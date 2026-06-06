@@ -14,11 +14,23 @@ on:
         default: false
 
 permissions:
-  contents: write
+  contents: read
+
+# A new dispatch of this workflow on the same ref cancels the in-progress
+# one. Keeps the iteration loop from racking up 5 parallel Android builds
+# fighting for the Play Store upload slot when we re-trigger during a
+# debug session.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build-android:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    # Android build path: ~10-15 min healthy, 25 min with cold cargo cache.
+    # Tighter than default 6h so a hung step (Tauri DMG-style hang) fails
+    # in minutes instead of burning runner hours.
+    timeout-minutes: 45
     defaults:
       run:
         working-directory: .

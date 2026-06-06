@@ -13,9 +13,16 @@ on:
         type: boolean
         default: false
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build-ios:
     runs-on: macos-15
+    # ~15-25 min healthy. Cap at 60 to absorb a slow ASC upload retry
+    # without ever burning the default 6h.
+    timeout-minutes: 60
     defaults:
       run:
         working-directory: .

@@ -8,6 +8,10 @@ on:
         required: false
         default: ""
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
     strategy:
@@ -23,7 +27,10 @@ jobs:
             rust-targets: aarch64-apple-darwin
             label: macos-arm64
           - platform: windows
-            runner: windows-latest
+            # windows-2022 instead of windows-latest: GitHub rolls the
+            # 'latest' label forward to new images on its own schedule,
+            # which has broken Tauri/webrtc-sys builds in the past.
+            runner: windows-2022
             rust-targets: x86_64-pc-windows-msvc
             label: windows-x64
           - platform: linux
@@ -32,6 +39,9 @@ jobs:
             label: linux-x64
 
     runs-on: ${{ matrix.runner }}
+    # Linux Tauri (webrtc-sys + flatpak) is the long pole at ~20-30 min;
+    # cap at 60 so a hung step fails in minutes.
+    timeout-minutes: 60
     defaults:
       run:
         working-directory: .
@@ -199,7 +209,8 @@ jobs:
   # --- GitHub Release with all artifacts ---
   release:
     needs: build
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
     permissions:
       contents: write
     steps:
