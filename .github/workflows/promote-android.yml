@@ -63,7 +63,8 @@ jobs:
           gcloud auth activate-service-account --key-file="$GOOGLE_APPLICATION_CREDENTIALS" 2>/dev/null || true
 
           # Get Play API token
-          ACCESS_TOKEN=$(gcloud auth print-access-token --scopes=https://www.googleapis.com/auth/androidpublisher)
+          GCLOUD_BIN=$(command -v gcloud 2>/dev/null || echo "$HOME/google-cloud-sdk/bin/gcloud")
+          ACCESS_TOKEN=$(eval "$GCLOUD_BIN auth print-access-token --scopes=https://www.googleapis.com/auth/androidpublisher")
 
           echo "=== Creating edit ==="
           EDIT=$(curl -s -X POST \
