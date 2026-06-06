@@ -33,14 +33,29 @@ jobs:
           service_account: ${{ secrets.GCP_PLAY_STORE_SA }}
           create_credentials_file: true
 
-      - name: Step 1 — Install gcloud SDK
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.2"
+          bundler-cache: true
+
+      - name: Step 1 — Promote internal → production (fastlane)
+        working-directory: android
+        env:
+          SUPPLY_JSON_KEY_PATH: ${{ env.GOOGLE_APPLICATION_CREDENTIALS }}
+          VERSION_CODE: ${{ inputs.version_code || 114 }}
+        run: bundle exec fastlane promote_to_production 2>&1 || true
+
+      - name: Step 2 — Install gcloud SDK (fallback if fastlane fails)
+        if: failure()
         run: |
           command -v gcloud || curl -sSL https://sdk.cloud.google.com | bash
 
-      - name: Step 2 — Fix production track via Play API (2-stage)
+      - name: Step 3 — Fix production track via Play API (fallback)
+        if: failure()
         env:
           PACKAGE_NAME: io.visio.mobile
-          VERSION_CODE: ${{ inputs.version_code || github.event.inputs.version_code }}
+          VERSION_CODE: ${{ inputs.version_code || 114 }}
         run: |
           set -e
           export PATH="$HOME/google-cloud-sdk/bin:$PATH"
@@ -66,35 +81,57 @@ jobs:
           fi
           echo "Edit ID: $EDIT_ID"
 
-          echo "=== Stage 1: draft + countryTargeting ==="
-          PAYLOAD1='{"track":"production","releases":[{"versionCodes":["'$VERSION_CODE'"],"status":"draft","countryTargeting":{"includeRestOfWorld":true,"countries":[]}}]}'
-          UPDATE1=$(curl -s -X PUT \
+          echo "=== Step A: draft release (no country targeting yet) ==="
+          PAYLOAD_A="{\"track\":\"production\",\"releases\":[{\"versionCodes\":[\"$VERSION_CODE\"],\"status\":\"draft\"}]}"
+          UPDATE_A=$(curl -s -X PUT \
             -H "Authorization: Bearer $ACCESS_TOKEN" \
             -H "Content-Type: application/json" \
-            -d "$PAYLOAD1" \
+            -d "$PAYLOAD_A" \
             "https://androidpublisher.googleapis.com/androidpublisher/v3/applications/$PACKAGE_NAME/edits/$EDIT_ID/tracks/production")
 
-          if echo "$UPDATE1" | python3 -c "import json,sys;d=json.load(sys.stdin);assert 'track' in d" 2>/dev/null; then
-            echo "✅ Stage 1 (draft + countryTargeting) — OK"
+          if echo "$UPDATE_A" | python3 -c "import json,sys;d=json.load(sys.stdin);assert 'track' in d" 2>/dev/null; then
+            echo "✅ Step A (draft) — OK"
           else
-            echo "❌ Stage 1 failed:"
-            echo "$UPDATE1"
+            echo "❌ Step A failed:"
+            echo "$UPDATE_A"
             exit 1
           fi
 
-          echo "=== Stage 2: completed ==="
-          PAYLOAD2='{"track":"production","releases":[{"versionCodes":["'$VERSION_CODE'"],"status":"completed"}]}'
-          UPDATE2=$(curl -s -X PUT \
+          echo "=== Step B: add countryTargeting to the draft ==="
+          echo "Fetching current releases..."
+          CURRENT=$(curl -s \
+            -H "Authorization: Bearer $ACCESS_TOKEN" \
+            "https://androidpublisher.googleapis.com/androidpublisher/v3/applications/$PACKAGE_NAME/edits/$EDIT_ID/tracks/production")
+          echo "Current track: $CURRENT"
+
+          PAYLOAD_B="{\"track\":\"production\",\"releases\":[{\"versionCodes\":[\"$VERSION_CODE\"],\"status\":\"draft\",\"countryTargeting\":{\"includeRestOfWorld\":true,\"countries\":[]}}]}"
+          UPDATE_B=$(curl -s -X PUT \
             -H "Authorization: Bearer $ACCESS_TOKEN" \
             -H "Content-Type: application/json" \
-            -d "$PAYLOAD2" \
+            -d "$PAYLOAD_B" \
             "https://androidpublisher.googleapis.com/androidpublisher/v3/applications/$PACKAGE_NAME/edits/$EDIT_ID/tracks/production")
 
-          if echo "$UPDATE2" | python3 -c "import json,sys;d=json.load(sys.stdin);assert 'track' in d" 2>/dev/null; then
-            echo "✅ Stage 2 (completed) — OK"
+          if echo "$UPDATE_B" | python3 -c "import json,sys;d=json.load(sys.stdin);assert 'track' in d" 2>/dev/null; then
+            echo "✅ Step B (draft + countryTargeting) — OK"
           else
-            echo "❌ Stage 2 failed:"
-            echo "$UPDATE2"
+            echo "❌ Step B failed:"
+            echo "$UPDATE_B"
+            exit 1
+          fi
+
+          echo "=== Step C: completed ==="
+          PAYLOAD_C="{\"track\":\"production\",\"releases\":[{\"versionCodes\":[\"$VERSION_CODE\"],\"status\":\"completed\"}]}"
+          UPDATE_C=$(curl -s -X PUT \
+            -H "Authorization: Bearer $ACCESS_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d "$PAYLOAD_C" \
+            "https://androidpublisher.googleapis.com/androidpublisher/v3/applications/$PACKAGE_NAME/edits/$EDIT_ID/tracks/production")
+
+          if echo "$UPDATE_C" | python3 -c "import json,sys;d=json.load(sys.stdin);assert 'track' in d" 2>/dev/null; then
+            echo "✅ Step C (completed) — OK"
+          else
+            echo "❌ Step C failed:"
+            echo "$UPDATE_C"
             exit 1
           fi
 
