@@ -39,6 +39,13 @@ jobs:
     # Tighter than default 6h so a hung step (Tauri DMG-style hang) fails
     # in minutes instead of burning runner hours.
     timeout-minutes: 45
+    # id-token: write is required for google-github-actions/auth to mint a
+    # GitHub OIDC token that GCP STS exchanges for a short-lived access
+    # token (WIF). contents: read overrides the workflow-level default
+    # which gets erased once we set a job-level permissions block.
+    permissions:
+      contents: read
+      id-token: write
     defaults:
       run:
         working-directory: .
@@ -110,14 +117,22 @@ jobs:
           printf '%s' "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" \
             | base64 -d > android/app/release.keystore
 
-      - name: Decode Play Store service account
-        # FIREBASE_SERVICE_ACCOUNT_BASE64 is a legacy secret name from when
-        # we also published via Firebase App Distribution. The JSON it
-        # decodes is now used exclusively for the Play Store Android
-        # Publisher API (supply / SUPPLY_JSON_KEY_PATH below).
-        run: |
-          printf '%s' "${{ secrets.FIREBASE_SERVICE_ACCOUNT_BASE64 }}" \
-            | base64 -d > /tmp/play-sa.json
+      - name: Authenticate to Google Cloud via Workload Identity Federation
+        # Exchanges the job's GitHub OIDC token (id-token: write above) for a
+        # short-lived (~1h) GCP access token bound to the Play Store service
+        # account, then writes an "external account" credentials JSON to a
+        # temp path and exports GOOGLE_APPLICATION_CREDENTIALS pointing at it.
+        # No long-lived JSON private key lives in the secrets anymore.
+        # Gated by the same condition as the upload step below — there's no
+        # value in burning an STS exchange on builds that won't upload.
+        if: >-
+          (github.event_name == 'workflow_dispatch' && inputs.publish == true) ||
+          (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') && !contains(github.ref, '-rc'))
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
+          service_account: ${{ secrets.GCP_PLAY_STORE_SA }}
+          create_credentials_file: true
 
       - name: Set up Ruby
         uses: ruby/setup-ruby@v1
@@ -146,7 +161,10 @@ jobs:
           (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') && !contains(github.ref, '-rc'))
         working-directory: android
         env:
-          SUPPLY_JSON_KEY_PATH: /tmp/play-sa.json
+          # google-github-actions/auth above sets GOOGLE_APPLICATION_CREDENTIALS
+          # to a temp external-account JSON. Fastlane supply accepts that
+          # path the same way it accepts a service-account JSON.
+          SUPPLY_JSON_KEY_PATH: ${{ env.GOOGLE_APPLICATION_CREDENTIALS }}
         run: bundle exec fastlane release
 
       - name: Package native debug symbols
