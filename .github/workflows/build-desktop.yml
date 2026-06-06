@@ -7,6 +7,13 @@ on:
         description: "Release notes"
         required: false
         default: ""
+  push:
+    # Pushing a semver tag triggers a Desktop build and a GitHub Release
+    # attached to that tag (assets: .dmg, .msi, .exe, .deb, .AppImage,
+    # .flatpak). RC tags (-rcN) are marked prerelease.
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+'
+      - 'v[0-9]+.[0-9]+.[0-9]+-rc[0-9]+'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -234,10 +241,30 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          TAG="desktop-build-${{ github.run_number }}"
+          # Two trigger paths:
+          # - push: tags -> use the semver tag itself as the release tag
+          #   (so v0.10.0 publishes a `v0.10.0` GitHub release with the
+          #   .dmg / .msi / .deb / .AppImage / .flatpak attached).
+          # - workflow_dispatch -> per-run desktop-build-N prerelease,
+          #   useful for testing without burning a real semver tag.
+          if [[ "$GITHUB_REF" == refs/tags/* ]]; then
+            TAG="${GITHUB_REF#refs/tags/}"
+            TITLE="Visio Mobile $TAG"
+            # Mark RC tags as prerelease.
+            if [[ "$TAG" == *-rc* ]]; then
+              PRERELEASE="--prerelease"
+            else
+              PRERELEASE=""
+            fi
+          else
+            TAG="desktop-build-${{ github.run_number }}"
+            TITLE="Desktop Build #${{ github.run_number }}"
+            PRERELEASE="--prerelease"
+          fi
+
           NOTES="${{ github.event.inputs.release_notes }}"
           if [ -z "$NOTES" ]; then
-            NOTES="Desktop Build #${{ github.run_number }} from $(date -u +%Y-%m-%d)"
+            NOTES="$TITLE from $(date -u +%Y-%m-%d)"
           fi
 
           # Collect all release files (use NUL-delimited to handle spaces in names)
@@ -249,9 +276,9 @@ jobs:
           if [ ${#FILES[@]} -gt 0 ]; then
             gh release create "$TAG" \
               "${FILES[@]}" \
-              --title "Desktop Build #${{ github.run_number }}" \
+              --title "$TITLE" \
               --notes "$NOTES" \
-              --prerelease
+              $PRERELEASE
           else
             echo "::warning::No artifacts found for release"
           fi

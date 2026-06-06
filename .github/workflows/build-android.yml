@@ -12,6 +12,14 @@ on:
         required: false
         type: boolean
         default: false
+  push:
+    # Pushing a semver tag triggers a build + automatic Play Store
+    # upload. Use vX.Y.Z for prod-ready releases (Play Store internal
+    # track, ready to promote to production from the console) and
+    # vX.Y.Z-rcN for release candidates (build only, no upload).
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+'
+      - 'v[0-9]+.[0-9]+.[0-9]+-rc[0-9]+'
 
 permissions:
   contents: read
@@ -131,7 +139,11 @@ jobs:
         run: ./gradlew bundleRelease
 
       - name: Upload AAB to Google Play (internal track)
-        if: inputs.publish_to_play_store == true
+        # Publish when explicitly requested via workflow_dispatch input OR
+        # when triggered by a non-RC semver tag push (vX.Y.Z, not -rcN).
+        if: >-
+          (github.event_name == 'workflow_dispatch' && inputs.publish_to_play_store == true) ||
+          (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') && !contains(github.ref, '-rc'))
         working-directory: android
         env:
           SUPPLY_JSON_KEY_PATH: /tmp/play-sa.json
