@@ -30,7 +30,8 @@ platform :android do
       skip_upload_metadata: true,
       skip_upload_images: true,
       skip_upload_screenshots: true,
-      release_status: "completed"
+      release_status: "completed",
+      countries: ["US", "FR", "DE", "ES", "IT", "NL", "GB", "CA", "BE", "CH"]
     )
   end
 end
