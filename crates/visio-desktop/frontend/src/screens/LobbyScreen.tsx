@@ -21,6 +21,12 @@ export interface LobbyScreenProps {
   livekitToken: string | null
   initialUsername: string | null
   waitingParticipants: Array<{ id: string; username: string }>
+  /**
+   * Rust connection state. When 'waiting_for_host', App.tsx already renders
+   * its own WaitingScreen above us — we suppress our own waiting overlay to
+   * avoid stacking two of them.
+   */
+  connectionState: string
   onAdmit: (id: string) => void
   onDeny: (id: string) => void
   onAdmitAll: () => void
@@ -149,6 +155,7 @@ export function LobbyScreen({
   livekitToken,
   initialUsername,
   waitingParticipants,
+  connectionState,
   onAdmit,
   onDeny,
   onAdmitAll,
@@ -188,11 +195,15 @@ export function LobbyScreen({
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const unlistenRef = useRef<UnlistenFn | null>(null)
   const joiningRef = useRef(false)
+  const mountedRef = useRef(true)
 
   // ---- Mount: load settings, devices, video frame stream ------------------
   useEffect(() => {
+    let cancelled = false
+
     invoke<Settings>('get_settings')
       .then((s) => {
+        if (cancelled) return
         if (s.display_name && !initialUsername) setDisplayName(s.display_name)
         setIsMicOn(s.mic_enabled_on_join ?? true)
         setIsCameraOn(s.camera_enabled_on_join ?? false)
@@ -210,11 +221,20 @@ export function LobbyScreen({
         }
       }
     ).then((unlisten) => {
+      // Component may have unmounted while listen() was still pending — call
+      // unlisten right away so the bridge subscription doesn't leak.
+      if (cancelled) {
+        unlisten()
+        return
+      }
       unlistenRef.current = unlisten
     })
 
     return () => {
+      cancelled = true
+      mountedRef.current = false
       unlistenRef.current?.()
+      unlistenRef.current = null
       if (micPollRef.current) clearInterval(micPollRef.current)
       if (timeoutRef.current) clearTimeout(timeoutRef.current)
       if (!joiningRef.current) {
@@ -354,23 +374,29 @@ export function LobbyScreen({
         setWaitingState((prev) => (prev === 'waiting' ? 'timeout' : prev))
       }, TIMEOUT_MS)
 
-      const unlistenDenied = await listen<string>('lobby-denied', () => {
-        if (timeoutRef.current) clearTimeout(timeoutRef.current)
-        setWaitingState('denied')
-      })
-      chainUnlisten(unlistenRef, unlistenDenied)
-
-      const unlistenState = await listen<string>(
-        'connection-state-changed',
-        (event) => {
+      // Register both listeners in parallel. If the component unmounts
+      // while listen() is still pending, mountedRef flips to false and we
+      // call unlisten immediately to avoid a leaked IPC subscription.
+      const [unlistenDenied, unlistenState] = await Promise.all([
+        listen<string>('lobby-denied', () => {
+          if (timeoutRef.current) clearTimeout(timeoutRef.current)
+          setWaitingState('denied')
+        }),
+        listen<string>('connection-state-changed', (event) => {
           if (event.payload === 'connected') {
             if (timeoutRef.current) clearTimeout(timeoutRef.current)
             joiningRef.current = true
             onJoined(finalName, isMicOn, withCamera, audioMode)
           }
-        }
-      )
-      chainUnlisten(unlistenRef, unlistenState)
+        }),
+      ])
+      if (!mountedRef.current) {
+        unlistenDenied()
+        unlistenState()
+      } else {
+        chainUnlisten(unlistenRef, unlistenDenied)
+        chainUnlisten(unlistenRef, unlistenState)
+      }
 
       try {
         await invoke('connect', { meetUrl: roomUrl, username: finalName })
@@ -402,7 +428,12 @@ export function LobbyScreen({
   }, [videoDevices, selectedVideoInput])
 
   // ---- Waiting state overlay ----------------------------------------------
-  if (waitingState !== 'idle') {
+  // When the Rust side is in 'waiting_for_host', App.tsx renders its own
+  // WaitingScreen on top of us — skip our local overlay to avoid stacking
+  // two of them. We still keep the lobby-denied / timeout listeners alive
+  // through `waitingState`, so a denial that fires after App.tsx exits the
+  // waiting_for_host state still surfaces correctly here.
+  if (waitingState !== 'idle' && connectionState !== 'waiting_for_host') {
     return (
       <div
         style={{
@@ -434,9 +465,7 @@ export function LobbyScreen({
               }}
             />
             <div style={{ fontSize: 16, fontWeight: 600 }}>
-              {t('prejoin.waitingForApproval') === 'prejoin.waitingForApproval'
-                ? "En attente de validation par l'hôte…"
-                : t('prejoin.waitingForApproval')}
+              {t('prejoin.waitingForApproval')}
             </div>
           </>
         )}
@@ -444,16 +473,12 @@ export function LobbyScreen({
           <div
             style={{ fontSize: 16, fontWeight: 600, color: 'var(--danger)' }}
           >
-            {t('prejoin.denied') === 'prejoin.denied'
-              ? "L'hôte a refusé votre demande."
-              : t('prejoin.denied')}
+            {t('prejoin.denied')}
           </div>
         )}
         {waitingState === 'timeout' && (
           <div style={{ fontSize: 16, fontWeight: 600, color: 'var(--warn)' }}>
-            {t('prejoin.timeout') === 'prejoin.timeout'
-              ? "L'hôte n'a pas répondu."
-              : t('prejoin.timeout')}
+            {t('prejoin.timeout')}
           </div>
         )}
         <Button variant="ghost" onClick={onCancel}>

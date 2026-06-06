@@ -51,33 +51,34 @@ function pickAvatars(_m: Meeting): string[] {
   return []
 }
 
-function accessTone(level: string | undefined): {
-  icon: string
-  label: string
-} {
+function accessTone(
+  level: string | undefined,
+  t: TFunction
+): { icon: string; label: string } {
   switch ((level || '').toLowerCase()) {
     case 'public':
-      return { icon: 'globe', label: 'Public' }
+      return { icon: 'globe', label: t('home.access.public') }
     case 'restricted':
     case 'restreint':
-      return { icon: 'lock', label: 'Restreint' }
+      return { icon: 'lock', label: t('home.access.restricted') }
     case 'invite_only':
     case 'invitation':
-      return { icon: 'shield', label: 'Sur invitation' }
+      return { icon: 'shield', label: t('home.access.invite') }
     default:
-      return { icon: 'shield', label: 'Sur invitation' }
+      return { icon: 'shield', label: t('home.access.invite') }
   }
 }
 
 interface MeetingRowProps {
+  t: TFunction
   meeting: Meeting
   last: boolean
   onJoin: () => void
 }
 
-function MeetingRow({ meeting, last, onJoin }: MeetingRowProps) {
+function MeetingRow({ t, meeting, last, onJoin }: MeetingRowProps) {
   const live = isOngoing(meeting)
-  const access = accessTone(undefined)
+  const access = accessTone(undefined, t)
   const avatars = pickAvatars(meeting)
   return (
     <div
@@ -92,7 +93,7 @@ function MeetingRow({ meeting, last, onJoin }: MeetingRowProps) {
       <div style={{ width: 70, flexShrink: 0 }}>
         {live ? (
           <Tag tone="live" dot>
-            Live
+            {t('home.upcoming.live')}
           </Tag>
         ) : (
           <span
@@ -148,7 +149,7 @@ function MeetingRow({ meeting, last, onJoin }: MeetingRowProps) {
         onClick={onJoin}
         style={{ flexShrink: 0 }}
       >
-        Rejoindre
+        {t('home.join.cta')}
       </Button>
     </div>
   )
@@ -391,6 +392,7 @@ export function HomeScreen({
               {visibleMeetings.map((m, i) => (
                 <MeetingRow
                   key={m.id}
+                  t={t}
                   meeting={m}
                   last={i === visibleMeetings.length - 1}
                   onJoin={() => onOpenMeeting(m)}

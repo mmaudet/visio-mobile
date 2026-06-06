@@ -345,5 +345,11 @@
   "devicePicker.video.effects": "Effekte",
   "devicePicker.video.effects.blur": "Hintergrundunschärfe",
   "devicePicker.video.effects.image": "Hintergrund ersetzen",
-  "devicePicker.video.openSettings": "Video-Einstellungen"
+  "devicePicker.video.openSettings": "Video-Einstellungen",
+  "prejoin.denied": "Der Host hat Ihre Anfrage abgelehnt.",
+  "prejoin.timeout": "Der Host hat nicht geantwortet.",
+  "home.upcoming.live": "Live",
+  "home.access.public": "Öffentlich",
+  "home.access.restricted": "Eingeschränkt",
+  "home.access.invite": "Nur auf Einladung"
 }

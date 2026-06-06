@@ -1,6 +1,8 @@
 // Shared types — mirror the JSON shapes returned by Tauri commands defined in
 // `crates/visio-desktop/src/lib.rs`. Keep them in sync with the Rust side.
 
+export type ThemeChoice = 'system' | 'light' | 'dark'
+
 export interface Participant {
   sid: string
   identity: string

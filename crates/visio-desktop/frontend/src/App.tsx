@@ -62,7 +62,7 @@ import { HomeScreen } from './screens/HomeScreen'
 import { SettingsScreen } from './screens/SettingsScreen'
 import { LobbyScreen } from './screens/LobbyScreen'
 import { CallScreen } from './screens/CallScreen'
-import type { ThemeChoice } from './hooks/useTheme'
+import type { ThemeChoice } from './types'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -5177,13 +5177,14 @@ export default function App() {
     }
   }, [])
 
-  // Dev/debug only: navigate via URL hash. Lets a Playwright run jump straight
-  // to a screen without going through Tauri. Honored only when the hash is one
-  // of the known views.
+  // Dev/debug only: navigate via URL hash between SAFE views (home/settings).
+  // Lobby and Call need real state (lobbyRoomUrl, livekit creds, connection
+  // state) — jumping into them via hash with empty state crashes connect()
+  // and dead-locks the join flow, so they're intentionally excluded.
   useEffect(() => {
     const apply = () => {
       const h = window.location.hash.replace(/^#/, '')
-      if (h === 'home' || h === 'lobby' || h === 'call' || h === 'settings') {
+      if (h === 'home' || h === 'settings') {
         setView(h as View)
       }
     }
@@ -5949,21 +5950,28 @@ export default function App() {
               livekitToken={lobbyLivekitToken}
               initialUsername={lobbyUsername}
               waitingParticipants={waitingParticipants}
+              connectionState={connectionState}
               onAdmit={(id) => {
-                invoke('admit_participant', { sid: id }).catch(() => {})
+                invoke('admit_participant', { participantId: id }).catch(
+                  () => {}
+                )
                 setWaitingParticipants((prev) =>
                   prev.filter((p) => p.id !== id)
                 )
               }}
               onDeny={(id) => {
-                invoke('deny_participant', { sid: id }).catch(() => {})
+                invoke('deny_participant', { participantId: id }).catch(
+                  () => {}
+                )
                 setWaitingParticipants((prev) =>
                   prev.filter((p) => p.id !== id)
                 )
               }}
               onAdmitAll={() => {
                 waitingParticipants.forEach((p) => {
-                  invoke('admit_participant', { sid: p.id }).catch(() => {})
+                  invoke('admit_participant', { participantId: p.id }).catch(
+                    () => {}
+                  )
                 })
                 setWaitingParticipants([])
               }}

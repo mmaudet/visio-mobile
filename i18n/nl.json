@@ -345,5 +345,11 @@
   "devicePicker.video.effects": "Effecten",
   "devicePicker.video.effects.blur": "Achtergrond wazig",
   "devicePicker.video.effects.image": "Achtergrond vervangen",
-  "devicePicker.video.openSettings": "Video-instellingen"
+  "devicePicker.video.openSettings": "Video-instellingen",
+  "prejoin.denied": "De host heeft je verzoek geweigerd.",
+  "prejoin.timeout": "De host heeft niet gereageerd.",
+  "home.upcoming.live": "Live",
+  "home.access.public": "Openbaar",
+  "home.access.restricted": "Beperkt",
+  "home.access.invite": "Alleen op uitnodiging"
 }
