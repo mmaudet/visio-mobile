@@ -18,7 +18,7 @@ platform :android do
   desc "Promote the latest internal build to production (general availability)"
   lane :promote_to_production do
     supply(
-      track: "production",
+      track: "internal",
       track_promote_to: "production",
       json_key: ENV["SUPPLY_JSON_KEY_PATH"],
       package_name: "io.visio.mobile",
