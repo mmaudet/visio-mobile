@@ -1,0 +1,106 @@
+name: Promote Android to Production
+
+on:
+  workflow_dispatch:
+    inputs:
+      version_code:
+        description: "Version code of the build to promote (from github.run_number)"
+        required: true
+        type: string
+      source_track:
+        description: "Source track to promote from"
+        required: false
+        default: "internal"
+        type: choice
+        options:
+          - internal
+          - alpha
+          - beta
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  promote:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      id-token: write
+    defaults:
+      run:
+        working-directory: .
+
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - name: Authenticate to Google Cloud via Workload Identity Federation
+        id: auth
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
+          service_account: ${{ secrets.GCP_PLAY_STORE_SA }}
+          create_credentials_file: true
+          token_format: access_token
+
+      - name: Promote to production via Google Play API
+        env:
+          PACKAGE_NAME: io.visio.mobile
+          VERSION_CODE: ${{ inputs.version_code || github.event.inputs.version_code }}
+          ACCESS_TOKEN: ${{ steps.auth.outputs.access_token }}
+        run: |
+          set -e
+
+          echo "=== Step 1: Create a new edit ==="
+          EDIT_RESPONSE=$(curl -s -X POST \
+            -H "Authorization: Bearer $ACCESS_TOKEN" \
+            -H "Content-Type: application/json" \
+            "https://androidpublisher.googleapis.com/androidpublisher/v3/applications/$PACKAGE_NAME/edits")
+          EDIT_ID=$(echo "$EDIT_RESPONSE" | python3 -c "import json,sys;print(json.load(sys.stdin)['id'])")
+          echo "Edit ID: $EDIT_ID"
+
+          echo "=== Step 2: Promote internal track release to production with country targeting ==="
+          RESPONSE=$(curl -s -X PUT \
+            -H "Authorization: Bearer $ACCESS_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d "{
+              \"track\": \"production\",
+              \"releases\": [
+                {
+                  \"versionCodes\": [\"$VERSION_CODE\"],
+                  \"status\": \"completed\",
+                  \"countryTargeting\": {
+                    \"includeRestOfWorld\": true,
+                    \"countries\": []
+                  }
+                }
+              ]
+            }" \
+            "https://androidpublisher.googleapis.com/androidpublisher/v3/applications/$PACKAGE_NAME/edits/$EDIT_ID/tracks/production")
+          echo "Track update response:"
+          echo "$RESPONSE" | python3 -m json.tool 2>/dev/null || echo "$RESPONSE"
+
+          # Check for API errors
+          if echo "$RESPONSE" | python3 -c "import json,sys;d=json.load(sys.stdin);sys.exit(0 if 'track' in d else 1)" 2>/dev/null; then
+            echo "✅ Production track updated successfully"
+          else
+            echo "❌ Failed to update production track"
+            echo "$RESPONSE"
+            exit 1
+          fi
+
+          echo "=== Step 3: Commit the edit ==="
+          COMMIT=$(curl -s -X POST \
+            -H "Authorization: Bearer $ACCESS_TOKEN" \
+            "https://androidpublisher.googleapis.com/androidpublisher/v3/applications/$PACKAGE_NAME/edits/$EDIT_ID:commit")
+          echo "Commit response:"
+          echo "$COMMIT" | python3 -m json.tool 2>/dev/null || echo "$COMMIT"
+
+          if echo "$COMMIT" | python3 -c "import json,sys;d=json.load(sys.stdin);sys.exit(0 if 'id' in d else 1)" 2>/dev/null; then
+            echo "🎉 Promotion to production successful! Visio Mobile is now in general availability!"
+          else
+            echo "❌ Failed to commit promotion"
+            echo "$COMMIT"
+            exit 1
+          fi
