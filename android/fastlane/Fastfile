@@ -14,4 +14,20 @@ platform :android do
       package_name: "io.visio.mobile"
     )
   end
+
+  desc "Promote the latest internal build to production (general availability)"
+  lane :promote_to_production do
+    supply(
+      track: "production",
+      track_promote_to: "production",
+      json_key: ENV["SUPPLY_JSON_KEY_PATH"],
+      package_name: "io.visio.mobile",
+      skip_upload_aab: true,
+      skip_upload_apk: true,
+      skip_upload_metadata: true,
+      skip_upload_images: true,
+      skip_upload_screenshots: true,
+      release_status: "completed"
+    )
+  end
 end
