@@ -46,15 +46,11 @@ jobs:
       - name: Select Xcode 26.3
         run: sudo xcode-select -s /Applications/Xcode_26.3.app
 
-      - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@631a55b12751854ce901bb631d5902ceb48146f7 # stable
+      - name: Setup Rust toolchain
+        uses: ./.github/actions/setup-rust-toolchain
         with:
-          targets: aarch64-apple-ios
-
-      - name: Cache Rust build artifacts
-        uses: Swatinem/rust-cache@f51f967e158417aafa338a1e46ab22095f07aa01 # v2
-        with:
-          key: ios-arm64
+          rust-targets: aarch64-apple-ios
+          cache-key: ios-arm64
 
       - name: Compile Rust native libraries
         run: |
