@@ -17,6 +17,13 @@ and this project adheres to
   stored in repo secrets. `FIREBASE_SERVICE_ACCOUNT_BASE64` is now
   unused and will be removed once the next publish run confirms WIF
   works end-to-end.
+- CI: every shipping artifact (`.aab`, `.ipa`, `.dmg`, `.msi`, `.exe`,
+  `.AppImage`, `.deb`, `.flatpak`) now ships with a signed SLSA build
+  provenance attestation. Anyone can verify a binary really came from
+  this repo at a given commit with `gh attestation verify <file>
+  --repo mmaudet/visio-mobile`. The attestations live in the GitHub
+  attestations store (also pushed to Sigstore Rekor public ledger),
+  no extra files in releases. This puts the build at SLSA Level 3.
 - Desktop: the macOS `.app` and `.dmg` are now signed with a real
   Developer ID Application certificate (Linagora, KUT463DS29) and
   notarized via Apple's notarytool API. End users no longer see the

@@ -31,6 +31,15 @@ jobs:
     # ~15-25 min healthy. Cap at 60 to absorb a slow ASC upload retry
     # without ever burning the default 6h.
     timeout-minutes: 60
+    # id-token + attestations enable SLSA build provenance: the runner
+    # mints an OIDC token, Sigstore signs an attestation over the
+    # artifact hash, and the result is stored against the repo so
+    # anyone can verify "this IPA really came from this commit on
+    # this workflow" via `gh attestation verify`.
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
     defaults:
       run:
         working-directory: .
@@ -107,3 +116,13 @@ jobs:
           name: ios-ipa
           path: ios/build/VisioMobile.ipa
           retention-days: 14
+
+      - name: Attest IPA build provenance
+        # SLSA build provenance: signs an attestation that this IPA came
+        # from this commit on this workflow. Stored against the repo;
+        # verifiable with `gh attestation verify <file> --repo <repo>`.
+        # No `if: always()` — there's no point attesting a missing IPA
+        # if the build failed.
+        uses: actions/attest-build-provenance@b3e506e8c389afc651c5bacf2b8f2a1ea0557215 # v4
+        with:
+          subject-path: ios/build/VisioMobile.ipa
