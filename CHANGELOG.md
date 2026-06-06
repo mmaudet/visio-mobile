@@ -8,6 +8,13 @@ and this project adheres to
 
 ## [Unreleased]
 
+### Changed
+
+- CI: Android publish now goes through Play Store internal track only;
+  the Firebase App Distribution channel and the per-run
+  `build-N` GitHub prereleases are dropped
+- CI: artifact retention reduced to 14 days across all build workflows
+
 ## [0.10.0] - 2026-06-04
 
 ### Added
