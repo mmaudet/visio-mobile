@@ -7,7 +7,10 @@ import { Tag } from '../components/ui/Tag'
 import { Avatar } from '../components/ui/Avatar'
 import { Button } from '../components/ui/Button'
 import { VisioMark } from '../components/ui/VisioMark'
-import { useDeviceEnumeration } from '../useDeviceEnumeration'
+import type {
+  NativeAudioDevice,
+  NativeVideoDevice,
+} from '../useDeviceEnumeration'
 import type { Settings } from '../types'
 
 type TFunction = (key: string) => string
@@ -27,6 +30,14 @@ export interface LobbyScreenProps {
    * avoid stacking two of them.
    */
   connectionState: string
+  /** Audio/video devices, owned by App.tsx (single hook instance). */
+  audioInputs: NativeAudioDevice[]
+  videoInputs: NativeVideoDevice[]
+  selectedAudioInput: string
+  selectedVideoInput: string
+  setSelectedAudioInput: (name: string) => void
+  setSelectedVideoInput: (uniqueId: string) => void
+  enumerateDevices: () => void
   onAdmit: (id: string) => void
   onDeny: (id: string) => void
   onAdmitAll: () => void
@@ -156,6 +167,13 @@ export function LobbyScreen({
   initialUsername,
   waitingParticipants,
   connectionState,
+  audioInputs: inputDevices,
+  videoInputs: videoDevices,
+  selectedAudioInput,
+  selectedVideoInput,
+  setSelectedAudioInput,
+  setSelectedVideoInput,
+  enumerateDevices,
   onAdmit,
   onDeny,
   onAdmitAll,
@@ -173,23 +191,6 @@ export function LobbyScreen({
   >('idle')
   const [showMicMenu, setShowMicMenu] = useState(false)
   const [showCamMenu, setShowCamMenu] = useState(false)
-
-  const devices = useDeviceEnumeration({
-    onInputFallback: () => {
-      invoke('stop_mic_preview')
-        .catch(() => {})
-        .then(() => invoke('start_mic_preview'))
-        .catch(() => {})
-    },
-  })
-  const {
-    audioInputs: inputDevices,
-    videoInputs: videoDevices,
-    selectedAudioInput,
-    selectedVideoInput,
-    setSelectedAudioInput,
-    setSelectedVideoInput,
-  } = devices
 
   const micPollRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -211,7 +212,7 @@ export function LobbyScreen({
       })
       .catch(() => {})
 
-    devices.enumerate()
+    enumerateDevices()
 
     listen<{ track_sid: string; data: string; width: number; height: number }>(
       'video-frame',
