@@ -173,8 +173,10 @@ jobs:
           chmod 600 "$RUNNER_TEMP/asc/AuthKey.p8"
           # Sanity check — fail early with a clear message if the .p8 is
           # malformed, instead of a cryptic "invalidAsn1" inside Tauri.
-          openssl pkcs8 -in "$RUNNER_TEMP/asc/AuthKey.p8" -inform PEM -nocrypt -noout
-          echo "ASC API key .p8 is valid PKCS#8 PEM"
+          # macos-15 runner ships LibreSSL: pkcs8 does not support -noout,
+          # so use pkey which does (and parses PKCS#8 PEM the same way).
+          openssl pkey -in "$RUNNER_TEMP/asc/AuthKey.p8" -noout
+          echo "ASC API key .p8 is valid PEM private key"
 
       - name: Build Tauri app (Linux with PipeWire)
         if: matrix.platform == 'linux'
