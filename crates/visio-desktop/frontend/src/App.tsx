@@ -4911,6 +4911,7 @@ export default function App() {
   const [visioLinksEnabled, setVisioLinksEnabled] = useState(true)
   const [notificationsEnabled, setNotificationsEnabled] = useState(true)
   const [appBgMode, setAppBgMode] = useState<string>('off')
+  const [callStartedMs, setCallStartedMs] = useState<number | null>(null)
 
   const t = useCallback(
     (key: string) => translations[lang]?.[key] ?? translations.en[key] ?? key,
@@ -5193,23 +5194,51 @@ export default function App() {
     return () => window.removeEventListener('hashchange', apply)
   }, [])
 
-  // Apply theme to document. 'system' removes the attribute so that the CSS
-  // @media(prefers-color-scheme) fallback kicks in.
+  // Apply theme to document. We always set an explicit data-theme="light" or
+  // "dark" attribute so the legacy App.css [data-theme='dark'] selectors keep
+  // matching for the SettingsView modal — even when the user picked 'system'
+  // and the OS happens to be dark. The token CSS keys off the same attribute,
+  // so both stylesheets stay in lockstep.
   useEffect(() => {
+    const root = document.documentElement
+    const applyResolved = () => {
+      let resolved: 'light' | 'dark'
+      if (theme === 'light' || theme === 'dark') {
+        resolved = theme
+      } else {
+        resolved = window.matchMedia?.('(prefers-color-scheme: dark)').matches
+          ? 'dark'
+          : 'light'
+      }
+      root.setAttribute('data-theme', resolved)
+    }
+    applyResolved()
     if (theme === 'system') {
-      document.documentElement.removeAttribute('data-theme')
-    } else if (theme === 'dark' || theme === 'light') {
-      document.documentElement.setAttribute('data-theme', theme)
-    } else {
-      // Legacy or unknown — assume light.
-      document.documentElement.setAttribute('data-theme', 'light')
+      const mq = window.matchMedia('(prefers-color-scheme: dark)')
+      mq.addEventListener('change', applyResolved)
+      return () => mq.removeEventListener('change', applyResolved)
     }
   }, [theme])
 
-  // ---- Unified device enumeration (in-call context) -----------------------
-  // Lazy: does NOT enumerate until a picker is opened (avoids macOS mic
-  // permission issue #161). Fallback + audio-devices-changed handled by hook.
-  const inCallDevices = useDeviceEnumeration()
+  const viewRef = useRef(view)
+  viewRef.current = view
+
+  // ---- Unified device enumeration (lobby + in-call) -----------------------
+  // ONE hook for the whole app — duplicating it (one here, one in LobbyScreen)
+  // produced double `audio-devices-changed` subscriptions and racing fallback
+  // calls. The lobby-specific "restart mic preview on device change" runs
+  // through the fallback callback below, gated on view.
+  const onAudioInputFallback = useCallback(() => {
+    if (viewRef.current === 'lobby') {
+      invoke('stop_mic_preview')
+        .catch(() => {})
+        .then(() => invoke('start_mic_preview'))
+        .catch(() => {})
+    }
+  }, [])
+  const inCallDevices = useDeviceEnumeration({
+    onInputFallback: onAudioInputFallback,
+  })
   const {
     audioInputs,
     audioOutputs,
@@ -5223,9 +5252,6 @@ export default function App() {
     devicesEnumerated,
     enumerate: enumerateDevices,
   } = inCallDevices
-
-  const viewRef = useRef(view)
-  viewRef.current = view
 
   // Trigger enumeration lazily when a device picker is first opened.
   useEffect(() => {
@@ -5249,7 +5275,17 @@ export default function App() {
   const poll = useCallback(async () => {
     try {
       const state: string = await invoke('get_connection_state')
-      setConnectionState(state)
+      setConnectionState((prev) => {
+        // Latch the call start timestamp on the rising edge of 'connected' so
+        // the CallScreen timer reflects the actual call duration, not the
+        // React mount time.
+        if (state === 'connected' && prev !== 'connected') {
+          setCallStartedMs(Date.now())
+        } else if (state === 'disconnected') {
+          setCallStartedMs(null)
+        }
+        return state
+      })
 
       if (
         state === 'disconnected' &&
@@ -5632,17 +5668,21 @@ export default function App() {
     }
   }
 
-  // Push-to-talk: hold Space to temporarily unmute
+  // Push-to-talk: hold Space to temporarily unmute. We read micEnabled via a
+  // ref so the global listener stays stable and isn't rebound on every mic
+  // toggle (the old dep array [view, micEnabled] re-registered the listener
+  // every time the mic state flipped).
   const pushToTalkRef = useRef(false)
+  const micEnabledRef = useRef(micEnabled)
+  micEnabledRef.current = micEnabled
   useEffect(() => {
     if (view !== 'call') return
     const handleKeyDown = async (e: KeyboardEvent) => {
       if (e.code !== 'Space' || e.repeat) return
-      // Don't activate if typing in an input
       const tag = (e.target as HTMLElement)?.tagName
       if (tag === 'INPUT' || tag === 'TEXTAREA') return
       e.preventDefault()
-      if (!micEnabled && !pushToTalkRef.current) {
+      if (!micEnabledRef.current && !pushToTalkRef.current) {
         pushToTalkRef.current = true
         setMicEnabled(true)
         try {
@@ -5666,7 +5706,7 @@ export default function App() {
       window.removeEventListener('keydown', handleKeyDown)
       window.removeEventListener('keyup', handleKeyUp)
     }
-  }, [view, micEnabled])
+  }, [view])
 
   const handleToggleCam = async () => {
     const next = !camEnabled
@@ -5951,6 +5991,13 @@ export default function App() {
               initialUsername={lobbyUsername}
               waitingParticipants={waitingParticipants}
               connectionState={connectionState}
+              audioInputs={audioInputs}
+              videoInputs={videoInputs}
+              selectedAudioInput={selectedAudioInput}
+              selectedVideoInput={selectedVideoInput}
+              setSelectedAudioInput={handleSelectAudioInput}
+              setSelectedVideoInput={handleSelectVideoInput}
+              enumerateDevices={enumerateDevices}
               onAdmit={(id) => {
                 invoke('admit_participant', { participantId: id }).catch(
                   () => {}
@@ -6072,6 +6119,7 @@ export default function App() {
               setAppBgMode(mode)
               invoke('set_background_mode', { mode }).catch(() => {})
             }}
+            callStartedMs={callStartedMs}
           />
         )}
         {connectionState === 'waiting_for_host' && (

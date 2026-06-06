@@ -51,6 +51,8 @@ export interface CallScreenProps {
   onOpenSettings: () => void
   bgMode: string
   onSetBgMode: (mode: string) => void
+  /** Unix ms of the rising edge of connectionState === 'connected'. */
+  callStartedMs: number | null
 }
 
 const TONE_PALETTE = [
@@ -901,6 +903,7 @@ export function CallScreen(props: CallScreenProps) {
     onOpenSettings,
     bgMode,
     onSetBgMode,
+    callStartedMs,
   } = props
 
   const [chatOpen, setChatOpenState] = useState(true)
@@ -919,14 +922,14 @@ export function CallScreen(props: CallScreenProps) {
     }
   }, [])
 
-  // Timer ticking once per second
-  const startRef = useRef(Date.now())
+  // Timer ticking once per second, anchored to the real connect timestamp
+  // owned by App.tsx (Date.now() at the rising edge of 'connected').
   const [now, setNow] = useState(Date.now())
   useEffect(() => {
     const id = setInterval(() => setNow(Date.now()), 1000)
     return () => clearInterval(id)
   }, [])
-  const timer = fmtElapsed(startRef.current, now)
+  const timer = fmtElapsed(callStartedMs ?? now, now)
 
   const items = useMemo(
     () =>
