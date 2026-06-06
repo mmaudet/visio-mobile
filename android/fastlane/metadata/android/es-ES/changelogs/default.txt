@@ -5,7 +5,6 @@ Novedades de la versión 0.9.0:
 - Chat cifrado de extremo a extremo (AES-256-GCM)
 - Feature flags dinámicos vía proxy Unleash
 - Reconexión mejorada con caché de tokens
-- Fiabilidad del enrutamiento de audio Bluetooth (Android e iOS)
-- Ordenación de participantes por actividad de voz con anti-parpadeo
+- Ordenación de participantes por actividad de voz
 - Pantalla compartida siempre en alta calidad
 - Pipeline de traducción y cobertura i18n al 100%
