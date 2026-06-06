@@ -83,61 +83,27 @@ jobs:
           fi
 
       - name: Decode keystore
-        # echo adds a trailing newline that can corrupt the decoded binary.
+        # echo adds a trailing newline that can corrupt the decoded binary;
         # printf '%s' emits the secret verbatim and base64 -d ignores
-        # whitespace, so we get byte-identical output to the source file.
+        # whitespace, so the decoded keystore is byte-identical to the source.
         run: |
           printf '%s' "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" \
             | base64 -d > android/app/release.keystore
-          ls -la android/app/release.keystore
-          sha256sum android/app/release.keystore
-          # The keytool check below catches password-vs-keystore drift early
-          # (vs. discovering it 4 minutes later at signReleaseBundle time).
-          # 'keytool -list' rejects with a clear message if the storepass is
-          # wrong for the embedded PKCS12.
-          # Test the storepass only first (opens the keystore).
-          keytool -list -keystore android/app/release.keystore \
-            -storepass "${{ secrets.ANDROID_KEYSTORE_PASSWORD }}" \
-            -v | head -10
-          # Now test the alias + keypass — this is what gradle's
-          # signReleaseBundle does internally and will fail with the same
-          # 'password was incorrect' message if either is wrong.
-          echo "--- alias+keypass check ---"
-          keytool -keypasswd -list \
-            -keystore android/app/release.keystore \
-            -storepass "${{ secrets.ANDROID_KEYSTORE_PASSWORD }}" \
-            -alias "${{ secrets.ANDROID_KEY_ALIAS }}" \
-            -keypass "${{ secrets.ANDROID_KEY_PASSWORD }}" 2>&1 | head -5 || true
-          # And a non-destructive way: keytool -certreq probes the key.
-          keytool -certreq \
-            -keystore android/app/release.keystore \
-            -storepass "${{ secrets.ANDROID_KEYSTORE_PASSWORD }}" \
-            -alias "${{ secrets.ANDROID_KEY_ALIAS }}" \
-            -keypass "${{ secrets.ANDROID_KEY_PASSWORD }}" 2>&1 | head -3
 
-      - name: Decode Firebase service account
+      - name: Decode Play Store service account
+        # FIREBASE_SERVICE_ACCOUNT_BASE64 is a legacy secret name from when
+        # we also published via Firebase App Distribution. The JSON it
+        # decodes is now used exclusively for the Play Store Android
+        # Publisher API (supply / SUPPLY_JSON_KEY_PATH below).
         run: |
           printf '%s' "${{ secrets.FIREBASE_SERVICE_ACCOUNT_BASE64 }}" \
-            | base64 -d > /tmp/firebase-sa.json
+            | base64 -d > /tmp/play-sa.json
 
       - name: Set up Ruby
         uses: ruby/setup-ruby@v1
         with:
           ruby-version: "3.2"
           bundler-cache: true
-
-      - name: Build & distribute via Fastlane
-        working-directory: android
-        env:
-          KEYSTORE_PATH: release.keystore
-          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
-          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
-          FIREBASE_APP_ID: ${{ secrets.FIREBASE_APP_ID }}
-          GOOGLE_APPLICATION_CREDENTIALS: /tmp/firebase-sa.json
-          VERSION_CODE: ${{ github.run_number }}
-          RELEASE_NOTES: ${{ github.event.inputs.release_notes }}
-        run: bundle exec fastlane distribute
 
       - name: Build AAB for Google Play
         working-directory: android
@@ -146,9 +112,9 @@ jobs:
           KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
-          # Same monotonic versionCode as the APK step. Without this the
-          # build.gradle.kts fallback (`?: 1`) ships a version_code=1 AAB
-          # to Play Store — which rejects it as already-used by 0.8.0.
+          # Monotonic versionCode from the run number. Without it the
+          # build.gradle.kts fallback (`?: 1`) ships version_code=1 — which
+          # Play Store rejects as already-used by an earlier release.
           VERSION_CODE: ${{ github.run_number }}
         run: ./gradlew bundleRelease
 
@@ -156,35 +122,20 @@ jobs:
         if: inputs.publish_to_play_store == true
         working-directory: android
         env:
-          SUPPLY_JSON_KEY_PATH: /tmp/firebase-sa.json
+          SUPPLY_JSON_KEY_PATH: /tmp/play-sa.json
         run: bundle exec fastlane release
 
       - name: Package native debug symbols
         run: |
           SYMBOLS_DIR="android/app/build/outputs/native-debug-symbols/release"
           mkdir -p "$SYMBOLS_DIR/lib/arm64-v8a"
-          # Copy unstripped .so files with debug symbols
           for lib in libvisio_ffi.so libvisio_video.so; do
             UNSTRIPPED=$(find target/aarch64-linux-android/release -name "$lib" -not -path "*/stripped/*" | head -1)
             if [ -n "$UNSTRIPPED" ]; then
               cp "$UNSTRIPPED" "$SYMBOLS_DIR/lib/arm64-v8a/"
             fi
           done
-          # Create native-debug-symbols.zip for Google Play upload
           cd "$SYMBOLS_DIR" && zip -r "$GITHUB_WORKSPACE/native-debug-symbols.zip" lib/
-
-      - name: Find built APK
-        id: find-apk
-        if: always()
-        run: |
-          APK=$(find android/app/build/outputs -name "*.apk" -type f | head -1)
-          if [ -n "$APK" ]; then
-            echo "apk_path=$APK" >> $GITHUB_OUTPUT
-            echo "apk_name=$(basename $APK)" >> $GITHUB_OUTPUT
-            echo "Found APK: $APK"
-          else
-            echo "No APK found"
-          fi
 
       - name: Find built AAB
         id: find-aab
@@ -198,19 +149,13 @@ jobs:
             echo "No AAB found"
           fi
 
-      - name: Upload APK artifact
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7
-        if: steps.find-apk.outputs.apk_path != ''
-        with:
-          name: android-apk
-          path: ${{ steps.find-apk.outputs.apk_path }}
-
       - name: Upload AAB artifact
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7
         if: steps.find-aab.outputs.aab_path != ''
         with:
           name: android-aab
           path: ${{ steps.find-aab.outputs.aab_path }}
+          retention-days: 14
 
       - name: Upload native debug symbols
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7
@@ -219,26 +164,4 @@ jobs:
           name: native-debug-symbols
           path: native-debug-symbols.zip
           if-no-files-found: warn
-
-      - name: Create GitHub Release
-        if: steps.find-apk.outputs.apk_path != '' || steps.find-aab.outputs.aab_path != ''
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          TAG="build-${{ github.run_number }}"
-          NOTES="${{ github.event.inputs.release_notes }}"
-          if [ -z "$NOTES" ]; then
-            NOTES="Build #${{ github.run_number }} from $(date -u +%Y-%m-%d)"
-          fi
-          FILES=()
-          if [ -n "${{ steps.find-apk.outputs.apk_path }}" ]; then
-            FILES+=("${{ steps.find-apk.outputs.apk_path }}")
-          fi
-          if [ -n "${{ steps.find-aab.outputs.aab_path }}" ]; then
-            FILES+=("${{ steps.find-aab.outputs.aab_path }}")
-          fi
-          gh release create "$TAG" \
-            "${FILES[@]}" \
-            --title "Android Build #${{ github.run_number }}" \
-            --notes "$NOTES" \
-            --prerelease
+          retention-days: 30
