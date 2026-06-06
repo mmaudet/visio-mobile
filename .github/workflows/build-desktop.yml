@@ -122,18 +122,70 @@ jobs:
         if: matrix.platform == 'macos'
         run: brew install create-dmg
 
+      - name: Import Developer ID Application certificate (macOS)
+        # Imports the .p12 from secrets into a fresh, isolated keychain so
+        # codesign can find the identity without us touching the runner's
+        # login keychain. The keychain disappears with the ephemeral runner;
+        # no explicit cleanup needed.
+        if: matrix.platform == 'macos'
+        shell: bash
+        env:
+          APPLE_DEVELOPER_ID_CERT_BASE64: ${{ secrets.APPLE_DEVELOPER_ID_CERT_BASE64 }}
+          APPLE_DEVELOPER_ID_CERT_PASSWORD: ${{ secrets.APPLE_DEVELOPER_ID_CERT_PASSWORD }}
+          APPLE_KEYCHAIN_PASSWORD: ${{ secrets.APPLE_KEYCHAIN_PASSWORD }}
+        run: |
+          CERT_PATH="$RUNNER_TEMP/DeveloperID.p12"
+          KEYCHAIN_PATH="$RUNNER_TEMP/build.keychain-db"
+          echo "$APPLE_DEVELOPER_ID_CERT_BASE64" | base64 -d > "$CERT_PATH"
+          security create-keychain -p "$APPLE_KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$APPLE_KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security import "$CERT_PATH" \
+            -P "$APPLE_DEVELOPER_ID_CERT_PASSWORD" \
+            -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
+          # Allow codesign / productsign to use the key without a UI prompt.
+          security set-key-partition-list \
+            -S apple-tool:,apple:,codesign: \
+            -s -k "$APPLE_KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          # Prepend our keychain to the user search list so codesign finds it.
+          security list-keychains -d user -s "$KEYCHAIN_PATH" $(security list-keychains -d user | tr -d '" ')
+          # Sanity check — must show our Developer ID Application identity.
+          security find-identity -v -p codesigning "$KEYCHAIN_PATH"
+          rm -f "$CERT_PATH"
+
+      - name: Write App Store Connect API key to file (macOS)
+        # Tauri's notarize step uses xcrun notarytool with --key (file path),
+        # so we materialize APP_STORE_CONNECT_API_KEY_CONTENT (already used
+        # by iOS) into a temp .p8 file.
+        if: matrix.platform == 'macos'
+        shell: bash
+        env:
+          APP_STORE_CONNECT_API_KEY_CONTENT: ${{ secrets.APP_STORE_CONNECT_API_KEY_CONTENT }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/asc"
+          printf '%s' "$APP_STORE_CONNECT_API_KEY_CONTENT" > "$RUNNER_TEMP/asc/AuthKey.p8"
+          chmod 600 "$RUNNER_TEMP/asc/AuthKey.p8"
+
       - name: Build Tauri app (Linux with PipeWire)
         if: matrix.platform == 'linux'
         working-directory: crates/visio-desktop
         run: cargo tauri build --features pipewire-camera
 
-      - name: Build Tauri app (macOS)
+      - name: Build, sign and notarize Tauri app (macOS)
+        # APPLE_SIGNING_IDENTITY makes Tauri sign with the real Developer ID
+        # cert imported above (instead of the previous "-" ad-hoc identity
+        # that Gatekeeper rejects). APPLE_API_* trigger Tauri's notarytool
+        # submit + staple step automatically — no extra build call needed.
         if: matrix.platform == 'macos'
         working-directory: crates/visio-desktop
         shell: bash
         run: cargo tauri build
         env:
-          APPLE_SIGNING_IDENTITY: "-"
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_DEVELOPER_ID_SIGNING_IDENTITY }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_API_ISSUER: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          APPLE_API_KEY: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
+          APPLE_API_KEY_PATH: ${{ runner.temp }}/asc/AuthKey.p8
 
       - name: Build Tauri app (Windows)
         if: matrix.platform == 'windows'
@@ -141,15 +193,30 @@ jobs:
         shell: bash
         run: cargo tauri build
 
-      - name: Inject macOS privacy permissions into Info.plist
+      - name: Verify macOS signature and Gatekeeper acceptance
+        # Fails the build if the .app or .dmg is unsigned, signature is
+        # broken, or Gatekeeper rejects it. Catches a regression *before*
+        # a broken artifact lands in a GitHub Release.
         if: matrix.platform == 'macos'
         shell: bash
         run: |
-          APP_BUNDLE=$(find target/release/bundle -name "*.app" -type d | head -1)
-          if [ -n "$APP_BUNDLE" ]; then
-            /usr/libexec/PlistBuddy -c "Add :NSMicrophoneUsageDescription string 'Visio Mobile needs microphone access for video calls'" "$APP_BUNDLE/Contents/Info.plist" 2>/dev/null || true
-            /usr/libexec/PlistBuddy -c "Add :NSCameraUsageDescription string 'Visio Mobile needs camera access for video calls'" "$APP_BUNDLE/Contents/Info.plist" 2>/dev/null || true
-            echo "Injected privacy descriptions into $APP_BUNDLE/Contents/Info.plist"
+          APP_BUNDLE=$(find target/release/bundle/macos -name "*.app" -type d | head -1)
+          DMG=$(find target/release/bundle/dmg -name "*.dmg" -type f | head -1)
+          if [ -z "$APP_BUNDLE" ]; then
+            echo "::error::No .app bundle found"
+            exit 1
+          fi
+          echo "=== codesign --verify .app ==="
+          codesign --verify --deep --strict --verbose=2 "$APP_BUNDLE"
+          echo "=== codesign --display .app ==="
+          codesign --display --verbose=4 "$APP_BUNDLE" | head -20
+          echo "=== Gatekeeper assessment (.app) ==="
+          spctl --assess --type execute --verbose=4 "$APP_BUNDLE"
+          if [ -n "$DMG" ]; then
+            echo "=== codesign --verify .dmg ==="
+            codesign --verify --verbose=2 "$DMG"
+            echo "=== Gatekeeper assessment (.dmg) ==="
+            spctl --assess --type install --verbose=4 "$DMG"
           fi
 
       # --- Flatpak build (Linux only, from source in GNOME SDK) ---
