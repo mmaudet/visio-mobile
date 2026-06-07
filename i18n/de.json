@@ -378,5 +378,6 @@
   "settings.row.micOnJoin": "Mikrofon beim Beitreten an",
   "settings.row.camOnJoin": "Kamera beim Beitreten an",
   "settings.row.adaptive": "Adaptive Bandbreite",
-  "settings.row.adaptive.sub": "Reduziert die Videoqualität bei langsamer Verbindung"
+  "settings.row.adaptive.sub": "Reduziert die Videoqualität bei langsamer Verbindung",
+  "call.participantJoined": "{name} ist beigetreten"
 }
