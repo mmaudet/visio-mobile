@@ -379,5 +379,8 @@
   "settings.row.camOnJoin": "Telecamera attiva all'ingresso",
   "settings.row.adaptive": "Banda adattiva",
   "settings.row.adaptive.sub": "Riduce la qualità video con connessioni lente",
-  "call.participantJoined": "{name} è entrato nella riunione"
+  "call.participantJoined": "{name} è entrato nella riunione",
+  "participants.muteAll": "Disattiva tutti",
+  "participants.lowerAllHands": "Abbassa tutte le mani",
+  "participants.muteOne": "Disattiva"
 }

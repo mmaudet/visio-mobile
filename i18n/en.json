@@ -379,5 +379,8 @@
   "settings.row.camOnJoin": "Camera on join",
   "settings.row.adaptive": "Adaptive bandwidth",
   "settings.row.adaptive.sub": "Reduces video quality on slow connections",
-  "call.participantJoined": "{name} joined the meeting"
+  "call.participantJoined": "{name} joined the meeting",
+  "participants.muteAll": "Mute all",
+  "participants.lowerAllHands": "Lower all hands",
+  "participants.muteOne": "Mute"
 }

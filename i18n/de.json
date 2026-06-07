@@ -379,5 +379,8 @@
   "settings.row.camOnJoin": "Kamera beim Beitreten an",
   "settings.row.adaptive": "Adaptive Bandbreite",
   "settings.row.adaptive.sub": "Reduziert die Videoqualität bei langsamer Verbindung",
-  "call.participantJoined": "{name} ist beigetreten"
+  "call.participantJoined": "{name} ist beigetreten",
+  "participants.muteAll": "Alle stummschalten",
+  "participants.lowerAllHands": "Alle Hände senken",
+  "participants.muteOne": "Stummschalten"
 }
