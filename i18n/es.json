@@ -357,5 +357,11 @@
   "home.notifications.summary": "{count} reunión(es) próxima(s) — ver « Próximas »",
   "home.notifications.empty": "Sin notificaciones por ahora",
   "settings.row.clearData.confirm": "¿Eliminar definitivamente todo el historial local? Esta acción es irreversible.",
-  "settings.row.clearData.done": "Datos locales borrados."
+  "settings.row.clearData.done": "Datos locales borrados.",
+  "home.tomorrow": "Mañana",
+  "home.join.checking": "Verificando…",
+  "home.join.notFound": "Sala no encontrada",
+  "home.join.authRequired": "Inicio de sesión requerido",
+  "home.join.valid": "Sala encontrada",
+  "settings.signOut.done": "Has cerrado sesión."
 }

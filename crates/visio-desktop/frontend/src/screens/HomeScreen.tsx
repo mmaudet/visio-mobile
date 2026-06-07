@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { invoke } from '@tauri-apps/api/core'
 import { Icon } from '../components/Icon'
 import { IconBtn } from '../components/ui/IconBtn'
 import { Tag } from '../components/ui/Tag'
@@ -14,12 +15,20 @@ export interface HomeScreenProps {
   instanceHost: string | null
   meetings: Meeting[]
   notifBadge: number
+  /** When false (anonymous user or no OIDC), the New Meeting hero card is
+   * hidden and the Join card expands to fill the row. */
+  showNewMeeting: boolean
+  /** 'calendar' renders a full-page meetings list with refresh action. */
+  mode: 'main' | 'calendar'
+  meetInstances: string[]
+  authenticatedMeetInstance: string
   onNewMeeting: () => void
   onJoinByCode: (code: string) => void
   onOpenMeeting: (m: Meeting) => void
   onOpenCalendar: () => void
   onOpenNotifications: () => void
   onOpenInstance: () => void
+  onRefreshCalendar: () => void
 }
 
 function isOngoing(m: Meeting): boolean {
@@ -31,7 +40,32 @@ function fmtTime(unix: number): string {
   return new Date(unix * 1000).toLocaleTimeString(undefined, {
     hour: '2-digit',
     minute: '2-digit',
+    hour12: false,
   })
+}
+
+function fmtMeetingDate(meeting: Meeting, t: TFunction): string {
+  const d = new Date(meeting.start_time * 1000)
+  const now = new Date()
+  const sameDay =
+    d.getFullYear() === now.getFullYear() &&
+    d.getMonth() === now.getMonth() &&
+    d.getDate() === now.getDate()
+  const time = fmtTime(meeting.start_time)
+  if (sameDay) return time
+  const tomorrow = new Date(now)
+  tomorrow.setDate(now.getDate() + 1)
+  const isTomorrow =
+    d.getFullYear() === tomorrow.getFullYear() &&
+    d.getMonth() === tomorrow.getMonth() &&
+    d.getDate() === tomorrow.getDate()
+  if (isTomorrow) return `${t('home.tomorrow')} ${time}`
+  const dateLabel = d.toLocaleDateString(undefined, {
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+  })
+  return `${dateLabel} ${time}`
 }
 
 function eyebrowDate(t: TFunction): string {
@@ -92,7 +126,7 @@ function MeetingRow({ t, meeting, last, onJoin }: MeetingRowProps) {
         borderBottom: last ? 'none' : '1px solid var(--hair)',
       }}
     >
-      <div style={{ width: 70, flexShrink: 0 }}>
+      <div style={{ width: 120, flexShrink: 0 }}>
         {live ? (
           <Tag tone="live" dot>
             {t('home.upcoming.live')}
@@ -100,9 +134,9 @@ function MeetingRow({ t, meeting, last, onJoin }: MeetingRowProps) {
         ) : (
           <span
             className="v-mono"
-            style={{ fontSize: 14.5, fontWeight: 600, color: 'var(--text)' }}
+            style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--text)' }}
           >
-            {fmtTime(meeting.start_time)}
+            {fmtMeetingDate(meeting, t)}
           </span>
         )}
       </div>
@@ -163,18 +197,96 @@ export function HomeScreen({
   instanceHost,
   meetings,
   notifBadge,
+  showNewMeeting,
+  mode,
+  meetInstances,
+  authenticatedMeetInstance,
   onNewMeeting,
   onJoinByCode,
   onOpenMeeting,
   onOpenCalendar,
   onOpenNotifications,
   onOpenInstance,
+  onRefreshCalendar,
 }: HomeScreenProps) {
   const [joinCode, setJoinCode] = useState('')
   const [search, setSearch] = useState('')
+  const [joinStatus, setJoinStatus] = useState<
+    'idle' | 'checking' | 'valid' | 'auth_required' | 'not_found'
+  >('idle')
 
+  // Debounced slug validation — mirrors the legacy live validator.
+  useEffect(() => {
+    const trimmed = joinCode.trim().replace(/\/$/, '')
+    if (!trimmed) {
+      setJoinStatus('idle')
+      return
+    }
+    setJoinStatus('checking')
+    const ctl = new AbortController()
+    const timer = setTimeout(async () => {
+      try {
+        const candidates: string[] = []
+        if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+          candidates.push(trimmed)
+        } else if (trimmed.includes('/')) {
+          candidates.push(`https://${trimmed}`)
+        } else if (/^[a-z]{3}-[a-z]{4}-[a-z]{3}$/.test(trimmed)) {
+          if (authenticatedMeetInstance) {
+            candidates.push(`https://${authenticatedMeetInstance}/${trimmed}`)
+          }
+          for (const inst of meetInstances) {
+            const u = `https://${inst}/${trimmed}`
+            if (!candidates.includes(u)) candidates.push(u)
+          }
+        } else {
+          try {
+            const resolved = await invoke<string | null>(
+              'resolve_visio_alias',
+              {
+                name: trimmed,
+              }
+            )
+            if (resolved) candidates.push(resolved)
+          } catch {
+            /* ignore */
+          }
+        }
+        if (candidates.length === 0) {
+          if (!ctl.signal.aborted) setJoinStatus('not_found')
+          return
+        }
+        for (const url of candidates) {
+          if (ctl.signal.aborted) return
+          const result = await invoke<{ status: string }>('validate_room', {
+            url,
+            username: null,
+          })
+          if (ctl.signal.aborted) return
+          if (result.status === 'valid') {
+            setJoinStatus('valid')
+            return
+          }
+          if (result.status === 'auth_required') {
+            setJoinStatus('auth_required')
+            return
+          }
+        }
+        setJoinStatus('not_found')
+      } catch {
+        if (!ctl.signal.aborted) setJoinStatus('idle')
+      }
+    }, 450)
+    return () => {
+      ctl.abort()
+      clearTimeout(timer)
+    }
+  }, [joinCode, authenticatedMeetInstance, meetInstances])
+
+  const isCalendarMode = mode === 'calendar'
   const visibleMeetings = useMemo(() => {
-    if (!search.trim()) return meetings.slice(0, 6)
+    const limit = isCalendarMode ? meetings.length : 6
+    if (!search.trim()) return meetings.slice(0, limit)
     const q = search.toLowerCase()
     return meetings
       .filter(
@@ -182,8 +294,8 @@ export function HomeScreen({
           (m.summary || '').toLowerCase().includes(q) ||
           (m.server_name || '').toLowerCase().includes(q)
       )
-      .slice(0, 6)
-  }, [meetings, search])
+      .slice(0, limit)
+  }, [meetings, search, isCalendarMode])
 
   // Force a 60s rerender so the "Live" badges stay accurate
   const [, setTick] = useState(0)
@@ -274,94 +386,133 @@ export function HomeScreen({
           </h1>
         </div>
 
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: '1.3fr 1fr',
-            gap: 18,
-          }}
-        >
-          <button
-            onClick={onNewMeeting}
+        {!isCalendarMode && (
+          <div
             style={{
-              border: 'none',
-              cursor: 'pointer',
-              textAlign: 'left',
-              background: 'var(--accent)',
-              color: 'var(--on-accent)',
-              borderRadius: 'var(--r-card)',
-              padding: 22,
-              display: 'flex',
-              alignItems: 'center',
+              display: 'grid',
+              gridTemplateColumns: showNewMeeting ? '1.3fr 1fr' : '1fr',
               gap: 18,
-              fontFamily: 'var(--font-ui)',
-              boxShadow:
-                '0 14px 30px color-mix(in oklab, var(--accent) 40%, transparent)',
             }}
           >
-            <div
-              style={{
-                width: 56,
-                height: 56,
-                borderRadius: 16,
-                background: 'rgba(255,255,255,0.18)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                flexShrink: 0,
-              }}
-            >
-              <Icon name="video" size={26} />
-            </div>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div
+            {showNewMeeting && (
+              <button
+                onClick={onNewMeeting}
                 style={{
-                  fontSize: 19,
-                  fontWeight: 700,
-                  letterSpacing: '-0.02em',
+                  border: 'none',
+                  cursor: 'pointer',
+                  textAlign: 'left',
+                  background: 'var(--accent)',
+                  color: 'var(--on-accent)',
+                  borderRadius: 'var(--r-card)',
+                  padding: 22,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 18,
+                  fontFamily: 'var(--font-ui)',
+                  boxShadow:
+                    '0 14px 30px color-mix(in oklab, var(--accent) 40%, transparent)',
                 }}
               >
-                {t('home.newMeeting.title')}
-              </div>
-              <div style={{ fontSize: 14, opacity: 0.85, marginTop: 2 }}>
-                {t('home.newMeeting.sub')}
-              </div>
-            </div>
-            <Icon name="arrowRight" size={20} style={{ opacity: 0.9 }} />
-          </button>
+                <div
+                  style={{
+                    width: 56,
+                    height: 56,
+                    borderRadius: 16,
+                    background: 'rgba(255,255,255,0.18)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    flexShrink: 0,
+                  }}
+                >
+                  <Icon name="video" size={26} />
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div
+                    style={{
+                      fontSize: 19,
+                      fontWeight: 700,
+                      letterSpacing: '-0.02em',
+                    }}
+                  >
+                    {t('home.newMeeting.title')}
+                  </div>
+                  <div style={{ fontSize: 14, opacity: 0.85, marginTop: 2 }}>
+                    {t('home.newMeeting.sub')}
+                  </div>
+                </div>
+                <Icon name="arrowRight" size={20} style={{ opacity: 0.9 }} />
+              </button>
+            )}
 
-          <div
-            className="v-card flat"
-            style={{
-              padding: 22,
-              display: 'flex',
-              flexDirection: 'column',
-              justifyContent: 'center',
-              gap: 12,
-            }}
-          >
             <div
-              style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)' }}
+              className="v-card flat"
+              style={{
+                padding: 22,
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'center',
+                gap: 12,
+              }}
             >
-              {t('home.join.title')}
+              <div
+                style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)' }}
+              >
+                {t('home.join.title')}
+              </div>
+              <div className="v-input">
+                <Icon
+                  name="link"
+                  size={17}
+                  style={{ color: 'var(--text-3)' }}
+                />
+                <input
+                  value={joinCode}
+                  onChange={(e) => setJoinCode(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') submitJoin()
+                  }}
+                  placeholder={t('home.join.placeholder')}
+                  aria-label={t('home.join.placeholder')}
+                />
+                {joinStatus === 'checking' && (
+                  <Icon
+                    name="dot"
+                    size={10}
+                    style={{ color: 'var(--text-3)' }}
+                  />
+                )}
+                {joinStatus === 'valid' && (
+                  <Icon
+                    name="check"
+                    size={16}
+                    style={{ color: 'var(--live)' }}
+                  />
+                )}
+                {joinStatus === 'auth_required' && (
+                  <Icon
+                    name="lock"
+                    size={15}
+                    style={{ color: 'var(--warn)' }}
+                  />
+                )}
+                {joinStatus === 'not_found' && (
+                  <Icon name="x" size={15} style={{ color: 'var(--danger)' }} />
+                )}
+              </div>
+              <Button
+                variant={joinStatus === 'valid' ? 'primary' : 'secondary'}
+                full
+                onClick={submitJoin}
+                disabled={
+                  joinStatus === 'checking' || joinStatus === 'not_found'
+                }
+              >
+                {t('home.join.cta')}
+              </Button>
             </div>
-            <div className="v-input">
-              <Icon name="link" size={17} style={{ color: 'var(--text-3)' }} />
-              <input
-                value={joinCode}
-                onChange={(e) => setJoinCode(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') submitJoin()
-                }}
-                placeholder={t('home.join.placeholder')}
-                aria-label={t('home.join.placeholder')}
-              />
-            </div>
-            <Button variant="secondary" full onClick={submitJoin}>
-              {t('home.join.cta')}
-            </Button>
           </div>
-        </div>
+        )}
 
         <div style={{ display: 'flex', flexDirection: 'column', minHeight: 0 }}>
           <div
@@ -372,22 +523,45 @@ export function HomeScreen({
               marginBottom: 12,
             }}
           >
-            <div className="v-h2">{t('home.upcoming')}</div>
-            <button
-              onClick={onOpenCalendar}
-              style={{
-                background: 'none',
-                border: 'none',
-                cursor: 'pointer',
-                fontSize: 13.5,
-                fontWeight: 600,
-                color: 'var(--accent)',
-                fontFamily: 'var(--font-ui)',
-                padding: 0,
-              }}
-            >
-              {t('home.upcoming.viewCalendar')}
-            </button>
+            <div className="v-h2">
+              {isCalendarMode ? t('sidebar.calendar') : t('home.upcoming')}
+            </div>
+            {isCalendarMode ? (
+              <button
+                onClick={onRefreshCalendar}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                  fontSize: 13.5,
+                  fontWeight: 600,
+                  color: 'var(--accent)',
+                  fontFamily: 'var(--font-ui)',
+                  padding: 0,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 6,
+                }}
+              >
+                <Icon name="signal" size={14} /> {t('meetings.refresh')}
+              </button>
+            ) : (
+              <button
+                onClick={onOpenCalendar}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                  fontSize: 13.5,
+                  fontWeight: 600,
+                  color: 'var(--accent)',
+                  fontFamily: 'var(--font-ui)',
+                  padding: 0,
+                }}
+              >
+                {t('home.upcoming.viewCalendar')}
+              </button>
+            )}
           </div>
           {visibleMeetings.length === 0 ? (
             <div

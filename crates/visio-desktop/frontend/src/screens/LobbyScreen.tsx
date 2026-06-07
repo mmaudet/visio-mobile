@@ -70,12 +70,16 @@ interface AudioLevelProps {
   level: number
 }
 function AudioLevel({ level }: AudioLevelProps) {
-  // Mock 9-band visualisation derived from a single RMS level (0..1).
+  // Clip level into [0..1] and amplify low values — get_mic_level returns
+  // an RMS that sits around 0.02-0.15 for normal speech; without scaling
+  // we'd never light up more than one bar.
+  const norm = Math.min(1, Math.max(0, level))
+  const amplified = Math.pow(norm, 0.45)
   const bars = useMemo(() => {
-    const base = [4, 6, 9, 12, 14, 12, 9, 6, 4]
-    return base.map((b) => Math.round(b * (0.4 + level * 1.6)))
-  }, [level])
-  const lit = Math.min(9, Math.ceil(level * 9 + 0.4))
+    const base = [5, 7, 10, 13, 15, 13, 10, 7, 5]
+    return base.map((b) => Math.round(b * (0.35 + amplified * 1.4)))
+  }, [amplified])
+  const lit = Math.min(9, Math.max(1, Math.round(amplified * 9)))
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 3, height: 18 }}>
       {bars.map((h, i) => (
@@ -86,6 +90,7 @@ function AudioLevel({ level }: AudioLevelProps) {
             height: Math.max(3, h),
             borderRadius: 2,
             background: i < lit ? '#fff' : 'rgba(255,255,255,0.3)',
+            transition: 'background .08s linear',
           }}
         />
       ))}
@@ -617,7 +622,7 @@ export function LobbyScreen({
                   name="sparkle"
                   dim={36}
                   size={16}
-                  variant="glass"
+                  variant={bgMode === 'off' ? 'glass' : 'accent'}
                   tint="#fff"
                   onClick={() => {
                     const next = bgMode === 'off' ? 'blur' : 'off'
@@ -771,14 +776,6 @@ export function LobbyScreen({
               style={{ height: 48 }}
             >
               {t('lobby.joinNow')}
-            </Button>
-            <Button
-              variant="ghost"
-              full
-              onClick={() => handleJoinNow(false)}
-              style={{ color: 'var(--text-2)' }}
-            >
-              {t('lobby.joinWithoutCamera')}
             </Button>
 
             {waitingParticipants.length > 0 && (

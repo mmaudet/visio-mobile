@@ -357,5 +357,11 @@
   "home.notifications.summary": "{count} anstehende Besprechung(en) — siehe „Demnächst“",
   "home.notifications.empty": "Keine Benachrichtigung im Moment",
   "settings.row.clearData.confirm": "Gesamten lokalen Verlauf endgültig löschen? Diese Aktion kann nicht rückgängig gemacht werden.",
-  "settings.row.clearData.done": "Lokale Daten gelöscht."
+  "settings.row.clearData.done": "Lokale Daten gelöscht.",
+  "home.tomorrow": "Morgen",
+  "home.join.checking": "Wird geprüft…",
+  "home.join.notFound": "Raum nicht gefunden",
+  "home.join.authRequired": "Anmeldung erforderlich",
+  "home.join.valid": "Raum gefunden",
+  "settings.signOut.done": "Sie sind abgemeldet."
 }

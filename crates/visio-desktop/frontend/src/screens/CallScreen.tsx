@@ -106,6 +106,9 @@ function buildDisplayItems(
     })
   }
   for (const p of participants) {
+    // Rust's get_participants list can include the local participant. Skip
+    // them here — they're already inserted from the `local` argument above.
+    if (local && p.sid === local.sid) continue
     items.push({
       key: `${p.sid}-cam`,
       participant: p,
@@ -446,6 +449,153 @@ function ChatPanel({ t, messages, localSid, onSend, onClose }: ChatPanelProps) {
           onClick={submit}
           ariaLabel={t('accessibility.send')}
         />
+      </div>
+    </div>
+  )
+}
+
+interface ParticipantsPanelProps {
+  t: TFunction
+  local: Participant | null
+  participants: Participant[]
+  activeSpeakers: string[]
+  handRaisedMap: Record<string, number>
+  onClose: () => void
+}
+function ParticipantsPanel({
+  t,
+  local,
+  participants,
+  activeSpeakers,
+  handRaisedMap,
+  onClose,
+}: ParticipantsPanelProps) {
+  const speak = new Set(activeSpeakers)
+  const all: Participant[] = []
+  if (local) all.push(local)
+  for (const p of participants) {
+    if (local && p.sid === local.sid) continue
+    all.push(p)
+  }
+  return (
+    <div
+      style={{
+        width: 340,
+        flexShrink: 0,
+        background: 'rgba(20,22,28,0.7)',
+        backdropFilter: 'blur(20px)',
+        borderLeft: '1px solid rgba(255,255,255,0.08)',
+        display: 'flex',
+        flexDirection: 'column',
+      }}
+    >
+      <div
+        style={{
+          height: 52,
+          flexShrink: 0,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          padding: '0 18px',
+          borderBottom: '1px solid rgba(255,255,255,0.08)',
+        }}
+      >
+        <span style={{ color: '#fff', fontSize: 15, fontWeight: 700 }}>
+          {t('participants.title')}
+          <span
+            style={{
+              marginLeft: 8,
+              color: 'rgba(255,255,255,0.5)',
+              fontSize: 13,
+              fontWeight: 600,
+            }}
+          >
+            {all.length}
+          </span>
+        </span>
+        <button
+          onClick={onClose}
+          style={{
+            background: 'transparent',
+            border: 'none',
+            cursor: 'pointer',
+            color: 'rgba(255,255,255,0.6)',
+            padding: 4,
+            display: 'inline-flex',
+          }}
+          aria-label={t('participants.close')}
+        >
+          <Icon name="x" size={18} />
+        </button>
+      </div>
+      <div
+        className="v-scroll"
+        style={{
+          flex: 1,
+          padding: '8px 6px',
+          overflowY: 'auto',
+        }}
+      >
+        {all.map((p) => {
+          const isLocal = local?.sid === p.sid
+          const name =
+            (isLocal ? p.name || t('call.you') : p.name) || p.identity || '—'
+          const speaking = speak.has(p.sid)
+          const hand = !!handRaisedMap[p.sid]
+          return (
+            <div
+              key={p.sid}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 11,
+                padding: '8px 12px',
+                borderRadius: 10,
+                color: '#fff',
+              }}
+            >
+              <Avatar name={name} size={32} />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div
+                  style={{
+                    fontSize: 13.5,
+                    fontWeight: 600,
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {name}
+                  {isLocal && (
+                    <span
+                      style={{
+                        color: 'rgba(255,255,255,0.5)',
+                        fontWeight: 500,
+                        marginLeft: 6,
+                        fontSize: 12,
+                      }}
+                    >
+                      ({t('call.you')})
+                    </span>
+                  )}
+                </div>
+              </div>
+              {speaking && (
+                <Tag tone="live" dot>
+                  Parle
+                </Tag>
+              )}
+              {hand && (
+                <Icon name="hand" size={16} style={{ color: 'var(--warn)' }} />
+              )}
+              <Icon
+                name={p.is_muted ? 'micOff' : 'mic'}
+                size={14}
+                color={p.is_muted ? '#ff6b6f' : 'rgba(255,255,255,0.6)'}
+              />
+            </div>
+          )
+        })}
       </div>
     </div>
   )
@@ -914,7 +1064,7 @@ export function CallScreen(props: CallScreenProps) {
     peopleOpen,
   } = props
 
-  const [chatOpen, setChatOpenState] = useState(true)
+  const [chatOpen, setChatOpenState] = useState(false)
   const [reactionOpen, setReactionOpen] = useState(false)
 
   // Keep Rust's chat_open state in sync so the unread badge stays consistent
@@ -924,7 +1074,7 @@ export function CallScreen(props: CallScreenProps) {
     invoke('set_chat_open', { open: next }).catch(() => {})
   }
   useEffect(() => {
-    invoke('set_chat_open', { open: true }).catch(() => {})
+    invoke('set_chat_open', { open: false }).catch(() => {})
     return () => {
       invoke('set_chat_open', { open: false }).catch(() => {})
     }
@@ -1131,6 +1281,16 @@ export function CallScreen(props: CallScreenProps) {
             onClose={() => setChatOpen(false)}
           />
         )}
+        {peopleOpen && !chatOpen && (
+          <ParticipantsPanel
+            t={t}
+            local={localParticipant}
+            participants={participants}
+            activeSpeakers={activeSpeakers}
+            handRaisedMap={handRaisedMap}
+            onClose={onTogglePeople}
+          />
+        )}
       </div>
 
       {/* bottom control bar */}
@@ -1229,7 +1389,8 @@ export function CallScreen(props: CallScreenProps) {
           <DeskCtrl
             name="sparkle"
             label={t('call.label.effects')}
-            onClick={() => onShowCamPicker()}
+            active={bgMode !== 'off'}
+            onClick={() => onSetBgMode(bgMode === 'off' ? 'blur' : 'off')}
           />
           <div style={{ position: 'relative' }} data-call-btn>
             <DeskCtrl
@@ -1255,6 +1416,12 @@ export function CallScreen(props: CallScreenProps) {
             }
             active={isHandRaised}
             onClick={onToggleHandRaise}
+          />
+          <DeskCtrl
+            name="chat"
+            label={t('call.discussion')}
+            active={chatOpen}
+            onClick={() => setChatOpen(!chatOpen)}
           />
           <DeskCtrl
             name="users"
@@ -1289,7 +1456,17 @@ function ReactionPicker({ onPick, onClose }: ReactionPickerProps) {
     document.addEventListener('mousedown', off)
     return () => document.removeEventListener('mousedown', off)
   }, [onClose])
-  const emojis = ['👍', '👏', '😂', '😮', '🎉', '❤️']
+  // Rust's send_reaction takes a label ID, NOT a unicode emoji; the legacy
+  // CallView mapped 'thumbsUp' → 👍 and broadcast 'thumbsUp'. We do the same:
+  // first element is sent to Rust, second is rendered in the picker.
+  const emojis: Array<[string, string]> = [
+    ['thumbsUp', '👍'],
+    ['clap', '👏'],
+    ['joy', '😂'],
+    ['openMouth', '😮'],
+    ['tada', '🎉'],
+    ['heart', '❤️'],
+  ]
   return (
     <div
       data-call-picker
@@ -1306,10 +1483,11 @@ function ReactionPicker({ onPick, onClose }: ReactionPickerProps) {
         boxShadow: '0 18px 50px rgba(0,0,0,0.55)',
       }}
     >
-      {emojis.map((e) => (
+      {emojis.map(([id, glyph]) => (
         <button
-          key={e}
-          onClick={() => onPick(e)}
+          key={id}
+          onClick={() => onPick(id)}
+          aria-label={id}
           style={{
             width: 38,
             height: 38,
@@ -1326,7 +1504,7 @@ function ReactionPicker({ onPick, onClose }: ReactionPickerProps) {
             (ev.currentTarget.style.background = 'transparent')
           }
         >
-          {e}
+          {glyph}
         </button>
       ))}
     </div>

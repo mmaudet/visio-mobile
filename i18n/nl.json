@@ -357,5 +357,11 @@
   "home.notifications.summary": "{count} aanstaande vergadering(en) — zie « Aanstaande »",
   "home.notifications.empty": "Geen meldingen nu",
   "settings.row.clearData.confirm": "Alle lokale geschiedenis permanent verwijderen? Dit is onomkeerbaar.",
-  "settings.row.clearData.done": "Lokale gegevens gewist."
+  "settings.row.clearData.done": "Lokale gegevens gewist.",
+  "home.tomorrow": "Morgen",
+  "home.join.checking": "Controleren…",
+  "home.join.notFound": "Ruimte niet gevonden",
+  "home.join.authRequired": "Aanmelden vereist",
+  "home.join.valid": "Ruimte gevonden",
+  "settings.signOut.done": "Je bent afgemeld."
 }

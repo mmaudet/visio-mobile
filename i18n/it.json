@@ -357,5 +357,11 @@
   "home.notifications.summary": "{count} riunione/i in arrivo — vedi « In arrivo »",
   "home.notifications.empty": "Nessuna notifica al momento",
   "settings.row.clearData.confirm": "Eliminare definitivamente tutta la cronologia locale? Operazione irreversibile.",
-  "settings.row.clearData.done": "Dati locali cancellati."
+  "settings.row.clearData.done": "Dati locali cancellati.",
+  "home.tomorrow": "Domani",
+  "home.join.checking": "Verifica in corso…",
+  "home.join.notFound": "Stanza non trovata",
+  "home.join.authRequired": "Accesso richiesto",
+  "home.join.valid": "Stanza trovata",
+  "settings.signOut.done": "Sei disconnesso."
 }

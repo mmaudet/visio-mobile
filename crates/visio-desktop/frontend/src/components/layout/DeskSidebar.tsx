@@ -15,8 +15,12 @@ export interface DeskSidebarProps {
   onNavigate: (key: NavKey) => void
   themeIsDark: boolean
   profile: SidebarProfile
-  /** Slot for the "Nouvelle réunion" primary button (caller wires onClick). */
-  newMeetingSlot: ReactNode
+  /**
+   * Slot for the "Nouvelle réunion" primary button (caller wires onClick).
+   * Pass null to hide it entirely (e.g. when the user isn't authenticated
+   * and the create_room flow requires OIDC).
+   */
+  newMeetingSlot: ReactNode | null
   labels: {
     home: string
     rooms: string
@@ -105,7 +109,9 @@ export function DeskSidebar({
         </span>
       </div>
 
-      <div style={{ marginBottom: 18 }}>{newMeetingSlot}</div>
+      {newMeetingSlot && (
+        <div style={{ marginBottom: 18 }}>{newMeetingSlot}</div>
+      )}
 
       <nav style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
         <NavItem
@@ -115,22 +121,10 @@ export function DeskSidebar({
           onClick={() => onNavigate('home')}
         />
         <NavItem
-          icon="users"
-          label={labels.rooms}
-          active={active === 'rooms'}
-          onClick={() => onNavigate('rooms')}
-        />
-        <NavItem
           icon="calendar"
           label={labels.calendar}
           active={active === 'calendar'}
           onClick={() => onNavigate('calendar')}
-        />
-        <NavItem
-          icon="clock"
-          label={labels.recordings}
-          active={active === 'recordings'}
-          onClick={() => onNavigate('recordings')}
         />
       </nav>
 
