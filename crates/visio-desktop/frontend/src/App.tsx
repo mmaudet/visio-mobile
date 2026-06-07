@@ -4809,20 +4809,25 @@ export default function App() {
       .catch(() => {})
 
     // Pre-register bundled background images with Rust so they can be picked
-    // by ID via set_background_mode("image:N"). IDs are deterministic by sorted
-    // filename. We rely on the fact that the source filenames are 1..8 .jpg —
-    // see the TODO on the `bgImages` state for the dynamic-discovery path.
-    const KNOWN_BG_IDS = [1, 2, 3, 4, 5, 6, 7, 8]
+    // by ID via set_background_mode("image:N"). Rust's list_background_images
+    // command enumerates the unpacked `backgrounds/` resource dir and returns
+    // the available IDs — so dropping a new N.jpg under assets/backgrounds/
+    // is enough to make it appear in the picker.
     ;(async () => {
+      let ids: number[] = []
+      try {
+        ids = await invoke<number[]>('list_background_images')
+      } catch {
+        ids = []
+      }
       const loaded: Array<{ id: number; thumbUrl: string }> = []
-      for (const id of KNOWN_BG_IDS) {
+      for (const id of ids) {
         try {
           const path = await resolveResource(`backgrounds/${id}.jpg`)
           await invoke('load_background_image', { id, jpegPath: path })
           loaded.push({ id, thumbUrl: `/backgrounds/thumbnails/${id}.jpg` })
         } catch {
-          // Image missing from the bundle — skip silently so the picker just
-          // shows fewer tiles. We don't break the loop because IDs are independent.
+          // Image present in dir but unreadable — skip silently.
         }
       }
       setBgImages(loaded)
@@ -6028,23 +6033,6 @@ export default function App() {
             onToggleCam={handleToggleCam}
             onHangUp={handleHangUp}
             onToggleHandRaise={handleToggleHandRaise}
-            onToggleScreenShare={async () => {
-              if (localParticipant?.has_screen_share) {
-                await invoke('stop_screen_share').catch(() => {})
-                return
-              }
-              try {
-                const sources = await invoke<ScreenSource[]>(
-                  'list_screen_sources'
-                )
-                const first = sources[0]
-                if (first) {
-                  await invoke('start_screen_share', { sourceId: first.id })
-                }
-              } catch (e) {
-                console.error('screen share failed', e)
-              }
-            }}
             onReact={(emoji) => {
               invoke('send_reaction', { emoji }).catch(() => {})
             }}
