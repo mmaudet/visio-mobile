@@ -379,5 +379,8 @@
   "settings.row.camOnJoin": "Cámara al unirse",
   "settings.row.adaptive": "Ancho de banda adaptativo",
   "settings.row.adaptive.sub": "Reduce la calidad de vídeo en conexiones lentas",
-  "call.participantJoined": "{name} se ha unido a la reunión"
+  "call.participantJoined": "{name} se ha unido a la reunión",
+  "participants.muteAll": "Silenciar a todos",
+  "participants.lowerAllHands": "Bajar todas las manos",
+  "participants.muteOne": "Silenciar"
 }

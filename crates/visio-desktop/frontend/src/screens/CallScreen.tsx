@@ -568,6 +568,17 @@ function ParticipantsPanel({
   onTogglePin,
   onClose,
 }: ParticipantsPanelProps) {
+  const isLocalAdmin = !!local?.is_admin
+  const anyHandRaised = Object.keys(handRaisedMap).length > 0
+  const muteAll = () => {
+    invoke('mute_everyone').catch(() => {})
+  }
+  const lowerAll = () => {
+    invoke('lower_all_hands').catch(() => {})
+  }
+  const muteOne = (identity: string) => {
+    invoke('mute_participant', { identity }).catch(() => {})
+  }
   const speak = new Set(activeSpeakers)
   const all: Participant[] = []
   if (local) all.push(local)
@@ -626,6 +637,54 @@ function ParticipantsPanel({
           <Icon name="x" size={18} />
         </button>
       </div>
+      {isLocalAdmin && all.length > 1 && (
+        <div
+          style={{
+            display: 'flex',
+            gap: 8,
+            padding: '10px 14px',
+            borderBottom: '1px solid rgba(255,255,255,0.08)',
+            background: 'rgba(255,255,255,0.02)',
+          }}
+        >
+          <button
+            onClick={muteAll}
+            style={{
+              flex: 1,
+              border: '1px solid rgba(255,255,255,0.12)',
+              background: 'transparent',
+              color: '#fff',
+              padding: '6px 10px',
+              borderRadius: 8,
+              fontSize: 12,
+              fontWeight: 600,
+              cursor: 'pointer',
+              fontFamily: 'var(--font-ui)',
+            }}
+          >
+            {t('participants.muteAll')}
+          </button>
+          {anyHandRaised && (
+            <button
+              onClick={lowerAll}
+              style={{
+                flex: 1,
+                border: '1px solid rgba(255,255,255,0.12)',
+                background: 'transparent',
+                color: '#fff',
+                padding: '6px 10px',
+                borderRadius: 8,
+                fontSize: 12,
+                fontWeight: 600,
+                cursor: 'pointer',
+                fontFamily: 'var(--font-ui)',
+              }}
+            >
+              {t('participants.lowerAllHands')}
+            </button>
+          )}
+        </div>
+      )}
       <div
         className="v-scroll"
         style={{
@@ -691,6 +750,29 @@ function ParticipantsPanel({
                 size={14}
                 color={p.is_muted ? '#ff6b6f' : 'rgba(255,255,255,0.6)'}
               />
+              {isLocalAdmin && !isLocal && !p.is_muted && (
+                <button
+                  onClick={() => muteOne(p.identity)}
+                  aria-label={t('participants.muteOne')}
+                  title={t('participants.muteOne')}
+                  style={{
+                    background: 'transparent',
+                    border: 'none',
+                    cursor: 'pointer',
+                    color: 'rgba(255,255,255,0.5)',
+                    padding: 2,
+                    display: 'inline-flex',
+                  }}
+                  onMouseEnter={(e) =>
+                    (e.currentTarget.style.color = 'var(--danger)')
+                  }
+                  onMouseLeave={(e) =>
+                    (e.currentTarget.style.color = 'rgba(255,255,255,0.5)')
+                  }
+                >
+                  <Icon name="micOff" size={14} />
+                </button>
+              )}
               <button
                 onClick={() => onTogglePin(p.sid)}
                 aria-label={pinnedSid === p.sid ? 'Unpin' : 'Pin'}
@@ -1569,6 +1651,57 @@ export function CallScreen(props: CallScreenProps) {
               }}
             >
               {t('call.waiting')}
+            </div>
+          ) : layoutMode === 'speaker' && total > 1 ? (
+            <div
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 12,
+                height: '100%',
+              }}
+            >
+              <div style={{ flex: 1, minHeight: 0 }}>
+                <CallTile
+                  key={items[0].key}
+                  item={items[0]}
+                  frame={
+                    items[0].trackSid
+                      ? (videoFrames.get(items[0].trackSid) ?? null)
+                      : null
+                  }
+                  big
+                  reactions={liveReactions.filter(
+                    (r) => r.sid === items[0].participant.sid
+                  )}
+                />
+              </div>
+              <div
+                style={{
+                  flexShrink: 0,
+                  display: 'grid',
+                  gridAutoColumns: '160px',
+                  gridAutoFlow: 'column',
+                  gap: 8,
+                  height: 100,
+                  overflowX: 'auto',
+                }}
+              >
+                {items.slice(1).map((it) => (
+                  <CallTile
+                    key={it.key}
+                    item={it}
+                    frame={
+                      it.trackSid
+                        ? (videoFrames.get(it.trackSid) ?? null)
+                        : null
+                    }
+                    reactions={liveReactions.filter(
+                      (r) => r.sid === it.participant.sid
+                    )}
+                  />
+                ))}
+              </div>
             </div>
           ) : (
             <div

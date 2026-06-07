@@ -379,5 +379,8 @@
   "settings.row.camOnJoin": "Camera aan bij deelname",
   "settings.row.adaptive": "Adaptieve bandbreedte",
   "settings.row.adaptive.sub": "Verlaagt videokwaliteit bij trage verbinding",
-  "call.participantJoined": "{name} is toegetreden tot de vergadering"
+  "call.participantJoined": "{name} is toegetreden tot de vergadering",
+  "participants.muteAll": "Iedereen dempen",
+  "participants.lowerAllHands": "Alle handen omlaag",
+  "participants.muteOne": "Dempen"
 }
