@@ -53,6 +53,10 @@ export interface CallScreenProps {
   onSetBgMode: (mode: string) => void
   /** Unix ms of the rising edge of connectionState === 'connected'. */
   callStartedMs: number | null
+  layoutMode: string
+  onToggleLayout: () => void
+  onTogglePeople: () => void
+  peopleOpen: boolean
 }
 
 const TONE_PALETTE = [
@@ -904,6 +908,10 @@ export function CallScreen(props: CallScreenProps) {
     bgMode,
     onSetBgMode,
     callStartedMs,
+    layoutMode,
+    onToggleLayout,
+    onTogglePeople,
+    peopleOpen,
   } = props
 
   const [chatOpen, setChatOpenState] = useState(true)
@@ -1046,14 +1054,17 @@ export function CallScreen(props: CallScreenProps) {
           </span>
         )}
         <IconBtn
-          name="grid"
+          name={layoutMode === 'speaker' ? 'pin' : 'grid'}
           dim={36}
           size={18}
           variant="glass"
           tint="#fff"
-          onClick={() => {
-            /* layout toggle TBD */
-          }}
+          onClick={onToggleLayout}
+          ariaLabel={
+            layoutMode === 'speaker'
+              ? t('layout.switchToGrid')
+              : t('layout.switchToSpeaker')
+          }
         />
       </div>
 
@@ -1238,12 +1249,18 @@ export function CallScreen(props: CallScreenProps) {
             )}
           </div>
           <DeskCtrl
-            name={isHandRaised ? 'hand' : 'users'}
+            name="hand"
             label={
-              isHandRaised ? t('control.lowerHand') : t('call.label.people')
+              isHandRaised ? t('control.lowerHand') : t('control.raiseHand')
             }
             active={isHandRaised}
             onClick={onToggleHandRaise}
+          />
+          <DeskCtrl
+            name="users"
+            label={t('call.label.people')}
+            active={peopleOpen}
+            onClick={onTogglePeople}
           />
           <div style={{ width: 10 }} />
           <DeskCtrl

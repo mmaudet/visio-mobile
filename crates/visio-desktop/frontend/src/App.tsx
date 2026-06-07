@@ -4912,10 +4912,42 @@ export default function App() {
   const [notificationsEnabled, setNotificationsEnabled] = useState(true)
   const [appBgMode, setAppBgMode] = useState<string>('off')
   const [callStartedMs, setCallStartedMs] = useState<number | null>(null)
+  const [infoToast, setInfoToast] = useState<string | null>(null)
+  const [layoutMode, setLayoutMode] = useState<string>('grid')
+
+  const showToast = useCallback((text: string, ms = 2400) => {
+    setInfoToast(text)
+    setTimeout(() => setInfoToast((cur) => (cur === text ? null : cur)), ms)
+  }, [])
 
   const t = useCallback(
     (key: string) => translations[lang]?.[key] ?? translations.en[key] ?? key,
     [lang]
+  )
+
+  const handleNavigate = useCallback(
+    (k: NavKey) => {
+      if (k === 'home') {
+        setView('home')
+        return
+      }
+      if (k === 'settings') {
+        setView('settings')
+        return
+      }
+      // 'rooms' | 'calendar' | 'recordings' — placeholders for now.
+      setView('home')
+      const labels: Record<string, string> = {
+        rooms: t('sidebar.rooms'),
+        calendar: t('sidebar.calendar'),
+        recordings: t('sidebar.recordings'),
+      }
+      showToast(`${labels[k] ?? k} — ${t('common.comingSoon')}`)
+      if (k === 'calendar') {
+        invoke('refresh_calendar_now').catch(() => {})
+      }
+    },
+    [t, showToast]
   )
 
   // Check OIDC feature flag on mount
@@ -4963,6 +4995,11 @@ export default function App() {
     // Background mode (sync from Rust SettingsStore)
     invoke<string>('get_background_mode')
       .then((m) => setAppBgMode(m || 'off'))
+      .catch(() => {})
+
+    // Initial layout mode
+    invoke<string>('get_layout_mode')
+      .then((m) => setLayoutMode(m || 'grid'))
       .catch(() => {})
   }, [])
 
@@ -5838,9 +5875,7 @@ export default function App() {
           <DeskWindow>
             <DeskSidebar
               active="home"
-              onNavigate={(k: NavKey) => {
-                if (k === 'settings') setView('settings')
-              }}
+              onNavigate={handleNavigate}
               themeIsDark={isDarkTheme(theme)}
               profile={{
                 name: profileDisplayName(displayName, displayNameFromOidc),
@@ -5867,6 +5902,7 @@ export default function App() {
                   {t('home.newMeetingButton')}
                 </VButton>
               }
+              onProfileClick={() => setShowLegacySettings(true)}
             />
             <HomeScreen
               t={t}
@@ -5886,7 +5922,23 @@ export default function App() {
                   .then(() => handleJoin(m.room_url, uname))
                   .catch((e) => setHomeJoinError(String(e)))
               }}
-              onOpenCalendar={() => setView('home')}
+              onOpenCalendar={() => {
+                invoke('refresh_calendar_now').catch(() => {})
+                showToast(t('home.upcoming.refreshed'))
+              }}
+              onOpenNotifications={() => {
+                if (imminentMeetingsCount > 0) {
+                  showToast(
+                    t('home.notifications.summary').replace(
+                      '{count}',
+                      String(imminentMeetingsCount)
+                    )
+                  )
+                } else {
+                  showToast(t('home.notifications.empty'))
+                }
+              }}
+              onOpenInstance={() => setShowLegacySettings(true)}
             />
             {(homeJoinError || deepLinkError) && (
               <div
@@ -5947,6 +5999,28 @@ export default function App() {
             )}
           </DeskWindow>
         )}
+        {infoToast && (
+          <div
+            style={{
+              position: 'fixed',
+              bottom: 24,
+              left: '50%',
+              transform: 'translateX(-50%)',
+              background: 'var(--surface)',
+              color: 'var(--text)',
+              padding: '10px 18px',
+              borderRadius: 'var(--r-card)',
+              fontSize: 13.5,
+              fontWeight: 500,
+              boxShadow: 'var(--shadow-pop)',
+              border: '1px solid var(--border)',
+              zIndex: 9000,
+            }}
+            role="status"
+          >
+            {infoToast}
+          </div>
+        )}
         {view === 'home' &&
           oidcEnabled &&
           showCreateRoom &&
@@ -5998,6 +6072,11 @@ export default function App() {
               setSelectedAudioInput={handleSelectAudioInput}
               setSelectedVideoInput={handleSelectVideoInput}
               enumerateDevices={enumerateDevices}
+              bgMode={appBgMode}
+              onSetBgMode={(mode) => {
+                setAppBgMode(mode)
+                invoke('set_background_mode', { mode }).catch(() => {})
+              }}
               onAdmit={(id) => {
                 invoke('admit_participant', { participantId: id }).catch(
                   () => {}
@@ -6120,6 +6199,14 @@ export default function App() {
               invoke('set_background_mode', { mode }).catch(() => {})
             }}
             callStartedMs={callStartedMs}
+            layoutMode={layoutMode}
+            onToggleLayout={() => {
+              const next = layoutMode === 'speaker' ? 'grid' : 'speaker'
+              setLayoutMode(next)
+              invoke('set_layout_mode', { mode: next }).catch(() => {})
+            }}
+            onTogglePeople={() => setShowParticipants((v) => !v)}
+            peopleOpen={showParticipants}
           />
         )}
         {connectionState === 'waiting_for_host' && (
@@ -6145,9 +6232,7 @@ export default function App() {
           <DeskWindow>
             <DeskSidebar
               active="settings"
-              onNavigate={(k: NavKey) => {
-                if (k === 'home') setView('home')
-              }}
+              onNavigate={handleNavigate}
               themeIsDark={isDarkTheme(theme)}
               profile={{
                 name: profileDisplayName(displayName, displayNameFromOidc),
@@ -6174,6 +6259,7 @@ export default function App() {
                   {t('home.newMeetingButton')}
                 </VButton>
               }
+              onProfileClick={() => setShowLegacySettings(true)}
             />
             <SettingsScreen
               t={t}
@@ -6224,8 +6310,10 @@ export default function App() {
               onOpenCamera={() => setShowLegacySettings(true)}
               onOpenBackground={() => setShowLegacySettings(true)}
               onClearLocalData={() => {
-                // Placeholder: existing logic gated to advanced panel.
-                setShowLegacySettings(true)
+                if (window.confirm(t('settings.row.clearData.confirm'))) {
+                  invoke('clear_visio_history').catch(() => {})
+                  showToast(t('settings.row.clearData.done'))
+                }
               }}
               appVersion="0.10.0"
             />
