@@ -1519,34 +1519,36 @@ export function CallScreen(props: CallScreenProps) {
       invoke('stop_screen_share').catch(() => {})
       return
     }
-    // macOS TCC: Screen Recording is evaluated when the process starts.
-    // If we haven't been granted yet we surface a single in-app modal that
-    // walks the user through (a) opening the right System Settings pane,
-    // (b) relaunching the app so the grant takes effect. We deliberately
-    // do NOT call CGRequestScreenCaptureAccess here — racing the macOS
-    // native dialog with our own confirm was the iter-13 regression.
-    let hasPerm = true
-    try {
-      hasPerm = await invoke<boolean>('has_screen_recording_permission')
-    } catch {
-      hasPerm = true
-    }
-    if (!hasPerm) {
-      const ok = await confirm({
-        title: t('share.permission.title'),
-        message: t('share.permission.message'),
-        confirmLabel: t('share.permission.restart'),
-        cancelLabel: t('settings.cancel'),
-      })
-      if (ok) {
-        invoke('open_screen_recording_settings').catch(() => {})
-        invoke('restart_app').catch(() => {})
-      }
-      return
-    }
+    // Don't pre-check has_screen_recording_permission. macOS Sequoia adds
+    // its own re-confirmation prompts that race with our preflight; we
+    // ended up double-prompting in iter-13/14 reports. Instead just call
+    // list_screen_sources and inspect the result:
+    //   - real monitors / 3rd-party windows present → show the picker
+    //   - empty list (or only Visio's own windows) → permission likely
+    //     missing, open our restart-needed modal
     setShareSources([])
     try {
       const sources = await invoke<ScreenSource[]>('list_screen_sources')
+      const hasRealSources = sources.some(
+        (s) =>
+          s.source_type === 'monitor' ||
+          (s.source_type === 'window' &&
+            !s.name.toLowerCase().startsWith('visio'))
+      )
+      if (!hasRealSources) {
+        setShareSources(null)
+        const ok = await confirm({
+          title: t('share.permission.title'),
+          message: t('share.permission.message'),
+          confirmLabel: t('share.permission.restart'),
+          cancelLabel: t('settings.cancel'),
+        })
+        if (ok) {
+          invoke('open_screen_recording_settings').catch(() => {})
+          invoke('restart_app').catch(() => {})
+        }
+        return
+      }
       setShareSources(sources)
     } catch (e) {
       console.error('list_screen_sources failed:', e)
