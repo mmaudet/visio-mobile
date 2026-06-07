@@ -848,6 +848,11 @@ function DeskCtrl({
         flexDirection: 'column',
         alignItems: 'center',
         gap: 6,
+        // Fixed column width so longer labels (Lever la main, Discussion,
+        // Personnes) don't push neighbouring buttons apart and create the
+        // uneven-spacing visual effect. Labels longer than this fall back
+        // to ellipsis; the full text remains in the native tooltip.
+        width: wide ? 'auto' : 78,
       }}
     >
       <div style={{ position: 'relative' }}>
@@ -948,6 +953,11 @@ function DeskCtrl({
             fontSize: 11.5,
             color: 'rgba(255,255,255,0.6)',
             fontWeight: 500,
+            maxWidth: '100%',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+            textAlign: 'center',
           }}
         >
           {label}
@@ -1010,11 +1020,6 @@ function AudioPicker({
           ))
         )}
       </Section>
-      <Divider />
-      <FooterLink
-        label={t('devicePicker.audio.openSettings')}
-        onClick={onOpenSettings}
-      />
     </CallPicker>
   )
 }
@@ -1082,11 +1087,6 @@ function VideoPicker({
           />
         )}
       </Section>
-      <Divider />
-      <FooterLink
-        label={t('devicePicker.video.openSettings')}
-        onClick={onOpenSettings}
-      />
     </CallPicker>
   )
 }
@@ -1676,11 +1676,32 @@ export function CallScreen(props: CallScreenProps) {
       >
         <div
           style={{
+            position: 'relative',
             flex: 1,
             minWidth: 0,
             padding: '4px 16px 110px 20px',
           }}
         >
+          {total === 1 && !!localParticipant && (
+            <div
+              style={{
+                position: 'absolute',
+                top: 12,
+                left: '50%',
+                transform: 'translateX(-50%)',
+                zIndex: 3,
+                background: 'rgba(255,255,255,0.08)',
+                backdropFilter: 'blur(8px)',
+                color: 'rgba(255,255,255,0.85)',
+                fontSize: 13,
+                fontWeight: 500,
+                padding: '8px 14px',
+                borderRadius: 999,
+              }}
+            >
+              {t('call.alone')}
+            </div>
+          )}
           {total === 0 ? (
             <div
               style={{

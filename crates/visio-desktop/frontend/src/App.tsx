@@ -1647,18 +1647,19 @@ export default function App() {
     livekitUrl?: string,
     livekitToken?: string
   ) => {
-    // Extract room display name from query param before storing URL
-    let displayNameFromUrl: string | null = null
+    // Extract room display name from query param before storing URL. Only
+    // overwrite a name that was pre-seeded (e.g. calendar summary) when the
+    // URL actually carries a ?visio= override — otherwise keep what the
+    // caller set.
     try {
       const parsed = new URL(
         meetUrl.startsWith('http') ? meetUrl : `https://${meetUrl}`
       )
       const raw = parsed.searchParams.get('visio')
-      if (raw) displayNameFromUrl = decodeURIComponent(raw)
+      if (raw) setCurrentRoomDisplayName(decodeURIComponent(raw))
     } catch {
       /* ignore */
     }
-    setCurrentRoomDisplayName(displayNameFromUrl)
     setLobbyRoomUrl(meetUrl)
     setLobbyUsername(username ?? null)
     setLobbyLivekitUrl(livekitUrl && livekitUrl.length > 0 ? livekitUrl : null)
@@ -1936,6 +1937,11 @@ export default function App() {
               onJoinByCode={handleJoinByCode}
               onOpenMeeting={(m) => {
                 const uname = displayName.trim() || null
+                // Pre-seed the displayed title with the calendar summary so
+                // the Lobby header shows "COCO 2026" instead of falling back
+                // to the generic "Réunion d'équipe" placeholder. handleJoin
+                // will overwrite it from a ?visio= query param if present.
+                if (m.summary) setCurrentRoomDisplayName(m.summary)
                 invoke('set_display_name', { name: uname })
                   .then(() => handleJoin(m.room_url, uname))
                   .catch((e) => setHomeJoinError(String(e)))
@@ -2113,7 +2119,17 @@ export default function App() {
               bgImages={bgImages}
               onSetBgMode={(mode) => {
                 setAppBgMode(mode)
-                invoke('set_background_mode', { mode }).catch(() => {})
+                invoke('set_background_mode', { mode })
+                  .catch(() => {})
+                  .finally(() => {
+                    // The camera preview pipeline only re-reads the background
+                    // mode on (re)start, so restart it to make the new effect
+                    // visible immediately. No-op when the camera is off.
+                    invoke('stop_camera_preview')
+                      .catch(() => {})
+                      .then(() => invoke('start_camera_preview'))
+                      .catch(() => {})
+                  })
               }}
               onAdmit={(id) => {
                 invoke('admit_participant', { participantId: id }).catch(
@@ -2236,6 +2252,14 @@ export default function App() {
             onSetBgMode={(mode) => {
               setAppBgMode(mode)
               invoke('set_background_mode', { mode }).catch(() => {})
+              // In-call we don't need to restart the preview (the call's
+              // own video track is already being processed live by the
+              // BlurProcessor), but kicking start_camera_preview is a
+              // cheap idempotent re-init if the user toggles bg from a
+              // muted-camera state.
+              if (camEnabled) {
+                invoke('start_camera_preview').catch(() => {})
+              }
             }}
             callStartedMs={callStartedMs}
             layoutMode={layoutMode}
