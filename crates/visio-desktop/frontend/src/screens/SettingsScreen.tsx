@@ -48,6 +48,10 @@ export interface SettingsScreenProps {
   instanceHost: string
   meetInstances: string[]
   onChangeMeetInstances: (next: string[]) => void
+  /** Kicks the OIDC flow on the given instance (opens system browser). */
+  onConnectInstance: (host: string) => void
+  /** Logs out from the given instance (must equal authenticatedMeetInstance). */
+  onDisconnectInstance: (host: string) => void
   // Devices
   audioInputs: NativeAudioDevice[]
   videoInputs: NativeVideoDevice[]
@@ -347,6 +351,8 @@ export function SettingsScreen({
   instanceHost,
   meetInstances,
   onChangeMeetInstances,
+  onConnectInstance,
+  onDisconnectInstance,
   audioInputs,
   videoInputs,
   selectedAudioInput,
@@ -555,11 +561,6 @@ export function SettingsScreen({
               }}
             >
               <span>{displayName || t('settings.displayName')}</span>
-              <Icon
-                name="settings"
-                size={13}
-                style={{ color: 'var(--text-3)' }}
-              />
             </button>
             {email && (
               <div
@@ -585,11 +586,9 @@ export function SettingsScreen({
               </div>
             )}
           </div>
-          {oidcEnabled && (
-            <Button size="sm" variant="outline" onClick={onManageAccount}>
-              {t('settings.account.manage')}
-            </Button>
-          )}
+          {/* "Gérer le compte" button removed — only opened the legacy
+              modal which is gone, and there's no real account-management
+              flow yet. Sign out is at the bottom of the screen. */}
           {open === 'name' && (
             <InlineEditor
               t={t}
@@ -753,6 +752,41 @@ export function SettingsScreen({
                               >
                                 {inst}
                               </span>
+                              {inst === instanceHost && isAuthenticated ? (
+                                <button
+                                  onClick={() => onDisconnectInstance(inst)}
+                                  style={{
+                                    background: 'transparent',
+                                    border: '1px solid var(--border)',
+                                    cursor: 'pointer',
+                                    color: 'var(--danger)',
+                                    fontFamily: 'var(--font-ui)',
+                                    fontSize: 11.5,
+                                    fontWeight: 600,
+                                    padding: '3px 8px',
+                                    borderRadius: 6,
+                                  }}
+                                >
+                                  {t('settings.instance.disconnect')}
+                                </button>
+                              ) : (
+                                <button
+                                  onClick={() => onConnectInstance(inst)}
+                                  style={{
+                                    background: 'var(--accent)',
+                                    border: 'none',
+                                    cursor: 'pointer',
+                                    color: 'var(--on-accent)',
+                                    fontFamily: 'var(--font-ui)',
+                                    fontSize: 11.5,
+                                    fontWeight: 600,
+                                    padding: '3px 8px',
+                                    borderRadius: 6,
+                                  }}
+                                >
+                                  {t('settings.instance.connect')}
+                                </button>
+                              )}
                               <button
                                 aria-label={t('action.remove')}
                                 onClick={() => handleRemoveInstance(inst)}

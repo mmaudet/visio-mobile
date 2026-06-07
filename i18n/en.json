@@ -390,5 +390,7 @@
   "call.info.title": "Meeting link",
   "call.info.copy": "Copy",
   "call.info.copied": "Copied",
-  "settings.calendarUrl.disconnect": "Disconnect"
+  "settings.calendarUrl.disconnect": "Disconnect",
+  "settings.instance.connect": "Connect",
+  "settings.instance.disconnect": "Disconnect"
 }

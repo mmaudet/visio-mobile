@@ -390,5 +390,7 @@
   "call.info.title": "Lien de la réunion",
   "call.info.copy": "Copier",
   "call.info.copied": "Copié",
-  "settings.calendarUrl.disconnect": "Déconnecter"
+  "settings.calendarUrl.disconnect": "Déconnecter",
+  "settings.instance.connect": "Connecter",
+  "settings.instance.disconnect": "Déconnecter"
 }
