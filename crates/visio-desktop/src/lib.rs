@@ -3,10 +3,11 @@ use tokio::sync::Mutex;
 
 use tauri::{AppHandle, Emitter, Listener, Manager};
 use visio_core::{
-    AudioPlayoutBuffer, CalendarService, ChatService, MeetingControls, PkceChallenge, RoomManager,
-    SessionManager, SessionState, SettingsStore, TokenPair, TrackInfo, TrackKind, TrackSource,
-    VisioEvent, VisioEventListener,
+    AudioPlayoutBuffer, CalendarService, ChatService, MeetingControls, RoomManager, SessionManager,
+    SessionState, SettingsStore, TrackInfo, TrackKind, TrackSource, VisioEvent, VisioEventListener,
 };
+#[cfg(feature = "oidc")]
+use visio_core::{PkceChallenge, TokenPair};
 
 mod audio_engine;
 #[cfg(target_os = "linux")]
@@ -68,6 +69,7 @@ unsafe extern "C" fn on_desktop_frame(
 /// Stored on `VisioState` between `launch_oidc_browser` (generates verifier +
 /// state) and `exchange_pkce_code` (consumes them after the deep-link
 /// callback). Single-use: cleared on the next callback or new browser launch.
+#[cfg(feature = "oidc")]
 struct PendingPkce {
     verifier: String,
     state: String,
@@ -79,6 +81,7 @@ struct VisioState {
     controls: Arc<Mutex<MeetingControls>>,
     chat: Arc<Mutex<ChatService>>,
     session: Mutex<SessionManager>,
+    #[cfg(feature = "oidc")]
     pending_pkce: std::sync::Mutex<Option<PendingPkce>>,
     settings: Arc<SettingsStore>,
     calendar: Arc<CalendarService>,
@@ -1696,6 +1699,7 @@ async fn cancel_lobby(state: tauri::State<'_, VisioState>) -> Result<(), String>
 // Access management commands
 // ---------------------------------------------------------------------------
 
+#[cfg(feature = "oidc")]
 #[tauri::command]
 async fn search_users(
     state: tauri::State<'_, VisioState>,
@@ -1717,6 +1721,7 @@ async fn search_users(
     serde_json::to_value(&results).map_err(|e| e.to_string())
 }
 
+#[cfg(feature = "oidc")]
 #[tauri::command]
 async fn list_accesses(
     state: tauri::State<'_, VisioState>,
@@ -1738,6 +1743,7 @@ async fn list_accesses(
     serde_json::to_value(&results).map_err(|e| e.to_string())
 }
 
+#[cfg(feature = "oidc")]
 #[tauri::command]
 async fn add_access(
     state: tauri::State<'_, VisioState>,
@@ -1760,6 +1766,7 @@ async fn add_access(
     serde_json::to_value(&result).map_err(|e| e.to_string())
 }
 
+#[cfg(feature = "oidc")]
 #[tauri::command]
 async fn remove_access(
     state: tauri::State<'_, VisioState>,
@@ -1791,6 +1798,7 @@ async fn remove_access(
 /// `returnTo=/mobile-login`. After SSO, the Meet server redirects the
 /// browser to `visio://auth-callback?code=…&state=…`; the deep-link plugin
 /// delivers that URL to the frontend, which then calls `exchange_pkce_code`.
+#[cfg(feature = "oidc")]
 #[tauri::command]
 fn launch_oidc_browser(
     state: tauri::State<'_, VisioState>,
@@ -1851,6 +1859,7 @@ fn launch_oidc_browser(
 /// Verifies the returned `state` against the stored value (CSRF / deep-link
 /// hijack defence) before consuming the verifier. Stored PKCE material is
 /// cleared regardless of outcome so a stale verifier cannot be replayed.
+#[cfg(feature = "oidc")]
 #[tauri::command]
 async fn exchange_pkce_code(
     state: tauri::State<'_, VisioState>,
@@ -1897,6 +1906,7 @@ async fn exchange_pkce_code(
 /// Mirrors the visio-ffi `refresh_tokens` entry point. Updates the session
 /// in place with the rotated pair; clears the session on auth failure so the
 /// frontend can prompt the user to re-login.
+#[cfg(feature = "oidc")]
 #[tauri::command]
 async fn refresh_tokens(
     state: tauri::State<'_, VisioState>,
@@ -1928,6 +1938,7 @@ async fn refresh_tokens(
     Ok(())
 }
 
+#[cfg(feature = "oidc")]
 #[tauri::command]
 async fn logout_session(
     state: tauri::State<'_, VisioState>,
@@ -1938,6 +1949,7 @@ async fn logout_session(
     Ok(())
 }
 
+#[cfg(feature = "oidc")]
 #[tauri::command]
 async fn create_room(
     state: tauri::State<'_, VisioState>,
@@ -2136,6 +2148,7 @@ pub fn run() {
         controls: Arc::new(Mutex::new(controls)),
         chat: Arc::new(Mutex::new(chat)),
         session: Mutex::new(SessionManager::new()),
+        #[cfg(feature = "oidc")]
         pending_pkce: std::sync::Mutex::new(None),
         settings,
         calendar,
@@ -2302,96 +2315,185 @@ pub fn run() {
                 tracing::info!("graceful disconnect complete");
             }
         })
-        .invoke_handler(tauri::generate_handler![
-            validate_room,
-            connect,
-            connect_with_token,
-            disconnect,
-            get_connection_state,
-            get_participants,
-            get_local_participant,
-            get_video_tracks,
-            toggle_mic,
-            toggle_camera,
-            send_chat,
-            get_messages,
-            get_translations,
-            get_system_language,
-            get_settings,
-            set_display_name,
-            set_language,
-            set_mic_enabled_on_join,
-            set_camera_enabled_on_join,
-            set_audio_mode,
-            set_theme,
-            get_meet_instances,
-            set_meet_instances,
-            raise_hand,
-            lower_hand,
-            is_hand_raised,
-            set_chat_open,
-            list_waiting_participants,
-            admit_participant,
-            deny_participant,
-            cancel_lobby,
-            search_users,
-            list_accesses,
-            add_access,
-            remove_access,
-            launch_oidc_browser,
-            exchange_pkce_code,
-            refresh_tokens,
-            logout_session,
-            create_room,
-            get_session_state,
-            send_reaction,
-            lower_all_hands,
-            mute_everyone,
-            mute_participant,
-            list_screen_sources,
-            start_screen_share,
-            stop_screen_share,
-            set_subscribe_quality,
-            set_background_mode,
-            get_background_mode,
-            load_blur_model,
-            load_background_image,
-            list_audio_input_devices,
-            list_audio_output_devices,
-            list_video_input_devices,
-            select_audio_input,
-            select_audio_output,
-            set_camera_device,
-            select_video_input,
-            start_camera_preview,
-            stop_camera_preview,
-            get_mic_level,
-            start_mic_preview,
-            stop_mic_preview,
-            play_speaker_test,
-            set_adaptive_mode_enabled,
-            check_media_permissions,
-            get_visio_history,
-            add_visio_to_history,
-            clear_visio_history,
-            add_visio_alias,
-            resolve_visio_alias,
-            check_visio_alias_conflict,
-            validate_room_display_name_cmd,
-            get_calendar_url,
-            set_calendar_url,
-            get_calendar_refresh_interval,
-            set_calendar_refresh_interval,
-            get_upcoming_meetings,
-            refresh_calendar_now,
-            is_oidc_enabled,
-            set_layout_mode,
-            get_layout_mode,
-            get_main_participant,
-            get_thumbnail_participants,
-            pin_participant,
-            get_sorted_participants,
-        ])
+        .invoke_handler({
+            #[cfg(feature = "oidc")]
+            {
+                tauri::generate_handler![
+                    validate_room,
+                    connect,
+                    connect_with_token,
+                    disconnect,
+                    get_connection_state,
+                    get_participants,
+                    get_local_participant,
+                    get_video_tracks,
+                    toggle_mic,
+                    toggle_camera,
+                    send_chat,
+                    get_messages,
+                    get_translations,
+                    get_system_language,
+                    get_settings,
+                    set_display_name,
+                    set_language,
+                    set_mic_enabled_on_join,
+                    set_camera_enabled_on_join,
+                    set_audio_mode,
+                    set_theme,
+                    get_meet_instances,
+                    set_meet_instances,
+                    raise_hand,
+                    lower_hand,
+                    is_hand_raised,
+                    set_chat_open,
+                    list_waiting_participants,
+                    admit_participant,
+                    deny_participant,
+                    cancel_lobby,
+                    search_users,
+                    list_accesses,
+                    add_access,
+                    remove_access,
+                    launch_oidc_browser,
+                    exchange_pkce_code,
+                    refresh_tokens,
+                    logout_session,
+                    create_room,
+                    get_session_state,
+                    send_reaction,
+                    lower_all_hands,
+                    mute_everyone,
+                    mute_participant,
+                    list_screen_sources,
+                    start_screen_share,
+                    stop_screen_share,
+                    set_subscribe_quality,
+                    set_background_mode,
+                    get_background_mode,
+                    load_blur_model,
+                    load_background_image,
+                    list_audio_input_devices,
+                    list_audio_output_devices,
+                    list_video_input_devices,
+                    select_audio_input,
+                    select_audio_output,
+                    set_camera_device,
+                    select_video_input,
+                    start_camera_preview,
+                    stop_camera_preview,
+                    get_mic_level,
+                    start_mic_preview,
+                    stop_mic_preview,
+                    play_speaker_test,
+                    set_adaptive_mode_enabled,
+                    check_media_permissions,
+                    get_visio_history,
+                    add_visio_to_history,
+                    clear_visio_history,
+                    add_visio_alias,
+                    resolve_visio_alias,
+                    check_visio_alias_conflict,
+                    validate_room_display_name_cmd,
+                    get_calendar_url,
+                    set_calendar_url,
+                    get_calendar_refresh_interval,
+                    set_calendar_refresh_interval,
+                    get_upcoming_meetings,
+                    refresh_calendar_now,
+                    is_oidc_enabled,
+                    set_layout_mode,
+                    get_layout_mode,
+                    get_main_participant,
+                    get_thumbnail_participants,
+                    pin_participant,
+                    get_sorted_participants,
+                ]
+            }
+            #[cfg(not(feature = "oidc"))]
+            {
+                tauri::generate_handler![
+                    validate_room,
+                    connect,
+                    connect_with_token,
+                    disconnect,
+                    get_connection_state,
+                    get_participants,
+                    get_local_participant,
+                    get_video_tracks,
+                    toggle_mic,
+                    toggle_camera,
+                    send_chat,
+                    get_messages,
+                    get_translations,
+                    get_system_language,
+                    get_settings,
+                    set_display_name,
+                    set_language,
+                    set_mic_enabled_on_join,
+                    set_camera_enabled_on_join,
+                    set_audio_mode,
+                    set_theme,
+                    get_meet_instances,
+                    set_meet_instances,
+                    raise_hand,
+                    lower_hand,
+                    is_hand_raised,
+                    set_chat_open,
+                    list_waiting_participants,
+                    admit_participant,
+                    deny_participant,
+                    cancel_lobby,
+                    get_session_state,
+                    send_reaction,
+                    lower_all_hands,
+                    mute_everyone,
+                    mute_participant,
+                    list_screen_sources,
+                    start_screen_share,
+                    stop_screen_share,
+                    set_subscribe_quality,
+                    set_background_mode,
+                    get_background_mode,
+                    load_blur_model,
+                    load_background_image,
+                    list_audio_input_devices,
+                    list_audio_output_devices,
+                    list_video_input_devices,
+                    select_audio_input,
+                    select_audio_output,
+                    set_camera_device,
+                    select_video_input,
+                    start_camera_preview,
+                    stop_camera_preview,
+                    get_mic_level,
+                    start_mic_preview,
+                    stop_mic_preview,
+                    play_speaker_test,
+                    set_adaptive_mode_enabled,
+                    check_media_permissions,
+                    get_visio_history,
+                    add_visio_to_history,
+                    clear_visio_history,
+                    add_visio_alias,
+                    resolve_visio_alias,
+                    check_visio_alias_conflict,
+                    validate_room_display_name_cmd,
+                    get_calendar_url,
+                    set_calendar_url,
+                    get_calendar_refresh_interval,
+                    set_calendar_refresh_interval,
+                    get_upcoming_meetings,
+                    refresh_calendar_now,
+                    is_oidc_enabled,
+                    set_layout_mode,
+                    get_layout_mode,
+                    get_main_participant,
+                    get_thumbnail_participants,
+                    pin_participant,
+                    get_sorted_participants,
+                ]
+            }
+        })
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
