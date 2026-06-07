@@ -240,8 +240,9 @@ interface CallTileProps {
   frame: string | null
   big?: boolean
   reactions?: Array<{ id: number; emoji: string; ts: number }>
+  t: TFunction
 }
-function CallTile({ item, frame, big, reactions = [] }: CallTileProps) {
+function CallTile({ item, frame, big, reactions = [], t }: CallTileProps) {
   const { participant: p, tone, isLocal, source } = item
   const name =
     isLocal && p.name === 'You' ? p.name : p.name || p.identity || '—'
@@ -312,13 +313,15 @@ function CallTile({ item, frame, big, reactions = [] }: CallTileProps) {
             whiteSpace: 'nowrap',
           }}
         >
-          {source === 'screen_share' ? `${name} — Écran` : name}
+          {source === 'screen_share'
+            ? `${name} — ${t('call.tile.screen')}`
+            : name}
         </span>
       </div>
       {item.speaking && (
         <div style={{ position: 'absolute', top: 10, right: 10 }}>
           <Tag tone="live" dot>
-            Parle
+            {t('call.tile.speaking')}
           </Tag>
         </div>
       )}
@@ -749,7 +752,7 @@ function ParticipantsPanel({
               </div>
               {speaking && (
                 <Tag tone="live" dot>
-                  Parle
+                  {t('call.tile.speaking')}
                 </Tag>
               )}
               {hand && (
@@ -1705,6 +1708,7 @@ export function CallScreen(props: CallScreenProps) {
                 <CallTile
                   key={items[0].key}
                   item={items[0]}
+                  t={t}
                   frame={
                     items[0].trackSid
                       ? (videoFrames.get(items[0].trackSid) ?? null)
@@ -1731,6 +1735,7 @@ export function CallScreen(props: CallScreenProps) {
                   <CallTile
                     key={it.key}
                     item={it}
+                    t={t}
                     frame={
                       it.trackSid
                         ? (videoFrames.get(it.trackSid) ?? null)
@@ -1757,6 +1762,7 @@ export function CallScreen(props: CallScreenProps) {
                 <CallTile
                   key={it.key}
                   item={it}
+                  t={t}
                   frame={
                     it.trackSid ? (videoFrames.get(it.trackSid) ?? null) : null
                   }

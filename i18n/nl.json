@@ -382,5 +382,7 @@
   "call.participantJoined": "{name} is toegetreden tot de vergadering",
   "participants.muteAll": "Iedereen dempen",
   "participants.lowerAllHands": "Alle handen omlaag",
-  "participants.muteOne": "Dempen"
+  "participants.muteOne": "Dempen",
+  "call.tile.speaking": "Spreekt",
+  "call.tile.screen": "Scherm"
 }
