@@ -62,6 +62,8 @@ export interface CallScreenProps {
   onToggleLayout: () => void
   onTogglePeople: () => void
   peopleOpen: boolean
+  /** Floating reactions to overlay on participant tiles (auto-expire). */
+  liveReactions: Array<{ id: number; sid: string; emoji: string; ts: number }>
 }
 
 const TONE_PALETTE = [
@@ -212,12 +214,22 @@ function QualityBars({ quality }: { quality: string }) {
   )
 }
 
+const REACTION_GLYPH: Record<string, string> = {
+  thumbsUp: '👍',
+  clap: '👏',
+  joy: '😂',
+  openMouth: '😮',
+  tada: '🎉',
+  heart: '❤️',
+}
+
 interface CallTileProps {
   item: DisplayItem
   frame: string | null
   big?: boolean
+  reactions?: Array<{ id: number; emoji: string; ts: number }>
 }
-function CallTile({ item, frame, big }: CallTileProps) {
+function CallTile({ item, frame, big, reactions = [] }: CallTileProps) {
   const { participant: p, tone, isLocal, source } = item
   const name =
     isLocal && p.name === 'You' ? p.name : p.name || p.identity || '—'
@@ -317,6 +329,33 @@ function CallTile({ item, frame, big }: CallTileProps) {
         </div>
       )}
       {source === 'camera' && <QualityBars quality={p.connection_quality} />}
+      {reactions.length > 0 && (
+        <div
+          aria-hidden
+          style={{
+            position: 'absolute',
+            inset: 0,
+            pointerEvents: 'none',
+            overflow: 'hidden',
+          }}
+        >
+          {reactions.map((r) => (
+            <span
+              key={r.id}
+              style={{
+                position: 'absolute',
+                left: `${20 + ((r.id * 17) % 60)}%`,
+                bottom: 10,
+                fontSize: big ? 64 : 44,
+                lineHeight: 1,
+                animation: 'vreact 3.5s ease-out forwards',
+              }}
+            >
+              {REACTION_GLYPH[r.emoji] ?? r.emoji}
+            </span>
+          ))}
+        </div>
+      )}
     </div>
   )
 }
@@ -1283,6 +1322,7 @@ export function CallScreen(props: CallScreenProps) {
     onToggleLayout,
     onTogglePeople,
     peopleOpen,
+    liveReactions,
   } = props
 
   const [chatOpen, setChatOpenState] = useState(false)
@@ -1510,6 +1550,9 @@ export function CallScreen(props: CallScreenProps) {
                     it.trackSid ? (videoFrames.get(it.trackSid) ?? null) : null
                   }
                   big={total === 1}
+                  reactions={liveReactions.filter(
+                    (r) => r.sid === it.participant.sid
+                  )}
                 />
               ))}
             </div>
