@@ -413,5 +413,8 @@
   "home.signIn": "Anmelden",
   "lobby.error.camera": "Kamera nicht verfügbar. Systemberechtigungen prüfen.",
   "lobby.error.mic": "Mikrofon nicht verfügbar. Systemberechtigungen prüfen.",
-  "lobby.error.dismiss": "Schließen"
+  "lobby.error.dismiss": "Schließen",
+  "share.permission.title": "Berechtigung erforderlich",
+  "share.permission.message": "macOS muss Visio Mobile die Bildschirmaufnahme erlauben. Aktivieren Sie sie unter Systemeinstellungen → Datenschutz & Sicherheit → Bildschirmaufnahme und starten Sie die App neu.",
+  "share.permission.restart": "Einstellungen öffnen & neu starten"
 }

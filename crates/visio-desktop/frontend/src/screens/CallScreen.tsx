@@ -5,6 +5,7 @@ import { IconBtn } from '../components/ui/IconBtn'
 import { Tag } from '../components/ui/Tag'
 import { Avatar } from '../components/ui/Avatar'
 import { VisioMark } from '../components/ui/VisioMark'
+import { useConfirm } from '../components/ui/ConfirmProvider'
 import type { Participant, ChatMessage, ScreenSource } from '../types'
 import type {
   NativeAudioDevice,
@@ -1456,6 +1457,7 @@ function FooterLink({
 // ---------------------------------------------------------------------------
 
 export function CallScreen(props: CallScreenProps) {
+  const confirm = useConfirm()
   const {
     t,
     roomTitle,
@@ -1517,11 +1519,38 @@ export function CallScreen(props: CallScreenProps) {
       invoke('stop_screen_share').catch(() => {})
       return
     }
+    // macOS TCC: Screen Recording permission is evaluated when the process
+    // starts. If the user hasn't granted it yet, we trigger the system
+    // dialog once and then show our own restart-explainer modal — the new
+    // grant won't apply until the process is relaunched.
+    let hasPerm = true
+    try {
+      hasPerm = await invoke<boolean>('has_screen_recording_permission')
+    } catch {
+      hasPerm = true
+    }
+    if (!hasPerm) {
+      try {
+        await invoke('request_screen_recording_permission')
+      } catch {}
+      const ok = await confirm({
+        title: t('share.permission.title'),
+        message: t('share.permission.message'),
+        confirmLabel: t('share.permission.restart'),
+        cancelLabel: t('settings.cancel'),
+      })
+      if (ok) {
+        invoke('open_screen_recording_settings').catch(() => {})
+        invoke('restart_app').catch(() => {})
+      }
+      return
+    }
     setShareSources([])
     try {
       const sources = await invoke<ScreenSource[]>('list_screen_sources')
       setShareSources(sources)
-    } catch {
+    } catch (e) {
+      console.error('list_screen_sources failed:', e)
       setShareSources(null)
     }
   }
@@ -2022,8 +2051,15 @@ export function CallScreen(props: CallScreenProps) {
             label={t('call.leave')}
             danger
             wide
-            onClick={() => {
-              if (window.confirm(t('call.leave.confirm'))) onHangUp()
+            onClick={async () => {
+              const ok = await confirm({
+                title: t('call.leave'),
+                message: t('call.leave.confirm'),
+                confirmLabel: t('call.leave'),
+                cancelLabel: t('settings.cancel'),
+                danger: true,
+              })
+              if (ok) onHangUp()
             }}
           />
         </div>

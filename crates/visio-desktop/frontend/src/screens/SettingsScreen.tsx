@@ -12,6 +12,7 @@ import { Button } from '../components/ui/Button'
 import { Tag } from '../components/ui/Tag'
 import { Row } from '../components/ui/Row'
 import { Toggle } from '../components/ui/Toggle'
+import { useConfirm } from '../components/ui/ConfirmProvider'
 import type { ThemeChoice } from '../types'
 import type {
   NativeAudioDevice,
@@ -374,6 +375,7 @@ export function SettingsScreen({
   appVersion,
   translations,
 }: SettingsScreenProps) {
+  const confirm = useConfirm()
   const [open, setOpen] = useState<OpenPopover>(null)
   const [micOnJoin, setMicOnJoin] = useState(true)
   const [camOnJoin, setCamOnJoin] = useState(false)
@@ -775,16 +777,19 @@ export function SettingsScreen({
                               </span>
                               {inst === instanceHost && isAuthenticated ? (
                                 <button
-                                  onClick={() => {
-                                    if (
-                                      window.confirm(
-                                        t(
-                                          'settings.instance.disconnect.confirm'
-                                        ).replace('{host}', inst)
-                                      )
-                                    ) {
-                                      onDisconnectInstance(inst)
-                                    }
+                                  onClick={async () => {
+                                    const ok = await confirm({
+                                      title: t('settings.instance.disconnect'),
+                                      message: t(
+                                        'settings.instance.disconnect.confirm'
+                                      ).replace('{host}', inst),
+                                      confirmLabel: t(
+                                        'settings.instance.disconnect'
+                                      ),
+                                      cancelLabel: t('settings.cancel'),
+                                      danger: true,
+                                    })
+                                    if (ok) onDisconnectInstance(inst)
                                   }}
                                   style={{
                                     background: 'transparent',
@@ -820,16 +825,17 @@ export function SettingsScreen({
                               )}
                               <button
                                 aria-label={t('action.remove')}
-                                onClick={() => {
-                                  if (
-                                    window.confirm(
-                                      t(
-                                        'settings.instance.remove.confirm'
-                                      ).replace('{host}', inst)
-                                    )
-                                  ) {
-                                    handleRemoveInstance(inst)
-                                  }
+                                onClick={async () => {
+                                  const ok = await confirm({
+                                    title: t('action.remove'),
+                                    message: t(
+                                      'settings.instance.remove.confirm'
+                                    ).replace('{host}', inst),
+                                    confirmLabel: t('action.remove'),
+                                    cancelLabel: t('settings.cancel'),
+                                    danger: true,
+                                  })
+                                  if (ok) handleRemoveInstance(inst)
                                 }}
                                 style={{
                                   background: 'transparent',
@@ -936,15 +942,16 @@ export function SettingsScreen({
                 trailing={
                   calendarUrl ? (
                     <button
-                      onClick={(e) => {
+                      onClick={async (e) => {
                         e.stopPropagation()
-                        if (
-                          window.confirm(
-                            t('settings.calendarUrl.disconnect.confirm')
-                          )
-                        ) {
-                          handleSaveCalendarUrl('')
-                        }
+                        const ok = await confirm({
+                          title: t('settings.calendarUrl.disconnect'),
+                          message: t('settings.calendarUrl.disconnect.confirm'),
+                          confirmLabel: t('settings.calendarUrl.disconnect'),
+                          cancelLabel: t('settings.cancel'),
+                          danger: true,
+                        })
+                        if (ok) handleSaveCalendarUrl('')
                       }}
                       style={{
                         background: 'transparent',
@@ -1060,10 +1067,15 @@ export function SettingsScreen({
         >
           {isAuthenticated ? (
             <button
-              onClick={() => {
-                if (window.confirm(t('settings.signOut.confirm'))) {
-                  onSignOut()
-                }
+              onClick={async () => {
+                const ok = await confirm({
+                  title: t('settings.signOut'),
+                  message: t('settings.signOut.confirm'),
+                  confirmLabel: t('settings.signOut'),
+                  cancelLabel: t('settings.cancel'),
+                  danger: true,
+                })
+                if (ok) onSignOut()
               }}
               style={{
                 background: 'transparent',

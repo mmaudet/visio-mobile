@@ -210,7 +210,6 @@ export function LobbyScreen({
   const [previewFrame, setPreviewFrame] = useState<string | null>(null)
   const [micLevel, setMicLevel] = useState(0)
   const [deviceError, setDeviceError] = useState<string | null>(null)
-  const [bgPickerOpen, setBgPickerOpen] = useState(false)
   const [waitingState, setWaitingState] = useState<
     'idle' | 'waiting' | 'denied' | 'timeout'
   >('idle')
@@ -691,27 +690,16 @@ export function LobbyScreen({
                   {t('lobby.preview')}
                 </Tag>
               </div>
-              <div
-                style={{
-                  position: 'absolute',
-                  top: 14,
-                  right: 14,
-                  display: 'flex',
-                  gap: 8,
-                }}
-              >
-                <IconBtn
-                  name="sparkle"
-                  dim={36}
-                  size={16}
-                  variant={
-                    bgMode === 'off' && !bgPickerOpen ? 'glass' : 'accent'
-                  }
-                  tint="#fff"
-                  onClick={() => setBgPickerOpen((v) => !v)}
-                  ariaLabel={t('bg.title')}
-                />
-                {videoDevices.length > 1 && (
+              {videoDevices.length > 1 && (
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: 14,
+                    right: 14,
+                    display: 'flex',
+                    gap: 8,
+                  }}
+                >
                   <IconBtn
                     name="camFlip"
                     dim={36}
@@ -728,8 +716,8 @@ export function LobbyScreen({
                     }}
                     ariaLabel={t('call.switchCamera')}
                   />
-                )}
-              </div>
+                </div>
+              )}
               <div
                 style={{
                   position: 'absolute',
@@ -835,19 +823,18 @@ export function LobbyScreen({
                 )}
               </div>
             </div>
+
+            {/* Always-visible background picker, inline below the devices. */}
+            <BgPanel
+              t={t}
+              bgMode={bgMode}
+              bgImages={bgImages}
+              onSetBgMode={onSetBgMode}
+            />
           </div>
 
-          {/* right col: bg effects panel (when open) + ready + waiting */}
+          {/* right col: ready + waiting */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-            {bgPickerOpen && (
-              <BgPanel
-                t={t}
-                bgMode={bgMode}
-                bgImages={bgImages}
-                onSetBgMode={onSetBgMode}
-                onClose={() => setBgPickerOpen(false)}
-              />
-            )}
             <div>
               <div className="v-h1" style={{ fontSize: 25 }}>
                 {t('lobby.ready')}
@@ -995,138 +982,119 @@ interface BgPanelProps {
   bgMode: string
   bgImages: BgImage[]
   onSetBgMode: (mode: string) => void
-  onClose: () => void
 }
-function BgPanel({ t, bgMode, bgImages, onSetBgMode, onClose }: BgPanelProps) {
+function BgPanel({ t, bgMode, bgImages, onSetBgMode }: BgPanelProps) {
+  const effects: Array<[string, string, string]> = [
+    ['off', t('bg.off'), 'noBg'],
+    ['blur', t('bg.blurStrong'), 'blurStrong'],
+    ['blur-light', t('bg.blurLight'), 'blurLight'],
+  ]
   return (
     <div
       className="v-card"
       style={{
-        padding: '14px 16px',
+        padding: '12px 14px',
         display: 'flex',
         flexDirection: 'column',
-        gap: 12,
-        maxWidth: 340,
-        alignSelf: 'start',
+        gap: 10,
       }}
     >
       <div
+        className="v-eyebrow"
+        style={{ display: 'flex', alignItems: 'center', gap: 8 }}
+      >
+        <Icon name="sparkle" size={14} />
+        <span>{t('bg.title')}</span>
+      </div>
+      <div
         style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
+          display: 'grid',
+          gridTemplateColumns:
+            'repeat(auto-fill, minmax(96px, 1fr))',
+          gap: 8,
         }}
       >
-        <div className="v-h2" style={{ fontSize: 16 }}>
-          {t('bg.title')}
-        </div>
-        <button
-          onClick={onClose}
-          aria-label={t('settings.cancel')}
-          style={{
-            background: 'transparent',
-            border: 'none',
-            cursor: 'pointer',
-            color: 'var(--text-3)',
-            padding: 4,
-            display: 'inline-flex',
-          }}
-        >
-          <Icon name="x" size={16} />
-        </button>
-      </div>
-      <div>
-        <div className="v-eyebrow" style={{ marginBottom: 6 }}>
-          {t('devicePicker.video.effects')}
-        </div>
-        {[
-          ['off', t('bg.off')],
-          ['blur', t('bg.blurStrong')],
-          ['blur-light', t('bg.blurLight')],
-        ].map(([mode, label]) => (
-          <button
-            key={mode}
-            onClick={() => onSetBgMode(mode)}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 10,
-              width: '100%',
-              padding: '8px 8px',
-              border: 'none',
-              background: 'transparent',
-              cursor: 'pointer',
-              borderRadius: 8,
-              fontFamily: 'var(--font-ui)',
-              fontSize: 13.5,
-              color: 'var(--text)',
-              textAlign: 'left',
-            }}
-          >
-            <Icon
-              name="check"
-              size={14}
+        {effects.map(([mode, label]) => {
+          const selected = bgMode === mode
+          return (
+            <button
+              key={mode}
+              onClick={() => onSetBgMode(mode)}
               style={{
-                color: bgMode === mode ? 'var(--accent)' : 'transparent',
+                aspectRatio: '16/10',
+                border: selected
+                  ? '2px solid var(--accent)'
+                  : '2px solid var(--border)',
+                borderRadius: 8,
+                padding: 0,
+                overflow: 'hidden',
+                background:
+                  mode === 'off'
+                    ? 'repeating-linear-gradient(45deg, var(--surface-2) 0 6px, var(--surface) 6px 12px)'
+                    : mode === 'blur'
+                      ? 'linear-gradient(135deg, #c5cad6, #8a93a8)'
+                      : 'linear-gradient(135deg, #e8eaf0, #b9bfcc)',
+                cursor: 'pointer',
+                position: 'relative',
+                display: 'flex',
+                alignItems: 'flex-end',
+                justifyContent: 'center',
               }}
-            />
-            <span>{label}</span>
-          </button>
-        ))}
+            >
+              <span
+                style={{
+                  width: '100%',
+                  textAlign: 'center',
+                  fontSize: 11.5,
+                  fontWeight: 600,
+                  color: '#222',
+                  background: 'rgba(255,255,255,0.85)',
+                  padding: '3px 4px',
+                  fontFamily: 'var(--font-ui)',
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                }}
+              >
+                {label}
+              </span>
+            </button>
+          )
+        })}
+        {bgImages.map((img) => {
+          const mode = `image:${img.id}`
+          const selected = bgMode === mode
+          return (
+            <button
+              key={img.id}
+              onClick={() => onSetBgMode(mode)}
+              aria-label={t('bg.imageAlt').replace('{n}', String(img.id))}
+              style={{
+                aspectRatio: '16/10',
+                border: selected
+                  ? '2px solid var(--accent)'
+                  : '2px solid transparent',
+                borderRadius: 8,
+                padding: 0,
+                overflow: 'hidden',
+                background: 'var(--surface-2)',
+                cursor: 'pointer',
+              }}
+            >
+              <img
+                src={img.thumbUrl}
+                alt=""
+                style={{
+                  width: '100%',
+                  height: '100%',
+                  objectFit: 'cover',
+                  display: 'block',
+                }}
+              />
+            </button>
+          )
+        })}
       </div>
-      {bgImages.length > 0 && (
-        <div>
-          <div className="v-eyebrow" style={{ marginBottom: 6 }}>
-            {t('bg.images')}
-          </div>
-          <div
-            style={{
-              display: 'grid',
-              // Cap thumbnail size: as the right column grows on wide
-              // windows we don't want each tile to balloon — keep them
-              // ~140px max, let extra space stay as whitespace, and add
-              // more columns instead.
-              gridTemplateColumns: 'repeat(auto-fill, minmax(110px, 140px))',
-              gap: 8,
-            }}
-          >
-            {bgImages.map((img) => {
-              const mode = `image:${img.id}`
-              const selected = bgMode === mode
-              return (
-                <button
-                  key={img.id}
-                  onClick={() => onSetBgMode(mode)}
-                  aria-label={t('bg.imageAlt').replace('{n}', String(img.id))}
-                  style={{
-                    width: '100%',
-                    aspectRatio: '16/10',
-                    border: selected
-                      ? '2px solid var(--accent)'
-                      : '2px solid transparent',
-                    borderRadius: 8,
-                    padding: 0,
-                    overflow: 'hidden',
-                    background: 'var(--surface-2)',
-                    cursor: 'pointer',
-                  }}
-                >
-                  <img
-                    src={img.thumbUrl}
-                    alt=""
-                    style={{
-                      width: '100%',
-                      height: '100%',
-                      objectFit: 'cover',
-                      display: 'block',
-                    }}
-                  />
-                </button>
-              )
-            })}
-          </div>
-        </div>
-      )}
     </div>
   )
 }

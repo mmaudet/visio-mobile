@@ -413,5 +413,8 @@
   "home.signIn": "Accedi",
   "lobby.error.camera": "Fotocamera non disponibile. Verificare i permessi di sistema.",
   "lobby.error.mic": "Microfono non disponibile. Verificare i permessi di sistema.",
-  "lobby.error.dismiss": "Chiudi"
+  "lobby.error.dismiss": "Chiudi",
+  "share.permission.title": "Permesso richiesto",
+  "share.permission.message": "macOS deve autorizzare Visio Mobile a registrare lo schermo. Attivarlo in Impostazioni di Sistema → Privacy e sicurezza → Registrazione dello schermo, poi riavviare l'app.",
+  "share.permission.restart": "Apri Impostazioni e riavvia"
 }

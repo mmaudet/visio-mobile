@@ -413,5 +413,8 @@
   "home.signIn": "Se connecter",
   "lobby.error.camera": "Caméra indisponible. Vérifiez les autorisations système.",
   "lobby.error.mic": "Micro indisponible. Vérifiez les autorisations système.",
-  "lobby.error.dismiss": "Fermer"
+  "lobby.error.dismiss": "Fermer",
+  "share.permission.title": "Autorisation requise",
+  "share.permission.message": "macOS doit autoriser Visio Mobile à enregistrer l'écran. Activez-le dans Réglages Système → Confidentialité et sécurité → Enregistrement de l'écran, puis relancez l'application pour que l'autorisation s'applique.",
+  "share.permission.restart": "Ouvrir Réglages et relancer"
 }
