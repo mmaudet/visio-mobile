@@ -68,6 +68,9 @@ export interface SettingsScreenProps {
   // Actions
   onSignOut: () => void
   onClearLocalData: () => void
+  /** Called when the calendar URL changes (after save or disconnect) so the
+   *  parent shell can update the sidebar disabled state. */
+  onCalendarUrlChange?: (url: string) => void
   appVersion: string
   // Translation table (for language picker rendering native labels)
   translations: Record<string, Record<string, string>>
@@ -372,6 +375,7 @@ export function SettingsScreen({
   onToggleNotifications,
   onSignOut,
   onClearLocalData,
+  onCalendarUrlChange,
   appVersion,
   translations,
 }: SettingsScreenProps) {
@@ -464,6 +468,7 @@ export function SettingsScreen({
   const handleSaveCalendarUrl = (next: string) => {
     const trimmed = next.trim()
     setCalendarUrl(trimmed)
+    onCalendarUrlChange?.(trimmed)
     invoke('set_calendar_url', { url: trimmed || null })
       .then(() => {
         if (trimmed) {

@@ -416,5 +416,8 @@
   "lobby.error.dismiss": "Dismiss",
   "share.permission.title": "Permission required",
   "share.permission.message": "macOS needs to allow Visio Mobile to record the screen. Enable it under System Settings → Privacy & Security → Screen Recording, then relaunch the app for the permission to take effect.",
-  "share.permission.restart": "Open Settings & relaunch"
+  "share.permission.restart": "Open Settings & relaunch",
+  "sidebar.calendar.disabled.hint": "Configure your calendar URL in Settings to enable this section.",
+  "home.recentVisios": "Recent meetings",
+  "settings.instance.connecting": "Opening browser…"
 }

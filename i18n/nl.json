@@ -416,5 +416,8 @@
   "lobby.error.dismiss": "Sluiten",
   "share.permission.title": "Toestemming vereist",
   "share.permission.message": "macOS moet Visio Mobile toestaan om het scherm op te nemen. Activeer dit in Systeeminstellingen → Privacy & beveiliging → Schermopname en start de app opnieuw.",
-  "share.permission.restart": "Instellingen openen & opnieuw starten"
+  "share.permission.restart": "Instellingen openen & opnieuw starten",
+  "sidebar.calendar.disabled.hint": "Configureer uw agenda-URL in Instellingen om dit gedeelte in te schakelen.",
+  "home.recentVisios": "Recente vergaderingen",
+  "settings.instance.connecting": "Browser openen…"
 }

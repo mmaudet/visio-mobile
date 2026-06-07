@@ -416,5 +416,8 @@
   "lobby.error.dismiss": "Fermer",
   "share.permission.title": "Autorisation requise",
   "share.permission.message": "macOS doit autoriser Visio Mobile à enregistrer l'écran. Activez-le dans Réglages Système → Confidentialité et sécurité → Enregistrement de l'écran, puis relancez l'application pour que l'autorisation s'applique.",
-  "share.permission.restart": "Ouvrir Réglages et relancer"
+  "share.permission.restart": "Ouvrir Réglages et relancer",
+  "sidebar.calendar.disabled.hint": "Configurez l’URL de votre calendrier dans Réglages pour activer cette section.",
+  "home.recentVisios": "Dernières réunions",
+  "settings.instance.connecting": "Ouverture du navigateur…"
 }

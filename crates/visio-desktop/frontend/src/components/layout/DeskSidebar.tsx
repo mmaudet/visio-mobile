@@ -26,6 +26,8 @@ export interface DeskSidebarProps {
     calendar: string
     settings: string
   }
+  /** Optional disabled-state hints. Calendar greys out when no URL is set. */
+  disabled?: Partial<Record<NavKey, { disabled: boolean; title?: string }>>
   onProfileClick?: () => void
 }
 
@@ -33,10 +35,19 @@ interface NavItemProps {
   icon: string
   label: string
   active: boolean
+  disabled?: boolean
+  title?: string
   onClick: () => void
 }
 
-function NavItem({ icon, label, active, onClick }: NavItemProps) {
+function NavItem({
+  icon,
+  label,
+  active,
+  disabled,
+  title,
+  onClick,
+}: NavItemProps) {
   const style: CSSProperties = {
     display: 'flex',
     alignItems: 'center',
@@ -44,9 +55,13 @@ function NavItem({ icon, label, active, onClick }: NavItemProps) {
     height: 40,
     padding: '0 12px',
     borderRadius: 10,
-    cursor: 'pointer',
+    cursor: disabled ? 'not-allowed' : 'pointer',
     background: active ? 'var(--accent-soft)' : 'transparent',
-    color: active ? 'var(--accent)' : 'var(--text-2)',
+    color: disabled
+      ? 'var(--text-3)'
+      : active
+        ? 'var(--accent)'
+        : 'var(--text-2)',
     border: 'none',
     width: '100%',
     fontFamily: 'var(--font-ui)',
@@ -55,9 +70,10 @@ function NavItem({ icon, label, active, onClick }: NavItemProps) {
     letterSpacing: '-0.01em',
     textAlign: 'left',
     transition: 'background .12s, color .12s',
+    opacity: disabled ? 0.55 : 1,
   }
   return (
-    <button onClick={onClick} style={style}>
+    <button onClick={onClick} disabled={disabled} title={title} style={style}>
       <Icon name={icon as IconName} size={19} />
       <span style={{ whiteSpace: 'nowrap' }}>{label}</span>
     </button>
@@ -71,6 +87,7 @@ export function DeskSidebar({
   profile,
   newMeetingSlot,
   labels,
+  disabled,
   onProfileClick,
 }: DeskSidebarProps) {
   return (
@@ -122,6 +139,8 @@ export function DeskSidebar({
           icon="calendar"
           label={labels.calendar}
           active={active === 'calendar'}
+          disabled={disabled?.calendar?.disabled}
+          title={disabled?.calendar?.title}
           onClick={() => onNavigate('calendar')}
         />
       </nav>
