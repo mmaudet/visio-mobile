@@ -13,6 +13,11 @@ import type {
 
 type TFunction = (key: string) => string
 
+export interface BgImage {
+  id: number
+  thumbUrl: string
+}
+
 export interface CallScreenProps {
   t: TFunction
   roomTitle: string | null
@@ -50,6 +55,7 @@ export interface CallScreenProps {
   onClosePickers: () => void
   onOpenSettings: () => void
   bgMode: string
+  bgImages: BgImage[]
   onSetBgMode: (mode: string) => void
   /** Unix ms of the rising edge of connectionState === 'connected'. */
   callStartedMs: number | null
@@ -785,6 +791,7 @@ interface VideoPickerProps {
   videoInputs: NativeVideoDevice[]
   selectedInput: string
   bgMode: string
+  bgImages: BgImage[]
   onPickInput: (uniqueId: string) => void
   onSetBgMode: (mode: string) => void
   onOpenSettings: () => void
@@ -795,6 +802,7 @@ function VideoPicker({
   videoInputs,
   selectedInput,
   bgMode,
+  bgImages,
   onPickInput,
   onSetBgMode,
   onOpenSettings,
@@ -818,15 +826,28 @@ function VideoPicker({
       </Section>
       <Section label={t('devicePicker.video.effects')}>
         <PickerRow
-          label={t('settings.row.background.off')}
+          label={t('bg.off')}
           active={bgMode === 'off'}
           onClick={() => onSetBgMode('off')}
         />
         <PickerRow
-          label={t('devicePicker.video.effects.blur')}
+          label={t('bg.blurStrong')}
           active={bgMode === 'blur'}
           onClick={() => onSetBgMode('blur')}
         />
+        <PickerRow
+          label={t('bg.blurLight')}
+          active={bgMode === 'blur-light'}
+          onClick={() => onSetBgMode('blur-light')}
+        />
+        {bgImages.length > 0 && (
+          <BgImageGrid
+            t={t}
+            images={bgImages}
+            bgMode={bgMode}
+            onSetBgMode={onSetBgMode}
+          />
+        )}
       </Section>
       <Divider />
       <FooterLink
@@ -837,12 +858,158 @@ function VideoPicker({
   )
 }
 
+// ---------------------------------------------------------------------------
+// Background-effects picker (Call bar Effects button + Lobby sparkle button)
+// ---------------------------------------------------------------------------
+
+interface BgPickerProps {
+  t: TFunction
+  bgMode: string
+  bgImages: BgImage[]
+  onSetBgMode: (mode: string) => void
+  onClose: () => void
+  placement?: 'bottom-center' | 'top-right'
+}
+export function BgPicker({
+  t,
+  bgMode,
+  bgImages,
+  onSetBgMode,
+  onClose,
+  placement = 'bottom-center',
+}: BgPickerProps) {
+  return (
+    <CallPicker title={t('bg.title')} onClose={onClose} placement={placement}>
+      <Section label={t('devicePicker.video.effects')}>
+        <PickerRow
+          label={t('bg.off')}
+          active={bgMode === 'off'}
+          onClick={() => onSetBgMode('off')}
+        />
+        <PickerRow
+          label={t('bg.blurStrong')}
+          active={bgMode === 'blur'}
+          onClick={() => onSetBgMode('blur')}
+        />
+        <PickerRow
+          label={t('bg.blurLight')}
+          active={bgMode === 'blur-light'}
+          onClick={() => onSetBgMode('blur-light')}
+        />
+      </Section>
+      {bgImages.length > 0 && (
+        <Section label={t('bg.images')}>
+          <BgImageGrid
+            t={t}
+            images={bgImages}
+            bgMode={bgMode}
+            onSetBgMode={onSetBgMode}
+          />
+        </Section>
+      )}
+    </CallPicker>
+  )
+}
+
+interface BgImageGridProps {
+  t: TFunction
+  images: BgImage[]
+  bgMode: string
+  onSetBgMode: (mode: string) => void
+}
+function BgImageGrid({ t, images, bgMode, onSetBgMode }: BgImageGridProps) {
+  return (
+    <div
+      style={{
+        display: 'grid',
+        gridTemplateColumns: '1fr 1fr',
+        gap: 6,
+        padding: '4px 6px 6px',
+      }}
+    >
+      {images.map((img) => {
+        const mode = `image:${img.id}`
+        const active = bgMode === mode
+        const alt = t('bg.imageAlt').replace('{n}', String(img.id))
+        return (
+          <button
+            key={img.id}
+            onClick={() => onSetBgMode(mode)}
+            aria-label={alt}
+            aria-pressed={active}
+            style={{
+              position: 'relative',
+              padding: 0,
+              border: 'none',
+              cursor: 'pointer',
+              height: 40,
+              borderRadius: 8,
+              overflow: 'hidden',
+              background: 'rgba(255,255,255,0.06)',
+              boxShadow: active
+                ? '0 0 0 2px var(--accent)'
+                : '0 0 0 1px rgba(255,255,255,0.1)',
+              transition: 'box-shadow .15s',
+            }}
+          >
+            <img
+              src={img.thumbUrl}
+              alt={alt}
+              draggable={false}
+              style={{
+                width: '100%',
+                height: '100%',
+                objectFit: 'cover',
+                display: 'block',
+              }}
+            />
+            {active && (
+              <span
+                style={{
+                  position: 'absolute',
+                  top: 3,
+                  right: 3,
+                  width: 16,
+                  height: 16,
+                  borderRadius: '50%',
+                  background: 'var(--accent)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  boxShadow: '0 0 0 2px rgba(0,0,0,0.45)',
+                }}
+              >
+                <Icon name="check" size={10} color="#fff" />
+              </span>
+            )}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
+/**
+ * Where the popover anchors relative to its parent (a `position: relative`
+ * wrapper around the trigger button). `bottom-center` is the default — used by
+ * the call-bar buttons that sit at the bottom of the screen. `top-right` is
+ * used by triggers like the Lobby sparkle button which live near the top of
+ * the surface they overlay.
+ */
+type CallPickerPlacement = 'bottom-center' | 'top-right'
+
 interface CallPickerProps {
   title: string
   children: ReactNode
   onClose: () => void
+  placement?: CallPickerPlacement
 }
-function CallPicker({ title, children, onClose }: CallPickerProps) {
+function CallPicker({
+  title,
+  children,
+  onClose,
+  placement = 'bottom-center',
+}: CallPickerProps) {
   useEffect(() => {
     const onDoc = (e: MouseEvent) => {
       const tgt = e.target as Element
@@ -855,14 +1022,20 @@ function CallPicker({ title, children, onClose }: CallPickerProps) {
     document.addEventListener('mousedown', onDoc)
     return () => document.removeEventListener('mousedown', onDoc)
   }, [onClose])
+  const placementStyle =
+    placement === 'top-right'
+      ? { top: 'calc(100% + 8px)', right: 0 }
+      : {
+          bottom: 'calc(100% + 14px)',
+          left: '50%',
+          transform: 'translateX(-50%)',
+        }
   return (
     <div
       data-call-picker
       style={{
         position: 'absolute',
-        bottom: 'calc(100% + 14px)',
-        left: '50%',
-        transform: 'translateX(-50%)',
+        ...placementStyle,
         minWidth: 280,
         background: '#1c1f26',
         color: '#fff',
@@ -870,6 +1043,7 @@ function CallPicker({ title, children, onClose }: CallPickerProps) {
         padding: 8,
         boxShadow:
           '0 18px 50px rgba(0,0,0,0.55), 0 0 0 1px rgba(255,255,255,0.06)',
+        zIndex: 20,
       }}
     >
       <div
@@ -1056,6 +1230,7 @@ export function CallScreen(props: CallScreenProps) {
     onClosePickers,
     onOpenSettings,
     bgMode,
+    bgImages,
     onSetBgMode,
     callStartedMs,
     layoutMode,
@@ -1066,6 +1241,7 @@ export function CallScreen(props: CallScreenProps) {
 
   const [chatOpen, setChatOpenState] = useState(false)
   const [reactionOpen, setReactionOpen] = useState(false)
+  const [bgPickerOpen, setBgPickerOpen] = useState(false)
 
   // Keep Rust's chat_open state in sync so the unread badge stays consistent
   // (Rust only increments unread when the panel is hidden).
@@ -1365,13 +1541,15 @@ export function CallScreen(props: CallScreenProps) {
                 videoInputs={videoInputs}
                 selectedInput={selectedVideoInput}
                 bgMode={bgMode}
+                bgImages={bgImages}
                 onPickInput={(id) => {
                   onSelectVideoInput(id)
                   onClosePickers()
                 }}
                 onSetBgMode={(m) => {
                   onSetBgMode(m)
-                  onClosePickers()
+                  // Don't close the picker — users routinely cycle through
+                  // a few backgrounds before settling on one.
                 }}
                 onOpenSettings={() => {
                   onClosePickers()
@@ -1386,12 +1564,23 @@ export function CallScreen(props: CallScreenProps) {
             label={t('call.label.share')}
             onClick={onToggleScreenShare}
           />
-          <DeskCtrl
-            name="sparkle"
-            label={t('call.label.effects')}
-            active={bgMode !== 'off'}
-            onClick={() => onSetBgMode(bgMode === 'off' ? 'blur' : 'off')}
-          />
+          <div style={{ position: 'relative' }} data-call-btn>
+            <DeskCtrl
+              name="sparkle"
+              label={t('call.label.effects')}
+              active={bgMode !== 'off' || bgPickerOpen}
+              onClick={() => setBgPickerOpen((v) => !v)}
+            />
+            {bgPickerOpen && (
+              <BgPicker
+                t={t}
+                bgMode={bgMode}
+                bgImages={bgImages}
+                onSetBgMode={onSetBgMode}
+                onClose={() => setBgPickerOpen(false)}
+              />
+            )}
+          </div>
           <div style={{ position: 'relative' }} data-call-btn>
             <DeskCtrl
               name="smiley"
