@@ -608,10 +608,10 @@ export function LobbyScreen({
         <div
           style={{
             display: 'grid',
-            gridTemplateColumns: '1.45fr 1fr',
-            gap: 32,
+            gridTemplateColumns: '1fr 1.05fr',
+            gap: 24,
             width: '100%',
-            maxWidth: 1020,
+            maxWidth: 1200,
             alignItems: 'start',
           }}
         >
@@ -768,6 +768,23 @@ export function LobbyScreen({
                 />
               </div>
             </div>
+          </div>
+
+          {/* right col: ready + device pickers + bg picker + waiting */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <div>
+              <div className="v-h1" style={{ fontSize: 25 }}>
+                {t('lobby.ready')}
+              </div>
+              {waitingParticipants.length > 0 && (
+                <div className="v-sub" style={{ marginTop: 4 }}>
+                  {t('lobby.waitingCount').replace(
+                    '{count}',
+                    String(waitingParticipants.length)
+                  )}
+                </div>
+              )}
+            </div>
 
             <div style={{ display: 'flex', gap: 12, position: 'relative' }}>
               <div style={{ position: 'relative', flex: 1, minWidth: 0 }}>
@@ -824,30 +841,15 @@ export function LobbyScreen({
               </div>
             </div>
 
-            {/* Always-visible background picker, inline below the devices. */}
+            {/* Always-visible background picker — right of the preview so it
+                grows with the window width instead of being cropped at the
+                default 1080×680 size. */}
             <BgPanel
               t={t}
               bgMode={bgMode}
               bgImages={bgImages}
               onSetBgMode={onSetBgMode}
             />
-          </div>
-
-          {/* right col: ready + waiting */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-            <div>
-              <div className="v-h1" style={{ fontSize: 25 }}>
-                {t('lobby.ready')}
-              </div>
-              {waitingParticipants.length > 0 && (
-                <div className="v-sub" style={{ marginTop: 4 }}>
-                  {t('lobby.waitingCount').replace(
-                    '{count}',
-                    String(waitingParticipants.length)
-                  )}
-                </div>
-              )}
-            </div>
 
             {waitingParticipants.length > 0 && (
               <div
@@ -1009,8 +1011,7 @@ function BgPanel({ t, bgMode, bgImages, onSetBgMode }: BgPanelProps) {
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns:
-            'repeat(auto-fill, minmax(96px, 1fr))',
+          gridTemplateColumns: 'repeat(auto-fill, minmax(96px, 1fr))',
           gap: 8,
         }}
       >

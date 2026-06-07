@@ -33,6 +33,10 @@ export interface HomeScreenProps {
   onOpenInstance: () => void
   onRefreshCalendar: () => void
   onSignIn: () => void
+  /** Most recent joined visio URLs, freshest first. Rust persists these
+   *  in `visio_history`; we surface up to 5 below the "À venir" card. */
+  recentVisios?: Array<{ url: string; display_name?: string | null }>
+  onOpenRecentVisio?: (url: string) => void
 }
 
 function isOngoing(m: Meeting): boolean {
@@ -213,6 +217,8 @@ export function HomeScreen({
   onOpenInstance,
   onRefreshCalendar,
   onSignIn,
+  recentVisios = [],
+  onOpenRecentVisio,
 }: HomeScreenProps) {
   const [joinCode, setJoinCode] = useState('')
   const [search, setSearch] = useState('')
@@ -593,9 +599,87 @@ export function HomeScreen({
             </div>
           )}
         </div>
+
+        {/* Recent visios — only on the main mode (calendar mode shows the
+            full list of upcoming meetings on its own). */}
+        {!isCalendarMode && recentVisios.length > 0 && (
+          <div
+            style={{ display: 'flex', flexDirection: 'column', minHeight: 0 }}
+          >
+            <div className="v-h2" style={{ marginBottom: 12 }}>
+              {t('home.recentVisios')}
+            </div>
+            <div className="v-card" style={{ padding: '4px 20px' }}>
+              {recentVisios.slice(0, 5).map((entry, i, arr) => {
+                const label = entry.display_name || prettyUrl(entry.url)
+                return (
+                  <div
+                    key={entry.url}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 12,
+                      padding: '12px 0',
+                      borderBottom:
+                        i < arr.length - 1 ? '1px solid var(--hair)' : 'none',
+                    }}
+                  >
+                    <Icon
+                      name="video"
+                      size={18}
+                      style={{ color: 'var(--text-3)', flexShrink: 0 }}
+                    />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div
+                        style={{
+                          fontSize: 14,
+                          fontWeight: 600,
+                          color: 'var(--text)',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        {label}
+                      </div>
+                      <div
+                        className="v-mono"
+                        style={{
+                          fontSize: 12,
+                          color: 'var(--text-3)',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        {prettyUrl(entry.url)}
+                      </div>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => onOpenRecentVisio?.(entry.url)}
+                    >
+                      {t('home.join.cta')}
+                    </Button>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )
+}
+
+function prettyUrl(url: string): string {
+  try {
+    const u = new URL(url)
+    return `${u.host}${u.pathname}`.replace(/\/$/, '')
+  } catch {
+    return url
+  }
 }
 
 export default HomeScreen

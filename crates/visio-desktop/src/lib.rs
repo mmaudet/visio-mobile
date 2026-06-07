@@ -1222,13 +1222,11 @@ fn open_screen_recording_settings() {
 
 #[tauri::command]
 fn list_screen_sources() -> Vec<screen_capture::ScreenSource> {
-    // On macOS, the result of `xcap::Window::all()` is filtered by the TCC
-    // permission state at the time of the call. If we haven't requested
-    // access yet, the dialog won't appear and the window list collapses to
-    // our own windows. Trigger the dialog (no-op if already granted/denied)
-    // before enumerating so the picker shows the full window list on first
-    // open.
-    let _ = screen_capture::request_screen_recording_permission();
+    // The frontend gates this call on `has_screen_recording_permission` and
+    // surfaces its own restart-required modal when the grant is missing.
+    // We intentionally do NOT call `request_screen_recording_permission`
+    // here — the OS dialog and our modal both racing for the user's
+    // attention was confusing in iter-13 reports.
     screen_capture::list_sources()
 }
 
@@ -1238,12 +1236,6 @@ async fn start_screen_share(
     source_id: String,
 ) -> Result<(), String> {
     tracing::info!("start_screen_share called with source_id={source_id}");
-    // Make sure the TCC dialog has been triggered at least once; this is a
-    // no-op after the first grant/deny. If the user hasn't actually granted
-    // yet, xcap will just produce empty frames — that's surfaced to the user
-    // via the normal "no frames" path; we don't fail here because the user
-    // may legitimately be on a non-macOS platform.
-    let _ = screen_capture::request_screen_recording_permission();
 
     let controls = state.controls.lock().await;
     let source = controls

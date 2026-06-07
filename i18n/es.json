@@ -416,5 +416,8 @@
   "lobby.error.dismiss": "Cerrar",
   "share.permission.title": "Permiso necesario",
   "share.permission.message": "macOS necesita autorizar a Visio Mobile a grabar la pantalla. Actívelo en Ajustes del Sistema → Privacidad y seguridad → Grabación de pantalla, y reinicie la app.",
-  "share.permission.restart": "Abrir Ajustes y reiniciar"
+  "share.permission.restart": "Abrir Ajustes y reiniciar",
+  "sidebar.calendar.disabled.hint": "Configure la URL de su calendario en Ajustes para activar esta sección.",
+  "home.recentVisios": "Reuniones recientes",
+  "settings.instance.connecting": "Abriendo el navegador…"
 }

@@ -416,5 +416,8 @@
   "lobby.error.dismiss": "Schließen",
   "share.permission.title": "Berechtigung erforderlich",
   "share.permission.message": "macOS muss Visio Mobile die Bildschirmaufnahme erlauben. Aktivieren Sie sie unter Systemeinstellungen → Datenschutz & Sicherheit → Bildschirmaufnahme und starten Sie die App neu.",
-  "share.permission.restart": "Einstellungen öffnen & neu starten"
+  "share.permission.restart": "Einstellungen öffnen & neu starten",
+  "sidebar.calendar.disabled.hint": "Konfigurieren Sie Ihre Kalender-URL in den Einstellungen, um diesen Bereich zu aktivieren.",
+  "home.recentVisios": "Letzte Besprechungen",
+  "settings.instance.connecting": "Browser wird geöffnet…"
 }

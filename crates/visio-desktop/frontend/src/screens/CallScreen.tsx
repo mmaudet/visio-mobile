@@ -1519,10 +1519,12 @@ export function CallScreen(props: CallScreenProps) {
       invoke('stop_screen_share').catch(() => {})
       return
     }
-    // macOS TCC: Screen Recording permission is evaluated when the process
-    // starts. If the user hasn't granted it yet, we trigger the system
-    // dialog once and then show our own restart-explainer modal — the new
-    // grant won't apply until the process is relaunched.
+    // macOS TCC: Screen Recording is evaluated when the process starts.
+    // If we haven't been granted yet we surface a single in-app modal that
+    // walks the user through (a) opening the right System Settings pane,
+    // (b) relaunching the app so the grant takes effect. We deliberately
+    // do NOT call CGRequestScreenCaptureAccess here — racing the macOS
+    // native dialog with our own confirm was the iter-13 regression.
     let hasPerm = true
     try {
       hasPerm = await invoke<boolean>('has_screen_recording_permission')
@@ -1530,9 +1532,6 @@ export function CallScreen(props: CallScreenProps) {
       hasPerm = true
     }
     if (!hasPerm) {
-      try {
-        await invoke('request_screen_recording_permission')
-      } catch {}
       const ok = await confirm({
         title: t('share.permission.title'),
         message: t('share.permission.message'),

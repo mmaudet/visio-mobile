@@ -416,5 +416,8 @@
   "lobby.error.dismiss": "Chiudi",
   "share.permission.title": "Permesso richiesto",
   "share.permission.message": "macOS deve autorizzare Visio Mobile a registrare lo schermo. Attivarlo in Impostazioni di Sistema → Privacy e sicurezza → Registrazione dello schermo, poi riavviare l'app.",
-  "share.permission.restart": "Apri Impostazioni e riavvia"
+  "share.permission.restart": "Apri Impostazioni e riavvia",
+  "sidebar.calendar.disabled.hint": "Configurare l'URL del calendario in Impostazioni per attivare questa sezione.",
+  "home.recentVisios": "Riunioni recenti",
+  "settings.instance.connecting": "Apertura del browser…"
 }

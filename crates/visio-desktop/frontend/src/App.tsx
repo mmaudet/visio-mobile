@@ -844,6 +844,10 @@ export default function App() {
   const [infoToast, setInfoToast] = useState<string | null>(null)
   const [layoutMode, setLayoutMode] = useState<string>('grid')
   const [homeMode, setHomeMode] = useState<'main' | 'calendar'>('main')
+  const [calendarConfigured, setCalendarConfigured] = useState(false)
+  const [recentVisios, setRecentVisios] = useState<
+    Array<{ url: string; display_name?: string | null }>
+  >([])
   const [liveReactions, setLiveReactions] = useState<
     Array<{ id: number; sid: string; emoji: string; ts: number }>
   >([])
@@ -911,6 +915,18 @@ export default function App() {
     // Load meet instances for OIDC
     invoke<string[]>('get_meet_instances')
       .then(setMeetInstances)
+      .catch(() => {})
+    // Track whether a calendar URL is configured (drives sidebar enablement).
+    invoke<string | null>('get_calendar_url')
+      .then((url) => setCalendarConfigured(!!url && url.trim().length > 0))
+      .catch(() => setCalendarConfigured(false))
+    // Visio history — Rust auto-appends every successful join; we re-query
+    // each time the user returns to Home (see effect below) so the most
+    // recent meeting always shows up first.
+    invoke<Array<{ url: string; display_name?: string | null }>>(
+      'get_visio_history'
+    )
+      .then(setRecentVisios)
       .catch(() => {})
 
     // Load ONNX segmentation model for background blur. Without this, the
@@ -1691,6 +1707,16 @@ export default function App() {
     }
   }, [view])
 
+  // Refresh visio history when we land back on Home (the user just hung up).
+  useEffect(() => {
+    if (view !== 'home') return
+    invoke<Array<{ url: string; display_name?: string | null }>>(
+      'get_visio_history'
+    )
+      .then(setRecentVisios)
+      .catch(() => {})
+  }, [view])
+
   // In-call keyboard shortcuts (Cmd on macOS, Ctrl elsewhere).
   // - Cmd/Ctrl+D : toggle mic
   // - Cmd/Ctrl+E : toggle camera
@@ -1877,6 +1903,14 @@ export default function App() {
                 calendar: t('sidebar.calendar'),
                 settings: t('sidebar.settings'),
               }}
+              disabled={{
+                calendar: {
+                  disabled: !calendarConfigured,
+                  title: !calendarConfigured
+                    ? t('sidebar.calendar.disabled.hint')
+                    : undefined,
+                },
+              }}
               newMeetingSlot={
                 isAuthenticated && oidcEnabled ? (
                   <VButton
@@ -1929,6 +1963,13 @@ export default function App() {
               }}
               onOpenInstance={() => setView('settings')}
               onSignIn={() => setView('settings')}
+              recentVisios={recentVisios}
+              onOpenRecentVisio={(url) => {
+                const uname = displayName.trim() || null
+                invoke('set_display_name', { name: uname })
+                  .then(() => handleJoin(url, uname))
+                  .catch((e) => setHomeJoinError(String(e)))
+              }}
             />
             {(homeJoinError || deepLinkError) && (
               <div
@@ -2304,6 +2345,14 @@ export default function App() {
                 calendar: t('sidebar.calendar'),
                 settings: t('sidebar.settings'),
               }}
+              disabled={{
+                calendar: {
+                  disabled: !calendarConfigured,
+                  title: !calendarConfigured
+                    ? t('sidebar.calendar.disabled.hint')
+                    : undefined,
+                },
+              }}
               newMeetingSlot={
                 isAuthenticated && oidcEnabled ? (
                   <VButton
@@ -2342,9 +2391,13 @@ export default function App() {
               }}
               onConnectInstance={(host) => {
                 pendingOidcRef.current = host
-                invoke('launch_oidc_browser', { meetInstance: host }).catch(
-                  () => {}
-                )
+                showToast(t('settings.instance.connecting'))
+                invoke('launch_oidc_browser', { meetInstance: host })
+                  .then(() => console.log('[oidc] browser launched for', host))
+                  .catch((e) => {
+                    console.error('[oidc] launch_oidc_browser failed:', e)
+                    showToast(`OIDC: ${String(e)}`)
+                  })
               }}
               onDisconnectInstance={(host) => {
                 invoke('logout_session', {
@@ -2383,6 +2436,9 @@ export default function App() {
                   showToast(t('settings.row.clearData.done'))
                 }
               }}
+              onCalendarUrlChange={(url) =>
+                setCalendarConfigured(url.trim().length > 0)
+              }
               appVersion="0.10.0"
               translations={translations}
             />
