@@ -7,6 +7,7 @@ import { Tag } from '../components/ui/Tag'
 import { Avatar } from '../components/ui/Avatar'
 import { Button } from '../components/ui/Button'
 import { VisioMark } from '../components/ui/VisioMark'
+import { BgPicker, type BgImage } from './CallScreen'
 import type {
   NativeAudioDevice,
   NativeVideoDevice,
@@ -39,6 +40,7 @@ export interface LobbyScreenProps {
   setSelectedVideoInput: (uniqueId: string) => void
   enumerateDevices: () => void
   bgMode: string
+  bgImages: BgImage[]
   onSetBgMode: (mode: string) => void
   onAdmit: (id: string) => void
   onDeny: (id: string) => void
@@ -182,6 +184,7 @@ export function LobbyScreen({
   setSelectedVideoInput,
   enumerateDevices,
   bgMode,
+  bgImages,
   onSetBgMode,
   onAdmit,
   onDeny,
@@ -195,6 +198,7 @@ export function LobbyScreen({
   const [audioMode, setAudioMode] = useState<'computer' | 'none'>('computer')
   const [previewFrame, setPreviewFrame] = useState<string | null>(null)
   const [micLevel, setMicLevel] = useState(0)
+  const [bgPickerOpen, setBgPickerOpen] = useState(false)
   const [waitingState, setWaitingState] = useState<
     'idle' | 'waiting' | 'denied' | 'timeout'
   >('idle')
@@ -618,18 +622,27 @@ export function LobbyScreen({
                   gap: 8,
                 }}
               >
-                <IconBtn
-                  name="sparkle"
-                  dim={36}
-                  size={16}
-                  variant={bgMode === 'off' ? 'glass' : 'accent'}
-                  tint="#fff"
-                  onClick={() => {
-                    const next = bgMode === 'off' ? 'blur' : 'off'
-                    onSetBgMode(next)
-                  }}
-                  ariaLabel={t('settings.row.background')}
-                />
+                <div style={{ position: 'relative' }} data-call-btn>
+                  <IconBtn
+                    name="sparkle"
+                    dim={36}
+                    size={16}
+                    variant={bgMode === 'off' ? 'glass' : 'accent'}
+                    tint="#fff"
+                    onClick={() => setBgPickerOpen((v) => !v)}
+                    ariaLabel={t('bg.title')}
+                  />
+                  {bgPickerOpen && (
+                    <BgPicker
+                      t={t}
+                      bgMode={bgMode}
+                      bgImages={bgImages}
+                      onSetBgMode={onSetBgMode}
+                      onClose={() => setBgPickerOpen(false)}
+                      placement="top-right"
+                    />
+                  )}
+                </div>
                 {videoDevices.length > 1 && (
                   <IconBtn
                     name="camFlip"

@@ -4716,6 +4716,19 @@ export default function App() {
   const [visioLinksEnabled, setVisioLinksEnabled] = useState(true)
   const [notificationsEnabled, setNotificationsEnabled] = useState(true)
   const [appBgMode, setAppBgMode] = useState<string>('off')
+  // Background images bundled with the app (see tauri.conf.json > bundle.resources:
+  // "../../assets/backgrounds/*.jpg": "backgrounds/"). The current set is named
+  // 1.jpg..8.jpg under assets/backgrounds/ — IDs are assigned by sorted filename.
+  // Each entry holds the u8 id used by Rust's load_background_image/set_background_mode
+  // ("image:N") and an absolute file:// path or /public path the UI can render
+  // as a thumbnail. The list is populated at startup once the Rust side has
+  // registered the images.
+  // TODO: replace the static 1..8 list with a Tauri command that lists the
+  // unpacked `backgrounds/` resource dir at runtime (avoids touching this file
+  // every time a designer drops a new JPEG in assets/backgrounds/).
+  const [bgImages, setBgImages] = useState<
+    Array<{ id: number; thumbUrl: string }>
+  >([])
   const [callStartedMs, setCallStartedMs] = useState<number | null>(null)
   const [infoToast, setInfoToast] = useState<string | null>(null)
   const [layoutMode, setLayoutMode] = useState<string>('grid')
@@ -4794,6 +4807,26 @@ export default function App() {
     resolveResource('models/selfie_segmentation.onnx')
       .then((path) => invoke('load_blur_model', { modelPath: path }))
       .catch(() => {})
+
+    // Pre-register bundled background images with Rust so they can be picked
+    // by ID via set_background_mode("image:N"). IDs are deterministic by sorted
+    // filename. We rely on the fact that the source filenames are 1..8 .jpg —
+    // see the TODO on the `bgImages` state for the dynamic-discovery path.
+    const KNOWN_BG_IDS = [1, 2, 3, 4, 5, 6, 7, 8]
+    ;(async () => {
+      const loaded: Array<{ id: number; thumbUrl: string }> = []
+      for (const id of KNOWN_BG_IDS) {
+        try {
+          const path = await resolveResource(`backgrounds/${id}.jpg`)
+          await invoke('load_background_image', { id, jpegPath: path })
+          loaded.push({ id, thumbUrl: `/backgrounds/thumbnails/${id}.jpg` })
+        } catch {
+          // Image missing from the bundle — skip silently so the picker just
+          // shows fewer tiles. We don't break the loop because IDs are independent.
+        }
+      }
+      setBgImages(loaded)
+    })()
 
     // Background mode (sync from Rust SettingsStore)
     invoke<string>('get_background_mode')
@@ -5920,6 +5953,7 @@ export default function App() {
               setSelectedVideoInput={handleSelectVideoInput}
               enumerateDevices={enumerateDevices}
               bgMode={appBgMode}
+              bgImages={bgImages}
               onSetBgMode={(mode) => {
                 setAppBgMode(mode)
                 invoke('set_background_mode', { mode }).catch(() => {})
@@ -6041,6 +6075,7 @@ export default function App() {
               setView('settings')
             }}
             bgMode={appBgMode}
+            bgImages={bgImages}
             onSetBgMode={(mode) => {
               setAppBgMode(mode)
               invoke('set_background_mode', { mode }).catch(() => {})
