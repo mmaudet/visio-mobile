@@ -392,6 +392,13 @@ function ChatPanel({ t, messages, localSid, onSend, onClose }: ChatPanelProps) {
     const el = scrollerRef.current
     if (el) el.scrollTop = el.scrollHeight
   }, [messages.length])
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose()
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [onClose])
 
   const submit = () => {
     const txt = draft.trim()
@@ -584,6 +591,13 @@ function ParticipantsPanel({
   onTogglePin,
   onClose,
 }: ParticipantsPanelProps) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose()
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [onClose])
   const isLocalAdmin = !!local?.is_admin
   const anyHandRaised = Object.keys(handRaisedMap).length > 0
   const muteAll = () => {
@@ -791,7 +805,11 @@ function ParticipantsPanel({
               )}
               <button
                 onClick={() => onTogglePin(p.sid)}
-                aria-label={pinnedSid === p.sid ? 'Unpin' : 'Pin'}
+                aria-label={t(
+                  pinnedSid === p.sid
+                    ? 'participants.unpin'
+                    : 'participants.pin'
+                )}
                 style={{
                   background: 'transparent',
                   border: 'none',
@@ -892,6 +910,7 @@ function DeskCtrl({
         </button>
         {caret && (
           <button
+            data-call-caret
             onClick={onCaretClick}
             aria-label={`${label} — options`}
             style={{
@@ -1255,8 +1274,15 @@ function CallPicker({
         onClose()
       }
     }
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose()
+    }
     document.addEventListener('mousedown', onDoc)
-    return () => document.removeEventListener('mousedown', onDoc)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('mousedown', onDoc)
+      document.removeEventListener('keydown', onKey)
+    }
   }, [onClose])
   const placementStyle =
     placement === 'top-right'
@@ -1827,7 +1853,7 @@ export function CallScreen(props: CallScreenProps) {
             onClose={() => setChatOpen(false)}
           />
         )}
-        {peopleOpen && !chatOpen && (
+        {peopleOpen && (
           <ParticipantsPanel
             t={t}
             local={localParticipant}
@@ -1846,7 +1872,7 @@ export function CallScreen(props: CallScreenProps) {
         style={{
           position: 'absolute',
           left: 0,
-          right: chatOpen ? 340 : 0,
+          right: chatOpen || peopleOpen ? 340 : 0,
           bottom: 18,
           zIndex: 6,
           display: 'flex',
@@ -1935,7 +1961,9 @@ export function CallScreen(props: CallScreenProps) {
           </div>
           <DeskCtrl
             name="screenShare"
-            label={t('call.label.share')}
+            label={
+              localHasShare ? t('call.label.stopShare') : t('call.label.share')
+            }
             active={localHasShare}
             onClick={onShareClick}
           />
@@ -1951,6 +1979,7 @@ export function CallScreen(props: CallScreenProps) {
             />
             {reactionOpen && (
               <ReactionPicker
+                t={t}
                 onPick={(e) => {
                   onReact(e)
                   setReactionOpen(false)
@@ -1972,13 +2001,20 @@ export function CallScreen(props: CallScreenProps) {
             label={t('call.discussion')}
             active={chatOpen}
             badge={chatOpen ? 0 : unreadCount}
-            onClick={() => setChatOpen(!chatOpen)}
+            onClick={() => {
+              const next = !chatOpen
+              setChatOpen(next)
+              if (next && peopleOpen) onTogglePeople()
+            }}
           />
           <DeskCtrl
             name="users"
             label={t('call.label.people')}
             active={peopleOpen}
-            onClick={onTogglePeople}
+            onClick={() => {
+              if (!peopleOpen && chatOpen) setChatOpen(false)
+              onTogglePeople()
+            }}
           />
           <div style={{ width: 10 }} />
           <DeskCtrl
@@ -1986,7 +2022,9 @@ export function CallScreen(props: CallScreenProps) {
             label={t('call.leave')}
             danger
             wide
-            onClick={onHangUp}
+            onClick={() => {
+              if (window.confirm(t('call.leave.confirm'))) onHangUp()
+            }}
           />
         </div>
       </div>
@@ -2018,8 +2056,15 @@ function CallInfoPopover({ t, meetUrl, onClose }: CallInfoPopoverProps) {
       const tgt = e.target as Element
       if (!tgt.closest('[data-call-info], [data-call-btn]')) onClose()
     }
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose()
+    }
     document.addEventListener('mousedown', onDoc)
-    return () => document.removeEventListener('mousedown', onDoc)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('mousedown', onDoc)
+      document.removeEventListener('keydown', onKey)
+    }
   }, [onClose])
   const copy = () => {
     if (!meetUrl) return
@@ -2350,17 +2395,25 @@ function ScreenSourceSection({
 }
 
 interface ReactionPickerProps {
+  t: (key: string) => string
   onPick: (emoji: string) => void
   onClose: () => void
 }
-function ReactionPicker({ onPick, onClose }: ReactionPickerProps) {
+function ReactionPicker({ t, onPick, onClose }: ReactionPickerProps) {
   useEffect(() => {
     const off = (e: MouseEvent) => {
       const tgt = e.target as Element
       if (!tgt.closest('[data-call-picker], [data-call-btn]')) onClose()
     }
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose()
+    }
     document.addEventListener('mousedown', off)
-    return () => document.removeEventListener('mousedown', off)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('mousedown', off)
+      document.removeEventListener('keydown', onKey)
+    }
   }, [onClose])
   // Rust's send_reaction takes a label ID, NOT a unicode emoji; the legacy
   // CallView mapped 'thumbsUp' → 👍 and broadcast 'thumbsUp'. We do the same:
@@ -2393,7 +2446,7 @@ function ReactionPicker({ onPick, onClose }: ReactionPickerProps) {
         <button
           key={id}
           onClick={() => onPick(id)}
-          aria-label={id}
+          aria-label={t(`reaction.${id}`)}
           style={{
             width: 38,
             height: 38,

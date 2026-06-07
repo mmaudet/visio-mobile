@@ -209,6 +209,7 @@ export function LobbyScreen({
   const [audioMode, setAudioMode] = useState<'computer' | 'none'>('computer')
   const [previewFrame, setPreviewFrame] = useState<string | null>(null)
   const [micLevel, setMicLevel] = useState(0)
+  const [deviceError, setDeviceError] = useState<string | null>(null)
   const [bgPickerOpen, setBgPickerOpen] = useState(false)
   const [waitingState, setWaitingState] = useState<
     'idle' | 'waiting' | 'denied' | 'timeout'
@@ -273,17 +274,25 @@ export function LobbyScreen({
   // ---- Camera preview on/off ----------------------------------------------
   useEffect(() => {
     if (isCameraOn) {
-      invoke('start_camera_preview').catch(() => {})
+      invoke('start_camera_preview').catch((e) => {
+        setDeviceError(t('lobby.error.camera'))
+        setIsCameraOn(false)
+        console.error('start_camera_preview failed:', e)
+      })
     } else {
       invoke('stop_camera_preview').catch(() => {})
       setPreviewFrame(null)
     }
-  }, [isCameraOn])
+  }, [isCameraOn, t])
 
   // ---- Mic preview on/off + audioMode -------------------------------------
   useEffect(() => {
     if (isMicOn && audioMode === 'computer') {
-      invoke('start_mic_preview').catch(() => {})
+      invoke('start_mic_preview').catch((e) => {
+        setDeviceError(t('lobby.error.mic'))
+        setIsMicOn(false)
+        console.error('start_mic_preview failed:', e)
+      })
       micPollRef.current = setInterval(async () => {
         try {
           const level = await invoke<number>('get_mic_level')
@@ -609,6 +618,39 @@ export function LobbyScreen({
         >
           {/* preview + devices */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            {deviceError && (
+              <div
+                role="alert"
+                style={{
+                  background: 'var(--danger)',
+                  color: '#fff',
+                  padding: '10px 14px',
+                  borderRadius: 'var(--r-card)',
+                  fontSize: 13.5,
+                  fontWeight: 600,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: 12,
+                }}
+              >
+                <span>{deviceError}</span>
+                <button
+                  onClick={() => setDeviceError(null)}
+                  aria-label={t('lobby.error.dismiss')}
+                  style={{
+                    background: 'transparent',
+                    border: 'none',
+                    color: '#fff',
+                    cursor: 'pointer',
+                    padding: 0,
+                    display: 'inline-flex',
+                  }}
+                >
+                  <Icon name="x" size={16} />
+                </button>
+              </div>
+            )}
             <div
               style={{
                 position: 'relative',
@@ -795,9 +837,9 @@ export function LobbyScreen({
             </div>
           </div>
 
-          {/* right col: bg effects panel (when open) OR ready + waiting */}
+          {/* right col: bg effects panel (when open) + ready + waiting */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-            {bgPickerOpen ? (
+            {bgPickerOpen && (
               <BgPanel
                 t={t}
                 bgMode={bgMode}
@@ -805,23 +847,22 @@ export function LobbyScreen({
                 onSetBgMode={onSetBgMode}
                 onClose={() => setBgPickerOpen(false)}
               />
-            ) : (
-              <div>
-                <div className="v-h1" style={{ fontSize: 25 }}>
-                  {t('lobby.ready')}
-                </div>
-                {waitingParticipants.length > 0 && (
-                  <div className="v-sub" style={{ marginTop: 4 }}>
-                    {t('lobby.waitingCount').replace(
-                      '{count}',
-                      String(waitingParticipants.length)
-                    )}
-                  </div>
-                )}
-              </div>
             )}
+            <div>
+              <div className="v-h1" style={{ fontSize: 25 }}>
+                {t('lobby.ready')}
+              </div>
+              {waitingParticipants.length > 0 && (
+                <div className="v-sub" style={{ marginTop: 4 }}>
+                  {t('lobby.waitingCount').replace(
+                    '{count}',
+                    String(waitingParticipants.length)
+                  )}
+                </div>
+              )}
+            </div>
 
-            {!bgPickerOpen && waitingParticipants.length > 0 && (
+            {waitingParticipants.length > 0 && (
               <div
                 className="v-card"
                 style={{ padding: '14px 16px', marginTop: 2 }}
@@ -891,7 +932,7 @@ export function LobbyScreen({
                     <Avatar name={p.username} size={34} />
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontSize: 14, fontWeight: 600 }}>
-                        {p.username || 'Invité·e'}
+                        {p.username || t('lobby.guestPlaceholder')}
                       </div>
                       <div style={{ fontSize: 12, color: 'var(--text-3)' }}>
                         {t('lobby.askingToJoin')}

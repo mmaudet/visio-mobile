@@ -138,17 +138,6 @@ function firstName(full: string): string {
   return trimmed.split(/\s+/)[0]
 }
 
-function isMeetingImminent(m: Meeting): boolean {
-  const nowSec = Date.now() / 1000
-  const minutesUntil = (m.start_time - nowSec) / 60
-  return minutesUntil >= 0 && minutesUntil < 15
-}
-
-function isMeetingOngoing(m: Meeting): boolean {
-  const now = Date.now() / 1000
-  return m.start_time <= now && now <= m.end_time
-}
-
 // -- Create Room Dialog -----------------------------------------------------
 
 function CreateRoomDialog({
@@ -667,14 +656,16 @@ function WaitingScreen({
 
 interface ProfileMenuProps {
   t: (key: string) => string
-  onManageAccount: () => void
+  showSignOut: boolean
+  onOpenSettings?: () => void
   onSignOut: () => void
   onClose: () => void
 }
 
 function ProfileMenu({
   t,
-  onManageAccount,
+  showSignOut,
+  onOpenSettings,
   onSignOut,
   onClose,
 }: ProfileMenuProps) {
@@ -682,10 +673,22 @@ function ProfileMenu({
     const onDoc = (e: MouseEvent) => {
       const tgt = e.target as Element | null
       if (!tgt) return
-      if (!tgt.closest('[data-profile-menu]')) onClose()
+      if (
+        !tgt.closest('[data-profile-menu]') &&
+        !tgt.closest('[data-profile-trigger]')
+      ) {
+        onClose()
+      }
+    }
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose()
     }
     document.addEventListener('mousedown', onDoc)
-    return () => document.removeEventListener('mousedown', onDoc)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('mousedown', onDoc)
+      document.removeEventListener('keydown', onKey)
+    }
   }, [onClose])
   return (
     <div
@@ -703,48 +706,52 @@ function ProfileMenu({
         zIndex: 40,
       }}
     >
-      <button
-        onClick={onManageAccount}
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 10,
-          width: '100%',
-          border: 'none',
-          background: 'transparent',
-          cursor: 'pointer',
-          padding: '10px 12px',
-          borderRadius: 8,
-          fontSize: 13.5,
-          color: 'var(--text)',
-          fontFamily: 'var(--font-ui)',
-          textAlign: 'left',
-        }}
-      >
-        <VIcon name="user" size={16} style={{ color: 'var(--text-2)' }} />
-        <span>{t('settings.account.manage')}</span>
-      </button>
-      <button
-        onClick={onSignOut}
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 10,
-          width: '100%',
-          border: 'none',
-          background: 'transparent',
-          cursor: 'pointer',
-          padding: '10px 12px',
-          borderRadius: 8,
-          fontSize: 13.5,
-          color: 'var(--danger)',
-          fontFamily: 'var(--font-ui)',
-          textAlign: 'left',
-        }}
-      >
-        <VIcon name="logout" size={16} />
-        <span>{t('settings.signOut')}</span>
-      </button>
+      {onOpenSettings && (
+        <button
+          onClick={onOpenSettings}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10,
+            width: '100%',
+            border: 'none',
+            background: 'transparent',
+            cursor: 'pointer',
+            padding: '10px 12px',
+            borderRadius: 8,
+            fontSize: 13.5,
+            color: 'var(--text)',
+            fontFamily: 'var(--font-ui)',
+            textAlign: 'left',
+          }}
+        >
+          <VIcon name="settings" size={16} style={{ color: 'var(--text-2)' }} />
+          <span>{t('sidebar.settings')}</span>
+        </button>
+      )}
+      {showSignOut && (
+        <button
+          onClick={onSignOut}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10,
+            width: '100%',
+            border: 'none',
+            background: 'transparent',
+            cursor: 'pointer',
+            padding: '10px 12px',
+            borderRadius: 8,
+            fontSize: 13.5,
+            color: 'var(--danger)',
+            fontFamily: 'var(--font-ui)',
+            textAlign: 'left',
+          }}
+        >
+          <VIcon name="logout" size={16} />
+          <span>{t('settings.signOut')}</span>
+        </button>
+      )}
     </div>
   )
 }
@@ -813,7 +820,6 @@ export default function App() {
   // ---- Refonte UI desktop ------------------------------------------------
   const [showCreateRoom, setShowCreateRoom] = useState(false)
   const [upcomingMeetings, setUpcomingMeetings] = useState<Meeting[]>([])
-  const [imminentMeetingsCount, setImminentMeetingsCount] = useState(0)
   const [homeJoinError, setHomeJoinError] = useState<string | null>(null)
   const [homeJoinPending, setHomeJoinPending] = useState(false)
   const [showProfileMenu, setShowProfileMenu] = useState(false)
@@ -854,11 +860,6 @@ export default function App() {
   )
 
   const handleNavigate = useCallback((k: NavKey) => {
-    if (k === 'home') {
-      setHomeMode('main')
-      setView('home')
-      return
-    }
     if (k === 'settings') {
       setView('settings')
       return
@@ -869,8 +870,6 @@ export default function App() {
       invoke('refresh_calendar_now').catch(() => {})
       return
     }
-    // 'rooms' | 'recordings' — currently hidden from the sidebar but the
-    // type union still allows them; fall through to home.
     setHomeMode('main')
     setView('home')
   }, [])
@@ -1068,80 +1067,65 @@ export default function App() {
           await invoke('connect_with_token', { livekitUrl: livekit_url, token })
           setView('call')
 
-          // Auto-chat messages for E2E test (turn-based)
-          const messages = [
-            { delay: 3000, text: 'Desktop joined the room!' },
-            { delay: 25000, text: 'Desktop: my turn to speak!' },
-            { delay: 35000, text: 'Desktop: screen sharing active' },
-            { delay: 50000, text: "Desktop: muted — Android's turn" },
-            { delay: 100000, text: 'Desktop: everyone speaking together!' },
-          ]
-          for (const msg of messages) {
+          if (import.meta.env.DEV) {
+            // E2E turn-based test scaffolding (auto chat + mic/cam + screen
+            // share). Gated to dev builds only.
+            const messages = [
+              { delay: 3000, text: 'Desktop joined the room!' },
+              { delay: 25000, text: 'Desktop: my turn to speak!' },
+              { delay: 35000, text: 'Desktop: screen sharing active' },
+              { delay: 50000, text: "Desktop: muted — Android's turn" },
+              { delay: 100000, text: 'Desktop: everyone speaking together!' },
+            ]
+            for (const msg of messages) {
+              setTimeout(async () => {
+                try {
+                  await invoke('send_chat', { text: msg.text })
+                } catch {}
+              }, msg.delay)
+            }
             setTimeout(async () => {
               try {
-                await invoke('send_chat', { text: msg.text })
+                await invoke('toggle_mic', { enabled: false })
+                await invoke('toggle_camera', { enabled: false })
               } catch {}
-            }, msg.delay)
+            }, 5000)
+            setTimeout(async () => {
+              try {
+                await invoke('toggle_mic', { enabled: true })
+                await invoke('toggle_camera', { enabled: true })
+              } catch {}
+            }, 25000)
+            setTimeout(async () => {
+              try {
+                await invoke('toggle_mic', { enabled: false })
+                await invoke('toggle_camera', { enabled: false })
+              } catch {}
+            }, 50000)
+            setTimeout(async () => {
+              try {
+                await invoke('toggle_mic', { enabled: true })
+                await invoke('toggle_camera', { enabled: true })
+              } catch {}
+            }, 100000)
+            setTimeout(async () => {
+              try {
+                const sources = await invoke<
+                  Array<{ id: string; name: string; source_type: string }>
+                >('list_screen_sources')
+                const monitor =
+                  sources.find((s) => s.source_type === 'Monitor') || sources[0]
+                if (monitor) {
+                  await invoke('start_screen_share', { sourceId: monitor.id })
+                  setTimeout(async () => {
+                    try {
+                      await invoke('stop_screen_share')
+                    } catch {}
+                  }, 18000)
+                }
+              } catch {}
+            }, 30000)
           }
-
-          // Turn-based speaking: Desktop speaks at 25-50s, muted otherwise (except warmup 0-5s and final 100-120s)
-          // 5s: mute mic+cam (bot's turn)
-          setTimeout(async () => {
-            try {
-              await invoke('toggle_mic', { enabled: false })
-              await invoke('toggle_camera', { enabled: false })
-              console.log("[TURN] Desktop muted (bot's turn)")
-            } catch {}
-          }, 5000)
-          // 25s: unmute — Desktop's turn to speak
-          setTimeout(async () => {
-            try {
-              await invoke('toggle_mic', { enabled: true })
-              await invoke('toggle_camera', { enabled: true })
-              console.log('[TURN] Desktop speaking')
-            } catch {}
-          }, 25000)
-          // 50s: mute — Android's turn
-          setTimeout(async () => {
-            try {
-              await invoke('toggle_mic', { enabled: false })
-              await invoke('toggle_camera', { enabled: false })
-              console.log("[TURN] Desktop muted (Android's turn)")
-            } catch {}
-          }, 50000)
-          // 100s: unmute — everyone speaks
-          setTimeout(async () => {
-            try {
-              await invoke('toggle_mic', { enabled: true })
-              await invoke('toggle_camera', { enabled: true })
-              console.log('[TURN] Desktop unmuted (all speak)')
-            } catch {}
-          }, 100000)
-
-          // Auto screen share during Desktop's turn (30-48s)
-          setTimeout(async () => {
-            try {
-              const sources = await invoke<
-                Array<{ id: string; name: string; source_type: string }>
-              >('list_screen_sources')
-              const monitor =
-                sources.find((s) => s.source_type === 'Monitor') || sources[0]
-              if (monitor) {
-                console.log('[TURN] Desktop screen share started')
-                await invoke('start_screen_share', { sourceId: monitor.id })
-                setTimeout(async () => {
-                  try {
-                    await invoke('stop_screen_share')
-                    console.log('[TURN] Desktop screen share stopped')
-                  } catch (err) {
-                    console.error('Screen share stop failed:', err)
-                  }
-                }, 18000)
-              }
-            } catch (err) {
-              console.error('Screen share failed:', err)
-            }
-          }, 30000)
         } catch (err) {
           console.error('Auto-connect failed:', err)
         }
@@ -1263,16 +1247,7 @@ export default function App() {
         viewRef.current !== 'settings'
       ) {
         setView('home')
-        setMicEnabled(false)
-        setCamEnabled(false)
-        setMessages([])
-        setVideoFrames(new Map())
-        setShowParticipants(false)
-        setIsHandRaised(false)
-        setUnreadCount(0)
-        setHandRaisedMap({})
-        setActiveSpeakers([])
-        setLocalParticipant(null)
+        resetCallState()
         return
       }
 
@@ -1480,22 +1455,12 @@ export default function App() {
   // ---- Refonte: chargement des réunions pour la home ---------------------
   useEffect(() => {
     invoke<Meeting[]>('get_upcoming_meetings')
-      .then((list) => {
-        setUpcomingMeetings(list)
-        setImminentMeetingsCount(
-          list.filter((m) => isMeetingImminent(m) || isMeetingOngoing(m)).length
-        )
-      })
+      .then(setUpcomingMeetings)
       .catch(() => {})
     let off: UnlistenFn | null = null
     listen<Meeting[]>('meetings-updated', (event) => {
       if (event.payload.length > 0) {
         setUpcomingMeetings(event.payload)
-        setImminentMeetingsCount(
-          event.payload.filter(
-            (m) => isMeetingImminent(m) || isMeetingOngoing(m)
-          ).length
-        )
       }
     }).then((fn) => {
       off = fn
@@ -1760,13 +1725,7 @@ export default function App() {
     }
   }
 
-  const handleHangUp = async () => {
-    try {
-      await invoke('disconnect')
-    } catch (e) {
-      console.error('disconnect error:', e)
-    }
-    setView('home')
+  const resetCallState = useCallback(() => {
     setMicEnabled(false)
     setCamEnabled(false)
     setMessages([])
@@ -1779,7 +1738,16 @@ export default function App() {
     setActiveSpeakers([])
     setLocalParticipant(null)
     setBandwidthMode('full')
-    setBandwidthMode('full')
+  }, [])
+
+  const handleHangUp = async () => {
+    try {
+      await invoke('disconnect')
+    } catch (e) {
+      console.error('disconnect error:', e)
+    }
+    setView('home')
+    resetCallState()
   }
 
   const handleToggleHandRaise = async () => {
@@ -1900,9 +1868,7 @@ export default function App() {
               }}
               labels={{
                 home: t('sidebar.home'),
-                rooms: t('sidebar.rooms'),
                 calendar: t('sidebar.calendar'),
-                recordings: t('sidebar.recordings'),
                 settings: t('sidebar.settings'),
               }}
               newMeetingSlot={
@@ -1928,6 +1894,7 @@ export default function App() {
                 authenticatedMeetInstance || meetInstances[0] || null
               }
               showInstanceChip={isAuthenticated && !!authenticatedMeetInstance}
+              showSignInCta={oidcEnabled && !isAuthenticated}
               meetings={upcomingMeetings}
               showNewMeeting={isAuthenticated && oidcEnabled}
               mode={homeMode}
@@ -1955,13 +1922,14 @@ export default function App() {
                 showToast(t('home.upcoming.refreshed'))
               }}
               onOpenInstance={() => setView('settings')}
+              onSignIn={() => setView('settings')}
             />
             {(homeJoinError || deepLinkError) && (
               <div
                 style={{
                   position: 'absolute',
                   bottom: 24,
-                  left: 274,
+                  left: 'calc(var(--sidebar-w, 250px) + 24px)',
                   right: 28,
                   background: 'var(--danger)',
                   color: '#fff',
@@ -2016,13 +1984,16 @@ export default function App() {
             {showProfileMenu && (
               <ProfileMenu
                 t={t}
-                onManageAccount={() => {
+                showSignOut={isAuthenticated}
+                onOpenSettings={() => {
                   setShowProfileMenu(false)
                   setView('settings')
                 }}
                 onSignOut={() => {
                   setShowProfileMenu(false)
-                  handleSignOut()
+                  if (window.confirm(t('settings.signOut.confirm'))) {
+                    handleSignOut()
+                  }
                 }}
                 onClose={() => setShowProfileMenu(false)}
               />
@@ -2084,7 +2055,7 @@ export default function App() {
               onCancel={() => setShowCreateRoom(false)}
             />
           )}
-        {view === 'lobby' && (
+        {view === 'lobby' && connectionState !== 'waiting_for_host' && (
           <DeskWindow>
             <LobbyScreen
               t={t}
@@ -2163,7 +2134,16 @@ export default function App() {
                 }
                 setView('call')
               }}
-              onCancel={() => setView('home')}
+              onCancel={async () => {
+                try {
+                  await invoke('cancel_lobby')
+                } catch {}
+                try {
+                  await invoke('disconnect')
+                } catch {}
+                setConnectionState('disconnected')
+                setView('home')
+              }}
             />
           </DeskWindow>
         )}
@@ -2307,9 +2287,7 @@ export default function App() {
               }}
               labels={{
                 home: t('sidebar.home'),
-                rooms: t('sidebar.rooms'),
                 calendar: t('sidebar.calendar'),
-                recordings: t('sidebar.recordings'),
                 settings: t('sidebar.settings'),
               }}
               newMeetingSlot={
@@ -2373,27 +2351,10 @@ export default function App() {
               selectedVideoInput={selectedVideoInput}
               onSelectAudioInput={handleSelectAudioInput}
               onSelectVideoInput={handleSelectVideoInput}
-              backgroundLabel={
-                appBgMode === 'off'
-                  ? t('settings.row.background.off')
-                  : t('settings.row.background.blur')
-              }
-              onOpenBackground={() => {
-                // Toggle blur on/off as a quick action; full background picker
-                // remains a follow-up.
-                const next = appBgMode === 'off' ? 'blur' : 'off'
-                setAppBgMode(next)
-                invoke('set_background_mode', { mode: next }).catch(() => {})
-              }}
               visioLinksEnabled={visioLinksEnabled}
               onToggleVisioLinks={setVisioLinksEnabled}
               notificationsEnabled={notificationsEnabled}
               onToggleNotifications={setNotificationsEnabled}
-              onManageAccount={() => {
-                // We're already on the settings screen — keep behaviour
-                // identical to a no-op while leaving a hook for future
-                // identity-provider deep-linking.
-              }}
               onSignOut={handleSignOut}
               onClearLocalData={() => {
                 if (window.confirm(t('settings.row.clearData.confirm'))) {
@@ -2407,12 +2368,12 @@ export default function App() {
             {showProfileMenu && (
               <ProfileMenu
                 t={t}
-                onManageAccount={() => {
-                  setShowProfileMenu(false)
-                }}
+                showSignOut={isAuthenticated}
                 onSignOut={() => {
                   setShowProfileMenu(false)
-                  handleSignOut()
+                  if (window.confirm(t('settings.signOut.confirm'))) {
+                    handleSignOut()
+                  }
                 }}
                 onClose={() => setShowProfileMenu(false)}
               />

@@ -3,7 +3,7 @@ import { Icon, type IconName } from '../Icon'
 import { Avatar } from '../ui/Avatar'
 import { VisioMark } from '../ui/VisioMark'
 
-export type NavKey = 'home' | 'rooms' | 'calendar' | 'recordings' | 'settings'
+export type NavKey = 'home' | 'calendar' | 'settings'
 
 export interface SidebarProfile {
   name: string
@@ -23,9 +23,7 @@ export interface DeskSidebarProps {
   newMeetingSlot: ReactNode | null
   labels: {
     home: string
-    rooms: string
     calendar: string
-    recordings: string
     settings: string
   }
   onProfileClick?: () => void
@@ -138,6 +136,7 @@ export function DeskSidebar({
       />
 
       <button
+        data-profile-trigger
         onClick={onProfileClick}
         style={{
           display: 'flex',
@@ -179,7 +178,7 @@ export function DeskSidebar({
             {profile.subtitle}
           </div>
         </div>
-        <Icon name="chevronDown" size={15} style={{ color: 'var(--text-3)' }} />
+        <Icon name="chevronUp" size={15} style={{ color: 'var(--text-3)' }} />
       </button>
     </aside>
   )
