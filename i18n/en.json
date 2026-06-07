@@ -413,5 +413,8 @@
   "home.signIn": "Sign in",
   "lobby.error.camera": "Camera unavailable. Check system permissions.",
   "lobby.error.mic": "Microphone unavailable. Check system permissions.",
-  "lobby.error.dismiss": "Dismiss"
+  "lobby.error.dismiss": "Dismiss",
+  "share.permission.title": "Permission required",
+  "share.permission.message": "macOS needs to allow Visio Mobile to record the screen. Enable it under System Settings → Privacy & Security → Screen Recording, then relaunch the app for the permission to take effect.",
+  "share.permission.restart": "Open Settings & relaunch"
 }

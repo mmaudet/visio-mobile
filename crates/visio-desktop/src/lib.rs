@@ -1199,6 +1199,27 @@ fn request_screen_recording_permission() -> bool {
     screen_capture::request_screen_recording_permission()
 }
 
+/// Restart the running Visio Mobile process. macOS TCC grants (camera,
+/// microphone, screen recording) are evaluated at process-start time, so
+/// after the user toggles Screen Recording on in System Settings we have to
+/// quit & relaunch for the new permission to take effect.
+#[tauri::command]
+fn restart_app(app: AppHandle) {
+    app.restart();
+}
+
+/// Open macOS System Settings on the Screen Recording pane directly.
+/// No-op on other platforms.
+#[tauri::command]
+fn open_screen_recording_settings() {
+    #[cfg(target_os = "macos")]
+    {
+        let _ = std::process::Command::new("open")
+            .arg("x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture")
+            .spawn();
+    }
+}
+
 #[tauri::command]
 fn list_screen_sources() -> Vec<screen_capture::ScreenSource> {
     // On macOS, the result of `xcap::Window::all()` is filtered by the TCC
@@ -2433,6 +2454,8 @@ pub fn run() {
                     stop_screen_share,
                     has_screen_recording_permission,
                     request_screen_recording_permission,
+                    restart_app,
+                    open_screen_recording_settings,
                     set_subscribe_quality,
                     set_background_mode,
                     get_background_mode,
@@ -2520,6 +2543,8 @@ pub fn run() {
                     stop_screen_share,
                     has_screen_recording_permission,
                     request_screen_recording_permission,
+                    restart_app,
+                    open_screen_recording_settings,
                     set_subscribe_quality,
                     set_background_mode,
                     get_background_mode,

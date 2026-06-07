@@ -413,5 +413,8 @@
   "home.signIn": "Aanmelden",
   "lobby.error.camera": "Camera niet beschikbaar. Controleer systeemmachtigingen.",
   "lobby.error.mic": "Microfoon niet beschikbaar. Controleer systeemmachtigingen.",
-  "lobby.error.dismiss": "Sluiten"
+  "lobby.error.dismiss": "Sluiten",
+  "share.permission.title": "Toestemming vereist",
+  "share.permission.message": "macOS moet Visio Mobile toestaan om het scherm op te nemen. Activeer dit in Systeeminstellingen → Privacy & beveiliging → Schermopname en start de app opnieuw.",
+  "share.permission.restart": "Instellingen openen & opnieuw starten"
 }

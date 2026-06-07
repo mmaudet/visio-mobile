@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
+import { useConfirm } from './components/ui/ConfirmProvider'
 import { invoke } from '@tauri-apps/api/core'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import { resolveResource } from '@tauri-apps/api/path'
@@ -858,6 +859,7 @@ export default function App() {
     (key: string) => translations[lang]?.[key] ?? translations.en[key] ?? key,
     [lang]
   )
+  const confirm = useConfirm()
 
   const handleNavigate = useCallback((k: NavKey) => {
     if (k === 'settings') {
@@ -911,10 +913,14 @@ export default function App() {
       .then(setMeetInstances)
       .catch(() => {})
 
-    // Load ONNX segmentation model for background blur
+    // Load ONNX segmentation model for background blur. Without this, the
+    // BlurProcessor falls through to a no-op on every frame and the user
+    // sees no effect — so log loudly when it fails (path missing, ORT
+    // init crash, …) instead of swallowing.
     resolveResource('models/selfie_segmentation.onnx')
       .then((path) => invoke('load_blur_model', { modelPath: path }))
-      .catch(() => {})
+      .then(() => console.log('[blur] model loaded'))
+      .catch((e) => console.error('[blur] model load failed:', e))
 
     // Pre-register bundled background images with Rust so they can be picked
     // by ID via set_background_mode("image:N"). Rust's list_background_images
@@ -1989,11 +1995,16 @@ export default function App() {
                   setShowProfileMenu(false)
                   setView('settings')
                 }}
-                onSignOut={() => {
+                onSignOut={async () => {
                   setShowProfileMenu(false)
-                  if (window.confirm(t('settings.signOut.confirm'))) {
-                    handleSignOut()
-                  }
+                  const ok = await confirm({
+                    title: t('settings.signOut'),
+                    message: t('settings.signOut.confirm'),
+                    confirmLabel: t('settings.signOut'),
+                    cancelLabel: t('settings.cancel'),
+                    danger: true,
+                  })
+                  if (ok) handleSignOut()
                 }}
                 onClose={() => setShowProfileMenu(false)}
               />
@@ -2079,7 +2090,10 @@ export default function App() {
               onSetBgMode={(mode) => {
                 setAppBgMode(mode)
                 invoke('set_background_mode', { mode })
-                  .catch(() => {})
+                  .catch((e) => {
+                    console.error('set_background_mode failed:', e)
+                    showToast(`Background error: ${String(e)}`)
+                  })
                   .finally(() => {
                     // The camera preview pipeline only re-reads the background
                     // mode on (re)start, so restart it to make the new effect
@@ -2356,8 +2370,15 @@ export default function App() {
               notificationsEnabled={notificationsEnabled}
               onToggleNotifications={setNotificationsEnabled}
               onSignOut={handleSignOut}
-              onClearLocalData={() => {
-                if (window.confirm(t('settings.row.clearData.confirm'))) {
+              onClearLocalData={async () => {
+                const ok = await confirm({
+                  title: t('settings.row.clearData'),
+                  message: t('settings.row.clearData.confirm'),
+                  confirmLabel: t('settings.row.clearData'),
+                  cancelLabel: t('settings.cancel'),
+                  danger: true,
+                })
+                if (ok) {
                   invoke('clear_visio_history').catch(() => {})
                   showToast(t('settings.row.clearData.done'))
                 }
@@ -2369,11 +2390,16 @@ export default function App() {
               <ProfileMenu
                 t={t}
                 showSignOut={isAuthenticated}
-                onSignOut={() => {
+                onSignOut={async () => {
                   setShowProfileMenu(false)
-                  if (window.confirm(t('settings.signOut.confirm'))) {
-                    handleSignOut()
-                  }
+                  const ok = await confirm({
+                    title: t('settings.signOut'),
+                    message: t('settings.signOut.confirm'),
+                    confirmLabel: t('settings.signOut'),
+                    cancelLabel: t('settings.cancel'),
+                    danger: true,
+                  })
+                  if (ok) handleSignOut()
                 }}
                 onClose={() => setShowProfileMenu(false)}
               />
