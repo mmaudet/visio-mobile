@@ -7,6 +7,10 @@ license.workspace = true
 [features]
 default = []
 oidc = []
+# Bespoke VC1:-prefixed AES-256-GCM chat encryption. Off by default because
+# the Meet web client doesn't implement a matching decoder — turning it on
+# breaks cross-client chat interop until both ends ship a compatible scheme.
+chat-encryption = []
 
 [dependencies]
 chrono = "0.4"
