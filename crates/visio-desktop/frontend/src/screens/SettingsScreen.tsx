@@ -36,6 +36,7 @@ export interface SettingsScreenProps {
   displayName: string
   email: string
   isAuthenticated: boolean
+  oidcEnabled: boolean
   onChangeDisplayName: (name: string) => void
   // Theme
   theme: ThemeChoice
@@ -337,6 +338,7 @@ export function SettingsScreen({
   displayName,
   email,
   isAuthenticated,
+  oidcEnabled,
   onChangeDisplayName,
   theme,
   onChangeTheme,
@@ -583,9 +585,11 @@ export function SettingsScreen({
               </div>
             )}
           </div>
-          <Button size="sm" variant="outline" onClick={onManageAccount}>
-            {t('settings.account.manage')}
-          </Button>
+          {oidcEnabled && (
+            <Button size="sm" variant="outline" onClick={onManageAccount}>
+              {t('settings.account.manage')}
+            </Button>
+          )}
           {open === 'name' && (
             <InlineEditor
               t={t}

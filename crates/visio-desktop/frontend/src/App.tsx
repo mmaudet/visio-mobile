@@ -6150,6 +6150,7 @@ export default function App() {
               displayName={profileDisplayName(displayName, displayNameFromOidc)}
               email={emailFromOidc}
               isAuthenticated={isAuthenticated}
+              oidcEnabled={oidcEnabled}
               onChangeDisplayName={setDisplayName}
               theme={(theme as ThemeChoice) || 'system'}
               onChangeTheme={(next) => {
