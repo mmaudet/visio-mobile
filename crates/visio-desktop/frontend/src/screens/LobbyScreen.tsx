@@ -965,6 +965,8 @@ function BgPanel({ t, bgMode, bgImages, onSetBgMode, onClose }: BgPanelProps) {
         display: 'flex',
         flexDirection: 'column',
         gap: 12,
+        maxWidth: 340,
+        alignSelf: 'start',
       }}
     >
       <div
@@ -1039,7 +1041,11 @@ function BgPanel({ t, bgMode, bgImages, onSetBgMode, onClose }: BgPanelProps) {
           <div
             style={{
               display: 'grid',
-              gridTemplateColumns: 'repeat(2, 1fr)',
+              // Cap thumbnail size: as the right column grows on wide
+              // windows we don't want each tile to balloon — keep them
+              // ~140px max, let extra space stay as whitespace, and add
+              // more columns instead.
+              gridTemplateColumns: 'repeat(auto-fill, minmax(110px, 140px))',
               gap: 8,
             }}
           >
