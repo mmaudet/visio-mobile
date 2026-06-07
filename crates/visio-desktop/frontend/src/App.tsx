@@ -3862,289 +3862,6 @@ function CallView({
   )
 }
 
-// -- Settings View ----------------------------------------------------------
-
-function SettingsView({
-  onClose,
-  onLanguageChange,
-  onThemeChange,
-  onDisplayNameChange,
-  initialDisplayName,
-}: Readonly<{
-  onClose: () => void
-  onLanguageChange: (lang: string) => void
-  onThemeChange: (theme: string) => void
-  onDisplayNameChange: (name: string) => void
-  initialDisplayName: string
-}>) {
-  const t = useT()
-  const [form, setForm] = useState({
-    displayName: initialDisplayName,
-    language: 'fr',
-    micOnJoin: true,
-    cameraOnJoin: false,
-    theme: 'light',
-    adaptiveModeEnabled: false,
-  })
-  const [meetInstances, setMeetInstances] = useState<string[]>([])
-  const [meetInstancesLoaded, setMeetInstancesLoaded] = useState(false)
-  const [newInstance, setNewInstance] = useState('')
-  const [calendarUrl, setCalendarUrl] = useState('')
-  const [calendarRefreshInterval, setCalendarRefreshInterval] =
-    useState('Minutes15')
-
-  const addInstance = () => {
-    if (!meetInstancesLoaded) return
-    const val = newInstance.trim().toLowerCase()
-    if (val && !meetInstances.includes(val)) {
-      const next = [...meetInstances, val]
-      setMeetInstances(next)
-      invoke('set_meet_instances', { instances: next })
-      setNewInstance('')
-    }
-  }
-
-  useEffect(() => {
-    invoke<Settings>('get_settings')
-      .then((s) => {
-        setForm((prev) => ({
-          ...prev,
-          language: s.language || 'fr',
-          micOnJoin: s.mic_enabled_on_join ?? true,
-          cameraOnJoin: s.camera_enabled_on_join ?? false,
-          theme: s.theme || 'light',
-          adaptiveModeEnabled: s.adaptive_mode_enabled ?? false,
-        }))
-      })
-      .catch(() => {})
-    invoke<string[]>('get_meet_instances')
-      .then((instances) => {
-        setMeetInstances(instances)
-        setMeetInstancesLoaded(true)
-      })
-      .catch(() => {
-        setMeetInstancesLoaded(true)
-      })
-    invoke<string | null>('get_calendar_url')
-      .then((url) => setCalendarUrl(url ?? ''))
-      .catch(() => {})
-    invoke<string>('get_calendar_refresh_interval')
-      .then((interval) => setCalendarRefreshInterval(interval))
-      .catch(() => {})
-  }, [])
-
-  const [saveStatus, setSaveStatus] = useState<string | null>(null)
-
-  const save = async () => {
-    await invoke('set_display_name', { name: form.displayName || null })
-    await invoke('set_mic_enabled_on_join', { enabled: form.micOnJoin })
-    await invoke('set_camera_enabled_on_join', { enabled: form.cameraOnJoin })
-    await invoke('set_adaptive_mode_enabled', {
-      enabled: form.adaptiveModeEnabled,
-    })
-    await invoke('set_calendar_url', { url: calendarUrl.trim() || null })
-    await invoke('set_calendar_refresh_interval', {
-      interval: calendarRefreshInterval,
-    })
-    if (calendarUrl.trim()) {
-      try {
-        await invoke('refresh_calendar_now')
-      } catch {
-        // calendar refresh is best-effort on save
-      }
-    }
-    setSaveStatus(t('settings.saved'))
-    onDisplayNameChange(form.displayName)
-    setTimeout(() => onClose(), 800)
-  }
-
-  return (
-    <div className="settings-page">
-      <div className="settings-page-header">
-        <button className="settings-back-btn" onClick={onClose}>
-          <RiArrowLeftSLine size={22} />
-        </button>
-        <span>{t('settings')}</span>
-      </div>
-      <div className="settings-page-body">
-        <div className="settings-section">
-          <label className="settings-label">{t('settings.displayName')}</label>
-          <input
-            className="settings-input"
-            data-testid="settings-display-name-input"
-            value={form.displayName}
-            onChange={(e) => setForm({ ...form, displayName: e.target.value })}
-          />
-        </div>
-        <div className="settings-section">
-          <label className="settings-label">{t('settings.language')}</label>
-          <select
-            value={form.language}
-            data-testid="settings-language-select"
-            onChange={(e) => {
-              const lang = e.target.value
-              setForm({ ...form, language: lang })
-              invoke('set_language', { lang: lang || null })
-              onLanguageChange(lang)
-            }}
-          >
-            {SUPPORTED_LANGS.map((code) => (
-              <option
-                key={code}
-                value={code}
-                data-testid={`settings-language-${code}`}
-              >
-                {translations[code]['lang.' + code]}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className="settings-section">
-          <label className="settings-label">{t('settings.theme')}</label>
-          <select
-            value={form.theme}
-            onChange={(e) => {
-              const theme = e.target.value
-              setForm({ ...form, theme })
-              invoke('set_theme', { theme })
-              onThemeChange(theme)
-            }}
-          >
-            <option value="light">{t('settings.theme.light')}</option>
-            <option value="dark">{t('settings.theme.dark')}</option>
-          </select>
-        </div>
-        <div className="settings-section">
-          <label className="settings-label">{t('settings.micOnJoin')}</label>
-          <input
-            type="checkbox"
-            checked={form.micOnJoin}
-            onChange={(e) => setForm({ ...form, micOnJoin: e.target.checked })}
-          />
-        </div>
-        <div className="settings-section">
-          <label className="settings-label">{t('settings.camOnJoin')}</label>
-          <input
-            type="checkbox"
-            checked={form.cameraOnJoin}
-            onChange={(e) =>
-              setForm({ ...form, cameraOnJoin: e.target.checked })
-            }
-          />
-        </div>
-        <div className="settings-section">
-          <label className="settings-label">{t('settings.adaptiveMode')}</label>
-          <input
-            type="checkbox"
-            checked={form.adaptiveModeEnabled}
-            onChange={(e) =>
-              setForm({ ...form, adaptiveModeEnabled: e.target.checked })
-            }
-          />
-        </div>
-        <div className="settings-section settings-section-col">
-          <label className="settings-label">
-            {t('settings.meetInstances')}
-          </label>
-          {meetInstances.map((inst) => (
-            <div key={inst} className="instance-row">
-              <span>{inst}</span>
-              <button
-                className="btn-icon"
-                aria-label={t('action.remove')}
-                onClick={() => {
-                  if (!meetInstancesLoaded) return
-                  const next = meetInstances.filter((x) => x !== inst)
-                  setMeetInstances(next)
-                  invoke('set_meet_instances', { instances: next })
-                }}
-              >
-                <RiCloseLine size={16} />
-              </button>
-            </div>
-          ))}
-          <div className="instance-add-row">
-            <input
-              id="newInstance"
-              type="text"
-              placeholder={t('settings.instancePlaceholder')}
-              value={newInstance}
-              onChange={(e) => setNewInstance(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') addInstance()
-              }}
-              disabled={!meetInstancesLoaded}
-            />
-            <button
-              className="btn-icon"
-              aria-label={t('action.add')}
-              onClick={addInstance}
-              disabled={!meetInstancesLoaded || !newInstance.trim()}
-            >
-              <RiAddLine size={16} />
-            </button>
-          </div>
-        </div>
-        <div className="settings-section settings-section-col">
-          <label className="settings-label">{t('settings.calendarUrl')}</label>
-          <input
-            className="settings-input"
-            type="url"
-            placeholder="https://cal.example.com/feed.ics"
-            value={calendarUrl}
-            onChange={(e) => setCalendarUrl(e.target.value)}
-          />
-          <span className="settings-hint">
-            {t('settings.calendarUrl.hint')}
-          </span>
-        </div>
-        <div className="settings-section">
-          <label className="settings-label">
-            {t('settings.calendarRefresh')}
-          </label>
-          <select
-            value={calendarRefreshInterval}
-            onChange={(e) => setCalendarRefreshInterval(e.target.value)}
-          >
-            <option value="Minutes5">
-              {t('settings.calendarRefresh.5min')}
-            </option>
-            <option value="Minutes15">
-              {t('settings.calendarRefresh.15min')}
-            </option>
-            <option value="Hour1">{t('settings.calendarRefresh.1h')}</option>
-            <option value="Hours4">{t('settings.calendarRefresh.4h')}</option>
-            <option value="Manual">
-              {t('settings.calendarRefresh.manual')}
-            </option>
-          </select>
-        </div>
-        <div className="settings-section">
-          <label className="settings-label">{t('settings.recentVisios')}</label>
-          <button
-            className="settings-clear-history"
-            onClick={async () => {
-              await invoke('clear_visio_history')
-              setSaveStatus(t('settings.historyCleared'))
-              setTimeout(() => setSaveStatus(null), 2000)
-            }}
-          >
-            {t('settings.clearHistory')}
-          </button>
-        </div>
-      </div>
-      <div className="settings-page-footer">
-        {saveStatus && (
-          <span className="settings-save-status">{saveStatus}</span>
-        )}
-        <button className="settings-save" onClick={save}>
-          {t('settings.save')}
-        </button>
-      </div>
-    </div>
-  )
-}
-
 // ---------------------------------------------------------------------------
 // Shared hook: audio device fallback on Bluetooth connect/disconnect
 // ---------------------------------------------------------------------------
@@ -4830,6 +4547,94 @@ function PreJoinScreen({
 }
 
 // ---------------------------------------------------------------------------
+// Sidebar profile popover
+// ---------------------------------------------------------------------------
+
+interface ProfileMenuProps {
+  t: (key: string) => string
+  onManageAccount: () => void
+  onSignOut: () => void
+  onClose: () => void
+}
+
+function ProfileMenu({
+  t,
+  onManageAccount,
+  onSignOut,
+  onClose,
+}: ProfileMenuProps) {
+  useEffect(() => {
+    const onDoc = (e: MouseEvent) => {
+      const tgt = e.target as Element | null
+      if (!tgt) return
+      if (!tgt.closest('[data-profile-menu]')) onClose()
+    }
+    document.addEventListener('mousedown', onDoc)
+    return () => document.removeEventListener('mousedown', onDoc)
+  }, [onClose])
+  return (
+    <div
+      data-profile-menu
+      style={{
+        position: 'absolute',
+        bottom: 72,
+        left: 16,
+        width: 240,
+        background: 'var(--surface)',
+        borderRadius: 'var(--r-card)',
+        boxShadow: 'var(--shadow-pop)',
+        border: '1px solid var(--border)',
+        padding: 6,
+        zIndex: 40,
+      }}
+    >
+      <button
+        onClick={onManageAccount}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 10,
+          width: '100%',
+          border: 'none',
+          background: 'transparent',
+          cursor: 'pointer',
+          padding: '10px 12px',
+          borderRadius: 8,
+          fontSize: 13.5,
+          color: 'var(--text)',
+          fontFamily: 'var(--font-ui)',
+          textAlign: 'left',
+        }}
+      >
+        <VIcon name="user" size={16} style={{ color: 'var(--text-2)' }} />
+        <span>{t('settings.account.manage')}</span>
+      </button>
+      <button
+        onClick={onSignOut}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 10,
+          width: '100%',
+          border: 'none',
+          background: 'transparent',
+          cursor: 'pointer',
+          padding: '10px 12px',
+          borderRadius: 8,
+          fontSize: 13.5,
+          color: 'var(--danger)',
+          fontFamily: 'var(--font-ui)',
+          textAlign: 'left',
+        }}
+      >
+        <VIcon name="logout" size={16} />
+        <span>{t('settings.signOut')}</span>
+      </button>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
 // App (root)
 // ---------------------------------------------------------------------------
 
@@ -4907,7 +4712,7 @@ export default function App() {
   const [imminentMeetingsCount, setImminentMeetingsCount] = useState(0)
   const [homeJoinError, setHomeJoinError] = useState<string | null>(null)
   const [homeJoinPending, setHomeJoinPending] = useState(false)
-  const [showLegacySettings, setShowLegacySettings] = useState(false)
+  const [showProfileMenu, setShowProfileMenu] = useState(false)
   const [visioLinksEnabled, setVisioLinksEnabled] = useState(true)
   const [notificationsEnabled, setNotificationsEnabled] = useState(true)
   const [appBgMode, setAppBgMode] = useState<string>('off')
@@ -5231,9 +5036,9 @@ export default function App() {
 
   // Apply theme to document. We always set an explicit data-theme="light" or
   // "dark" attribute so the legacy App.css [data-theme='dark'] selectors keep
-  // matching for the SettingsView modal — even when the user picked 'system'
-  // and the OS happens to be dark. The token CSS keys off the same attribute,
-  // so both stylesheets stay in lockstep.
+  // matching — even when the user picked 'system' and the OS happens to be
+  // dark. The token CSS keys off the same attribute, so both stylesheets stay
+  // in lockstep.
   useEffect(() => {
     const root = document.documentElement
     const applyResolved = () => {
@@ -5288,11 +5093,14 @@ export default function App() {
     enumerate: enumerateDevices,
   } = inCallDevices
 
-  // Trigger enumeration lazily when a device picker is first opened.
+  // Trigger enumeration lazily when a device picker is first opened or when
+  // the user navigates to the Settings screen (so Mic/Camera pickers show
+  // real device names instead of empty fallbacks).
   useEffect(() => {
-    if ((!showMicPicker && !showCamPicker) || devicesEnumerated) return
+    if (devicesEnumerated) return
+    if (!showMicPicker && !showCamPicker && view !== 'settings') return
     enumerateDevices()
-  }, [showMicPicker, showCamPicker, devicesEnumerated, enumerateDevices])
+  }, [showMicPicker, showCamPicker, view, devicesEnumerated, enumerateDevices])
 
   // Outside-click closing of the device pickers is handled inside CallScreen
   // (CallPicker uses [data-call-picker]/[data-call-btn] anchors). The legacy
@@ -5833,6 +5641,30 @@ export default function App() {
     }
   }
 
+  // ---- Sign out -----------------------------------------------------------
+  const handleSignOut = useCallback(() => {
+    const finish = () => {
+      setIsAuthenticated(false)
+      setAuthenticatedMeetInstance('')
+      setDisplayNameFromOidc('')
+      setEmailFromOidc('')
+      showToast(t('settings.signOut.done'))
+      setView('home')
+    }
+    if (authenticatedMeetInstance) {
+      invoke('logout_session', {
+        meetUrl: `https://${authenticatedMeetInstance}`,
+      })
+        .then(finish)
+        .catch(finish)
+    } else {
+      // Anonymous build: just clear local identity state.
+      invoke('set_display_name', { name: null }).catch(() => {})
+      setDisplayName('')
+      finish()
+    }
+  }, [authenticatedMeetInstance, showToast, t])
+
   // ---- Render -------------------------------------------------------------
   return (
     <I18nContext.Provider value={t}>
@@ -5895,7 +5727,7 @@ export default function App() {
                   </VButton>
                 ) : null
               }
-              onProfileClick={() => setShowLegacySettings(true)}
+              onProfileClick={() => setShowProfileMenu((v) => !v)}
             />
             <HomeScreen
               t={t}
@@ -5939,7 +5771,7 @@ export default function App() {
                   showToast(t('home.notifications.empty'))
                 }
               }}
-              onOpenInstance={() => setShowLegacySettings(true)}
+              onOpenInstance={() => setView('settings')}
             />
             {(homeJoinError || deepLinkError) && (
               <div
@@ -5997,6 +5829,20 @@ export default function App() {
               >
                 {t('home.connecting')}
               </div>
+            )}
+            {showProfileMenu && (
+              <ProfileMenu
+                t={t}
+                onManageAccount={() => {
+                  setShowProfileMenu(false)
+                  setView('settings')
+                }}
+                onSignOut={() => {
+                  setShowProfileMenu(false)
+                  handleSignOut()
+                }}
+                onClose={() => setShowProfileMenu(false)}
+              />
             )}
           </DeskWindow>
         )}
@@ -6192,7 +6038,7 @@ export default function App() {
               setShowCamPicker(false)
             }}
             onOpenSettings={() => {
-              setShowLegacySettings(true)
+              setView('settings')
             }}
             bgMode={appBgMode}
             onSetBgMode={(mode) => {
@@ -6262,64 +6108,52 @@ export default function App() {
                   </VButton>
                 ) : null
               }
-              onProfileClick={() => setShowLegacySettings(true)}
+              onProfileClick={() => setShowProfileMenu((v) => !v)}
             />
             <SettingsScreen
               t={t}
               displayName={profileDisplayName(displayName, displayNameFromOidc)}
               email={emailFromOidc}
               isAuthenticated={isAuthenticated}
+              onChangeDisplayName={setDisplayName}
               theme={(theme as ThemeChoice) || 'system'}
               onChangeTheme={(next) => {
                 setTheme(next)
                 invoke('set_theme', { theme: next }).catch(() => {})
               }}
+              lang={lang}
+              onChangeLanguage={(l) => setLang(l)}
               instanceHost={authenticatedMeetInstance || meetInstances[0] || ''}
-              language={t(`lang.${lang}`)}
-              onOpenLanguage={() => setShowLegacySettings(true)}
-              microphoneLabel={
-                audioInputs.find((d) => d.name === selectedAudioInput)?.name ||
-                t('settings.row.background.off')
-              }
-              cameraLabel={
-                videoInputs.find((d) => d.unique_id === selectedVideoInput)
-                  ?.name || t('settings.row.background.off')
-              }
+              meetInstances={meetInstances}
+              onChangeMeetInstances={setMeetInstances}
+              audioInputs={audioInputs}
+              videoInputs={videoInputs}
+              selectedAudioInput={selectedAudioInput}
+              selectedVideoInput={selectedVideoInput}
+              onSelectAudioInput={handleSelectAudioInput}
+              onSelectVideoInput={handleSelectVideoInput}
               backgroundLabel={
                 appBgMode === 'off'
                   ? t('settings.row.background.off')
                   : t('settings.row.background.blur')
               }
+              onOpenBackground={() => {
+                // Toggle blur on/off as a quick action; full background picker
+                // remains a follow-up.
+                const next = appBgMode === 'off' ? 'blur' : 'off'
+                setAppBgMode(next)
+                invoke('set_background_mode', { mode: next }).catch(() => {})
+              }}
               visioLinksEnabled={visioLinksEnabled}
               onToggleVisioLinks={setVisioLinksEnabled}
               notificationsEnabled={notificationsEnabled}
               onToggleNotifications={setNotificationsEnabled}
-              onManageAccount={() => setShowLegacySettings(true)}
-              onSignOut={() => {
-                const finish = () => {
-                  setIsAuthenticated(false)
-                  setAuthenticatedMeetInstance('')
-                  setDisplayNameFromOidc('')
-                  setEmailFromOidc('')
-                  showToast(t('settings.signOut.done'))
-                  setView('home')
-                }
-                if (authenticatedMeetInstance) {
-                  invoke('logout_session', {
-                    meetUrl: `https://${authenticatedMeetInstance}`,
-                  })
-                    .then(finish)
-                    .catch(finish)
-                } else {
-                  // Anonymous build: just clear local identity state.
-                  invoke('set_display_name', { name: null }).catch(() => {})
-                  setDisplayName('')
-                  finish()
-                }
+              onManageAccount={() => {
+                // We're already on the settings screen — keep behaviour
+                // identical to a no-op while leaving a hook for future
+                // identity-provider deep-linking.
               }}
-              onOpenMicrophone={() => setShowLegacySettings(true)}
-              onOpenCamera={() => setShowLegacySettings(true)}
-              onOpenBackground={() => setShowLegacySettings(true)}
+              onSignOut={handleSignOut}
               onClearLocalData={() => {
                 if (window.confirm(t('settings.row.clearData.confirm'))) {
                   invoke('clear_visio_history').catch(() => {})
@@ -6327,22 +6161,22 @@ export default function App() {
                 }
               }}
               appVersion="0.10.0"
+              translations={translations}
             />
+            {showProfileMenu && (
+              <ProfileMenu
+                t={t}
+                onManageAccount={() => {
+                  setShowProfileMenu(false)
+                }}
+                onSignOut={() => {
+                  setShowProfileMenu(false)
+                  handleSignOut()
+                }}
+                onClose={() => setShowProfileMenu(false)}
+              />
+            )}
           </DeskWindow>
-        )}
-        {showLegacySettings && (
-          <SettingsView
-            onClose={() => {
-              setShowLegacySettings(false)
-              invoke<string[]>('get_meet_instances')
-                .then(setMeetInstances)
-                .catch(() => {})
-            }}
-            onLanguageChange={(l) => setLang(l)}
-            onThemeChange={(t) => setTheme(t)}
-            onDisplayNameChange={setDisplayName}
-            initialDisplayName={displayName}
-          />
         )}
       </main>
     </I18nContext.Provider>

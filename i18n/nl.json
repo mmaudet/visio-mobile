@@ -363,5 +363,14 @@
   "home.join.notFound": "Ruimte niet gevonden",
   "home.join.authRequired": "Aanmelden vereist",
   "home.join.valid": "Ruimte gevonden",
-  "settings.signOut.done": "Je bent afgemeld."
+  "settings.signOut.done": "Je bent afgemeld.",
+  "action.add": "Toevoegen",
+  "action.remove": "Verwijderen",
+  "settings.row.audioMode": "Audiomodus",
+  "settings.row.audioMode.computer": "Computer",
+  "settings.row.audioMode.none": "Geen",
+  "settings.row.micOnJoin": "Microfoon aan bij deelname",
+  "settings.row.camOnJoin": "Camera aan bij deelname",
+  "settings.row.adaptive": "Adaptieve bandbreedte",
+  "settings.row.adaptive.sub": "Verlaagt videokwaliteit bij trage verbinding"
 }

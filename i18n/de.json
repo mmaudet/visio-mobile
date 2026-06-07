@@ -363,5 +363,14 @@
   "home.join.notFound": "Raum nicht gefunden",
   "home.join.authRequired": "Anmeldung erforderlich",
   "home.join.valid": "Raum gefunden",
-  "settings.signOut.done": "Sie sind abgemeldet."
+  "settings.signOut.done": "Sie sind abgemeldet.",
+  "action.add": "Hinzufügen",
+  "action.remove": "Entfernen",
+  "settings.row.audioMode": "Audiomodus",
+  "settings.row.audioMode.computer": "Computer",
+  "settings.row.audioMode.none": "Aus",
+  "settings.row.micOnJoin": "Mikrofon beim Beitreten an",
+  "settings.row.camOnJoin": "Kamera beim Beitreten an",
+  "settings.row.adaptive": "Adaptive Bandbreite",
+  "settings.row.adaptive.sub": "Reduziert die Videoqualität bei langsamer Verbindung"
 }

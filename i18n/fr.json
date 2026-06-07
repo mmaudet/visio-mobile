@@ -363,5 +363,14 @@
   "home.join.notFound": "Salon introuvable",
   "home.join.authRequired": "Connexion requise",
   "home.join.valid": "Salon trouvé",
-  "settings.signOut.done": "Vous êtes déconnecté."
+  "settings.signOut.done": "Vous êtes déconnecté.",
+  "action.add": "Ajouter",
+  "action.remove": "Supprimer",
+  "settings.row.audioMode": "Mode audio",
+  "settings.row.audioMode.computer": "Ordinateur",
+  "settings.row.audioMode.none": "Aucun",
+  "settings.row.micOnJoin": "Micro activé en rejoignant",
+  "settings.row.camOnJoin": "Caméra activée en rejoignant",
+  "settings.row.adaptive": "Bande passante adaptative",
+  "settings.row.adaptive.sub": "Réduit la qualité vidéo sur connexion lente"
 }
