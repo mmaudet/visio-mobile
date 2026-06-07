@@ -7,7 +7,7 @@ import { Tag } from '../components/ui/Tag'
 import { Avatar } from '../components/ui/Avatar'
 import { Button } from '../components/ui/Button'
 import { VisioMark } from '../components/ui/VisioMark'
-import { BgPicker, type BgImage } from './CallScreen'
+import { type BgImage } from './CallScreen'
 import type {
   NativeAudioDevice,
   NativeVideoDevice,
@@ -586,14 +586,15 @@ export function LobbyScreen({
       </div>
 
       <div
+        className="v-scroll"
         style={{
           flex: 1,
           minWidth: 0,
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          padding: '0 44px',
-          overflow: 'hidden',
+          padding: '0 44px 24px',
+          overflowY: 'auto',
         }}
       >
         <div
@@ -657,27 +658,17 @@ export function LobbyScreen({
                   gap: 8,
                 }}
               >
-                <div style={{ position: 'relative' }} data-call-btn>
-                  <IconBtn
-                    name="sparkle"
-                    dim={36}
-                    size={16}
-                    variant={bgMode === 'off' ? 'glass' : 'accent'}
-                    tint="#fff"
-                    onClick={() => setBgPickerOpen((v) => !v)}
-                    ariaLabel={t('bg.title')}
-                  />
-                  {bgPickerOpen && (
-                    <BgPicker
-                      t={t}
-                      bgMode={bgMode}
-                      bgImages={bgImages}
-                      onSetBgMode={onSetBgMode}
-                      onClose={() => setBgPickerOpen(false)}
-                      placement="top-right"
-                    />
-                  )}
-                </div>
+                <IconBtn
+                  name="sparkle"
+                  dim={36}
+                  size={16}
+                  variant={
+                    bgMode === 'off' && !bgPickerOpen ? 'glass' : 'accent'
+                  }
+                  tint="#fff"
+                  onClick={() => setBgPickerOpen((v) => !v)}
+                  ariaLabel={t('bg.title')}
+                />
                 {videoDevices.length > 1 && (
                   <IconBtn
                     name="camFlip"
@@ -804,31 +795,33 @@ export function LobbyScreen({
             </div>
           </div>
 
-          {/* right col: ready + waiting */}
+          {/* right col: bg effects panel (when open) OR ready + waiting */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-            <div>
-              <div className="v-h1" style={{ fontSize: 25 }}>
-                {t('lobby.ready')}
-              </div>
-              {waitingParticipants.length > 0 && (
-                <div className="v-sub" style={{ marginTop: 4 }}>
-                  {t('lobby.waitingCount').replace(
-                    '{count}',
-                    String(waitingParticipants.length)
-                  )}
+            {bgPickerOpen ? (
+              <BgPanel
+                t={t}
+                bgMode={bgMode}
+                bgImages={bgImages}
+                onSetBgMode={onSetBgMode}
+                onClose={() => setBgPickerOpen(false)}
+              />
+            ) : (
+              <div>
+                <div className="v-h1" style={{ fontSize: 25 }}>
+                  {t('lobby.ready')}
                 </div>
-              )}
-            </div>
-            <Button
-              variant="primary"
-              full
-              onClick={() => handleJoinNow(isCameraOn)}
-              style={{ height: 48 }}
-            >
-              {t('lobby.joinNow')}
-            </Button>
+                {waitingParticipants.length > 0 && (
+                  <div className="v-sub" style={{ marginTop: 4 }}>
+                    {t('lobby.waitingCount').replace(
+                      '{count}',
+                      String(waitingParticipants.length)
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
 
-            {waitingParticipants.length > 0 && (
+            {!bgPickerOpen && waitingParticipants.length > 0 && (
               <div
                 className="v-card"
                 style={{ padding: '14px 16px', marginTop: 2 }}
@@ -927,6 +920,166 @@ export function LobbyScreen({
           </div>
         </div>
       </div>
+
+      {/* Sticky bottom join bar. Outside the scrollable body so the Join
+          button stays in reach even when the right column (waiting room +
+          long device names + effects panel) overflows. */}
+      <div
+        style={{
+          flexShrink: 0,
+          borderTop: '1px solid var(--border)',
+          padding: '14px 44px',
+          background: 'var(--surface)',
+          display: 'flex',
+          justifyContent: 'center',
+        }}
+      >
+        <Button
+          variant="primary"
+          onClick={() => handleJoinNow(isCameraOn)}
+          style={{ height: 48, minWidth: 280 }}
+        >
+          {t('lobby.joinNow')}
+        </Button>
+      </div>
+    </div>
+  )
+}
+
+// Inline background-effects panel rendered in the Lobby right column.
+// Same content as CallScreen's BgPicker popover, but as a regular card so
+// it doesn't overlay the camera preview.
+interface BgPanelProps {
+  t: TFunction
+  bgMode: string
+  bgImages: BgImage[]
+  onSetBgMode: (mode: string) => void
+  onClose: () => void
+}
+function BgPanel({ t, bgMode, bgImages, onSetBgMode, onClose }: BgPanelProps) {
+  return (
+    <div
+      className="v-card"
+      style={{
+        padding: '14px 16px',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 12,
+      }}
+    >
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+        }}
+      >
+        <div className="v-h2" style={{ fontSize: 16 }}>
+          {t('bg.title')}
+        </div>
+        <button
+          onClick={onClose}
+          aria-label={t('settings.cancel')}
+          style={{
+            background: 'transparent',
+            border: 'none',
+            cursor: 'pointer',
+            color: 'var(--text-3)',
+            padding: 4,
+            display: 'inline-flex',
+          }}
+        >
+          <Icon name="x" size={16} />
+        </button>
+      </div>
+      <div>
+        <div className="v-eyebrow" style={{ marginBottom: 6 }}>
+          {t('devicePicker.video.effects')}
+        </div>
+        {[
+          ['off', t('bg.off')],
+          ['blur', t('bg.blurStrong')],
+          ['blur-light', t('bg.blurLight')],
+        ].map(([mode, label]) => (
+          <button
+            key={mode}
+            onClick={() => onSetBgMode(mode)}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 10,
+              width: '100%',
+              padding: '8px 8px',
+              border: 'none',
+              background: 'transparent',
+              cursor: 'pointer',
+              borderRadius: 8,
+              fontFamily: 'var(--font-ui)',
+              fontSize: 13.5,
+              color: 'var(--text)',
+              textAlign: 'left',
+            }}
+          >
+            <Icon
+              name="check"
+              size={14}
+              style={{
+                color: bgMode === mode ? 'var(--accent)' : 'transparent',
+              }}
+            />
+            <span>{label}</span>
+          </button>
+        ))}
+      </div>
+      {bgImages.length > 0 && (
+        <div>
+          <div className="v-eyebrow" style={{ marginBottom: 6 }}>
+            {t('bg.images')}
+          </div>
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(2, 1fr)',
+              gap: 8,
+            }}
+          >
+            {bgImages.map((img) => {
+              const mode = `image:${img.id}`
+              const selected = bgMode === mode
+              return (
+                <button
+                  key={img.id}
+                  onClick={() => onSetBgMode(mode)}
+                  aria-label={t('bg.imageAlt').replace('{n}', String(img.id))}
+                  style={{
+                    width: '100%',
+                    aspectRatio: '16/10',
+                    border: selected
+                      ? '2px solid var(--accent)'
+                      : '2px solid transparent',
+                    borderRadius: 8,
+                    padding: 0,
+                    overflow: 'hidden',
+                    background: 'var(--surface-2)',
+                    cursor: 'pointer',
+                  }}
+                >
+                  <img
+                    src={img.thumbUrl}
+                    alt=""
+                    style={{
+                      width: '100%',
+                      height: '100%',
+                      objectFit: 'cover',
+                      display: 'block',
+                    }}
+                  />
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
