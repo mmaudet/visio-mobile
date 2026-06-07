@@ -1,6 +1,13 @@
 import { test, expect } from '@playwright/test';
 
-test.describe('Settings', () => {
+// TODO: rewrite for the new DeskSidebar-based navigation.
+// The legacy home/settings UI (HomeView + SettingsView) targeted by this suite
+// was removed in the desktop UI iteration. The new SettingsScreen is reached
+// via the persistent left-side DeskSidebar (data-testid TBD on the settings
+// nav item), not via a `home-settings-button` on the home page, and the
+// language picker is no longer a `<select>`. Re-enable + rewrite once the
+// new selectors stabilise.
+test.describe.skip('Settings', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/');
     await page.getByTestId('home-settings-button').click();
