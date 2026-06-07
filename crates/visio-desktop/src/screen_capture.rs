@@ -8,6 +8,69 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
+// ---------------------------------------------------------------------------
+// macOS Screen Recording (TCC) permission helpers
+// ---------------------------------------------------------------------------
+//
+// On macOS, `xcap` calls `CGPreflightScreenCaptureAccess()` which is a passive
+// check — it does NOT trigger the TCC dialog. Until the user grants access in
+// System Settings > Privacy & Security > Screen Recording (and restarts the
+// app), `CGWindowListCopyWindowInfo` filters the result down to the app's
+// own windows. That's why the source picker shows only "Visio Mobile" until
+// permission is granted.
+//
+// Calling `CGRequestScreenCaptureAccess()` once is what actually triggers the
+// system dialog. It's a no-op after the first grant.
+//
+// NOTE: macOS keys the TCC cache on the executable's code-signing identity.
+// Unsigned dev builds get a fresh entry on every rebuild, so the dialog will
+// re-appear after each `cargo run`. Notarized CI builds (with a stable Team
+// ID + bundle ID) only ask once. See `docs/`.
+
+#[cfg(target_os = "macos")]
+mod macos_permission {
+    // CoreGraphics is already linked transitively by `xcap` and the WebRTC
+    // build, so we just declare the two C functions we need. Both are
+    // documented in Apple's CGWindow.h.
+    #[link(name = "CoreGraphics", kind = "framework")]
+    unsafe extern "C" {
+        fn CGPreflightScreenCaptureAccess() -> bool;
+        fn CGRequestScreenCaptureAccess() -> bool;
+    }
+
+    /// Returns true if the process already has Screen Recording permission.
+    /// Never triggers a TCC dialog.
+    pub fn has_screen_recording_permission() -> bool {
+        unsafe { CGPreflightScreenCaptureAccess() }
+    }
+
+    /// Triggers the TCC dialog if permission is not yet determined. Returns
+    /// the granted state at call time. On the first call (state =
+    /// notDetermined) macOS displays the system dialog; subsequent calls are
+    /// no-ops and just return the cached state.
+    ///
+    /// After the user grants access, the new permission only takes effect for
+    /// freshly-launched processes — that's a macOS TCC limitation, not ours.
+    pub fn request_screen_recording_permission() -> bool {
+        unsafe { CGRequestScreenCaptureAccess() }
+    }
+}
+
+#[cfg(target_os = "macos")]
+pub use macos_permission::{has_screen_recording_permission, request_screen_recording_permission};
+
+/// Non-macOS stub: every other platform either uses portals (Linux) or its
+/// own per-share consent dialog (Windows), so we just report "granted".
+#[cfg(not(target_os = "macos"))]
+pub fn has_screen_recording_permission() -> bool {
+    true
+}
+
+#[cfg(not(target_os = "macos"))]
+pub fn request_screen_recording_permission() -> bool {
+    true
+}
+
 use base64::Engine as _;
 use image::DynamicImage;
 use image::imageops::FilterType;

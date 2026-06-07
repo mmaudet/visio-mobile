@@ -1178,8 +1178,36 @@ async fn mute_participant(
         .map_err(|e| e.to_string())
 }
 
+/// Returns true if the process has Screen Recording permission. On macOS
+/// this calls `CGPreflightScreenCaptureAccess()`. On other platforms it
+/// returns true (Linux uses portals, Windows asks per-share at capture time).
+#[tauri::command]
+fn has_screen_recording_permission() -> bool {
+    screen_capture::has_screen_recording_permission()
+}
+
+/// Triggers the macOS Screen Recording TCC dialog if permission is not yet
+/// determined and returns the granted state at call time.
+///
+/// IMPORTANT macOS behavior to communicate to the user via the frontend:
+/// when the user grants access for the first time, the new permission only
+/// applies to *newly-launched* processes. The frontend should treat a
+/// transition from `false` to "user clicked Allow" as "show a restart-app
+/// banner" rather than retrying immediately.
+#[tauri::command]
+fn request_screen_recording_permission() -> bool {
+    screen_capture::request_screen_recording_permission()
+}
+
 #[tauri::command]
 fn list_screen_sources() -> Vec<screen_capture::ScreenSource> {
+    // On macOS, the result of `xcap::Window::all()` is filtered by the TCC
+    // permission state at the time of the call. If we haven't requested
+    // access yet, the dialog won't appear and the window list collapses to
+    // our own windows. Trigger the dialog (no-op if already granted/denied)
+    // before enumerating so the picker shows the full window list on first
+    // open.
+    let _ = screen_capture::request_screen_recording_permission();
     screen_capture::list_sources()
 }
 
@@ -1189,6 +1217,13 @@ async fn start_screen_share(
     source_id: String,
 ) -> Result<(), String> {
     tracing::info!("start_screen_share called with source_id={source_id}");
+    // Make sure the TCC dialog has been triggered at least once; this is a
+    // no-op after the first grant/deny. If the user hasn't actually granted
+    // yet, xcap will just produce empty frames — that's surfaced to the user
+    // via the normal "no frames" path; we don't fail here because the user
+    // may legitimately be on a non-macOS platform.
+    let _ = screen_capture::request_screen_recording_permission();
+
     let controls = state.controls.lock().await;
     let source = controls
         .publish_screen_share()
@@ -2396,6 +2431,8 @@ pub fn run() {
                     list_screen_sources,
                     start_screen_share,
                     stop_screen_share,
+                    has_screen_recording_permission,
+                    request_screen_recording_permission,
                     set_subscribe_quality,
                     set_background_mode,
                     get_background_mode,
@@ -2481,6 +2518,8 @@ pub fn run() {
                     list_screen_sources,
                     start_screen_share,
                     stop_screen_share,
+                    has_screen_recording_permission,
+                    request_screen_recording_permission,
                     set_subscribe_quality,
                     set_background_mode,
                     get_background_mode,
