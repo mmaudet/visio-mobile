@@ -68,6 +68,16 @@ export interface CallScreenProps {
   onTogglePin: (sid: string) => void
 }
 
+// Pick the right modifier glyph for the host OS so the tooltip reads natural
+// ("⌘D" on macOS, "Ctrl+D" elsewhere). Falls back to Ctrl+ if navigator is
+// unavailable (Tauri WebView always exposes it, so this is paranoia).
+const IS_MAC =
+  typeof navigator !== 'undefined' &&
+  /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent || '')
+function shortcutLabel(key: string): string {
+  return IS_MAC ? `⌘${key}` : `Ctrl+${key}`
+}
+
 const TONE_PALETTE = [
   '#3a5bd9',
   '#0f9d6b',
@@ -801,6 +811,8 @@ function ParticipantsPanel({
 interface DeskCtrlProps {
   name: string
   label: string
+  /** Extra hint shown in the native tooltip, e.g. a keyboard shortcut. */
+  hint?: string
   caret?: boolean
   danger?: boolean
   wide?: boolean
@@ -814,6 +826,7 @@ interface DeskCtrlProps {
 function DeskCtrl({
   name,
   label,
+  hint,
   caret,
   danger,
   wide,
@@ -838,6 +851,7 @@ function DeskCtrl({
         <button
           onClick={onClick}
           aria-label={label}
+          title={hint ? `${label} (${hint})` : label}
           style={{
             height: 48,
             width: wide ? 'auto' : 48,
@@ -1805,6 +1819,7 @@ export function CallScreen(props: CallScreenProps) {
             <DeskCtrl
               name={micEnabled ? 'mic' : 'micOff'}
               label={t('call.label.mic')}
+              hint={shortcutLabel('D')}
               caret
               active={micEnabled}
               showsMenu={showMicPicker}
@@ -1838,6 +1853,7 @@ export function CallScreen(props: CallScreenProps) {
             <DeskCtrl
               name={camEnabled ? 'video' : 'videoOff'}
               label={t('call.label.camera')}
+              hint={shortcutLabel('E')}
               caret
               active={camEnabled}
               showsMenu={showCamPicker}
