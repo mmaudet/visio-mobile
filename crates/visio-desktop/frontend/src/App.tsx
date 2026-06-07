@@ -2252,13 +2252,17 @@ export default function App() {
             onSetBgMode={(mode) => {
               setAppBgMode(mode)
               invoke('set_background_mode', { mode }).catch(() => {})
-              // In-call we don't need to restart the preview (the call's
-              // own video track is already being processed live by the
-              // BlurProcessor), but kicking start_camera_preview is a
-              // cheap idempotent re-init if the user toggles bg from a
-              // muted-camera state.
+              // In-call the LiveKit local video track holds a cached frame
+              // pipeline that doesn't re-read the bg mode until the track
+              // is republished. Cycling toggle_camera off→on is the
+              // cheapest way to force a republish so the new effect
+              // applies to the outgoing stream immediately. The brief
+              // flicker is the same UX as the web client.
               if (camEnabled) {
-                invoke('start_camera_preview').catch(() => {})
+                invoke('toggle_camera', { enabled: false })
+                  .catch(() => {})
+                  .then(() => invoke('toggle_camera', { enabled: true }))
+                  .catch(() => {})
               }
             }}
             callStartedMs={callStartedMs}
