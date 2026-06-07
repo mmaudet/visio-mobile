@@ -4737,6 +4737,7 @@ export default function App() {
     Array<{ id: number; sid: string; emoji: string; ts: number }>
   >([])
   const reactionCounter = useRef(0)
+  const [pinnedSid, setPinnedSid] = useState<string | null>(null)
 
   const showToast = useCallback((text: string, ms = 2400) => {
     setInfoToast(text)
@@ -5612,6 +5613,35 @@ export default function App() {
     }
   }, [view])
 
+  // In-call keyboard shortcuts (Cmd on macOS, Ctrl elsewhere).
+  // - Cmd/Ctrl+D : toggle mic
+  // - Cmd/Ctrl+E : toggle camera
+  // The handlers read latest state via refs so the listener stays stable.
+  useEffect(() => {
+    if (view !== 'call') return
+    const onKey = (e: KeyboardEvent) => {
+      const mod = e.metaKey || e.ctrlKey
+      if (!mod) return
+      const tag = (e.target as HTMLElement)?.tagName
+      if (tag === 'INPUT' || tag === 'TEXTAREA') return
+      if (e.key === 'd' || e.key === 'D') {
+        e.preventDefault()
+        const next = !micEnabledRef.current
+        setMicEnabled(next)
+        invoke('toggle_mic', { enabled: next }).catch(() => {})
+      } else if (e.key === 'e' || e.key === 'E') {
+        e.preventDefault()
+        setCamEnabled((cur) => {
+          const next = !cur
+          invoke('toggle_camera', { enabled: next }).catch(() => {})
+          return next
+        })
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [view])
+
   const handleToggleCam = async () => {
     const next = !camEnabled
     setCamEnabled(next)
@@ -6125,6 +6155,12 @@ export default function App() {
             onTogglePeople={() => setShowParticipants((v) => !v)}
             peopleOpen={showParticipants}
             liveReactions={liveReactions}
+            pinnedSid={pinnedSid}
+            onTogglePin={(sid) => {
+              const next = pinnedSid === sid ? null : sid
+              setPinnedSid(next)
+              invoke('pin_participant', { sid: next }).catch(() => {})
+            }}
           />
         )}
         {connectionState === 'waiting_for_host' && (
