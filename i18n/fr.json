@@ -378,5 +378,6 @@
   "settings.row.micOnJoin": "Micro activé en rejoignant",
   "settings.row.camOnJoin": "Caméra activée en rejoignant",
   "settings.row.adaptive": "Bande passante adaptative",
-  "settings.row.adaptive.sub": "Réduit la qualité vidéo sur connexion lente"
+  "settings.row.adaptive.sub": "Réduit la qualité vidéo sur connexion lente",
+  "call.participantJoined": "{name} a rejoint la réunion"
 }

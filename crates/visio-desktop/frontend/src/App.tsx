@@ -5417,6 +5417,28 @@ export default function App() {
     }
   }, [])
 
+  // ---- Toast on participant join. Skip during the first 2s after the call
+  // connects so the initial roster doesn't fire N toasts at once.
+  useEffect(() => {
+    let off: UnlistenFn | null = null
+    listen<{ sid: string; identity: string; name: string }>(
+      'participant-joined',
+      (event) => {
+        if (callStartedMs == null || Date.now() - callStartedMs < 2000) {
+          return
+        }
+        const who = event.payload.name || event.payload.identity || ''
+        if (!who) return
+        showToast(t('call.participantJoined').replace('{name}', who))
+      }
+    ).then((fn) => {
+      off = fn
+    })
+    return () => {
+      off?.()
+    }
+  }, [callStartedMs, showToast, t])
+
   // ---- Listen for reaction-received events at App-level so CallScreen sees
   // them whether it's the active view or not. Each reaction auto-expires
   // after 3.5s. The legacy listener inside the dead CallView never runs.

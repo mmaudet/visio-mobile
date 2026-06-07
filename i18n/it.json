@@ -378,5 +378,6 @@
   "settings.row.micOnJoin": "Microfono attivo all'ingresso",
   "settings.row.camOnJoin": "Telecamera attiva all'ingresso",
   "settings.row.adaptive": "Banda adattiva",
-  "settings.row.adaptive.sub": "Riduce la qualità video con connessioni lente"
+  "settings.row.adaptive.sub": "Riduce la qualità video con connessioni lente",
+  "call.participantJoined": "{name} è entrato nella riunione"
 }
