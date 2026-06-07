@@ -1337,6 +1337,35 @@ fn load_background_image(id: u8, jpeg_path: String) -> Result<(), String> {
     visio_ffi::blur::BlurProcessor::load_replacement_image(id, &jpeg_bytes, 640, 480)
 }
 
+/// Enumerate the bundled background images visible at runtime under the
+/// `backgrounds/` resource directory. Returns the numeric IDs derived from
+/// filenames like `1.jpg`, `2.jpg`, …, sorted ascending. Lets the frontend
+/// drop the hardcoded `[1..8]` array and stay in sync if more images are
+/// shipped later.
+#[tauri::command]
+fn list_background_images(app: AppHandle) -> Result<Vec<u8>, String> {
+    let dir = app
+        .path()
+        .resolve("backgrounds", tauri::path::BaseDirectory::Resource)
+        .map_err(|e| e.to_string())?;
+    let mut ids: Vec<u8> = Vec::new();
+    if let Ok(entries) = std::fs::read_dir(&dir) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.extension().and_then(|e| e.to_str()) != Some("jpg") {
+                continue;
+            }
+            if let Some(stem) = path.file_stem().and_then(|s| s.to_str()) {
+                if let Ok(id) = stem.parse::<u8>() {
+                    ids.push(id);
+                }
+            }
+        }
+    }
+    ids.sort();
+    Ok(ids)
+}
+
 #[tauri::command]
 fn set_camera_device(state: tauri::State<'_, VisioState>, unique_id: Option<String>) {
     state.settings.set_camera_device(unique_id);
@@ -2372,6 +2401,7 @@ pub fn run() {
                     get_background_mode,
                     load_blur_model,
                     load_background_image,
+                    list_background_images,
                     list_audio_input_devices,
                     list_audio_output_devices,
                     list_video_input_devices,
@@ -2456,6 +2486,7 @@ pub fn run() {
                     get_background_mode,
                     load_blur_model,
                     load_background_image,
+                    list_background_images,
                     list_audio_input_devices,
                     list_audio_output_devices,
                     list_video_input_devices,

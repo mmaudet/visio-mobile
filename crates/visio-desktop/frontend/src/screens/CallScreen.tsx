@@ -5,7 +5,7 @@ import { IconBtn } from '../components/ui/IconBtn'
 import { Tag } from '../components/ui/Tag'
 import { Avatar } from '../components/ui/Avatar'
 import { VisioMark } from '../components/ui/VisioMark'
-import type { Participant, ChatMessage } from '../types'
+import type { Participant, ChatMessage, ScreenSource } from '../types'
 import type {
   NativeAudioDevice,
   NativeVideoDevice,
@@ -37,7 +37,6 @@ export interface CallScreenProps {
   onToggleCam: () => void
   onHangUp: () => void
   onToggleHandRaise: () => void
-  onToggleScreenShare: () => void
   onReact: (emoji: string) => void
   audioInputs: NativeAudioDevice[]
   audioOutputs: NativeAudioDevice[]
@@ -166,6 +165,53 @@ function gridRows(n: number): string {
   return '1fr 1fr 1fr'
 }
 
+function qualityToBars(q: string): number {
+  if (q === 'Excellent') return 3
+  if (q === 'Good') return 2
+  if (q === 'Poor') return 1
+  return 0
+}
+function QualityBars({ quality }: { quality: string }) {
+  const lit = qualityToBars(quality)
+  if (lit === 0) return null
+  const color =
+    quality === 'Poor'
+      ? 'var(--danger)'
+      : quality === 'Good'
+        ? 'var(--warn)'
+        : 'var(--live)'
+  return (
+    <div
+      style={{
+        position: 'absolute',
+        bottom: 10,
+        right: 10,
+        background: 'rgba(8,10,14,0.55)',
+        backdropFilter: 'blur(6px)',
+        padding: '4px 6px',
+        borderRadius: 6,
+        display: 'flex',
+        alignItems: 'flex-end',
+        gap: 2,
+        height: 18,
+      }}
+      aria-label={`Connection: ${quality}`}
+    >
+      {[1, 2, 3].map((n) => (
+        <div
+          key={n}
+          style={{
+            width: 3,
+            height: 4 + n * 3,
+            borderRadius: 1,
+            background: n <= lit ? color : 'rgba(255,255,255,0.3)',
+          }}
+        />
+      ))}
+    </div>
+  )
+}
+
 interface CallTileProps {
   item: DisplayItem
   frame: string | null
@@ -270,6 +316,7 @@ function CallTile({ item, frame, big }: CallTileProps) {
           <Icon name="hand" size={15} color="#fff" />
         </div>
       )}
+      {source === 'camera' && <QualityBars quality={p.connection_quality} />}
     </div>
   )
 }
@@ -1212,7 +1259,6 @@ export function CallScreen(props: CallScreenProps) {
     onToggleCam,
     onHangUp,
     onToggleHandRaise,
-    onToggleScreenShare,
     onReact,
     audioInputs,
     audioOutputs,
@@ -1242,6 +1288,27 @@ export function CallScreen(props: CallScreenProps) {
   const [chatOpen, setChatOpenState] = useState(false)
   const [reactionOpen, setReactionOpen] = useState(false)
   const [bgPickerOpen, setBgPickerOpen] = useState(false)
+  // Screen-share source picker. null = closed, [] = loading, [...] = shown.
+  const [shareSources, setShareSources] = useState<ScreenSource[] | null>(null)
+
+  const localHasShare = !!localParticipant?.has_screen_share
+  const onShareClick = async () => {
+    if (localHasShare) {
+      invoke('stop_screen_share').catch(() => {})
+      return
+    }
+    setShareSources([])
+    try {
+      const sources = await invoke<ScreenSource[]>('list_screen_sources')
+      setShareSources(sources)
+    } catch {
+      setShareSources(null)
+    }
+  }
+  const pickShareSource = (sourceId: string) => {
+    invoke('start_screen_share', { sourceId }).catch(() => {})
+    setShareSources(null)
+  }
 
   // Keep Rust's chat_open state in sync so the unread badge stays consistent
   // (Rust only increments unread when the panel is hidden).
@@ -1562,7 +1629,8 @@ export function CallScreen(props: CallScreenProps) {
           <DeskCtrl
             name="screenShare"
             label={t('call.label.share')}
-            onClick={onToggleScreenShare}
+            active={localHasShare}
+            onClick={onShareClick}
           />
           <div style={{ position: 'relative' }} data-call-btn>
             <DeskCtrl
@@ -1628,6 +1696,242 @@ export function CallScreen(props: CallScreenProps) {
           />
         </div>
       </div>
+
+      {shareSources !== null && (
+        <ScreenSharePicker
+          t={t}
+          sources={shareSources}
+          onPick={pickShareSource}
+          onClose={() => setShareSources(null)}
+        />
+      )}
+    </div>
+  )
+}
+
+interface ScreenSharePickerProps {
+  t: TFunction
+  sources: ScreenSource[]
+  onPick: (sourceId: string) => void
+  onClose: () => void
+}
+function ScreenSharePicker({
+  t,
+  sources,
+  onPick,
+  onClose,
+}: ScreenSharePickerProps) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose()
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [onClose])
+  const monitors = sources.filter((s) => s.source_type === 'monitor')
+  const windows = sources.filter((s) => s.source_type === 'window')
+  const loading = sources.length === 0
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: 'absolute',
+        inset: 0,
+        background: 'rgba(8, 10, 14, 0.72)',
+        backdropFilter: 'blur(12px)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 100,
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: '#1c1f26',
+          color: '#fff',
+          width: 720,
+          maxWidth: '90%',
+          maxHeight: '80vh',
+          borderRadius: 16,
+          padding: '20px 24px 24px',
+          boxShadow: '0 24px 80px rgba(0,0,0,0.55)',
+          display: 'flex',
+          flexDirection: 'column',
+          overflow: 'hidden',
+        }}
+      >
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            marginBottom: 16,
+          }}
+        >
+          <div style={{ fontSize: 17, fontWeight: 700 }}>
+            {t('call.selectSource')}
+          </div>
+          <button
+            onClick={onClose}
+            aria-label={t('settings.cancel')}
+            style={{
+              background: 'transparent',
+              border: 'none',
+              color: 'rgba(255,255,255,0.6)',
+              cursor: 'pointer',
+              padding: 4,
+            }}
+          >
+            <Icon name="x" size={20} />
+          </button>
+        </div>
+        {loading ? (
+          <div
+            style={{
+              padding: '32px 0',
+              textAlign: 'center',
+              color: 'rgba(255,255,255,0.6)',
+              fontSize: 14,
+            }}
+          >
+            {t('home.connecting')}
+          </div>
+        ) : (
+          <div
+            className="v-scroll"
+            style={{
+              overflowY: 'auto',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 16,
+            }}
+          >
+            {monitors.length > 0 && (
+              <ScreenSourceSection
+                title={t('call.monitors')}
+                sources={monitors}
+                onPick={onPick}
+              />
+            )}
+            <ScreenSourceSection
+              title={t('call.windows')}
+              sources={windows}
+              onPick={onPick}
+              emptyHint={t('call.screenPermissionHint')}
+            />
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+interface ScreenSourceSectionProps {
+  title: string
+  sources: ScreenSource[]
+  onPick: (sourceId: string) => void
+  emptyHint?: string
+}
+function ScreenSourceSection({
+  title,
+  sources,
+  onPick,
+  emptyHint,
+}: ScreenSourceSectionProps) {
+  return (
+    <div>
+      <div
+        className="v-eyebrow"
+        style={{ color: 'rgba(255,255,255,0.45)', marginBottom: 8 }}
+      >
+        {title}
+      </div>
+      {sources.length === 0 && emptyHint ? (
+        <div
+          style={{
+            fontSize: 13,
+            color: 'rgba(255,255,255,0.55)',
+            padding: '8px 4px',
+          }}
+        >
+          {emptyHint}
+        </div>
+      ) : (
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(3, 1fr)',
+            gap: 12,
+          }}
+        >
+          {sources.map((s) => (
+            <button
+              key={s.id}
+              onClick={() => onPick(s.id)}
+              style={{
+                border: '1px solid rgba(255,255,255,0.08)',
+                background: 'rgba(255,255,255,0.04)',
+                borderRadius: 10,
+                padding: 8,
+                cursor: 'pointer',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 6,
+                color: '#fff',
+                textAlign: 'left',
+              }}
+              onMouseEnter={(e) =>
+                (e.currentTarget.style.background = 'rgba(255,255,255,0.08)')
+              }
+              onMouseLeave={(e) =>
+                (e.currentTarget.style.background = 'rgba(255,255,255,0.04)')
+              }
+            >
+              <div
+                style={{
+                  aspectRatio: '16/10',
+                  background: 'rgba(0,0,0,0.4)',
+                  borderRadius: 6,
+                  overflow: 'hidden',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                {s.thumbnail ? (
+                  <img
+                    src={s.thumbnail}
+                    alt=""
+                    style={{
+                      width: '100%',
+                      height: '100%',
+                      objectFit: 'contain',
+                    }}
+                  />
+                ) : (
+                  <Icon
+                    name="screenShare"
+                    size={28}
+                    color="rgba(255,255,255,0.4)"
+                  />
+                )}
+              </div>
+              <span
+                style={{
+                  fontSize: 12,
+                  fontWeight: 600,
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {s.name}
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   )
 }
