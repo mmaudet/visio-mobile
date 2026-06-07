@@ -2342,7 +2342,31 @@ export default function App() {
               onChangeLanguage={(l) => setLang(l)}
               instanceHost={authenticatedMeetInstance || meetInstances[0] || ''}
               meetInstances={meetInstances}
-              onChangeMeetInstances={setMeetInstances}
+              onChangeMeetInstances={(next) => {
+                setMeetInstances(next)
+                invoke('set_meet_instances', { instances: next }).catch(
+                  () => {}
+                )
+              }}
+              onConnectInstance={(host) => {
+                pendingOidcRef.current = host
+                invoke('launch_oidc_browser', { meetInstance: host }).catch(
+                  () => {}
+                )
+              }}
+              onDisconnectInstance={(host) => {
+                invoke('logout_session', {
+                  meetUrl: `https://${host}`,
+                })
+                  .then(() => {
+                    setIsAuthenticated(false)
+                    setAuthenticatedMeetInstance('')
+                    setDisplayNameFromOidc('')
+                    setEmailFromOidc('')
+                    showToast(t('settings.signOut.done'))
+                  })
+                  .catch(() => {})
+              }}
               audioInputs={audioInputs}
               videoInputs={videoInputs}
               selectedAudioInput={selectedAudioInput}

@@ -390,5 +390,7 @@
   "call.info.title": "Besprechungslink",
   "call.info.copy": "Kopieren",
   "call.info.copied": "Kopiert",
-  "settings.calendarUrl.disconnect": "Trennen"
+  "settings.calendarUrl.disconnect": "Trennen",
+  "settings.instance.connect": "Verbinden",
+  "settings.instance.disconnect": "Trennen"
 }

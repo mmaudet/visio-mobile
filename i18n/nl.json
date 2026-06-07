@@ -390,5 +390,7 @@
   "call.info.title": "Vergaderlink",
   "call.info.copy": "Kopiëren",
   "call.info.copied": "Gekopieerd",
-  "settings.calendarUrl.disconnect": "Loskoppelen"
+  "settings.calendarUrl.disconnect": "Loskoppelen",
+  "settings.instance.connect": "Verbinden",
+  "settings.instance.disconnect": "Loskoppelen"
 }
