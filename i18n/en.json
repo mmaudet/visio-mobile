@@ -382,5 +382,7 @@
   "call.participantJoined": "{name} joined the meeting",
   "participants.muteAll": "Mute all",
   "participants.lowerAllHands": "Lower all hands",
-  "participants.muteOne": "Mute"
+  "participants.muteOne": "Mute",
+  "call.tile.speaking": "Speaking",
+  "call.tile.screen": "Screen"
 }

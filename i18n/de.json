@@ -382,5 +382,7 @@
   "call.participantJoined": "{name} ist beigetreten",
   "participants.muteAll": "Alle stummschalten",
   "participants.lowerAllHands": "Alle Hände senken",
-  "participants.muteOne": "Stummschalten"
+  "participants.muteOne": "Stummschalten",
+  "call.tile.speaking": "Spricht",
+  "call.tile.screen": "Bildschirm"
 }

@@ -382,5 +382,7 @@
   "call.participantJoined": "{name} a rejoint la réunion",
   "participants.muteAll": "Tout muter",
   "participants.lowerAllHands": "Baisser toutes les mains",
-  "participants.muteOne": "Couper le micro"
+  "participants.muteOne": "Couper le micro",
+  "call.tile.speaking": "Parle",
+  "call.tile.screen": "Écran"
 }
