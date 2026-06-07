@@ -137,11 +137,22 @@ async fn connect_after_lobby_acceptance(
                 ConnectionState::Connected,
             ));
 
-            // Derive chat key from room name (unique per room, shared by all participants)
+            // Derive chat key from room name (unique per room, shared by all
+            // participants). Gated behind the `chat-encryption` Cargo feature:
+            // when the feature is OFF, no key is set, so send_message goes
+            // through the plaintext branch and the desktop client stays
+            // inter-operable with web clients that don't implement the
+            // bespoke `VC1:`-prefixed scheme. See features.rs:25 for the
+            // (unwired) runtime flag that mirrors this build-time gate.
+            #[cfg(feature = "chat-encryption")]
             {
                 let room_name = lk_room.name();
                 let key = crate::chat::derive_chat_key(&room_name);
                 *chat_key.lock().unwrap_or_else(|p| p.into_inner()) = Some(key);
+            }
+            #[cfg(not(feature = "chat-encryption"))]
+            {
+                let _ = &chat_key; // silence unused warning when feature off
             }
 
             tokio::spawn(async move {
@@ -722,7 +733,9 @@ impl RoomManager {
 
         let room = Arc::new(room);
 
-        // Derive chat key from room name (unique per room, shared by all participants)
+        // Derive chat key — gated on the `chat-encryption` Cargo feature.
+        // See the matching block above for the rationale.
+        #[cfg(feature = "chat-encryption")]
         {
             let room_name = room.name();
             let key = crate::chat::derive_chat_key(&room_name);
