@@ -57,6 +57,17 @@ export interface LobbyScreenProps {
 const POLL_INTERVAL_MS = 100
 const TIMEOUT_MS = 60_000
 
+/** Strip the protocol and trailing slash for a compact display
+ *  (`meet.foo.com/abc-defg-hij`). Falls back to the raw URL on parse error. */
+function prettyRoomUrl(url: string): string {
+  try {
+    const u = new URL(url.startsWith('http') ? url : `https://${url}`)
+    return `${u.host}${u.pathname.replace(/\/$/, '')}`
+  } catch {
+    return url
+  }
+}
+
 function chainUnlisten(
   ref: React.MutableRefObject<UnlistenFn | null>,
   unlisten: UnlistenFn
@@ -525,19 +536,43 @@ export function LobbyScreen({
         }}
       >
         <VisioMark size={24} dark={themeIsDark} />
-        <span
+        <div
           style={{
-            fontWeight: 600,
-            fontSize: 16,
-            letterSpacing: '-0.02em',
-            color: 'var(--text)',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            whiteSpace: 'nowrap',
+            display: 'flex',
+            flexDirection: 'column',
+            minWidth: 0,
+            gap: 1,
           }}
         >
-          {roomTitle || t('lobby.title')}
-        </span>
+          <span
+            style={{
+              fontWeight: 600,
+              fontSize: 15,
+              letterSpacing: '-0.02em',
+              color: 'var(--text)',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {roomTitle || t('lobby.title')}
+          </span>
+          {roomUrl && (
+            <span
+              className="v-mono"
+              style={{
+                fontSize: 11.5,
+                color: 'var(--text-3)',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+              }}
+              title={roomUrl}
+            >
+              {prettyRoomUrl(roomUrl)}
+            </span>
+          )}
+        </div>
         <div style={{ flex: 1 }} />
         <IconBtn
           name="x"
@@ -775,12 +810,14 @@ export function LobbyScreen({
               <div className="v-h1" style={{ fontSize: 25 }}>
                 {t('lobby.ready')}
               </div>
-              <div className="v-sub" style={{ marginTop: 4 }}>
-                {t('lobby.ready.sub').replace(
-                  '{count}',
-                  String(waitingParticipants.length)
-                )}
-              </div>
+              {waitingParticipants.length > 0 && (
+                <div className="v-sub" style={{ marginTop: 4 }}>
+                  {t('lobby.waitingCount').replace(
+                    '{count}',
+                    String(waitingParticipants.length)
+                  )}
+                </div>
+              )}
             </div>
             <Button
               variant="primary"

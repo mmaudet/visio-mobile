@@ -606,7 +606,11 @@ export function SettingsScreen({
         <div
           style={{
             display: 'grid',
-            gridTemplateColumns: '1fr 1fr',
+            // Auto-collapses to a single column when the window is too
+            // narrow to host both cards side by side — prevents the right
+            // column popovers (Instance / Langue / Calendrier) from
+            // overflowing offscreen.
+            gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
             gap: 14,
           }}
         >
@@ -669,25 +673,12 @@ export function SettingsScreen({
             <Row
               icon="mic"
               title={t('settings.row.audioMode')}
-              trailing={
-                <div className="v-seg" style={{ height: 28 }}>
-                  <button
-                    className={audioMode === 'computer' ? 'on' : ''}
-                    onClick={() => handleSetAudioMode('computer')}
-                    style={{ minWidth: 0, padding: '0 10px' }}
-                  >
-                    {t('settings.row.audioMode.computer')}
-                  </button>
-                  <button
-                    className={audioMode === 'none' ? 'on' : ''}
-                    onClick={() => handleSetAudioMode('none')}
-                    style={{ minWidth: 0, padding: '0 10px' }}
-                  >
-                    {t('settings.row.audioMode.none')}
-                  </button>
-                </div>
+              trailing={<TrailVal value={audioModeLabel} />}
+              onClick={() =>
+                handleSetAudioMode(
+                  audioMode === 'computer' ? 'none' : 'computer'
+                )
               }
-              sub={audioModeLabel}
             />
             <Row
               icon="mic"

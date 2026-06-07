@@ -384,5 +384,7 @@
   "participants.lowerAllHands": "Alle handen omlaag",
   "participants.muteOne": "Dempen",
   "call.tile.speaking": "Spreekt",
-  "call.tile.screen": "Scherm"
+  "call.tile.screen": "Scherm",
+  "lobby.waitingCount": "{count} persoon/personen in de wachtruimte",
+  "call.alone": "Je bent alleen — deel de link om iemand uit te nodigen"
 }

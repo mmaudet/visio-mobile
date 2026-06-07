@@ -384,5 +384,7 @@
   "participants.lowerAllHands": "Lower all hands",
   "participants.muteOne": "Mute",
   "call.tile.speaking": "Speaking",
-  "call.tile.screen": "Screen"
+  "call.tile.screen": "Screen",
+  "lobby.waitingCount": "{count} person(s) waiting",
+  "call.alone": "You're alone — share the link to invite someone"
 }
