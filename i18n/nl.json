@@ -386,5 +386,9 @@
   "call.tile.speaking": "Spreekt",
   "call.tile.screen": "Scherm",
   "lobby.waitingCount": "{count} persoon/personen in de wachtruimte",
-  "call.alone": "Je bent alleen — deel de link om iemand uit te nodigen"
+  "call.alone": "Je bent alleen — deel de link om iemand uit te nodigen",
+  "call.info.title": "Vergaderlink",
+  "call.info.copy": "Kopiëren",
+  "call.info.copied": "Gekopieerd",
+  "settings.calendarUrl.disconnect": "Loskoppelen"
 }

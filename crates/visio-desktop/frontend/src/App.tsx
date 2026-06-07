@@ -1927,8 +1927,8 @@ export default function App() {
               instanceHost={
                 authenticatedMeetInstance || meetInstances[0] || null
               }
+              showInstanceChip={isAuthenticated && !!authenticatedMeetInstance}
               meetings={upcomingMeetings}
-              notifBadge={imminentMeetingsCount}
               showNewMeeting={isAuthenticated && oidcEnabled}
               mode={homeMode}
               meetInstances={meetInstances}
@@ -1953,18 +1953,6 @@ export default function App() {
               onRefreshCalendar={() => {
                 invoke('refresh_calendar_now').catch(() => {})
                 showToast(t('home.upcoming.refreshed'))
-              }}
-              onOpenNotifications={() => {
-                if (imminentMeetingsCount > 0) {
-                  showToast(
-                    t('home.notifications.summary').replace(
-                      '{count}',
-                      String(imminentMeetingsCount)
-                    )
-                  )
-                } else {
-                  showToast(t('home.notifications.empty'))
-                }
               }}
               onOpenInstance={() => setView('settings')}
             />
@@ -2194,6 +2182,7 @@ export default function App() {
             messages={messages}
             unreadCount={unreadCount}
             encrypted={messages.some((m) => m.encrypted)}
+            meetUrl={lobbyRoomUrl}
             onSendChat={(text) => {
               handleSendChat(text).catch(() => {})
             }}

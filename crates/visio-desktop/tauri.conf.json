@@ -16,8 +16,8 @@
         "title": "Visio",
         "width": 1200,
         "height": 750,
-        "minWidth": 900,
-        "minHeight": 600
+        "minWidth": 1080,
+        "minHeight": 680
       }
     ]
   },

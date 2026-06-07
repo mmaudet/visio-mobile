@@ -386,5 +386,9 @@
   "call.tile.speaking": "Parle",
   "call.tile.screen": "Écran",
   "lobby.waitingCount": "{count} personne(s) en salle d’attente",
-  "call.alone": "Vous êtes seul·e — partagez le lien pour inviter quelqu’un"
+  "call.alone": "Vous êtes seul·e — partagez le lien pour inviter quelqu’un",
+  "call.info.title": "Lien de la réunion",
+  "call.info.copy": "Copier",
+  "call.info.copied": "Copié",
+  "settings.calendarUrl.disconnect": "Déconnecter"
 }

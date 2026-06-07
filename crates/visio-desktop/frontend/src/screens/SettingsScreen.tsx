@@ -662,14 +662,10 @@ export function SettingsScreen({
                 />
               )}
             </div>
-            <Row
-              icon="sparkle"
-              iconBg="var(--accent-soft)"
-              onAccent
-              title={t('settings.row.background')}
-              trailing={<TrailVal value={backgroundLabel} />}
-              onClick={onOpenBackground}
-            />
+            {/* "Arrière-plan" row removed — the full Off/Blur/Blur-light/
+                Images picker lives in the Lobby (sparkle button) and in
+                the Call (camera caret popover). Adding a degraded
+                toggle-only version here was confusing. */}
             <Row
               icon="mic"
               title={t('settings.row.audioMode')}
@@ -840,11 +836,33 @@ export function SettingsScreen({
                 title={t('settings.calendarUrl')}
                 sub={calendarUrl || t('settings.calendarUrl.hint')}
                 trailing={
-                  <Icon
-                    name="chevronRight"
-                    size={16}
-                    style={{ color: 'var(--text-3)' }}
-                  />
+                  calendarUrl ? (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        handleSaveCalendarUrl('')
+                      }}
+                      style={{
+                        background: 'transparent',
+                        border: '1px solid var(--border)',
+                        cursor: 'pointer',
+                        color: 'var(--danger)',
+                        fontFamily: 'var(--font-ui)',
+                        fontSize: 12.5,
+                        fontWeight: 600,
+                        padding: '4px 10px',
+                        borderRadius: 6,
+                      }}
+                    >
+                      {t('settings.calendarUrl.disconnect')}
+                    </button>
+                  ) : (
+                    <Icon
+                      name="chevronRight"
+                      size={16}
+                      style={{ color: 'var(--text-3)' }}
+                    />
+                  )
                 }
                 onClick={() => toggleMenu('calendarUrl')}
               />
@@ -928,25 +946,12 @@ export function SettingsScreen({
             </div>
           </GCard>
 
-          {/* Confidentialité & sécurité */}
+          {/* Confidentialité & sécurité — kept only items backed by real
+              Rust behaviour. The "End-to-end encryption / Activé" badge was
+              cosmetic (chat encryption is a build-time feature, OFF by
+              default; LiveKit frame e2e isn't configured). The "Caméra &
+              micro / Autorisés" row was a static status with no action. */}
           <GCard title={t('settings.section.privacy')}>
-            <Row
-              icon="shield"
-              iconBg="color-mix(in oklab, var(--live) 15%, var(--surface))"
-              title={t('settings.row.e2e')}
-              trailing={
-                <Tag tone="live" dot>
-                  {t('settings.row.e2e.on')}
-                </Tag>
-              }
-            />
-            <Row
-              icon="lock"
-              title={t('settings.row.permissions')}
-              trailing={
-                <TrailVal value={t('settings.row.permissions.value')} />
-              }
-            />
             <Row
               icon="signal"
               title={t('settings.row.adaptive')}
