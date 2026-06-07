@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import { Icon } from '../components/Icon'
-import { IconBtn } from '../components/ui/IconBtn'
 import { Tag } from '../components/ui/Tag'
 import { Avatar } from '../components/ui/Avatar'
 import { Button } from '../components/ui/Button'
@@ -13,8 +12,10 @@ export interface HomeScreenProps {
   t: TFunction
   userFirstName: string
   instanceHost: string | null
+  /** Only show the instance chip in the top bar when the user is actually
+   *  authenticated. Showing meetInstances[0] anonymously was misleading. */
+  showInstanceChip: boolean
   meetings: Meeting[]
-  notifBadge: number
   /** When false (anonymous user or no OIDC), the New Meeting hero card is
    * hidden and the Join card expands to fill the row. */
   showNewMeeting: boolean
@@ -26,7 +27,6 @@ export interface HomeScreenProps {
   onJoinByCode: (code: string) => void
   onOpenMeeting: (m: Meeting) => void
   onOpenCalendar: () => void
-  onOpenNotifications: () => void
   onOpenInstance: () => void
   onRefreshCalendar: () => void
 }
@@ -195,8 +195,8 @@ export function HomeScreen({
   t,
   userFirstName,
   instanceHost,
+  showInstanceChip,
   meetings,
-  notifBadge,
   showNewMeeting,
   mode,
   meetInstances,
@@ -205,7 +205,6 @@ export function HomeScreen({
   onJoinByCode,
   onOpenMeeting,
   onOpenCalendar,
-  onOpenNotifications,
   onOpenInstance,
   onRefreshCalendar,
 }: HomeScreenProps) {
@@ -341,7 +340,11 @@ export function HomeScreen({
           />
         </div>
         <div style={{ flex: 1 }} />
-        {instanceHost && (
+        {/* Instance chip only shown when actually connected to that instance.
+            Showing meetInstances[0] anonymously was misleading. The bell
+            icon is removed until a real notification system exists — it
+            only ever displayed a toast with the imminent-meeting count. */}
+        {showInstanceChip && instanceHost && (
           <button
             onClick={onOpenInstance}
             className="v-chip"
@@ -355,15 +358,6 @@ export function HomeScreen({
             <Icon name="globe" size={14} /> {instanceHost}
           </button>
         )}
-        <IconBtn
-          name="bell"
-          dim={40}
-          size={19}
-          variant="soft"
-          badge={notifBadge > 0 ? notifBadge : undefined}
-          ariaLabel={t('home.notifications')}
-          onClick={onOpenNotifications}
-        />
       </div>
 
       {/* main */}

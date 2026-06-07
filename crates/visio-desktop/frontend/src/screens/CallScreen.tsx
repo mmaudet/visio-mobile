@@ -32,6 +32,9 @@ export interface CallScreenProps {
   messages: ChatMessage[]
   unreadCount: number
   encrypted: boolean
+  /** Full meet URL of the call, used by the Info popover so users can copy
+   *  it to share with others. */
+  meetUrl: string
   onSendChat: (text: string) => void
   onToggleMic: () => void
   onToggleCam: () => void
@@ -1440,6 +1443,7 @@ export function CallScreen(props: CallScreenProps) {
     handRaisedMap,
     messages,
     encrypted,
+    meetUrl,
     onSendChat,
     onToggleMic,
     onToggleCam,
@@ -1477,7 +1481,7 @@ export function CallScreen(props: CallScreenProps) {
 
   const [chatOpen, setChatOpenState] = useState(false)
   const [reactionOpen, setReactionOpen] = useState(false)
-  const [bgPickerOpen, setBgPickerOpen] = useState(false)
+  const [infoOpen, setInfoOpen] = useState(false)
   // Screen-share source picker. null = closed, [] = loading, [...] = shown.
   const [shareSources, setShareSources] = useState<ScreenSource[] | null>(null)
 
@@ -1649,6 +1653,24 @@ export function CallScreen(props: CallScreenProps) {
             <Icon name="shield" size={14} /> {t('call.encrypted')}
           </span>
         )}
+        <div style={{ position: 'relative' }} data-call-btn>
+          <IconBtn
+            name="info"
+            dim={36}
+            size={18}
+            variant="glass"
+            tint="#fff"
+            onClick={() => setInfoOpen((v) => !v)}
+            ariaLabel={t('call.info.title')}
+          />
+          {infoOpen && (
+            <CallInfoPopover
+              t={t}
+              meetUrl={meetUrl}
+              onClose={() => setInfoOpen(false)}
+            />
+          )}
+        </div>
         <IconBtn
           name={layoutMode === 'speaker' ? 'pin' : 'grid'}
           dim={36}
@@ -1917,23 +1939,9 @@ export function CallScreen(props: CallScreenProps) {
             active={localHasShare}
             onClick={onShareClick}
           />
-          <div style={{ position: 'relative' }} data-call-btn>
-            <DeskCtrl
-              name="sparkle"
-              label={t('call.label.effects')}
-              active={bgMode !== 'off' || bgPickerOpen}
-              onClick={() => setBgPickerOpen((v) => !v)}
-            />
-            {bgPickerOpen && (
-              <BgPicker
-                t={t}
-                bgMode={bgMode}
-                bgImages={bgImages}
-                onSetBgMode={onSetBgMode}
-                onClose={() => setBgPickerOpen(false)}
-              />
-            )}
-          </div>
+          {/* Effets button removed — background picker is accessible via
+              the camera caret popover (Section "Effets"). Keeping a dedicated
+              bottom-bar button was redundant and ate horizontal space. */}
           <div style={{ position: 'relative' }} data-call-btn>
             <DeskCtrl
               name="smiley"
@@ -1991,6 +1999,111 @@ export function CallScreen(props: CallScreenProps) {
           onClose={() => setShareSources(null)}
         />
       )}
+    </div>
+  )
+}
+
+// Top-bar popover showing the room URL + a copy-to-clipboard action so
+// users can share the call link with someone else without leaving the
+// call.
+interface CallInfoPopoverProps {
+  t: TFunction
+  meetUrl: string
+  onClose: () => void
+}
+function CallInfoPopover({ t, meetUrl, onClose }: CallInfoPopoverProps) {
+  const [copied, setCopied] = useState(false)
+  useEffect(() => {
+    const onDoc = (e: MouseEvent) => {
+      const tgt = e.target as Element
+      if (!tgt.closest('[data-call-info], [data-call-btn]')) onClose()
+    }
+    document.addEventListener('mousedown', onDoc)
+    return () => document.removeEventListener('mousedown', onDoc)
+  }, [onClose])
+  const copy = () => {
+    if (!meetUrl) return
+    navigator.clipboard
+      .writeText(meetUrl)
+      .then(() => {
+        setCopied(true)
+        setTimeout(() => setCopied(false), 1500)
+      })
+      .catch(() => {})
+  }
+  return (
+    <div
+      data-call-info
+      style={{
+        position: 'absolute',
+        top: 'calc(100% + 8px)',
+        right: 0,
+        minWidth: 320,
+        maxWidth: 460,
+        background: '#1c1f26',
+        color: '#fff',
+        borderRadius: 12,
+        padding: 12,
+        boxShadow: '0 12px 40px rgba(0,0,0,0.5)',
+        zIndex: 50,
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 8,
+      }}
+    >
+      <div
+        className="v-eyebrow"
+        style={{ color: 'rgba(255,255,255,0.5)', padding: '2px 4px' }}
+      >
+        {t('call.info.title')}
+      </div>
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+          background: 'rgba(255,255,255,0.06)',
+          borderRadius: 8,
+          padding: '8px 10px',
+        }}
+      >
+        <span
+          className="v-mono"
+          style={{
+            flex: 1,
+            minWidth: 0,
+            fontSize: 12.5,
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+            color: 'rgba(255,255,255,0.85)',
+          }}
+          title={meetUrl}
+        >
+          {meetUrl || '—'}
+        </span>
+        <button
+          onClick={copy}
+          disabled={!meetUrl}
+          style={{
+            background: copied ? 'var(--live)' : 'var(--accent)',
+            color: '#fff',
+            border: 'none',
+            borderRadius: 6,
+            padding: '6px 12px',
+            fontSize: 12,
+            fontWeight: 600,
+            cursor: meetUrl ? 'pointer' : 'not-allowed',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 5,
+            fontFamily: 'var(--font-ui)',
+          }}
+        >
+          <Icon name={copied ? 'check' : 'copy'} size={13} />
+          {copied ? t('call.info.copied') : t('call.info.copy')}
+        </button>
+      </div>
     </div>
   )
 }
