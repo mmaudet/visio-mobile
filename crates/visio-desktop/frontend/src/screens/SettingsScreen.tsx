@@ -59,16 +59,12 @@ export interface SettingsScreenProps {
   selectedVideoInput: string
   onSelectAudioInput: (name: string) => void
   onSelectVideoInput: (uniqueId: string) => void
-  // Background
-  backgroundLabel: string
-  onOpenBackground: () => void
   // Misc toggles
   visioLinksEnabled: boolean
   onToggleVisioLinks: (next: boolean) => void
   notificationsEnabled: boolean
   onToggleNotifications: (next: boolean) => void
   // Actions
-  onManageAccount: () => void
   onSignOut: () => void
   onClearLocalData: () => void
   appVersion: string
@@ -160,8 +156,15 @@ function PopoverMenu({
       if (!tgt) return
       if (!tgt.closest('[data-settings-popover]')) onClose()
     }
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose()
+    }
     document.addEventListener('mousedown', onDoc)
-    return () => document.removeEventListener('mousedown', onDoc)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('mousedown', onDoc)
+      document.removeEventListener('keydown', onKey)
+    }
   }, [onClose])
   const positional: CSSProperties =
     align === 'right' ? { right: 0 } : { left: 0 }
@@ -190,15 +193,17 @@ function PopoverMenu({
         {title}
       </div>
       {items.length === 0 ? (
-        <div
-          style={{
-            padding: '10px 12px',
-            fontSize: 13,
-            color: 'var(--text-3)',
-          }}
-        >
-          —
-        </div>
+        footer ? null : (
+          <div
+            style={{
+              padding: '10px 12px',
+              fontSize: 13,
+              color: 'var(--text-3)',
+            }}
+          >
+            —
+          </div>
+        )
       ) : (
         items.map((it) => (
           <button
@@ -331,6 +336,7 @@ type OpenPopover =
   | 'name'
   | 'mic'
   | 'cam'
+  | 'audioMode'
   | 'language'
   | 'instance'
   | 'calendarUrl'
@@ -359,13 +365,10 @@ export function SettingsScreen({
   selectedVideoInput,
   onSelectAudioInput,
   onSelectVideoInput,
-  backgroundLabel,
-  onOpenBackground,
   visioLinksEnabled,
   onToggleVisioLinks,
   notificationsEnabled,
   onToggleNotifications,
-  onManageAccount,
   onSignOut,
   onClearLocalData,
   appVersion,
@@ -410,10 +413,10 @@ export function SettingsScreen({
   // Resolved labels for trailing values.
   const micLabel =
     audioInputs.find((d) => d.name === selectedAudioInput)?.name ||
-    t('settings.row.background.off')
+    t('settings.row.device.none')
   const camLabel =
     videoInputs.find((d) => d.unique_id === selectedVideoInput)?.name ||
-    t('settings.row.background.off')
+    t('settings.row.device.none')
   const languageLabel = t(`lang.${lang}`)
   const calendarRefreshLabel =
     t(
@@ -661,18 +664,42 @@ export function SettingsScreen({
                 />
               )}
             </div>
-            {/* "Arrière-plan" row removed — the full Off/Blur/Blur-light/
-                Images picker lives in the Lobby (sparkle button) and in
-                the Call (camera caret popover). Adding a degraded
-                toggle-only version here was confusing. */}
+            <div style={{ position: 'relative' }}>
+              <Row
+                icon="mic"
+                title={t('settings.row.audioMode')}
+                trailing={<TrailVal value={audioModeLabel} />}
+                onClick={() => toggleMenu('audioMode')}
+              />
+              {open === 'audioMode' && (
+                <PopoverMenu
+                  title={t('settings.row.audioMode')}
+                  items={[
+                    {
+                      key: 'computer',
+                      label: t('settings.row.audioMode.computer'),
+                      active: audioMode === 'computer',
+                    },
+                    {
+                      key: 'none',
+                      label: t('settings.row.audioMode.none'),
+                      active: audioMode === 'none',
+                    },
+                  ]}
+                  onPick={(k) => {
+                    handleSetAudioMode(k as 'computer' | 'none')
+                    closeMenu()
+                  }}
+                  onClose={closeMenu}
+                />
+              )}
+            </div>
             <Row
-              icon="mic"
-              title={t('settings.row.audioMode')}
-              trailing={<TrailVal value={audioModeLabel} />}
-              onClick={() =>
-                handleSetAudioMode(
-                  audioMode === 'computer' ? 'none' : 'computer'
-                )
+              icon="signal"
+              title={t('settings.row.adaptive')}
+              sub={t('settings.row.adaptive.sub')}
+              trailing={
+                <Toggle on={adaptiveMode} onChange={handleToggleAdaptive} />
               }
             />
             <Row
@@ -704,14 +731,8 @@ export function SettingsScreen({
               {open === 'instance' && (
                 <PopoverMenu
                   title={t('settings.meetInstances')}
-                  items={meetInstances.map((inst) => ({
-                    key: inst,
-                    label: inst,
-                    active: inst === instanceHost,
-                  }))}
-                  onPick={() => {
-                    /* read-only list — items act as labels; remove via buttons below */
-                  }}
+                  items={[]}
+                  onPick={() => {}}
                   onClose={closeMenu}
                   footer={
                     <div
@@ -754,10 +775,20 @@ export function SettingsScreen({
                               </span>
                               {inst === instanceHost && isAuthenticated ? (
                                 <button
-                                  onClick={() => onDisconnectInstance(inst)}
+                                  onClick={() => {
+                                    if (
+                                      window.confirm(
+                                        t(
+                                          'settings.instance.disconnect.confirm'
+                                        ).replace('{host}', inst)
+                                      )
+                                    ) {
+                                      onDisconnectInstance(inst)
+                                    }
+                                  }}
                                   style={{
                                     background: 'transparent',
-                                    border: '1px solid var(--border)',
+                                    border: '1px solid var(--danger)',
                                     cursor: 'pointer',
                                     color: 'var(--danger)',
                                     fontFamily: 'var(--font-ui)',
@@ -789,12 +820,22 @@ export function SettingsScreen({
                               )}
                               <button
                                 aria-label={t('action.remove')}
-                                onClick={() => handleRemoveInstance(inst)}
+                                onClick={() => {
+                                  if (
+                                    window.confirm(
+                                      t(
+                                        'settings.instance.remove.confirm'
+                                      ).replace('{host}', inst)
+                                    )
+                                  ) {
+                                    handleRemoveInstance(inst)
+                                  }
+                                }}
                                 style={{
                                   background: 'transparent',
-                                  border: 'none',
+                                  border: '1px solid var(--border)',
                                   cursor: 'pointer',
-                                  color: 'var(--text-3)',
+                                  color: 'var(--danger)',
                                   padding: 4,
                                   display: 'inline-flex',
                                   borderRadius: 6,
@@ -864,6 +905,29 @@ export function SettingsScreen({
                 />
               )}
             </div>
+            <Row
+              icon="link"
+              title={t('settings.row.visioLinks')}
+              sub={t('settings.row.visioLinks.sub')}
+              trailing={
+                <Toggle on={visioLinksEnabled} onChange={onToggleVisioLinks} />
+              }
+            />
+            <Row
+              icon="bell"
+              title={t('settings.row.notifications')}
+              trailing={
+                <Toggle
+                  on={notificationsEnabled}
+                  onChange={onToggleNotifications}
+                />
+              }
+              last
+            />
+          </GCard>
+
+          {/* Calendrier */}
+          <GCard title={t('settings.section.calendar')}>
             <div style={{ position: 'relative' }}>
               <Row
                 icon="calendar"
@@ -874,11 +938,17 @@ export function SettingsScreen({
                     <button
                       onClick={(e) => {
                         e.stopPropagation()
-                        handleSaveCalendarUrl('')
+                        if (
+                          window.confirm(
+                            t('settings.calendarUrl.disconnect.confirm')
+                          )
+                        ) {
+                          handleSaveCalendarUrl('')
+                        }
                       }}
                       style={{
                         background: 'transparent',
-                        border: '1px solid var(--border)',
+                        border: '1px solid var(--danger)',
                         cursor: 'pointer',
                         color: 'var(--danger)',
                         fontFamily: 'var(--font-ui)',
@@ -918,6 +988,7 @@ export function SettingsScreen({
                 title={t('settings.calendarRefresh')}
                 trailing={<TrailVal value={calendarRefreshLabel} />}
                 onClick={() => toggleMenu('calendarRefresh')}
+                last
               />
               {open === 'calendarRefresh' && (
                 <PopoverMenu
@@ -932,25 +1003,6 @@ export function SettingsScreen({
                 />
               )}
             </div>
-            <Row
-              icon="link"
-              title={t('settings.row.visioLinks')}
-              sub={t('settings.row.visioLinks.sub')}
-              trailing={
-                <Toggle on={visioLinksEnabled} onChange={onToggleVisioLinks} />
-              }
-            />
-            <Row
-              icon="bell"
-              title={t('settings.row.notifications')}
-              trailing={
-                <Toggle
-                  on={notificationsEnabled}
-                  onChange={onToggleNotifications}
-                />
-              }
-              last
-            />
           </GCard>
 
           {/* Apparence */}
@@ -980,20 +1032,7 @@ export function SettingsScreen({
             </div>
           </GCard>
 
-          {/* Confidentialité & sécurité — kept only items backed by real
-              Rust behaviour. The "End-to-end encryption / Activé" badge was
-              cosmetic (chat encryption is a build-time feature, OFF by
-              default; LiveKit frame e2e isn't configured). The "Caméra &
-              micro / Autorisés" row was a static status with no action. */}
           <GCard title={t('settings.section.privacy')}>
-            <Row
-              icon="signal"
-              title={t('settings.row.adaptive')}
-              sub={t('settings.row.adaptive.sub')}
-              trailing={
-                <Toggle on={adaptiveMode} onChange={handleToggleAdaptive} />
-              }
-            />
             <Row
               icon="x"
               title={t('settings.row.clearData')}
@@ -1019,25 +1058,33 @@ export function SettingsScreen({
             paddingTop: 8,
           }}
         >
-          <button
-            onClick={onSignOut}
-            style={{
-              background: 'transparent',
-              border: 'none',
-              cursor: 'pointer',
-              color: 'var(--danger)',
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 8,
-              padding: 0,
-              fontFamily: 'var(--font-ui)',
-              fontSize: 14,
-              fontWeight: 600,
-            }}
-          >
-            <Icon name={'logout' as IconName} size={17} />{' '}
-            {t('settings.signOut')}
-          </button>
+          {isAuthenticated ? (
+            <button
+              onClick={() => {
+                if (window.confirm(t('settings.signOut.confirm'))) {
+                  onSignOut()
+                }
+              }}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                cursor: 'pointer',
+                color: 'var(--danger)',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 8,
+                padding: 0,
+                fontFamily: 'var(--font-ui)',
+                fontSize: 14,
+                fontWeight: 600,
+              }}
+            >
+              <Icon name={'logout' as IconName} size={17} />{' '}
+              {t('settings.signOut')}
+            </button>
+          ) : (
+            <span />
+          )}
           <span style={{ fontSize: 12, color: 'var(--text-3)' }}>
             {t('settings.footer').replace('{version}', appVersion)}
           </span>

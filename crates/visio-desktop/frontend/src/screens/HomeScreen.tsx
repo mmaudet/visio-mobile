@@ -15,6 +15,9 @@ export interface HomeScreenProps {
   /** Only show the instance chip in the top bar when the user is actually
    *  authenticated. Showing meetInstances[0] anonymously was misleading. */
   showInstanceChip: boolean
+  /** When true (OIDC build, no active session) the top-bar shows a
+   *  "Sign in" button that opens Settings → Instances. */
+  showSignInCta: boolean
   meetings: Meeting[]
   /** When false (anonymous user or no OIDC), the New Meeting hero card is
    * hidden and the Join card expands to fill the row. */
@@ -29,6 +32,7 @@ export interface HomeScreenProps {
   onOpenCalendar: () => void
   onOpenInstance: () => void
   onRefreshCalendar: () => void
+  onSignIn: () => void
 }
 
 function isOngoing(m: Meeting): boolean {
@@ -196,6 +200,7 @@ export function HomeScreen({
   userFirstName,
   instanceHost,
   showInstanceChip,
+  showSignInCta,
   meetings,
   showNewMeeting,
   mode,
@@ -207,6 +212,7 @@ export function HomeScreen({
   onOpenCalendar,
   onOpenInstance,
   onRefreshCalendar,
+  onSignIn,
 }: HomeScreenProps) {
   const [joinCode, setJoinCode] = useState('')
   const [search, setSearch] = useState('')
@@ -284,16 +290,15 @@ export function HomeScreen({
 
   const isCalendarMode = mode === 'calendar'
   const visibleMeetings = useMemo(() => {
-    const limit = isCalendarMode ? meetings.length : 6
-    if (!search.trim()) return meetings.slice(0, limit)
+    if (!search.trim()) {
+      return meetings.slice(0, isCalendarMode ? meetings.length : 6)
+    }
     const q = search.toLowerCase()
-    return meetings
-      .filter(
-        (m) =>
-          (m.summary || '').toLowerCase().includes(q) ||
-          (m.server_name || '').toLowerCase().includes(q)
-      )
-      .slice(0, limit)
+    return meetings.filter(
+      (m) =>
+        (m.summary || '').toLowerCase().includes(q) ||
+        (m.server_name || '').toLowerCase().includes(q)
+    )
   }, [meetings, search, isCalendarMode])
 
   // Force a 60s rerender so the "Live" badges stay accurate
@@ -357,6 +362,11 @@ export function HomeScreen({
           >
             <Icon name="globe" size={14} /> {instanceHost}
           </button>
+        )}
+        {showSignInCta && (
+          <Button variant="primary" size="sm" onClick={onSignIn}>
+            {t('home.signIn')}
+          </Button>
         )}
       </div>
 
