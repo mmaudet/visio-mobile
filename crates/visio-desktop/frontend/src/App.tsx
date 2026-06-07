@@ -4733,6 +4733,10 @@ export default function App() {
   const [infoToast, setInfoToast] = useState<string | null>(null)
   const [layoutMode, setLayoutMode] = useState<string>('grid')
   const [homeMode, setHomeMode] = useState<'main' | 'calendar'>('main')
+  const [liveReactions, setLiveReactions] = useState<
+    Array<{ id: number; sid: string; emoji: string; ts: number }>
+  >([])
+  const reactionCounter = useRef(0)
 
   const showToast = useCallback((text: string, ms = 2400) => {
     setInfoToast(text)
@@ -5412,6 +5416,32 @@ export default function App() {
     }
   }, [])
 
+  // ---- Listen for reaction-received events at App-level so CallScreen sees
+  // them whether it's the active view or not. Each reaction auto-expires
+  // after 3.5s. The legacy listener inside the dead CallView never runs.
+  useEffect(() => {
+    let off: UnlistenFn | null = null
+    listen<{ participantSid: string; participantName: string; emoji: string }>(
+      'reaction-received',
+      (event) => {
+        const { participantSid, emoji } = event.payload
+        const id = ++reactionCounter.current
+        setLiveReactions((prev) => [
+          ...prev,
+          { id, sid: participantSid, emoji, ts: Date.now() },
+        ])
+        setTimeout(() => {
+          setLiveReactions((prev) => prev.filter((r) => r.id !== id))
+        }, 3500)
+      }
+    ).then((fn) => {
+      off = fn
+    })
+    return () => {
+      off?.()
+    }
+  }, [])
+
   // ---- Refonte: helpers Home → handleJoin --------------------------------
   const handleNewMeeting = useCallback(() => {
     if (!isAuthenticated && oidcEnabled) {
@@ -6035,6 +6065,23 @@ export default function App() {
             onToggleHandRaise={handleToggleHandRaise}
             onReact={(emoji) => {
               invoke('send_reaction', { emoji }).catch(() => {})
+              // Echo locally — Rust filters self-echoes from the broadcast,
+              // so the sender otherwise never sees their own animation.
+              if (localParticipant?.sid) {
+                const id = ++reactionCounter.current
+                setLiveReactions((prev) => [
+                  ...prev,
+                  {
+                    id,
+                    sid: localParticipant.sid,
+                    emoji,
+                    ts: Date.now(),
+                  },
+                ])
+                setTimeout(() => {
+                  setLiveReactions((prev) => prev.filter((r) => r.id !== id))
+                }, 3500)
+              }
             }}
             audioInputs={audioInputs}
             audioOutputs={audioOutputs}
@@ -6077,6 +6124,7 @@ export default function App() {
             }}
             onTogglePeople={() => setShowParticipants((v) => !v)}
             peopleOpen={showParticipants}
+            liveReactions={liveReactions}
           />
         )}
         {connectionState === 'waiting_for_host' && (
