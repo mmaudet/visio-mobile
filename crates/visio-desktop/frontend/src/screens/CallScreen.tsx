@@ -808,6 +808,7 @@ interface DeskCtrlProps {
   onClick: () => void
   onCaretClick?: () => void
   showsMenu?: boolean
+  badge?: number
   children?: ReactNode
 }
 function DeskCtrl({
@@ -820,6 +821,7 @@ function DeskCtrl({
   onClick,
   onCaretClick,
   showsMenu,
+  badge,
   children,
 }: DeskCtrlProps) {
   return (
@@ -898,6 +900,29 @@ function DeskCtrl({
               <path d={showsMenu ? 'M3 4.5l3 3 3-3' : 'M3 7.5l3-3 3 3'} />
             </svg>
           </button>
+        )}
+        {badge != null && badge > 0 && (
+          <span
+            style={{
+              position: 'absolute',
+              top: -4,
+              right: -4,
+              minWidth: 18,
+              height: 18,
+              padding: '0 5px',
+              borderRadius: 9,
+              background: 'var(--accent)',
+              color: '#fff',
+              fontSize: 11,
+              fontWeight: 700,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              boxShadow: '0 0 0 2px rgba(16,18,24,0.95)',
+            }}
+          >
+            {badge > 9 ? '9+' : badge}
+          </span>
         )}
       </div>
       {!wide && (
@@ -1430,6 +1455,7 @@ export function CallScreen(props: CallScreenProps) {
     liveReactions,
     pinnedSid,
     onTogglePin,
+    unreadCount,
   } = props
 
   const [chatOpen, setChatOpenState] = useState(false)
@@ -1894,6 +1920,7 @@ export function CallScreen(props: CallScreenProps) {
             name="chat"
             label={t('call.discussion')}
             active={chatOpen}
+            badge={chatOpen ? 0 : unreadCount}
             onClick={() => setChatOpen(!chatOpen)}
           />
           <DeskCtrl
