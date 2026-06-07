@@ -363,5 +363,14 @@
   "home.join.notFound": "Stanza non trovata",
   "home.join.authRequired": "Accesso richiesto",
   "home.join.valid": "Stanza trovata",
-  "settings.signOut.done": "Sei disconnesso."
+  "settings.signOut.done": "Sei disconnesso.",
+  "action.add": "Aggiungi",
+  "action.remove": "Rimuovi",
+  "settings.row.audioMode": "Modalità audio",
+  "settings.row.audioMode.computer": "Computer",
+  "settings.row.audioMode.none": "Nessuno",
+  "settings.row.micOnJoin": "Microfono attivo all'ingresso",
+  "settings.row.camOnJoin": "Telecamera attiva all'ingresso",
+  "settings.row.adaptive": "Banda adattiva",
+  "settings.row.adaptive.sub": "Riduce la qualità video con connessioni lente"
 }

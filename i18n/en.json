@@ -363,5 +363,14 @@
   "home.join.notFound": "Room not found",
   "home.join.authRequired": "Sign-in required",
   "home.join.valid": "Room found",
-  "settings.signOut.done": "You are signed out."
+  "settings.signOut.done": "You are signed out.",
+  "action.add": "Add",
+  "action.remove": "Remove",
+  "settings.row.audioMode": "Audio mode",
+  "settings.row.audioMode.computer": "Computer",
+  "settings.row.audioMode.none": "None",
+  "settings.row.micOnJoin": "Microphone on join",
+  "settings.row.camOnJoin": "Camera on join",
+  "settings.row.adaptive": "Adaptive bandwidth",
+  "settings.row.adaptive.sub": "Reduces video quality on slow connections"
 }

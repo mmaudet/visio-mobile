@@ -363,5 +363,14 @@
   "home.join.notFound": "Sala no encontrada",
   "home.join.authRequired": "Inicio de sesión requerido",
   "home.join.valid": "Sala encontrada",
-  "settings.signOut.done": "Has cerrado sesión."
+  "settings.signOut.done": "Has cerrado sesión.",
+  "action.add": "Añadir",
+  "action.remove": "Eliminar",
+  "settings.row.audioMode": "Modo de audio",
+  "settings.row.audioMode.computer": "Ordenador",
+  "settings.row.audioMode.none": "Ninguno",
+  "settings.row.micOnJoin": "Micrófono al unirse",
+  "settings.row.camOnJoin": "Cámara al unirse",
+  "settings.row.adaptive": "Ancho de banda adaptativo",
+  "settings.row.adaptive.sub": "Reduce la calidad de vídeo en conexiones lentas"
 }
