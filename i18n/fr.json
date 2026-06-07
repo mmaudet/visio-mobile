@@ -357,5 +357,11 @@
   "home.notifications.summary": "{count} réunion(s) imminente(s) — voir « À venir »",
   "home.notifications.empty": "Aucune notification pour le moment",
   "settings.row.clearData.confirm": "Supprimer définitivement tout l’historique local ? Cette action est irréversible.",
-  "settings.row.clearData.done": "Données locales effacées."
+  "settings.row.clearData.done": "Données locales effacées.",
+  "home.tomorrow": "Demain",
+  "home.join.checking": "Vérification…",
+  "home.join.notFound": "Salon introuvable",
+  "home.join.authRequired": "Connexion requise",
+  "home.join.valid": "Salon trouvé",
+  "settings.signOut.done": "Vous êtes déconnecté."
 }

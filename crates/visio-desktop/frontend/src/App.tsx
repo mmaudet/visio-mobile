@@ -4914,6 +4914,7 @@ export default function App() {
   const [callStartedMs, setCallStartedMs] = useState<number | null>(null)
   const [infoToast, setInfoToast] = useState<string | null>(null)
   const [layoutMode, setLayoutMode] = useState<string>('grid')
+  const [homeMode, setHomeMode] = useState<'main' | 'calendar'>('main')
 
   const showToast = useCallback((text: string, ms = 2400) => {
     setInfoToast(text)
@@ -4925,30 +4926,27 @@ export default function App() {
     [lang]
   )
 
-  const handleNavigate = useCallback(
-    (k: NavKey) => {
-      if (k === 'home') {
-        setView('home')
-        return
-      }
-      if (k === 'settings') {
-        setView('settings')
-        return
-      }
-      // 'rooms' | 'calendar' | 'recordings' — placeholders for now.
+  const handleNavigate = useCallback((k: NavKey) => {
+    if (k === 'home') {
+      setHomeMode('main')
       setView('home')
-      const labels: Record<string, string> = {
-        rooms: t('sidebar.rooms'),
-        calendar: t('sidebar.calendar'),
-        recordings: t('sidebar.recordings'),
-      }
-      showToast(`${labels[k] ?? k} — ${t('common.comingSoon')}`)
-      if (k === 'calendar') {
-        invoke('refresh_calendar_now').catch(() => {})
-      }
-    },
-    [t, showToast]
-  )
+      return
+    }
+    if (k === 'settings') {
+      setView('settings')
+      return
+    }
+    if (k === 'calendar') {
+      setHomeMode('calendar')
+      setView('home')
+      invoke('refresh_calendar_now').catch(() => {})
+      return
+    }
+    // 'rooms' | 'recordings' — currently hidden from the sidebar but the
+    // type union still allows them; fall through to home.
+    setHomeMode('main')
+    setView('home')
+  }, [])
 
   // Check OIDC feature flag on mount
   useEffect(() => {
@@ -5296,17 +5294,10 @@ export default function App() {
     enumerateDevices()
   }, [showMicPicker, showCamPicker, devicesEnumerated, enumerateDevices])
 
-  // ---- Click outside to close device pickers ------------------------------
-  useEffect(() => {
-    const handleClick = (e: MouseEvent) => {
-      if (!(e.target as Element).closest('.device-picker, .control-chevron')) {
-        setShowMicPicker(false)
-        setShowCamPicker(false)
-      }
-    }
-    document.addEventListener('click', handleClick)
-    return () => document.removeEventListener('click', handleClick)
-  }, [])
+  // Outside-click closing of the device pickers is handled inside CallScreen
+  // (CallPicker uses [data-call-picker]/[data-call-btn] anchors). The legacy
+  // App-level handler keyed off .device-picker/.control-chevron and silently
+  // killed the new carets on every click.
 
   // ---- Polling ------------------------------------------------------------
   const poll = useCallback(async () => {
@@ -5874,7 +5865,7 @@ export default function App() {
         {view === 'home' && (
           <DeskWindow>
             <DeskSidebar
-              active="home"
+              active={homeMode === 'calendar' ? 'calendar' : 'home'}
               onNavigate={handleNavigate}
               themeIsDark={isDarkTheme(theme)}
               profile={{
@@ -5893,14 +5884,16 @@ export default function App() {
                 settings: t('sidebar.settings'),
               }}
               newMeetingSlot={
-                <VButton
-                  variant="primary"
-                  full
-                  onClick={handleNewMeeting}
-                  icon={<VIcon name="video" size={18} />}
-                >
-                  {t('home.newMeetingButton')}
-                </VButton>
+                isAuthenticated && oidcEnabled ? (
+                  <VButton
+                    variant="primary"
+                    full
+                    onClick={handleNewMeeting}
+                    icon={<VIcon name="video" size={18} />}
+                  >
+                    {t('home.newMeetingButton')}
+                  </VButton>
+                ) : null
               }
               onProfileClick={() => setShowLegacySettings(true)}
             />
@@ -5914,6 +5907,10 @@ export default function App() {
               }
               meetings={upcomingMeetings}
               notifBadge={imminentMeetingsCount}
+              showNewMeeting={isAuthenticated && oidcEnabled}
+              mode={homeMode}
+              meetInstances={meetInstances}
+              authenticatedMeetInstance={authenticatedMeetInstance}
               onNewMeeting={handleNewMeeting}
               onJoinByCode={handleJoinByCode}
               onOpenMeeting={(m) => {
@@ -5923,6 +5920,10 @@ export default function App() {
                   .catch((e) => setHomeJoinError(String(e)))
               }}
               onOpenCalendar={() => {
+                setHomeMode('calendar')
+                invoke('refresh_calendar_now').catch(() => {})
+              }}
+              onRefreshCalendar={() => {
                 invoke('refresh_calendar_now').catch(() => {})
                 showToast(t('home.upcoming.refreshed'))
               }}
@@ -6250,14 +6251,16 @@ export default function App() {
                 settings: t('sidebar.settings'),
               }}
               newMeetingSlot={
-                <VButton
-                  variant="primary"
-                  full
-                  onClick={handleNewMeeting}
-                  icon={<VIcon name="video" size={18} />}
-                >
-                  {t('home.newMeetingButton')}
-                </VButton>
+                isAuthenticated && oidcEnabled ? (
+                  <VButton
+                    variant="primary"
+                    full
+                    onClick={handleNewMeeting}
+                    icon={<VIcon name="video" size={18} />}
+                  >
+                    {t('home.newMeetingButton')}
+                  </VButton>
+                ) : null
               }
               onProfileClick={() => setShowLegacySettings(true)}
             />
@@ -6293,17 +6296,25 @@ export default function App() {
               onToggleNotifications={setNotificationsEnabled}
               onManageAccount={() => setShowLegacySettings(true)}
               onSignOut={() => {
+                const finish = () => {
+                  setIsAuthenticated(false)
+                  setAuthenticatedMeetInstance('')
+                  setDisplayNameFromOidc('')
+                  setEmailFromOidc('')
+                  showToast(t('settings.signOut.done'))
+                  setView('home')
+                }
                 if (authenticatedMeetInstance) {
                   invoke('logout_session', {
                     meetUrl: `https://${authenticatedMeetInstance}`,
                   })
-                    .then(() => {
-                      setIsAuthenticated(false)
-                      setAuthenticatedMeetInstance('')
-                      setDisplayNameFromOidc('')
-                      setEmailFromOidc('')
-                    })
-                    .catch(() => {})
+                    .then(finish)
+                    .catch(finish)
+                } else {
+                  // Anonymous build: just clear local identity state.
+                  invoke('set_display_name', { name: null }).catch(() => {})
+                  setDisplayName('')
+                  finish()
                 }
               }}
               onOpenMicrophone={() => setShowLegacySettings(true)}
