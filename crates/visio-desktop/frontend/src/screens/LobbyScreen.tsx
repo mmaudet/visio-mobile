@@ -38,6 +38,8 @@ export interface LobbyScreenProps {
   setSelectedAudioInput: (name: string) => void
   setSelectedVideoInput: (uniqueId: string) => void
   enumerateDevices: () => void
+  bgMode: string
+  onSetBgMode: (mode: string) => void
   onAdmit: (id: string) => void
   onDeny: (id: string) => void
   onAdmitAll: () => void
@@ -174,6 +176,8 @@ export function LobbyScreen({
   setSelectedAudioInput,
   setSelectedVideoInput,
   enumerateDevices,
+  bgMode,
+  onSetBgMode,
   onAdmit,
   onDeny,
   onAdmitAll,
@@ -599,6 +603,46 @@ export function LobbyScreen({
                 <Tag tone="neutral" dot>
                   {t('lobby.preview')}
                 </Tag>
+              </div>
+              <div
+                style={{
+                  position: 'absolute',
+                  top: 14,
+                  right: 14,
+                  display: 'flex',
+                  gap: 8,
+                }}
+              >
+                <IconBtn
+                  name="sparkle"
+                  dim={36}
+                  size={16}
+                  variant="glass"
+                  tint="#fff"
+                  onClick={() => {
+                    const next = bgMode === 'off' ? 'blur' : 'off'
+                    onSetBgMode(next)
+                  }}
+                  ariaLabel={t('settings.row.background')}
+                />
+                {videoDevices.length > 1 && (
+                  <IconBtn
+                    name="camFlip"
+                    dim={36}
+                    size={16}
+                    variant="glass"
+                    tint="#fff"
+                    onClick={() => {
+                      const idx = videoDevices.findIndex(
+                        (d) => d.unique_id === selectedVideoInput
+                      )
+                      const nextDev =
+                        videoDevices[(idx + 1) % videoDevices.length]
+                      if (nextDev) setSelectedVideoInput(nextDev.unique_id)
+                    }}
+                    ariaLabel={t('call.switchCamera')}
+                  />
+                )}
               </div>
               <div
                 style={{

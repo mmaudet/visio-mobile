@@ -351,5 +351,11 @@
   "home.upcoming.live": "Live",
   "home.access.public": "Openbaar",
   "home.access.restricted": "Beperkt",
-  "home.access.invite": "Alleen op uitnodiging"
+  "home.access.invite": "Alleen op uitnodiging",
+  "common.comingSoon": "binnenkort beschikbaar",
+  "home.upcoming.refreshed": "Agenda ververst",
+  "home.notifications.summary": "{count} aanstaande vergadering(en) — zie « Aanstaande »",
+  "home.notifications.empty": "Geen meldingen nu",
+  "settings.row.clearData.confirm": "Alle lokale geschiedenis permanent verwijderen? Dit is onomkeerbaar.",
+  "settings.row.clearData.done": "Lokale gegevens gewist."
 }

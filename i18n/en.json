@@ -351,5 +351,11 @@
   "home.upcoming.live": "Live",
   "home.access.public": "Public",
   "home.access.restricted": "Restricted",
-  "home.access.invite": "Invite only"
+  "home.access.invite": "Invite only",
+  "common.comingSoon": "coming soon",
+  "home.upcoming.refreshed": "Calendar refreshed",
+  "home.notifications.summary": "{count} upcoming meeting(s) — see “Upcoming”",
+  "home.notifications.empty": "No notification right now",
+  "settings.row.clearData.confirm": "Permanently delete all local history? This cannot be undone.",
+  "settings.row.clearData.done": "Local data cleared."
 }

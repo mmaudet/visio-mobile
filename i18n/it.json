@@ -351,5 +351,11 @@
   "home.upcoming.live": "Live",
   "home.access.public": "Pubblico",
   "home.access.restricted": "Limitato",
-  "home.access.invite": "Solo su invito"
+  "home.access.invite": "Solo su invito",
+  "common.comingSoon": "presto disponibile",
+  "home.upcoming.refreshed": "Calendario aggiornato",
+  "home.notifications.summary": "{count} riunione/i in arrivo — vedi « In arrivo »",
+  "home.notifications.empty": "Nessuna notifica al momento",
+  "settings.row.clearData.confirm": "Eliminare definitivamente tutta la cronologia locale? Operazione irreversibile.",
+  "settings.row.clearData.done": "Dati locali cancellati."
 }

@@ -18,6 +18,8 @@ export interface HomeScreenProps {
   onJoinByCode: (code: string) => void
   onOpenMeeting: (m: Meeting) => void
   onOpenCalendar: () => void
+  onOpenNotifications: () => void
+  onOpenInstance: () => void
 }
 
 function isOngoing(m: Meeting): boolean {
@@ -165,6 +167,8 @@ export function HomeScreen({
   onJoinByCode,
   onOpenMeeting,
   onOpenCalendar,
+  onOpenNotifications,
+  onOpenInstance,
 }: HomeScreenProps) {
   const [joinCode, setJoinCode] = useState('')
   const [search, setSearch] = useState('')
@@ -226,9 +230,18 @@ export function HomeScreen({
         </div>
         <div style={{ flex: 1 }} />
         {instanceHost && (
-          <span className="v-chip" style={{ height: 36 }}>
+          <button
+            onClick={onOpenInstance}
+            className="v-chip"
+            style={{
+              height: 36,
+              border: 'none',
+              cursor: 'pointer',
+              fontFamily: 'var(--font-ui)',
+            }}
+          >
             <Icon name="globe" size={14} /> {instanceHost}
-          </span>
+          </button>
         )}
         <IconBtn
           name="bell"
@@ -237,6 +250,7 @@ export function HomeScreen({
           variant="soft"
           badge={notifBadge > 0 ? notifBadge : undefined}
           ariaLabel={t('home.notifications')}
+          onClick={onOpenNotifications}
         />
       </div>
 

@@ -351,5 +351,11 @@
   "home.upcoming.live": "Live",
   "home.access.public": "Public",
   "home.access.restricted": "Restreint",
-  "home.access.invite": "Sur invitation"
+  "home.access.invite": "Sur invitation",
+  "common.comingSoon": "bientôt disponible",
+  "home.upcoming.refreshed": "Calendrier rafraîchi",
+  "home.notifications.summary": "{count} réunion(s) imminente(s) — voir « À venir »",
+  "home.notifications.empty": "Aucune notification pour le moment",
+  "settings.row.clearData.confirm": "Supprimer définitivement tout l’historique local ? Cette action est irréversible.",
+  "settings.row.clearData.done": "Données locales effacées."
 }

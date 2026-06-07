@@ -351,5 +351,11 @@
   "home.upcoming.live": "Live",
   "home.access.public": "Öffentlich",
   "home.access.restricted": "Eingeschränkt",
-  "home.access.invite": "Nur auf Einladung"
+  "home.access.invite": "Nur auf Einladung",
+  "common.comingSoon": "bald verfügbar",
+  "home.upcoming.refreshed": "Kalender aktualisiert",
+  "home.notifications.summary": "{count} anstehende Besprechung(en) — siehe „Demnächst“",
+  "home.notifications.empty": "Keine Benachrichtigung im Moment",
+  "settings.row.clearData.confirm": "Gesamten lokalen Verlauf endgültig löschen? Diese Aktion kann nicht rückgängig gemacht werden.",
+  "settings.row.clearData.done": "Lokale Daten gelöscht."
 }
