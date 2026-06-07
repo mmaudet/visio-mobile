@@ -64,6 +64,8 @@ export interface CallScreenProps {
   peopleOpen: boolean
   /** Floating reactions to overlay on participant tiles (auto-expire). */
   liveReactions: Array<{ id: number; sid: string; emoji: string; ts: number }>
+  pinnedSid: string | null
+  onTogglePin: (sid: string) => void
 }
 
 const TONE_PALETTE = [
@@ -552,6 +554,8 @@ interface ParticipantsPanelProps {
   participants: Participant[]
   activeSpeakers: string[]
   handRaisedMap: Record<string, number>
+  pinnedSid: string | null
+  onTogglePin: (sid: string) => void
   onClose: () => void
 }
 function ParticipantsPanel({
@@ -560,6 +564,8 @@ function ParticipantsPanel({
   participants,
   activeSpeakers,
   handRaisedMap,
+  pinnedSid,
+  onTogglePin,
   onClose,
 }: ParticipantsPanelProps) {
   const speak = new Set(activeSpeakers)
@@ -685,6 +691,23 @@ function ParticipantsPanel({
                 size={14}
                 color={p.is_muted ? '#ff6b6f' : 'rgba(255,255,255,0.6)'}
               />
+              <button
+                onClick={() => onTogglePin(p.sid)}
+                aria-label={pinnedSid === p.sid ? 'Unpin' : 'Pin'}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  cursor: 'pointer',
+                  color:
+                    pinnedSid === p.sid
+                      ? 'var(--accent)'
+                      : 'rgba(255,255,255,0.4)',
+                  padding: 2,
+                  display: 'inline-flex',
+                }}
+              >
+                <Icon name="pin" size={14} />
+              </button>
             </div>
           )
         })}
@@ -1323,6 +1346,8 @@ export function CallScreen(props: CallScreenProps) {
     onTogglePeople,
     peopleOpen,
     liveReactions,
+    pinnedSid,
+    onTogglePin,
   } = props
 
   const [chatOpen, setChatOpenState] = useState(false)
@@ -1372,17 +1397,30 @@ export function CallScreen(props: CallScreenProps) {
   }, [])
   const timer = fmtElapsed(callStartedMs ?? now, now)
 
-  const items = useMemo(
-    () =>
-      buildDisplayItems(
-        localParticipant,
-        participants,
-        activeSpeakers,
-        handRaisedMap,
-        t
-      ),
-    [localParticipant, participants, activeSpeakers, handRaisedMap, t]
-  )
+  const items = useMemo(() => {
+    const raw = buildDisplayItems(
+      localParticipant,
+      participants,
+      activeSpeakers,
+      handRaisedMap,
+      t
+    )
+    if (!pinnedSid) return raw
+    // Hoist pinned participant's camera tile to position 0; keep the rest of
+    // the order stable (insertion order).
+    const pinIdx = raw.findIndex(
+      (it) => it.participant.sid === pinnedSid && it.source === 'camera'
+    )
+    if (pinIdx <= 0) return raw
+    return [raw[pinIdx], ...raw.slice(0, pinIdx), ...raw.slice(pinIdx + 1)]
+  }, [
+    localParticipant,
+    participants,
+    activeSpeakers,
+    handRaisedMap,
+    pinnedSid,
+    t,
+  ])
 
   const cols = gridCols(items.length)
   const rows = gridRows(items.length)
@@ -1574,6 +1612,8 @@ export function CallScreen(props: CallScreenProps) {
             participants={participants}
             activeSpeakers={activeSpeakers}
             handRaisedMap={handRaisedMap}
+            pinnedSid={pinnedSid}
+            onTogglePin={onTogglePin}
             onClose={onTogglePeople}
           />
         )}
