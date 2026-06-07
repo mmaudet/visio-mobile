@@ -2055,11 +2055,25 @@ function ScreenSharePicker({
           <div
             style={{
               padding: '32px 0',
-              textAlign: 'center',
-              color: 'rgba(255,255,255,0.6)',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: 12,
+              color: 'rgba(255,255,255,0.65)',
               fontSize: 14,
             }}
           >
+            <span
+              aria-hidden
+              style={{
+                width: 22,
+                height: 22,
+                borderRadius: '50%',
+                border: '2.5px solid rgba(255,255,255,0.12)',
+                borderTopColor: 'var(--accent)',
+                animation: 'vspin .8s linear infinite',
+              }}
+            />
             {t('home.connecting')}
           </div>
         ) : (
