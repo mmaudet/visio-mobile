@@ -98,6 +98,16 @@ and this project adheres to
 
 ### Fixed
 
+- Desktop (macOS): screen sharing now recovers from the "empty
+  Settings list" loop. When `CGPreflightScreenCaptureAccess()`
+  reports no permission, the app now calls
+  `CGRequestScreenCaptureAccess()` before its restart modal so
+  macOS creates the TCC entry tied to the current binary's cdhash.
+  Previously, on a fresh install or after a code-signing identity
+  change, the System Settings → Screen Recording list was empty
+  and the user had no toggle to flip. The app appeared installed,
+  the modal said "enable in Settings", and Settings showed nothing
+  to enable.
 - Core: `scheme_for` now parses bare hosts via `IpAddr` so
   `10.attacker.com` no longer downgrades to plaintext HTTP, and
   IPv6 literals (`::1`, `[::1]:8080`) are handled correctly
