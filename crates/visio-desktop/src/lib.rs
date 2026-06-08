@@ -1183,7 +1183,11 @@ async fn mute_participant(
 /// returns true (Linux uses portals, Windows asks per-share at capture time).
 #[tauri::command]
 fn has_screen_recording_permission() -> bool {
-    screen_capture::has_screen_recording_permission()
+    let granted = screen_capture::has_screen_recording_permission();
+    tracing::info!(
+        "has_screen_recording_permission -> {granted} (CGPreflightScreenCaptureAccess)"
+    );
+    granted
 }
 
 /// Triggers the macOS Screen Recording TCC dialog if permission is not yet

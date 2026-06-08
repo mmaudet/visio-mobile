@@ -415,7 +415,7 @@
   "lobby.error.mic": "Micrófono no disponible. Verifique los permisos del sistema.",
   "lobby.error.dismiss": "Cerrar",
   "share.permission.title": "Permiso necesario",
-  "share.permission.message": "macOS necesita autorizar a Visio Mobile a grabar la pantalla. Actívelo en Ajustes del Sistema → Privacidad y seguridad → Grabación de pantalla, y reinicie la app.",
+  "share.permission.message": "Para compartir su pantalla, Visio Mobile necesita el permiso «Grabación de pantalla y audio del sistema» en Ajustes del Sistema → Privacidad y seguridad. Active Visio Mobile y reinicie la app.",
   "share.permission.restart": "Abrir Ajustes y reiniciar",
   "sidebar.calendar.disabled.hint": "Configure la URL de su calendario en Ajustes para activar esta sección.",
   "home.recentVisios": "Reuniones recientes",

@@ -415,7 +415,7 @@
   "lobby.error.mic": "Microfoon niet beschikbaar. Controleer systeemmachtigingen.",
   "lobby.error.dismiss": "Sluiten",
   "share.permission.title": "Toestemming vereist",
-  "share.permission.message": "macOS moet Visio Mobile toestaan om het scherm op te nemen. Activeer dit in Systeeminstellingen → Privacy & beveiliging → Schermopname en start de app opnieuw.",
+  "share.permission.message": "Om uw scherm te delen heeft Visio Mobile de toestemming \"Scherm- en systeemaudio-opname\" nodig in Systeeminstellingen → Privacy & beveiliging. Schakel Visio Mobile in en start de app opnieuw.",
   "share.permission.restart": "Instellingen openen & opnieuw starten",
   "sidebar.calendar.disabled.hint": "Configureer uw agenda-URL in Instellingen om dit gedeelte in te schakelen.",
   "home.recentVisios": "Recente vergaderingen",
