@@ -468,9 +468,17 @@ async fn validate_room(
     if let Err(e) = visio_core::AuthService::extract_slug(&url) {
         return Ok(serde_json::json!({ "status": "invalid_format", "message": e.to_string() }));
     }
+    // Only attach the OIDC JWT when the request targets the same instance
+    // the user authenticated against. A cross-instance public room (e.g.
+    // meet.linagora.com URL while logged into meet.maudet.cloud) must go
+    // out anonymous — otherwise the foreign server rejects our bearer as
+    // an unknown signature and the frontend mis-detects "auth required".
     let cookie = {
         let session = state.session.lock().await;
-        session.access_token()
+        match visio_core::AuthService::parse_instance(&url) {
+            Ok(host) => session.access_token_for(&host),
+            Err(_) => None,
+        }
     };
     match visio_core::AuthService::validate_room(&url, username.as_deref(), cookie.as_deref()).await
     {
@@ -512,7 +520,10 @@ async fn connect(
 
     let cookie = {
         let session = state.session.lock().await;
-        session.access_token()
+        match visio_core::AuthService::parse_instance(&meet_url) {
+            Ok(host) => session.access_token_for(&host),
+            Err(_) => None,
+        }
     };
     let room = state.room.lock().await;
     room.connect(&meet_url, username.as_deref(), cookie.as_deref())

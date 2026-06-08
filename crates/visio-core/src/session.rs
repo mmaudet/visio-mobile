@@ -113,6 +113,22 @@ impl SessionManager {
         }
     }
 
+    /// Returns the access token only if the target host matches the
+    /// authenticated meet instance. Cross-host requests get None so we
+    /// never leak a meet.maudet.cloud JWT to meet.linagora.com (which
+    /// would reject it as invalid and surface AuthRequired even for
+    /// public rooms). Comparison is case-insensitive on the bare host.
+    pub fn access_token_for(&self, host: &str) -> Option<String> {
+        match &self.state {
+            SessionState::Authenticated {
+                tokens,
+                meet_instance,
+                ..
+            } if meet_instance.eq_ignore_ascii_case(host) => Some(tokens.access.clone()),
+            _ => None,
+        }
+    }
+
     pub fn refresh_token(&self) -> Option<String> {
         match &self.state {
             SessionState::Authenticated { tokens, .. } => Some(tokens.refresh.clone()),
@@ -359,6 +375,50 @@ mod tests {
         session.set_authenticated(user, sample_tokens(), "meet.example.com".to_string());
         assert_eq!(session.access_token().as_deref(), Some("access-jwt"));
         assert_eq!(session.refresh_token().as_deref(), Some("refresh-jwt"));
+    }
+
+    #[test]
+    fn test_access_token_for_same_host_returns_token() {
+        let mut session = SessionManager::new();
+        let user = UserInfo {
+            id: "1".to_string(),
+            email: "a@b.com".to_string(),
+            full_name: Some("A".to_string()),
+            short_name: None,
+        };
+        session.set_authenticated(user, sample_tokens(), "meet.maudet.cloud".to_string());
+        assert_eq!(
+            session.access_token_for("meet.maudet.cloud").as_deref(),
+            Some("access-jwt")
+        );
+        // Case-insensitive on the host comparison.
+        assert_eq!(
+            session.access_token_for("MEET.MAUDET.CLOUD").as_deref(),
+            Some("access-jwt")
+        );
+    }
+
+    #[test]
+    fn test_access_token_for_other_host_returns_none() {
+        let mut session = SessionManager::new();
+        let user = UserInfo {
+            id: "1".to_string(),
+            email: "a@b.com".to_string(),
+            full_name: Some("A".to_string()),
+            short_name: None,
+        };
+        session.set_authenticated(user, sample_tokens(), "meet.maudet.cloud".to_string());
+        // Cross-instance call must not leak the local JWT.
+        assert!(session.access_token_for("meet.linagora.com").is_none());
+        assert!(session
+            .access_token_for("visio.numerique.gouv.fr")
+            .is_none());
+    }
+
+    #[test]
+    fn test_access_token_for_anonymous_is_none() {
+        let session = SessionManager::new();
+        assert!(session.access_token_for("meet.maudet.cloud").is_none());
     }
 
     #[test]
