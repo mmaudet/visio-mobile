@@ -1519,36 +1519,42 @@ export function CallScreen(props: CallScreenProps) {
       invoke('stop_screen_share').catch(() => {})
       return
     }
-    // Don't pre-check has_screen_recording_permission. macOS Sequoia adds
-    // its own re-confirmation prompts that race with our preflight; we
-    // ended up double-prompting in iter-13/14 reports. Instead just call
-    // list_screen_sources and inspect the result:
-    //   - real monitors / 3rd-party windows present → show the picker
-    //   - empty list (or only Visio's own windows) → permission likely
-    //     missing, open our restart-needed modal
+    // Permission gating, take three.
+    //
+    // iter-13 raced our modal with the macOS native dialog (double prompt).
+    // iter-15 dropped the preflight, opening the picker even when xcap can
+    // only see monitors → user clicks Screen 1 → start_screen_share runs →
+    // macOS shows its "permission required" dialog at capture time and the
+    // share never starts.
+    //
+    // The cleanest gate is still CGPreflightScreenCaptureAccess: it returns
+    // true iff the user has the toggle ON in Réglages Système →
+    // Confidentialité → Enregistrement de l'écran AND the running process
+    // started after that grant. We trust it: if it's false we never call
+    // xcap at all and instead show our restart-required modal once.
+    let hasPerm = false
+    try {
+      hasPerm = await invoke<boolean>('has_screen_recording_permission')
+    } catch (e) {
+      console.error('has_screen_recording_permission failed:', e)
+      hasPerm = false
+    }
+    if (!hasPerm) {
+      const ok = await confirm({
+        title: t('share.permission.title'),
+        message: t('share.permission.message'),
+        confirmLabel: t('share.permission.restart'),
+        cancelLabel: t('settings.cancel'),
+      })
+      if (ok) {
+        invoke('open_screen_recording_settings').catch(() => {})
+        invoke('restart_app').catch(() => {})
+      }
+      return
+    }
     setShareSources([])
     try {
       const sources = await invoke<ScreenSource[]>('list_screen_sources')
-      const hasRealSources = sources.some(
-        (s) =>
-          s.source_type === 'monitor' ||
-          (s.source_type === 'window' &&
-            !s.name.toLowerCase().startsWith('visio'))
-      )
-      if (!hasRealSources) {
-        setShareSources(null)
-        const ok = await confirm({
-          title: t('share.permission.title'),
-          message: t('share.permission.message'),
-          confirmLabel: t('share.permission.restart'),
-          cancelLabel: t('settings.cancel'),
-        })
-        if (ok) {
-          invoke('open_screen_recording_settings').catch(() => {})
-          invoke('restart_app').catch(() => {})
-        }
-        return
-      }
       setShareSources(sources)
     } catch (e) {
       console.error('list_screen_sources failed:', e)

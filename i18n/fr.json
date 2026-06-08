@@ -415,7 +415,7 @@
   "lobby.error.mic": "Micro indisponible. Vérifiez les autorisations système.",
   "lobby.error.dismiss": "Fermer",
   "share.permission.title": "Autorisation requise",
-  "share.permission.message": "macOS doit autoriser Visio Mobile à enregistrer l'écran. Activez-le dans Réglages Système → Confidentialité et sécurité → Enregistrement de l'écran, puis relancez l'application pour que l'autorisation s'applique.",
+  "share.permission.message": "Pour partager votre écran, Visio Mobile a besoin de l’autorisation « Enregistrement de l’écran et des sons du système » dans Réglages Système → Confidentialité et sécurité. Activez le bouton à côté de Visio Mobile, puis relancez l’application pour que la permission s’applique.",
   "share.permission.restart": "Ouvrir Réglages et relancer",
   "sidebar.calendar.disabled.hint": "Configurez l’URL de votre calendrier dans Réglages pour activer cette section.",
   "home.recentVisios": "Dernières réunions",
