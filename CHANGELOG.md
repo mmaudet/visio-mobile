@@ -65,6 +65,14 @@ and this project adheres to
   Future SHA bumps for `dtolnay/rust-toolchain` or
   `Swatinem/rust-cache` are a one-file edit.
 
+### Fixed
+
+- iOS: App Store metadata. Release notes for all 6 locales now
+  describe 0.10.0 (OAuth 2.0 + PKCE, encrypted Keychain storage,
+  hardened HTTPS, security audits) instead of carrying the stale
+  0.9.0 changelog. Unblocks the Apple submission that was rejected
+  under Guideline 2.3.10 on 2026-06-05.
+
 ## [0.10.0] - 2026-06-04
 
 ### Added
