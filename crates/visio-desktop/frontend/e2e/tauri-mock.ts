@@ -207,6 +207,14 @@ export async function mockTauriCall(
             return state.videoInputDevices;
           case 'list_screen_sources':
             return state.screenSources;
+          case 'has_screen_recording_permission':
+            return true;
+          case 'request_screen_recording_permission':
+            return true;
+          case 'open_screen_recording_settings':
+            return;
+          case 'restart_app':
+            return;
           case 'toggle_mic':
             micEnabled = args?.enabled ?? !micEnabled;
             return;

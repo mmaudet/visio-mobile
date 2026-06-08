@@ -1519,19 +1519,26 @@ export function CallScreen(props: CallScreenProps) {
       invoke('stop_screen_share').catch(() => {})
       return
     }
-    // Permission gating, take three.
+    // Permission gating, take four.
     //
     // iter-13 raced our modal with the macOS native dialog (double prompt).
     // iter-15 dropped the preflight, opening the picker even when xcap can
-    // only see monitors → user clicks Screen 1 → start_screen_share runs →
-    // macOS shows its "permission required" dialog at capture time and the
-    // share never starts.
+    // only see monitors. iter-16 restored CGPreflight as the strict gate.
     //
-    // The cleanest gate is still CGPreflightScreenCaptureAccess: it returns
-    // true iff the user has the toggle ON in Réglages Système →
-    // Confidentialité → Enregistrement de l'écran AND the running process
-    // started after that grant. We trust it: if it's false we never call
-    // xcap at all and instead show our restart-required modal once.
+    // iter-17 reports surfaced a stuck state: on a fresh install (or after
+    // `tccutil reset ScreenCapture io.visio.desktop`, or after a code-signing
+    // identity change between two installed builds), the TCC database has
+    // *no* entry for our bundle. CGPreflight returns false, we show the
+    // restart modal, the user opens Settings → and the Screen Recording list
+    // is empty: there is no toggle to flip because no entry has ever been
+    // recorded for the current cdhash. They restart, retry, same loop.
+    //
+    // iter-18 fix: when preflight reports false, call
+    // CGRequestScreenCaptureAccess() first. That call creates the TCC entry
+    // tied to the current binary's cdhash and, if the entry is new, surfaces
+    // the macOS native consent dialog. Either way, Settings will from now on
+    // show a Visio Mobile toggle the user can manage. After they respond we
+    // still need a process restart for the grant to take effect.
     let hasPerm = false
     try {
       hasPerm = await invoke<boolean>('has_screen_recording_permission')
@@ -1540,6 +1547,11 @@ export function CallScreen(props: CallScreenProps) {
       hasPerm = false
     }
     if (!hasPerm) {
+      try {
+        await invoke('request_screen_recording_permission')
+      } catch (e) {
+        console.error('request_screen_recording_permission failed:', e)
+      }
       const ok = await confirm({
         title: t('share.permission.title'),
         message: t('share.permission.message'),
