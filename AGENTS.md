@@ -88,6 +88,7 @@ npx playwright test path/to/test.ts  # Run a single test file
 ```
 
 > There are no unit tests for the TypeScript frontend. All TS tests are Playwright E2E.
+> The suite runs in CI on every PR to `main` (job `test-frontend`).
 
 ---
 
@@ -118,11 +119,11 @@ cargo clippy -- -D warnings
 
 ### TypeScript
 
-No ESLint or Prettier config exists. Type-check only:
-
 ```sh
 # Working directory: crates/visio-desktop/frontend/
-npx tsc --noEmit
+npm run lint          # ESLint — any warning fails the run (--max-warnings 0)
+npm run format:check  # Prettier check
+npx tsc --noEmit      # Type-check
 ```
 
 ---
@@ -225,6 +226,8 @@ npx tsc --noEmit
 | `test-rust` | `cargo test -p visio-core --lib` | PR to `main` |
 | `lint-rust` | `cargo fmt --check` + `cargo clippy -D warnings` | PR to `main` |
 | `lint-android` | `./gradlew ktlintCheck` | PR to `main` |
+| `lint-frontend` | `npm run lint` + `npm run format:check` | PR to `main` |
+| `test-frontend` | `npx playwright test` | PR to `main` |
 | `test-android-ui` | `./gradlew connectedAndroidTest` | `workflow_dispatch` only |
 
 All CI jobs must pass before merging to `main`.

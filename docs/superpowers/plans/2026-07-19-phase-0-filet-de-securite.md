@@ -283,7 +283,7 @@ La suite tourne en local ; elle n'est jamais lancée en CI. Ajouter un job `test
       - name: Upload test results on failure
         if: failure()
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7
-        # même SHA épinglé que les 4 autres workflows du repo (build-*.yml)
+        # même SHA épinglé que les autres workflows build-*
         with:
           name: playwright-test-results
           path: crates/visio-desktop/frontend/test-results/
@@ -534,9 +534,11 @@ useEffect(() => {
 6. **App listener `onOpenUrl` (~ligne 5022)** : conserver tel quel (ré-abonnement à chaque frappe du displayName indésirable) — ajouter juste au-dessus de la ligne des deps :
 
 ```tsx
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- listener global
-    // enregistré une fois ; relire displayName/t à chaque frappe forcerait un
-    // ré-abonnement permanent pour un cas d'usage rare (deep link).
+    // Listener global enregistré une fois ; relire displayName/t à chaque
+    // frappe forcerait un ré-abonnement permanent pour un cas d'usage rare
+    // (deep link).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 ```
 
 - [ ] **Step 2: Justifier les 7 no-empty**
