@@ -36,6 +36,8 @@ export interface MockCallState {
     height: number;
   }>;
   connectionState?: string;
+  /** When true, validate_room returns auth_required until a successful OIDC exchange */
+  roomRequiresAuth?: boolean;
 }
 
 const defaultState: MockCallState = {
@@ -122,6 +124,7 @@ export async function mockTauriCall(
     let cameraEnabled = true;
     let isScreenSharing = false;
     let handRaised = false;
+    let oidcAuthenticated = false;
     const chatMessages = [...state.messages];
 
     // Callback registry (mimics Tauri's transformCallback system)
@@ -149,8 +152,21 @@ export async function mockTauriCall(
     // Event listener registry for plugin:event|listen mocking
     const eventListeners = new Map<string, number[]>();
 
+    // Record of all invoke() calls, for test assertions
+    (window as any).__invokeLog = [] as Array<{ cmd: string; args: any }>;
+
+    // Test helper: deliver an event to registered listeners (mimics Tauri emit)
+    (window as any).__emitTauriEvent = (event: string, payload: unknown) => {
+      const ids = eventListeners.get(event) || [];
+      for (const id of ids) {
+        const cb = callbacks.get(id);
+        if (cb) cb({ event, payload });
+      }
+    };
+
     (window as any).__TAURI_INTERNALS__ = {
       invoke: async (cmd: string, args?: any) => {
+        (window as any).__invokeLog.push({ cmd, args });
         // Handle event plugin commands used by @tauri-apps/api/event listen()
         if (cmd === 'plugin:event|listen') {
           const event = args?.event;
@@ -267,12 +283,30 @@ export async function mockTauriCall(
             return [];
           case 'get_session_state':
             return { state: 'unauthenticated' };
+          case 'get_visio_history':
+            return [];
+          case 'get_upcoming_meetings':
+            return [];
+          case 'is_oidc_enabled':
+            return true;
           case 'validate_room':
+            if (state.roomRequiresAuth && !oidcAuthenticated) {
+              return { status: 'auth_required' };
+            }
             return {
               status: 'valid',
               livekit_url: 'ws://localhost:7880',
               token: 'fake-token',
               room_name: 'test-room',
+            };
+          case 'launch_oidc_browser':
+            return;
+          case 'exchange_oidc_code':
+            oidcAuthenticated = true;
+            return {
+              display_name: 'OIDC User',
+              email: 'oidc@example.com',
+              meet_instance: args?.meetInstance,
             };
           case 'load_blur_model':
             return;

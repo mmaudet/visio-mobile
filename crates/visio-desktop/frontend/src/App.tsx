@@ -888,6 +888,7 @@ function HomeView({
   onLaunchOidc,
   onLogout,
   meetInstances,
+  registerPostAuthAction,
 }: Readonly<{
   onJoin: (
     meetUrl: string,
@@ -910,6 +911,7 @@ function HomeView({
   onLaunchOidc: (meetInstance: string) => void
   onLogout: () => void
   meetInstances: string[]
+  registerPostAuthAction: (fn: (() => void) | null) => void
 }>) {
   const t = useT()
   const [activeTab, setActiveTab] = useState<'join' | 'meetings'>('join')
@@ -1156,28 +1158,45 @@ function HomeView({
     }
   }
 
-  const handleAuth = async () => {
+  const handleAuth = () => {
     try {
       // Extract the instance hostname from the resolved URL
       const url = new URL(
         resolvedUrl.startsWith('http') ? resolvedUrl : `https://${resolvedUrl}`
       )
+      setError('')
       setRoomStatus('authenticating')
-      await invoke('start_oidc_auth', { meetInstance: url.hostname })
-      // After auth, re-trigger validation by bumping state
-      setRoomStatus('checking')
-      const result = await invoke<{ status: string }>('validate_room', {
-        url: resolvedUrl,
-        username: displayName.trim() || null,
-      })
-      if (result.status === 'valid') setRoomStatus('valid')
-      else if (result.status === 'auth_required') setRoomStatus('auth_required')
-      else setRoomStatus('error')
+      // The OIDC flow is asynchronous: the exchange code comes back via the
+      // visio://auth-callback deep link, then revalidateRoom runs (see below).
+      onLaunchOidc(url.hostname)
     } catch (e) {
       setError(String(e))
       setRoomStatus('auth_required')
     }
   }
+
+  // Re-validate the room once the OIDC exchange completes successfully.
+  // Registered with App, which invokes it from the auth-callback handler.
+  const revalidateRoom = useCallback(() => {
+    if (roomStatus !== 'authenticating') return
+    setRoomStatus('checking')
+    invoke<{ status: string }>('validate_room', {
+      url: resolvedUrl,
+      username: displayName.trim() || null,
+    })
+      .then((result) => {
+        if (result.status === 'valid') setRoomStatus('valid')
+        else if (result.status === 'auth_required')
+          setRoomStatus('auth_required')
+        else setRoomStatus('error')
+      })
+      .catch(() => setRoomStatus('error'))
+  }, [roomStatus, resolvedUrl, displayName])
+
+  useEffect(() => {
+    registerPostAuthAction(revalidateRoom)
+    return () => registerPostAuthAction(null)
+  }, [registerPostAuthAction, revalidateRoom])
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') handleJoin()
@@ -1437,27 +1456,6 @@ function HomeView({
               >
                 {t('home.createRoom')}
               </button>
-            )}
-            {roomStatus === 'auth_required' && (
-              <div
-                className="room-status auth-required"
-                data-testid="home-room-status"
-              >
-                {t('home.room.authRequired')}
-              </div>
-            )}
-            {roomStatus === 'authenticating' && (
-              <div
-                className="room-status checking"
-                data-testid="home-room-status"
-              >
-                {t('home.room.authenticating')}
-              </div>
-            )}
-            {roomStatus === 'error' && (
-              <div className="room-status error" data-testid="home-room-status">
-                {t('home.room.error')}
-              </div>
             )}
             <div className="error-msg">{error}</div>
             {visioHistory.length > 0 && (
@@ -4857,6 +4855,12 @@ export default function App() {
     null
   )
   const pendingOidcRef = useRef<string | null>(null)
+  // One-shot action run after a successful OIDC code exchange (e.g. HomeView
+  // re-validating a room that required authentication).
+  const postAuthActionRef = useRef<(() => void) | null>(null)
+  const registerPostAuthAction = useCallback((fn: (() => void) | null) => {
+    postAuthActionRef.current = fn
+  }, [])
   const [bandwidthMode, setBandwidthMode] = useState<string>('full')
   const settingsRef = useRef<Settings | null>(null)
 
@@ -4949,6 +4953,7 @@ export default function App() {
                     }
                   })
                   .catch(() => {})
+                postAuthActionRef.current?.()
               })
               .catch((e) => {
                 console.error('OIDC code exchange failed:', e)
@@ -5606,6 +5611,7 @@ export default function App() {
                   pendingOidcRef.current = null
                 }
               }}
+              registerPostAuthAction={registerPostAuthAction}
               meetInstances={meetInstances}
               onLogout={() => {
                 if (authenticatedMeetInstance) {
