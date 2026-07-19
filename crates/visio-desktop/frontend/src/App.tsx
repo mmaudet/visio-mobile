@@ -3918,7 +3918,11 @@ function SettingsView({
   return (
     <div className="settings-page">
       <div className="settings-page-header">
-        <button className="settings-back-btn" onClick={onClose}>
+        <button
+          className="settings-back-btn"
+          data-testid="settings-close-button"
+          onClick={onClose}
+        >
           <RiArrowLeftSLine size={22} />
         </button>
         <span>{t('settings')}</span>
