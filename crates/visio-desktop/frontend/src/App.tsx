@@ -232,85 +232,6 @@ function detectSystemLang(): string {
 }
 
 // ---------------------------------------------------------------------------
-// Logo SVG tricolore
-// ---------------------------------------------------------------------------
-
-function VisioLogo({ size = 64 }: Readonly<{ size?: number }>) {
-  // Camera body: 64×54 (ratio ~1.19), centered at x=52
-  // Wifi arcs: 3 concentric arcs (r=10,17,24) centered at (52,62), pointing up
-  // Stripe: same width as camera body (64), centered on same axis
-  const stripeX = 20
-  const thirdW = 64 / 3
-  return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 128 128"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-      className="home-logo"
-    >
-      {/* Camera body */}
-      <rect x="20" y="26" width="64" height="54" rx="10" fill="#000091" />
-      {/* Camera lens notch */}
-      <path d="M84 44 L108 32 L108 74 L84 62 Z" fill="#000091" />
-      {/* Wifi dot */}
-      <circle cx="52" cy="62" r="3" fill="#fff" />
-      {/* Wifi arc — small (r=10) */}
-      <path
-        d="M45 55 A10 10 0 0 1 59 55"
-        stroke="#fff"
-        strokeWidth="3"
-        strokeLinecap="round"
-        fill="none"
-      />
-      {/* Wifi arc — medium (r=17) */}
-      <path
-        d="M40 50 A17 17 0 0 1 64 50"
-        stroke="#fff"
-        strokeWidth="3"
-        strokeLinecap="round"
-        fill="none"
-      />
-      {/* Wifi arc — large (r=24) */}
-      <path
-        d="M35 45 A24 24 0 0 1 69 45"
-        stroke="#fff"
-        strokeWidth="3"
-        strokeLinecap="round"
-        fill="none"
-      />
-      {/* Tricolore stripe — centered under camera body */}
-      <rect
-        x={stripeX}
-        y="92"
-        width={thirdW}
-        height="9"
-        rx="3"
-        fill="#000091"
-      />
-      <rect
-        x={stripeX + thirdW}
-        y="92"
-        width={thirdW}
-        height="9"
-        fill="#FFFFFF"
-        stroke="#D1D1D6"
-        strokeWidth="0.5"
-      />
-      <rect
-        x={stripeX + thirdW * 2}
-        y="92"
-        width={thirdW}
-        height="9"
-        rx="3"
-        fill="#E1000F"
-      />
-    </svg>
-  )
-}
-
-// ---------------------------------------------------------------------------
 // Screen Share Icon
 // ---------------------------------------------------------------------------
 
@@ -437,9 +358,6 @@ function ParticipantTile({
   } else {
     displayName = displayItem.label
   }
-  const initials = getInitials(displayName)
-  const hue = getHue(displayName)
-
   const videoSrc = trackSid ? videoFrames.get(trackSid) : undefined
 
   // Video paused by bandwidth degradation — show placeholder
@@ -638,7 +556,6 @@ function MeetingsTab({
     'onboarding' | 'loading' | 'empty' | 'list' | 'error'
   >('onboarding')
   const [meetings, setMeetings] = useState<Meeting[]>([])
-  const [calendarUrl, setCalendarUrl] = useState<string | null>(null)
   const [joining, setJoining] = useState<string | null>(null)
   const [loadingMessage, setLoadingMessage] = useState<string>('')
   const [lastSyncTime, setLastSyncTime] = useState<Date | null>(null)
@@ -657,7 +574,6 @@ function MeetingsTab({
   useEffect(() => {
     invoke<string | null>('get_calendar_url')
       .then((url) => {
-        setCalendarUrl(url ?? null)
         if (!url) {
           setStatus('onboarding')
           return
@@ -916,7 +832,6 @@ function HomeView({
   const t = useT()
   const [activeTab, setActiveTab] = useState<'join' | 'meetings'>('join')
   const [meetUrl, setMeetUrl] = useState('')
-  const [roomDisplayName, setRoomDisplayName] = useState('')
   const [resolvedUrl, setResolvedUrl] = useState('')
   const [visioHistory, setRoomHistory] = useState<VisioHistoryEntry[]>([])
   const [meetingCount, setMeetingCount] = useState(0)
@@ -1136,15 +1051,10 @@ function HomeView({
   }, [meetUrl])
 
   const handleJoin = async () => {
-    let url = resolvedUrl
+    const url = resolvedUrl
     if (!url) {
       setError(t('home.error.noUrl'))
       return
-    }
-    const trimmedDisplayName = roomDisplayName.trim()
-    if (trimmedDisplayName) {
-      const sep = url.includes('?') ? '&' : '?'
-      url = `${url}${sep}visio=${encodeURIComponent(trimmedDisplayName)}`
     }
     setError('')
     setJoining(true)
@@ -1592,7 +1502,6 @@ function CreateRoomDialog({
   const [searchQuery, setSearchQuery] = useState('')
   const [searchResults, setSearchResults] = useState<any[]>([])
   const [invitedUsers, setInvitedUsers] = useState<any[]>([])
-  const [searching, setSearching] = useState(false)
   const [createdRoomId, setCreatedRoomId] = useState('')
   const [createdLivekitUrl, setCreatedLivekitUrl] = useState('')
   const [createdLivekitToken, setCreatedLivekitToken] = useState('')
@@ -1609,7 +1518,6 @@ function CreateRoomDialog({
       return
     }
     const timer = setTimeout(async () => {
-      setSearching(true)
       try {
         const results = await invoke<any[]>('search_users', {
           query: searchQuery,
@@ -1622,7 +1530,6 @@ function CreateRoomDialog({
       } catch {
         setSearchResults([])
       }
-      setSearching(false)
     }, 300)
     return () => clearTimeout(timer)
   }, [searchQuery, invitedUsers])
@@ -4859,9 +4766,6 @@ export default function App() {
   const [emailFromOidc, setEmailFromOidc] = useState('')
   const [authenticatedMeetInstance, setAuthenticatedMeetInstance] = useState('')
   const [meetInstances, setMeetInstances] = useState<string[]>([])
-  const [pendingOidcInstance, setPendingOidcInstance] = useState<string | null>(
-    null
-  )
   const pendingOidcRef = useRef<string | null>(null)
   // One-shot action run after a successful OIDC code exchange (e.g. HomeView
   // re-validating a room that required authentication).
@@ -4936,7 +4840,6 @@ export default function App() {
           const meetInstance = pendingOidcRef.current
           if (code && meetInstance) {
             pendingOidcRef.current = null
-            setPendingOidcInstance(null)
             invoke<{
               display_name?: string
               email?: string
@@ -5610,12 +5513,10 @@ export default function App() {
               emailFromOidc={emailFromOidc}
               onLaunchOidc={async (meetInstance: string) => {
                 try {
-                  setPendingOidcInstance(meetInstance)
                   pendingOidcRef.current = meetInstance
                   await invoke('launch_oidc_browser', { meetInstance })
                 } catch (e) {
                   console.error('Failed to open browser for OIDC:', e)
-                  setPendingOidcInstance(null)
                   pendingOidcRef.current = null
                 }
               }}
@@ -5743,12 +5644,12 @@ export default function App() {
             onCancel={async () => {
               try {
                 await invoke('cancel_lobby')
-              } catch (_) {
+              } catch {
                 /* ignore */
               }
               try {
                 await invoke('disconnect')
-              } catch (_) {
+              } catch {
                 /* ignore */
               }
               setConnectionState('disconnected')
