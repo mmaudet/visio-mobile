@@ -223,10 +223,13 @@ npx tsc --noEmit      # Type-check
 
 | Job | Command | Trigger |
 |---|---|---|
-| `test-rust` | `cargo test -p visio-core --lib` | PR to `main` |
+| `lint-git` | `gitlint` on PR commits | PR to `main` |
+| `check-changelog` / `lint-changelog` | CHANGELOG updated, lines < 80 | PR to `main` |
 | `lint-rust` | `cargo fmt --check` + `cargo clippy -D warnings` | PR to `main` |
-| `lint-android` | `./gradlew ktlintCheck` | PR to `main` |
+| `lint-kotlin` | `./gradlew ktlintCheck` | PR to `main` |
 | `lint-frontend` | `npm run lint` + `npm run format:check` | PR to `main` |
+| `check-i18n` | `./scripts/check-i18n.sh` | PR to `main` |
+| `test-rust` | `cargo test -p visio-core --lib` (+ LiveKit integration) | PR to `main` |
 | `test-frontend` | `npx playwright test` | PR to `main` |
 | `test-android-ui` | `./gradlew connectedAndroidTest` | `workflow_dispatch` only |
 
