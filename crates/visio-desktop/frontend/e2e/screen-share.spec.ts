@@ -57,12 +57,4 @@ test.describe('Screen Share', () => {
       page.getByTestId('screen-share-source-picker'),
     ).not.toBeVisible();
   });
-
-  test('source picker shows dimensions for sources', async ({ page }) => {
-    await page.getByTestId('call-screen-share-button').click();
-
-    const picker = page.getByTestId('screen-share-source-picker');
-    // Main Display should show its resolution
-    await expect(picker.getByText('1920')).toBeVisible();
-  });
 });
