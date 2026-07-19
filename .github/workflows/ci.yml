@@ -127,7 +127,7 @@ jobs:
       - name: Upload test results on failure
         if: failure()
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7
-        # même SHA épinglé que les 4 autres workflows du repo (build-*.yml)
+        # même SHA épinglé que les autres workflows build-* du repo
         with:
           name: playwright-test-results
           path: crates/visio-desktop/frontend/test-results/
