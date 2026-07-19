@@ -328,8 +328,16 @@ Insérer avant la boucle `for locale_file` (ligne 21) :
 ```bash
 # Check that all literal t('...') keys used in the desktop frontend exist
 FRONTEND_SRC="$REPO_ROOT/crates/visio-desktop/frontend/src"
-USED_KEYS=$(grep -rhoE "t\('[a-zA-Z0-9_.]+'" "$FRONTEND_SRC" \
-  | sed "s/^t('//; s/'$//" | sort -u || true)
+USED_KEYS=$(FRONTEND_SRC="$FRONTEND_SRC" python3 <<'PYEOF'
+import os, re, pathlib
+src = pathlib.Path(os.environ["FRONTEND_SRC"])
+keys = set()
+for f in list(src.rglob("*.ts")) + list(src.rglob("*.tsx")):
+    keys.update(re.findall(r"(?<![A-Za-z0-9_])t\('([A-Za-z0-9_.]+)'", f.read_text()))
+for k in sorted(keys):
+    print(k)
+PYEOF
+)
 MISSING_USED=$(comm -23 <(echo "$USED_KEYS") <(echo "$SOURCE_KEYS"))
 if [ -n "$MISSING_USED" ]; then
     echo "USED in frontend but MISSING in en.json:"
@@ -337,6 +345,12 @@ if [ -n "$MISSING_USED" ]; then
     MISSING=1
 fi
 ```
+
+(Note d'implémentation : l'extraction est en Python — déjà utilisé par le script —
+pour deux raisons : le lookbehind `(?<![A-Za-z0-9_])` évite les faux positifs
+`searchParams.get('code')` / `get('visio')` qu'un simple grep capturerait, et le
+tri `sorted()` Python est cohérent avec `SOURCE_KEYS`, alors que `sort` dépend
+de la locale et fausserait `comm`.)
 
 - [ ] **Step 2: Constater le RED**
 
