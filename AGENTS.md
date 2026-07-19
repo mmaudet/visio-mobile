@@ -214,7 +214,7 @@ npx tsc --noEmit      # Type-check
 - Add new keys to all locale files in `i18n/` simultaneously.
 
 **Formatting**
-- No formatter is configured. Follow the existing style: 2-space indentation, double quotes for JSX attributes, trailing commas in multi-line structures.
+- Prettier is configured (`.prettierrc`: single quotes, no semicolons, 2-space indent, trailing commas); check with `npm run format:check`, apply with `npx prettier --write src/`.
 - Keep lines under ~100 characters where practical.
 
 ---

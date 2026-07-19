@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { mockTauriCall } from './tauri-mock';
+import { mockTauriCall, type MockCallState } from './tauri-mock';
 
 /**
  * Regression test for the desktop OIDC flow from the join screen.
@@ -11,8 +11,15 @@ import { mockTauriCall } from './tauri-mock';
  * code back to the app.
  */
 test.describe('Join flow requiring OIDC authentication', () => {
-  test.beforeEach(async ({ page }) => {
-    await mockTauriCall(page, { roomRequiresAuth: true });
+  // The sign-in button replaces the join button when the room requires
+  // authentication.
+  const signInButton = (page: Page) => page.getByTestId('home-signin-button');
+
+  const reachAuthRequiredRoom = async (
+    page: Page,
+    overrides: MockCallState = {},
+  ) => {
+    await mockTauriCall(page, { roomRequiresAuth: true, ...overrides });
     await page.goto('/');
     await page
       .getByTestId('home-room-url-input')
@@ -21,14 +28,11 @@ test.describe('Join flow requiring OIDC authentication', () => {
     // sign-in button and the status message is shown.
     await expect(page.getByTestId('home-join-button')).toHaveCount(0);
     await expect(page.getByTestId('home-room-status').first()).toBeVisible();
-  });
+  };
 
-  // The sign-in button replaces the join button right after the display
-  // name field when the room requires authentication.
-  const signInButton = (page: Page) =>
-    page
-      .getByTestId('home-display-name-input')
-      .locator('xpath=following::button[1]');
+  test.beforeEach(async ({ page }) => {
+    await reachAuthRequiredRoom(page);
+  });
 
   test('sign-in button launches the OIDC browser flow for the room instance', async ({
     page,
@@ -63,5 +67,57 @@ test.describe('Join flow requiring OIDC authentication', () => {
     // After the code exchange, the room re-validates and joining is possible.
     await expect(page.getByTestId('home-join-button')).toBeVisible();
     await expect(page.getByTestId('home-join-button')).toBeEnabled();
+  });
+
+  test('returns to sign-in when the OIDC exchange fails', async ({ page }) => {
+    await reachAuthRequiredRoom(page, { oidcExchangeFails: true });
+    await signInButton(page).click();
+
+    // Simulate the system browser redirecting back with a code whose
+    // exchange fails (e.g. expired code).
+    await page.evaluate(() =>
+      (window as any).__emitTauriEvent('deep-link://new-url', [
+        'visio://auth-callback?code=fake-code',
+      ]),
+    );
+
+    // Wait until the failing exchange has actually been attempted (i.e. the
+    // UI has entered the "authenticating" state).
+    await expect
+      .poll(async () =>
+        page.evaluate(() =>
+          (window as any).__invokeLog.some(
+            (entry: any) => entry.cmd === 'exchange_oidc_code',
+          ),
+        ),
+      )
+      .toBe(true);
+
+    // The UI must recover to the sign-in state instead of staying stuck on
+    // "Authenticating…" forever.
+    await expect(signInButton(page)).toBeVisible();
+  });
+
+  test('returns to sign-in when launching the OIDC browser fails', async ({
+    page,
+  }) => {
+    await reachAuthRequiredRoom(page, { oidcLaunchFails: true });
+    await signInButton(page).click();
+
+    // Wait until the failing browser launch has actually been attempted (i.e.
+    // the UI has entered the "authenticating" state).
+    await expect
+      .poll(async () =>
+        page.evaluate(() =>
+          (window as any).__invokeLog.some(
+            (entry: any) => entry.cmd === 'launch_oidc_browser',
+          ),
+        ),
+      )
+      .toBe(true);
+
+    // The browser cannot be opened: the UI must recover to the sign-in state
+    // instead of staying stuck on "Authenticating…" forever.
+    await expect(signInButton(page)).toBeVisible();
   });
 });

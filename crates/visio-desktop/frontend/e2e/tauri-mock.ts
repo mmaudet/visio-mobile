@@ -38,6 +38,10 @@ export interface MockCallState {
   connectionState?: string;
   /** When true, validate_room returns auth_required until a successful OIDC exchange */
   roomRequiresAuth?: boolean;
+  /** When true, launch_oidc_browser rejects (e.g. the system browser cannot be opened) */
+  oidcLaunchFails?: boolean;
+  /** When true, exchange_oidc_code rejects (e.g. expired or invalid code) */
+  oidcExchangeFails?: boolean;
 }
 
 const defaultState: MockCallState = {
@@ -310,8 +314,10 @@ export async function mockTauriCall(
               room_name: 'test-room',
             };
           case 'launch_oidc_browser':
+            if (state.oidcLaunchFails) throw new Error('cannot open browser');
             return;
           case 'exchange_oidc_code':
+            if (state.oidcExchangeFails) throw new Error('exchange failed');
             oidcAuthenticated = true;
             return {
               display_name: 'OIDC User',

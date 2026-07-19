@@ -1359,7 +1359,11 @@ function HomeView({
             {/* Room display name removed from join form — only relevant
                 when creating a room (CreateRoomView handles it). */}
             {roomStatus === 'auth_required' ? (
-              <button className="btn btn-primary" onClick={handleAuth}>
+              <button
+                className="btn btn-primary"
+                onClick={handleAuth}
+                data-testid="home-signin-button"
+              >
                 {t('home.signIn')}
               </button>
             ) : (
@@ -4786,8 +4790,9 @@ export default function App() {
   const [authenticatedMeetInstance, setAuthenticatedMeetInstance] = useState('')
   const [meetInstances, setMeetInstances] = useState<string[]>([])
   const pendingOidcRef = useRef<string | null>(null)
-  // One-shot action run after a successful OIDC code exchange (e.g. HomeView
-  // re-validating a room that required authentication).
+  // One-shot action run once the OIDC flow settles — after a successful code
+  // exchange, or after a launch/exchange failure so the UI recovers (e.g.
+  // HomeView re-validating a room that required authentication).
   const postAuthActionRef = useRef<(() => void) | null>(null)
   const registerPostAuthAction = useCallback((fn: (() => void) | null) => {
     postAuthActionRef.current = fn
@@ -4887,6 +4892,9 @@ export default function App() {
               })
               .catch((e) => {
                 console.error('OIDC code exchange failed:', e)
+                // Recover from the "authenticating" state: the registered
+                // action re-validates the room back to auth_required.
+                postAuthActionRef.current?.()
               })
           }
           return
@@ -5555,6 +5563,9 @@ export default function App() {
                 } catch (e) {
                   console.error('Failed to open browser for OIDC:', e)
                   pendingOidcRef.current = null
+                  // Recover from the "authenticating" state: the registered
+                  // action re-validates the room back to auth_required.
+                  postAuthActionRef.current?.()
                 }
               }}
               registerPostAuthAction={registerPostAuthAction}
