@@ -1,11 +1,6 @@
-Novità della versione 0.9.0:
-- Griglia video paginata con pagine scorrevoli
-- Modalità relatore con oratore dominante
-- Abbonamenti video intelligenti con anti-jitter
-- Chat crittografata end-to-end (AES-256-GCM)
-- Feature flag dinamici tramite proxy Unleash
-- Riconnessione migliorata con cache token
-- Migliorata affidabilità routing audio Bluetooth
-- Ordinamento partecipanti per attività vocale con anti-flicker
-- Condivisione schermo sempre in alta qualità
-- Pipeline di traduzione e copertura i18n al 100%
+Novità della versione 0.10.0:
+- Accesso sicuro con OAuth 2.0 e autenticazione PKCE
+- Archiviazione cifrata delle credenziali nel Portachiavi iOS
+- Sicurezza di rete rafforzata (HTTPS rigoroso, senza reindirizzamenti)
+- Tre audit di sicurezza indipendenti pubblicati
+- Diversi miglioramenti di stabilità e prestazioni

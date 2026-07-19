@@ -31,15 +31,20 @@ impl AuthService {
     /// `meet_url` should be a full URL like `https://meet.example.com/room-slug`
     /// or just `meet.example.com/room-slug`.
     ///
-    /// `session_cookie` is an optional `sessionid` cookie for authenticated instances.
+    /// `access_token` is an optional OAuth2 JWT for authenticated instances.
     pub async fn request_token(
         meet_url: &str,
         username: Option<&str>,
-        session_cookie: Option<&str>,
+        access_token: Option<&str>,
     ) -> Result<TokenInfo, VisioError> {
         let (instance, slug) = Self::parse_meet_url(meet_url)?;
 
-        let mut api_url = format!("https://{}/api/v1.0/rooms/{}/", instance, slug);
+        let mut api_url = format!(
+            "{}://{}/api/v1.0/rooms/{}/",
+            crate::tokens::scheme_for(&instance),
+            instance,
+            slug
+        );
         if let Some(name) = username {
             let encoded = urlencoding::encode(name);
             api_url.push_str(&format!("?username={encoded}"));
@@ -58,8 +63,8 @@ impl AuthService {
             .map_err(|e| VisioError::Http(e.to_string()))?;
 
         let mut request = client.get(&api_url);
-        if let Some(cookie) = session_cookie {
-            request = request.header(reqwest::header::COOKIE, format!("sessionid={}", cookie));
+        if let Some(token) = access_token {
+            request = request.header(reqwest::header::AUTHORIZATION, format!("Bearer {}", token));
         }
 
         let resp = request
@@ -137,9 +142,9 @@ impl AuthService {
     pub async fn validate_room(
         meet_url: &str,
         username: Option<&str>,
-        session_cookie: Option<&str>,
+        access_token: Option<&str>,
     ) -> Result<TokenInfo, VisioError> {
-        Self::request_token(meet_url, username, session_cookie).await
+        Self::request_token(meet_url, username, access_token).await
     }
 
     /// Extract the Meet instance hostname from a room URL.

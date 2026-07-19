@@ -1,33 +1,36 @@
 default_platform(:android)
 
 platform :android do
-  desc "Build release APK and distribute via Firebase App Distribution"
-  lane :distribute do
-    gradle(
-      task: "assembleRelease",
-      project_dir: "."
-    )
-
-    firebase_app_distribution(
-      app: ENV["FIREBASE_APP_ID"],
-      service_credentials_file: ENV["GOOGLE_APPLICATION_CREDENTIALS"],
-      groups: "testers",
-      release_notes: ENV["RELEASE_NOTES"].to_s.empty? ? "Build #{ENV['GITHUB_RUN_NUMBER'] || 'local'} — #{`git log -1 --pretty=%s`.strip}" : ENV["RELEASE_NOTES"]
-    )
-  end
-
-  desc "Build AAB and upload to Google Play (internal track)"
+  desc "Upload an already-built AAB to Google Play (internal track)"
   lane :release do
-    gradle(
-      task: "bundle",
-      build_type: "Release",
-      project_dir: "."
-    )
+    # The AAB is produced and signed by the previous workflow step
+    # ('Build AAB for Google Play' / `./gradlew bundleRelease`). Re-running
+    # the gradle build here would just rebuild it without the env vars set
+    # for this step and fail signing — supply only needs the path.
     supply(
       track: "internal",
       aab: "app/build/outputs/bundle/release/app-release.aab",
       json_key: ENV["SUPPLY_JSON_KEY_PATH"],
       package_name: "io.visio.mobile"
+    )
+  end
+
+  desc "Promote the latest internal build to production (general availability)"
+  lane :promote_to_production do
+    vc = ENV["VERSION_CODE"]
+    UI.user_error!("VERSION_CODE env var is required") unless vc
+    supply(
+      track: "internal",
+      track_promote_to: "production",
+      version_code: vc,
+      json_key: ENV["SUPPLY_JSON_KEY_PATH"],
+      package_name: "io.visio.mobile",
+      skip_upload_aab: true,
+      skip_upload_apk: true,
+      skip_upload_metadata: true,
+      skip_upload_images: true,
+      skip_upload_screenshots: true,
+      release_status: "completed"
     )
   end
 end

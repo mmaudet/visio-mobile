@@ -501,18 +501,13 @@ struct HomeView: View {
     }
 
     private func launchOidc(meetInstance: String) {
-        manager.authManager.launchOidcFlow(meetInstance: meetInstance) { [weak manager] code in
-            guard let code, let manager else { return }
-            DispatchQueue.global(qos: .userInitiated).async {
-                do {
-                    let sessionId = try manager.client.exchangeOidcCode(meetInstance: meetInstance, code: code)
-                    DispatchQueue.main.async {
-                        manager.onAuthCookieReceived(sessionId, meetInstance: meetInstance)
-                    }
-                } catch {
-                    NSLog("[HomeView] OIDC code exchange failed: \(error)")
-                }
-            }
+        manager.authManager.launchOidcFlow(meetInstance: meetInstance) { [weak manager] callback in
+            guard let callback, let manager else { return }
+            manager.exchangePkceCode(
+                code: callback.code,
+                verifier: callback.verifier,
+                meetInstance: meetInstance
+            )
         }
     }
 }
@@ -546,19 +541,14 @@ private struct ServerPickerWithOidc: View {
 
     private func selectInstance(_ instance: String) {
         onDismiss()
-        // Use ASWebAuthenticationSession + exchange code
-        manager.authManager.launchOidcFlow(meetInstance: instance) { [weak manager] code in
-            guard let code, let manager else { return }
-            DispatchQueue.global(qos: .userInitiated).async {
-                do {
-                    let sessionId = try manager.client.exchangeOidcCode(meetInstance: instance, code: code)
-                    DispatchQueue.main.async {
-                        manager.onAuthCookieReceived(sessionId, meetInstance: instance)
-                    }
-                } catch {
-                    NSLog("[ServerPicker] OIDC code exchange failed: \(error)")
-                }
-            }
+        // ASWebAuthenticationSession + PKCE exchange via VisioManager
+        manager.authManager.launchOidcFlow(meetInstance: instance) { [weak manager] callback in
+            guard let callback, let manager else { return }
+            manager.exchangePkceCode(
+                code: callback.code,
+                verifier: callback.verifier,
+                meetInstance: instance
+            )
         }
     }
 

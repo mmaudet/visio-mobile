@@ -7,34 +7,59 @@ on:
         description: "Release notes for testers"
         required: false
         default: ""
-      publish_to_app_store:
-        description: "Upload to App Store Connect (metadata + binary)"
+      publish:
+        description: "Upload metadata to App Store Connect"
         required: false
         type: boolean
         default: false
+  push:
+    # Pushing a semver tag triggers build + TestFlight + ASC metadata.
+    # Use vX.Y.Z for prod-ready releases (App Store metadata pushed,
+    # ready for the manual 'Add for review' click) and vX.Y.Z-rcN for
+    # build-only (TestFlight stays the canonical channel for RCs).
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+'
+      - 'v[0-9]+.[0-9]+.[0-9]+-rc[0-9]+'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build-ios:
     runs-on: macos-15
+    # ~15-25 min healthy. Cap at 60 to absorb a slow ASC upload retry
+    # without ever burning the default 6h.
+    timeout-minutes: 60
+    # id-token + attestations enable SLSA build provenance: the runner
+    # mints an OIDC token, Sigstore signs an attestation over the
+    # artifact hash, and the result is stored against the repo so
+    # anyone can verify "this IPA really came from this commit on
+    # this workflow" via `gh attestation verify`.
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
     defaults:
       run:
         working-directory: .
 
     steps:
+      # Pin to immutable SHA so retags on the trigger ref don't break the
+      # checkout mid-build (we sometimes move v0.10.0 forward between CI
+      # iterations on other workflows).
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          ref: ${{ github.sha }}
 
       - name: Select Xcode 26.3
         run: sudo xcode-select -s /Applications/Xcode_26.3.app
 
-      - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@631a55b12751854ce901bb631d5902ceb48146f7 # stable
+      - name: Setup Rust toolchain
+        uses: ./.github/actions/setup-rust-toolchain
         with:
-          targets: aarch64-apple-ios
-
-      - name: Cache Rust build artifacts
-        uses: Swatinem/rust-cache@f51f967e158417aafa338a1e46ab22095f07aa01 # v2
-        with:
-          key: ios-arm64
+          rust-targets: aarch64-apple-ios
+          cache-key: ios-arm64
 
       - name: Compile Rust native libraries
         run: |
@@ -67,7 +92,11 @@ jobs:
         run: bundle exec fastlane distribute
 
       - name: Upload to App Store Connect
-        if: inputs.publish_to_app_store == true
+        # Publish when explicitly requested via workflow_dispatch input OR
+        # when triggered by a non-RC semver tag push (vX.Y.Z, not -rcN).
+        if: >-
+          (github.event_name == 'workflow_dispatch' && inputs.publish == true) ||
+          (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') && !contains(github.ref, '-rc'))
         timeout-minutes: 20
         working-directory: ios
         env:
@@ -86,3 +115,14 @@ jobs:
         with:
           name: ios-ipa
           path: ios/build/VisioMobile.ipa
+          retention-days: 14
+
+      - name: Attest IPA build provenance
+        # SLSA build provenance: signs an attestation that this IPA came
+        # from this commit on this workflow. Stored against the repo;
+        # verifiable with `gh attestation verify <file> --repo <repo>`.
+        # No `if: always()` — there's no point attesting a missing IPA
+        # if the build failed.
+        uses: actions/attest-build-provenance@b3e506e8c389afc651c5bacf2b8f2a1ea0557215 # v4
+        with:
+          subject-path: ios/build/VisioMobile.ipa

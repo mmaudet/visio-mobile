@@ -34,7 +34,11 @@ generate_swift() {
     # but iOS also needs visio_native.h for audio/video C FFI.
     MODULEMAP="ios/VisioMobile/Generated/visioFFI.modulemap"
     if ! grep -q 'visio_native.h' "$MODULEMAP"; then
-        sed -i '' 's|header "visioFFI.h"|header "visioFFI.h"\n    header "visio_native.h"|' "$MODULEMAP"
+        # Cross-platform in-place edit: BSD sed (macOS) needs `-i ''`, GNU
+        # sed (Linux) needs `-i` with no arg. Use a portable temp-file form.
+        sed 's|header "visioFFI.h"|header "visioFFI.h"\n    header "visio_native.h"|' \
+            "$MODULEMAP" > "$MODULEMAP.tmp"
+        mv "$MODULEMAP.tmp" "$MODULEMAP"
         echo "    Patched modulemap to include visio_native.h"
     fi
     echo "    Done."

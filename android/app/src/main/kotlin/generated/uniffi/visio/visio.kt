@@ -959,6 +959,10 @@ internal open class UniffiVTableCallbackInterfaceVisioEventListener(
 
 
 
+
+
+
+
 // For large crates we prevent `MethodTooLargeException` (see #2340)
 // N.B. the name of the extension is very misleading, since it is 
 // rather `InterfaceTooLargeException`, caused by too many methods 
@@ -976,6 +980,8 @@ internal interface IntegrityCheckingUniffiLib : Library {
     // Integrity check functions only
     fun uniffi_visio_ffi_checksum_func_init_logging(
 ): Short
+fun uniffi_visio_ffi_checksum_func_pkce_generate(
+): Short
 fun uniffi_visio_ffi_checksum_method_visioclient_active_speakers(
 ): Short
 fun uniffi_visio_ffi_checksum_method_visioclient_adaptive_mode(
@@ -989,8 +995,6 @@ fun uniffi_visio_ffi_checksum_method_visioclient_add_visio_alias(
 fun uniffi_visio_ffi_checksum_method_visioclient_add_visio_to_history(
 ): Short
 fun uniffi_visio_ffi_checksum_method_visioclient_admit_participant(
-): Short
-fun uniffi_visio_ffi_checksum_method_visioclient_authenticate(
 ): Short
 fun uniffi_visio_ffi_checksum_method_visioclient_cancel_lobby(
 ): Short
@@ -1012,7 +1016,7 @@ fun uniffi_visio_ffi_checksum_method_visioclient_deny_participant(
 ): Short
 fun uniffi_visio_ffi_checksum_method_visioclient_disconnect(
 ): Short
-fun uniffi_visio_ffi_checksum_method_visioclient_exchange_oidc_code(
+fun uniffi_visio_ffi_checksum_method_visioclient_exchange_pkce_code(
 ): Short
 fun uniffi_visio_ffi_checksum_method_visioclient_extract_room_display_name(
 ): Short
@@ -1084,6 +1088,8 @@ fun uniffi_visio_ffi_checksum_method_visioclient_reconnect(
 ): Short
 fun uniffi_visio_ffi_checksum_method_visioclient_refresh_calendar_now(
 ): Short
+fun uniffi_visio_ffi_checksum_method_visioclient_refresh_tokens(
+): Short
 fun uniffi_visio_ffi_checksum_method_visioclient_remove_access(
 ): Short
 fun uniffi_visio_ffi_checksum_method_visioclient_report_bluetooth_car_kit(
@@ -1149,6 +1155,8 @@ fun uniffi_visio_ffi_checksum_method_visioclient_set_notification_participant_jo
 fun uniffi_visio_ffi_checksum_method_visioclient_set_page_size(
 ): Short
 fun uniffi_visio_ffi_checksum_method_visioclient_set_theme(
+): Short
+fun uniffi_visio_ffi_checksum_method_visioclient_set_tokens(
 ): Short
 fun uniffi_visio_ffi_checksum_method_visioclient_start_video_renderer(
 ): Short
@@ -1249,8 +1257,6 @@ fun uniffi_visio_ffi_fn_method_visioclient_add_visio_to_history(`ptr`: Pointer,`
 ): Unit
 fun uniffi_visio_ffi_fn_method_visioclient_admit_participant(`ptr`: Pointer,`participantId`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
 ): Unit
-fun uniffi_visio_ffi_fn_method_visioclient_authenticate(`ptr`: Pointer,`meetUrl`: RustBuffer.ByValue,`cookie`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
-): Unit
 fun uniffi_visio_ffi_fn_method_visioclient_cancel_lobby(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
 ): Unit
 fun uniffi_visio_ffi_fn_method_visioclient_chat_messages(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
@@ -1271,7 +1277,7 @@ fun uniffi_visio_ffi_fn_method_visioclient_deny_participant(`ptr`: Pointer,`part
 ): Unit
 fun uniffi_visio_ffi_fn_method_visioclient_disconnect(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
 ): Unit
-fun uniffi_visio_ffi_fn_method_visioclient_exchange_oidc_code(`ptr`: Pointer,`meetInstance`: RustBuffer.ByValue,`code`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+fun uniffi_visio_ffi_fn_method_visioclient_exchange_pkce_code(`ptr`: Pointer,`meetInstance`: RustBuffer.ByValue,`code`: RustBuffer.ByValue,`codeVerifier`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
 ): RustBuffer.ByValue
 fun uniffi_visio_ffi_fn_method_visioclient_extract_room_display_name(`ptr`: Pointer,`url`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
 ): RustBuffer.ByValue
@@ -1343,6 +1349,8 @@ fun uniffi_visio_ffi_fn_method_visioclient_reconnect(`ptr`: Pointer,uniffi_out_e
 ): Unit
 fun uniffi_visio_ffi_fn_method_visioclient_refresh_calendar_now(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
 ): Unit
+fun uniffi_visio_ffi_fn_method_visioclient_refresh_tokens(`ptr`: Pointer,`meetInstance`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+): Unit
 fun uniffi_visio_ffi_fn_method_visioclient_remove_access(`ptr`: Pointer,`accessId`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
 ): Unit
 fun uniffi_visio_ffi_fn_method_visioclient_report_bluetooth_car_kit(`ptr`: Pointer,`connected`: Byte,uniffi_out_err: UniffiRustCallStatus, 
@@ -1409,6 +1417,8 @@ fun uniffi_visio_ffi_fn_method_visioclient_set_page_size(`ptr`: Pointer,`size`: 
 ): Unit
 fun uniffi_visio_ffi_fn_method_visioclient_set_theme(`ptr`: Pointer,`theme`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
 ): Unit
+fun uniffi_visio_ffi_fn_method_visioclient_set_tokens(`ptr`: Pointer,`meetUrl`: RustBuffer.ByValue,`access`: RustBuffer.ByValue,`refresh`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+): Unit
 fun uniffi_visio_ffi_fn_method_visioclient_start_video_renderer(`ptr`: Pointer,`trackSid`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
 ): Unit
 fun uniffi_visio_ffi_fn_method_visioclient_stop_video_renderer(`ptr`: Pointer,`trackSid`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
@@ -1431,6 +1441,8 @@ fun uniffi_visio_ffi_fn_init_callback_vtable_visioeventlistener(`vtable`: Uniffi
 ): Unit
 fun uniffi_visio_ffi_fn_func_init_logging(uniffi_out_err: UniffiRustCallStatus, 
 ): Unit
+fun uniffi_visio_ffi_fn_func_pkce_generate(uniffi_out_err: UniffiRustCallStatus, 
+): RustBuffer.ByValue
 fun ffi_visio_ffi_rustbuffer_alloc(`size`: Long,uniffi_out_err: UniffiRustCallStatus, 
 ): RustBuffer.ByValue
 fun ffi_visio_ffi_rustbuffer_from_bytes(`bytes`: ForeignBytes.ByValue,uniffi_out_err: UniffiRustCallStatus, 
@@ -1560,6 +1572,9 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if (lib.uniffi_visio_ffi_checksum_func_init_logging() != 52772.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
+    if (lib.uniffi_visio_ffi_checksum_func_pkce_generate() != 46604.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
     if (lib.uniffi_visio_ffi_checksum_method_visioclient_active_speakers() != 15815.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
@@ -1579,9 +1594,6 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_visio_ffi_checksum_method_visioclient_admit_participant() != 6663.toShort()) {
-        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
-    }
-    if (lib.uniffi_visio_ffi_checksum_method_visioclient_authenticate() != 9943.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_visio_ffi_checksum_method_visioclient_cancel_lobby() != 33806.toShort()) {
@@ -1614,7 +1626,7 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if (lib.uniffi_visio_ffi_checksum_method_visioclient_disconnect() != 52651.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_visio_ffi_checksum_method_visioclient_exchange_oidc_code() != 58208.toShort()) {
+    if (lib.uniffi_visio_ffi_checksum_method_visioclient_exchange_pkce_code() != 57984.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_visio_ffi_checksum_method_visioclient_extract_room_display_name() != 14190.toShort()) {
@@ -1722,6 +1734,9 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if (lib.uniffi_visio_ffi_checksum_method_visioclient_refresh_calendar_now() != 46332.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
+    if (lib.uniffi_visio_ffi_checksum_method_visioclient_refresh_tokens() != 35202.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
     if (lib.uniffi_visio_ffi_checksum_method_visioclient_remove_access() != 62026.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
@@ -1819,6 +1834,9 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_visio_ffi_checksum_method_visioclient_set_theme() != 58689.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_visio_ffi_checksum_method_visioclient_set_tokens() != 52108.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_visio_ffi_checksum_method_visioclient_start_video_renderer() != 53000.toShort()) {
@@ -2321,8 +2339,6 @@ public interface VisioClientInterface {
     
     fun `admitParticipant`(`participantId`: kotlin.String)
     
-    fun `authenticate`(`meetUrl`: kotlin.String, `cookie`: kotlin.String)
-    
     fun `cancelLobby`()
     
     fun `chatMessages`(): List<ChatMessage>
@@ -2343,7 +2359,7 @@ public interface VisioClientInterface {
     
     fun `disconnect`()
     
-    fun `exchangeOidcCode`(`meetInstance`: kotlin.String, `code`: kotlin.String): kotlin.String
+    fun `exchangePkceCode`(`meetInstance`: kotlin.String, `code`: kotlin.String, `codeVerifier`: kotlin.String): TokenPair
     
     fun `extractRoomDisplayName`(`url`: kotlin.String): kotlin.String?
     
@@ -2415,6 +2431,8 @@ public interface VisioClientInterface {
     
     fun `refreshCalendarNow`()
     
+    fun `refreshTokens`(`meetInstance`: kotlin.String)
+    
     fun `removeAccess`(`accessId`: kotlin.String)
     
     fun `reportBluetoothCarKit`(`connected`: kotlin.Boolean)
@@ -2480,6 +2498,8 @@ public interface VisioClientInterface {
     fun `setPageSize`(`size`: kotlin.UInt)
     
     fun `setTheme`(`theme`: kotlin.String)
+    
+    fun `setTokens`(`meetUrl`: kotlin.String, `access`: kotlin.String, `refresh`: kotlin.String)
     
     fun `startVideoRenderer`(`trackSid`: kotlin.String)
     
@@ -2671,18 +2691,6 @@ open class VisioClient: Disposable, AutoCloseable, VisioClientInterface
     
     
 
-    
-    @Throws(VisioException::class)override fun `authenticate`(`meetUrl`: kotlin.String, `cookie`: kotlin.String)
-        = 
-    callWithPointer {
-    uniffiRustCallWithError(VisioException) { _status ->
-    UniffiLib.INSTANCE.uniffi_visio_ffi_fn_method_visioclient_authenticate(
-        it, FfiConverterString.lower(`meetUrl`),FfiConverterString.lower(`cookie`),_status)
-}
-    }
-    
-    
-
     override fun `cancelLobby`()
         = 
     callWithPointer {
@@ -2802,12 +2810,12 @@ open class VisioClient: Disposable, AutoCloseable, VisioClientInterface
     
 
     
-    @Throws(VisioException::class)override fun `exchangeOidcCode`(`meetInstance`: kotlin.String, `code`: kotlin.String): kotlin.String {
-            return FfiConverterString.lift(
+    @Throws(VisioException::class)override fun `exchangePkceCode`(`meetInstance`: kotlin.String, `code`: kotlin.String, `codeVerifier`: kotlin.String): TokenPair {
+            return FfiConverterTypeTokenPair.lift(
     callWithPointer {
     uniffiRustCallWithError(VisioException) { _status ->
-    UniffiLib.INSTANCE.uniffi_visio_ffi_fn_method_visioclient_exchange_oidc_code(
-        it, FfiConverterString.lower(`meetInstance`),FfiConverterString.lower(`code`),_status)
+    UniffiLib.INSTANCE.uniffi_visio_ffi_fn_method_visioclient_exchange_pkce_code(
+        it, FfiConverterString.lower(`meetInstance`),FfiConverterString.lower(`code`),FfiConverterString.lower(`codeVerifier`),_status)
 }
     }
     )
@@ -3235,6 +3243,18 @@ open class VisioClient: Disposable, AutoCloseable, VisioClientInterface
     
 
     
+    @Throws(VisioException::class)override fun `refreshTokens`(`meetInstance`: kotlin.String)
+        = 
+    callWithPointer {
+    uniffiRustCallWithError(VisioException) { _status ->
+    UniffiLib.INSTANCE.uniffi_visio_ffi_fn_method_visioclient_refresh_tokens(
+        it, FfiConverterString.lower(`meetInstance`),_status)
+}
+    }
+    
+    
+
+    
     @Throws(VisioException::class)override fun `removeAccess`(`accessId`: kotlin.String)
         = 
     callWithPointer {
@@ -3601,6 +3621,18 @@ open class VisioClient: Disposable, AutoCloseable, VisioClientInterface
     uniffiRustCall() { _status ->
     UniffiLib.INSTANCE.uniffi_visio_ffi_fn_method_visioclient_set_theme(
         it, FfiConverterString.lower(`theme`),_status)
+}
+    }
+    
+    
+
+    
+    @Throws(VisioException::class)override fun `setTokens`(`meetUrl`: kotlin.String, `access`: kotlin.String, `refresh`: kotlin.String)
+        = 
+    callWithPointer {
+    uniffiRustCallWithError(VisioException) { _status ->
+    UniffiLib.INSTANCE.uniffi_visio_ffi_fn_method_visioclient_set_tokens(
+        it, FfiConverterString.lower(`meetUrl`),FfiConverterString.lower(`access`),FfiConverterString.lower(`refresh`),_status)
 }
     }
     
@@ -4002,6 +4034,42 @@ public object FfiConverterTypeParticipantInfo: FfiConverterRustBuffer<Participan
 
 
 
+data class PkceChallenge (
+    var `verifier`: kotlin.String, 
+    var `challenge`: kotlin.String, 
+    var `state`: kotlin.String
+) {
+    
+    companion object
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterTypePkceChallenge: FfiConverterRustBuffer<PkceChallenge> {
+    override fun read(buf: ByteBuffer): PkceChallenge {
+        return PkceChallenge(
+            FfiConverterString.read(buf),
+            FfiConverterString.read(buf),
+            FfiConverterString.read(buf),
+        )
+    }
+
+    override fun allocationSize(value: PkceChallenge) = (
+            FfiConverterString.allocationSize(value.`verifier`) +
+            FfiConverterString.allocationSize(value.`challenge`) +
+            FfiConverterString.allocationSize(value.`state`)
+    )
+
+    override fun write(value: PkceChallenge, buf: ByteBuffer) {
+            FfiConverterString.write(value.`verifier`, buf)
+            FfiConverterString.write(value.`challenge`, buf)
+            FfiConverterString.write(value.`state`, buf)
+    }
+}
+
+
+
 data class RoomAccess (
     var `id`: kotlin.String, 
     var `user`: UserSearchResult, 
@@ -4173,6 +4241,38 @@ public object FfiConverterTypeSubscriptionStats: FfiConverterRustBuffer<Subscrip
             FfiConverterUInt.write(value.`subscribedLow`, buf)
             FfiConverterUInt.write(value.`unsubscribed`, buf)
             FfiConverterUInt.write(value.`screenShares`, buf)
+    }
+}
+
+
+
+data class TokenPair (
+    var `access`: kotlin.String, 
+    var `refresh`: kotlin.String
+) {
+    
+    companion object
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterTypeTokenPair: FfiConverterRustBuffer<TokenPair> {
+    override fun read(buf: ByteBuffer): TokenPair {
+        return TokenPair(
+            FfiConverterString.read(buf),
+            FfiConverterString.read(buf),
+        )
+    }
+
+    override fun allocationSize(value: TokenPair) = (
+            FfiConverterString.allocationSize(value.`access`) +
+            FfiConverterString.allocationSize(value.`refresh`)
+    )
+
+    override fun write(value: TokenPair, buf: ByteBuffer) {
+            FfiConverterString.write(value.`access`, buf)
+            FfiConverterString.write(value.`refresh`, buf)
     }
 }
 
@@ -6336,6 +6436,15 @@ public object FfiConverterSequenceTypeWaitingParticipant: FfiConverterRustBuffer
         _status)
 }
     
+    
+ fun `pkceGenerate`(): PkceChallenge {
+            return FfiConverterTypePkceChallenge.lift(
+    uniffiRustCall() { _status ->
+    UniffiLib.INSTANCE.uniffi_visio_ffi_fn_func_pkce_generate(
+        _status)
+}
+    )
+    }
     
 
 

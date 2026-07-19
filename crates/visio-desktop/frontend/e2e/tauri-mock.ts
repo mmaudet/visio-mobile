@@ -40,7 +40,7 @@ export interface MockCallState {
   roomRequiresAuth?: boolean;
   /** When true, launch_oidc_browser rejects (e.g. the system browser cannot be opened) */
   oidcLaunchFails?: boolean;
-  /** When true, exchange_oidc_code rejects (e.g. expired or invalid code) */
+  /** When true, exchange_pkce_code rejects (e.g. expired or invalid code) */
   oidcExchangeFails?: boolean;
 }
 
@@ -316,7 +316,7 @@ export async function mockTauriCall(
           case 'launch_oidc_browser':
             if (state.oidcLaunchFails) throw new Error('cannot open browser');
             return;
-          case 'exchange_oidc_code':
+          case 'exchange_pkce_code':
             if (state.oidcExchangeFails) throw new Error('exchange failed');
             oidcAuthenticated = true;
             return {

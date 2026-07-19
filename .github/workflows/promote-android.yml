@@ -1,0 +1,150 @@
+name: Promote Android to Production
+
+on:
+  workflow_dispatch:
+    inputs:
+      version_code:
+        description: "Version code of the build to promote (from github.run_number)"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  promote:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      id-token: write
+    defaults:
+      run:
+        working-directory: .
+
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
+          service_account: ${{ secrets.GCP_PLAY_STORE_SA }}
+          create_credentials_file: true
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.2"
+          bundler-cache: true
+
+      - name: Step 1 — Promote internal → production (fastlane)
+        working-directory: android
+        env:
+          SUPPLY_JSON_KEY_PATH: ${{ env.GOOGLE_APPLICATION_CREDENTIALS }}
+          VERSION_CODE: ${{ inputs.version_code || 114 }}
+        run: bundle exec fastlane promote_to_production 2>&1 || true
+
+      - name: Step 2 — Install gcloud SDK (fallback if fastlane fails)
+        if: failure()
+        run: |
+          command -v gcloud || curl -sSL https://sdk.cloud.google.com | bash
+
+      - name: Step 3 — Fix production track via Play API (fallback)
+        if: failure()
+        env:
+          PACKAGE_NAME: io.visio.mobile
+          VERSION_CODE: ${{ inputs.version_code || 114 }}
+        run: |
+          set -e
+          export PATH="$HOME/google-cloud-sdk/bin:$PATH"
+
+          # Authenticate gcloud with WIF credentials
+          gcloud auth activate-service-account --key-file="$GOOGLE_APPLICATION_CREDENTIALS" 2>/dev/null || true
+
+          # Get Play API token
+          GCLOUD_BIN=$(command -v gcloud 2>/dev/null || echo "$HOME/google-cloud-sdk/bin/gcloud")
+          ACCESS_TOKEN=$(eval "$GCLOUD_BIN auth print-access-token --scopes=https://www.googleapis.com/auth/androidpublisher")
+
+          echo "=== Creating edit ==="
+          EDIT=$(curl -s -X POST \
+            -H "Authorization: Bearer $ACCESS_TOKEN" \
+            -H "Content-Type: application/json" \
+            "https://androidpublisher.googleapis.com/androidpublisher/v3/applications/$PACKAGE_NAME/edits")
+          EDIT_ID=$(echo "$EDIT" | python3 -c "import json,sys;print(json.load(sys.stdin).get('id',''))" 2>/dev/null)
+
+          if [ -z "$EDIT_ID" ]; then
+            echo "❌ Edit creation failed:"
+            echo "$EDIT"
+            exit 1
+          fi
+          echo "Edit ID: $EDIT_ID"
+
+          echo "=== Step A: draft release (no country targeting yet) ==="
+          PAYLOAD_A="{\"track\":\"production\",\"releases\":[{\"versionCodes\":[\"$VERSION_CODE\"],\"status\":\"draft\"}]}"
+          UPDATE_A=$(curl -s -X PUT \
+            -H "Authorization: Bearer $ACCESS_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d "$PAYLOAD_A" \
+            "https://androidpublisher.googleapis.com/androidpublisher/v3/applications/$PACKAGE_NAME/edits/$EDIT_ID/tracks/production")
+
+          if echo "$UPDATE_A" | python3 -c "import json,sys;d=json.load(sys.stdin);assert 'track' in d" 2>/dev/null; then
+            echo "✅ Step A (draft) — OK"
+          else
+            echo "❌ Step A failed:"
+            echo "$UPDATE_A"
+            exit 1
+          fi
+
+          echo "=== Step B: add countryTargeting to the draft ==="
+          echo "Fetching current releases..."
+          CURRENT=$(curl -s \
+            -H "Authorization: Bearer $ACCESS_TOKEN" \
+            "https://androidpublisher.googleapis.com/androidpublisher/v3/applications/$PACKAGE_NAME/edits/$EDIT_ID/tracks/production")
+          echo "Current track: $CURRENT"
+
+          PAYLOAD_B="{\"track\":\"production\",\"releases\":[{\"versionCodes\":[\"$VERSION_CODE\"],\"status\":\"draft\",\"countryTargeting\":{\"includeRestOfWorld\":true,\"countries\":[]}}]}"
+          UPDATE_B=$(curl -s -X PUT \
+            -H "Authorization: Bearer $ACCESS_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d "$PAYLOAD_B" \
+            "https://androidpublisher.googleapis.com/androidpublisher/v3/applications/$PACKAGE_NAME/edits/$EDIT_ID/tracks/production")
+
+          if echo "$UPDATE_B" | python3 -c "import json,sys;d=json.load(sys.stdin);assert 'track' in d" 2>/dev/null; then
+            echo "✅ Step B (draft + countryTargeting) — OK"
+          else
+            echo "❌ Step B failed:"
+            echo "$UPDATE_B"
+            exit 1
+          fi
+
+          echo "=== Step C: completed ==="
+          PAYLOAD_C="{\"track\":\"production\",\"releases\":[{\"versionCodes\":[\"$VERSION_CODE\"],\"status\":\"completed\"}]}"
+          UPDATE_C=$(curl -s -X PUT \
+            -H "Authorization: Bearer $ACCESS_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d "$PAYLOAD_C" \
+            "https://androidpublisher.googleapis.com/androidpublisher/v3/applications/$PACKAGE_NAME/edits/$EDIT_ID/tracks/production")
+
+          if echo "$UPDATE_C" | python3 -c "import json,sys;d=json.load(sys.stdin);assert 'track' in d" 2>/dev/null; then
+            echo "✅ Step C (completed) — OK"
+          else
+            echo "❌ Step C failed:"
+            echo "$UPDATE_C"
+            exit 1
+          fi
+
+          echo "=== Committing edit ==="
+          COMMIT=$(curl -s -X POST \
+            -H "Authorization: Bearer $ACCESS_TOKEN" \
+            "https://androidpublisher.googleapis.com/androidpublisher/v3/applications/$PACKAGE_NAME/edits/$EDIT_ID:commit")
+
+          if echo "$COMMIT" | python3 -c "import json,sys;d=json.load(sys.stdin);assert 'id' in d" 2>/dev/null; then
+            echo ""
+            echo "🎉🎉🎉 VISIO MOBILE EST EN PRODUCTION !!! 🎉🎉🎉"
+          else
+            echo "❌ Commit failed:"
+            echo "$COMMIT"
+            exit 1
+          fi

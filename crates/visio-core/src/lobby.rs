@@ -2,6 +2,7 @@ use serde::Deserialize;
 
 use crate::auth::AuthService;
 use crate::errors::VisioError;
+use crate::http::{MAX_JSON_BODY, bounded_text, shared_http_client};
 
 /// Status returned by the lobby API.
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
@@ -62,18 +63,15 @@ impl LobbyService {
         let (instance, slug) = AuthService::parse_meet_url(meet_url)?;
 
         let api_url = format!(
-            "https://{}/api/v1.0/rooms/{}/request-entry/",
-            instance, slug
+            "{}://{}/api/v1.0/rooms/{}/request-entry/",
+            crate::tokens::scheme_for(&instance),
+            instance,
+            slug
         );
 
         let body = serde_json::json!({ "username": username });
 
-        let client = reqwest::Client::builder()
-            .redirect(reqwest::redirect::Policy::none())
-            .build()
-            .map_err(|e| VisioError::Http(e.to_string()))?;
-
-        let resp = client
+        let resp = shared_http_client()
             .post(&api_url)
             .json(&body)
             .send()
@@ -87,7 +85,9 @@ impl LobbyService {
             )));
         }
 
-        // Extract lobby cookie from Set-Cookie header
+        // Extract lobby cookie from Set-Cookie header.
+        // This is server-issued lobby state (unrelated to OAuth), keyed by the
+        // anonymous waiting user; we forward it back when polling status.
         let lobby_cookie = resp
             .headers()
             .get_all(reqwest::header::SET_COOKIE)
@@ -98,10 +98,7 @@ impl LobbyService {
             .unwrap_or("")
             .to_string();
 
-        let resp_body = resp
-            .text()
-            .await
-            .map_err(|e| VisioError::Http(e.to_string()))?;
+        let resp_body = bounded_text(resp, MAX_JSON_BODY).await?;
 
         let data: RequestEntryResponse = serde_json::from_str(&resp_body)
             .map_err(|e| VisioError::Auth(format!("invalid request-entry response: {e}")))?;
@@ -121,18 +118,16 @@ impl LobbyService {
         let (instance, slug) = AuthService::parse_meet_url(meet_url)?;
 
         let api_url = format!(
-            "https://{}/api/v1.0/rooms/{}/request-entry/",
-            instance, slug
+            "{}://{}/api/v1.0/rooms/{}/request-entry/",
+            crate::tokens::scheme_for(&instance),
+            instance,
+            slug
         );
 
         let body = serde_json::json!({ "username": username });
 
-        let client = reqwest::Client::builder()
-            .redirect(reqwest::redirect::Policy::none())
-            .build()
-            .map_err(|e| VisioError::Http(e.to_string()))?;
-
-        let resp = client
+        // lobby_cookie is server-issued lobby state, sent back as a Cookie.
+        let resp = shared_http_client()
             .post(&api_url)
             .header(reqwest::header::COOKIE, lobby_cookie)
             .json(&body)
@@ -147,10 +142,7 @@ impl LobbyService {
             )));
         }
 
-        let resp_body = resp
-            .text()
-            .await
-            .map_err(|e| VisioError::Http(e.to_string()))?;
+        let resp_body = bounded_text(resp, MAX_JSON_BODY).await?;
 
         let data: RequestEntryResponse = serde_json::from_str(&resp_body)
             .map_err(|e| VisioError::Auth(format!("invalid poll-entry response: {e}")))?;
@@ -161,21 +153,22 @@ impl LobbyService {
     /// List participants currently waiting in the lobby (host only).
     pub async fn list_waiting(
         meet_url: &str,
-        session_cookie: &str,
+        access_token: &str,
     ) -> Result<Vec<WaitingParticipant>, VisioError> {
         let (instance, slug) = AuthService::parse_meet_url(meet_url)?;
 
         let api_url = format!(
-            "https://{}/api/v1.0/rooms/{}/waiting-participants/",
-            instance, slug
+            "{}://{}/api/v1.0/rooms/{}/waiting-participants/",
+            crate::tokens::scheme_for(&instance),
+            instance,
+            slug
         );
 
-        let client = reqwest::Client::new();
-        let resp = client
+        let resp = shared_http_client()
             .get(&api_url)
             .header(
-                reqwest::header::COOKIE,
-                format!("sessionid={}", session_cookie),
+                reqwest::header::AUTHORIZATION,
+                format!("Bearer {}", access_token),
             )
             .send()
             .await
@@ -188,10 +181,7 @@ impl LobbyService {
             )));
         }
 
-        let body = resp
-            .text()
-            .await
-            .map_err(|e| VisioError::Http(e.to_string()))?;
+        let body = bounded_text(resp, MAX_JSON_BODY).await?;
 
         let resp: WaitingParticipantsResponse = serde_json::from_str(&body)
             .map_err(|e| VisioError::Auth(format!("invalid waiting-participants response: {e}")))?;
@@ -202,32 +192,30 @@ impl LobbyService {
     /// Allow or deny a waiting participant (host only).
     pub async fn handle_entry(
         meet_url: &str,
-        session_cookie: &str,
+        access_token: &str,
         participant_id: &str,
         allow: bool,
     ) -> Result<(), VisioError> {
-        use rand::Rng;
-
         let (instance, slug) = AuthService::parse_meet_url(meet_url)?;
 
-        let api_url = format!("https://{}/api/v1.0/rooms/{}/enter/", instance, slug);
-
-        let csrf_bytes: [u8; 32] = rand::thread_rng().r#gen();
-        let csrf_token: String = csrf_bytes.iter().map(|b| format!("{:02x}", b)).collect();
-
-        let cookie_header = format!("sessionid={}; csrftoken={}", session_cookie, csrf_token);
+        let api_url = format!(
+            "{}://{}/api/v1.0/rooms/{}/enter/",
+            crate::tokens::scheme_for(&instance),
+            instance,
+            slug
+        );
 
         let body = serde_json::json!({
             "participant_id": participant_id,
             "allow_entry": allow,
         });
 
-        let client = reqwest::Client::new();
-        let resp = client
+        let resp = shared_http_client()
             .post(&api_url)
-            .header(reqwest::header::COOKIE, &cookie_header)
-            .header("X-CSRFToken", &csrf_token)
-            .header("Referer", format!("https://{}/{}/", instance, slug))
+            .header(
+                reqwest::header::AUTHORIZATION,
+                format!("Bearer {}", access_token),
+            )
             .json(&body)
             .send()
             .await
@@ -235,7 +223,7 @@ impl LobbyService {
 
         if !resp.status().is_success() {
             let status = resp.status();
-            let body = resp.text().await.unwrap_or_default();
+            let body = bounded_text(resp, MAX_JSON_BODY).await.unwrap_or_default();
             return Err(VisioError::Auth(format!(
                 "handle-entry returned status {}: {}",
                 status, body

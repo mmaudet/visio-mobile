@@ -7,37 +7,74 @@ on:
         description: "Release notes for testers"
         required: false
         default: ""
-      publish_to_play_store:
-        description: "Upload AAB to Google Play (internal track)"
+      publish:
+        description: "Upload AAB to Play Store internal track"
         required: false
         type: boolean
         default: false
+  push:
+    # Pushing a semver tag triggers a build + automatic Play Store
+    # upload. Use vX.Y.Z for prod-ready releases (Play Store internal
+    # track, ready to promote to production from the console) and
+    # vX.Y.Z-rcN for release candidates (build only, no upload).
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+'
+      - 'v[0-9]+.[0-9]+.[0-9]+-rc[0-9]+'
 
 permissions:
-  contents: write
+  contents: read
+
+# A new dispatch of this workflow on the same ref cancels the in-progress
+# one. Keeps the iteration loop from racking up 5 parallel Android builds
+# fighting for the Play Store upload slot when we re-trigger during a
+# debug session.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build-android:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    # Android build path: ~10-15 min healthy, 25 min with cold cargo cache.
+    # Tighter than default 6h so a hung step (Tauri DMG-style hang) fails
+    # in minutes instead of burning runner hours.
+    timeout-minutes: 45
+    # Three job-level permission needs cumulated here:
+    # - contents: read       — restore the workflow-level default that
+    #   gets erased once we set a job-level permissions block.
+    # - id-token: write      — google-github-actions/auth mints a GitHub
+    #   OIDC token; GCP STS exchanges it for a ~1h access token bound
+    #   to the Play Store service account (WIF). The same token is
+    #   also used by attest-build-provenance below as the Sigstore
+    #   subject.
+    # - attestations: write  — actions/attest-build-provenance pushes
+    #   a signed SLSA build provenance attestation to the repo's
+    #   attestations endpoint, so anyone can verify a published AAB
+    #   really came from this commit via `gh attestation verify`.
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
     defaults:
       run:
         working-directory: .
 
     steps:
+      # Pin to immutable SHA so retags on the trigger ref don't break the
+      # checkout mid-build (we sometimes move v0.10.0 forward between CI
+      # iterations on other workflows).
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
-
-      - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@631a55b12751854ce901bb631d5902ceb48146f7 # stable
         with:
-          targets: aarch64-linux-android
+          ref: ${{ github.sha }}
+
+      - name: Setup Rust toolchain
+        uses: ./.github/actions/setup-rust-toolchain
+        with:
+          rust-targets: aarch64-linux-android
+          cache-key: android-arm64
 
       - name: Install cargo-ndk
         run: cargo install cargo-ndk
-
-      - name: Cache Rust build artifacts
-        uses: Swatinem/rust-cache@f51f967e158417aafa338a1e46ab22095f07aa01 # v2
-        with:
-          key: android-arm64
 
       - name: Set up Android NDK
         uses: android-actions/setup-android@651bceb6f9ca583f16b8d75b62c36ded2ae6fc9c # v4
@@ -78,31 +115,35 @@ jobs:
           fi
 
       - name: Decode keystore
+        # echo adds a trailing newline that can corrupt the decoded binary;
+        # printf '%s' emits the secret verbatim and base64 -d ignores
+        # whitespace, so the decoded keystore is byte-identical to the source.
         run: |
-          echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > android/app/release.keystore
+          printf '%s' "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" \
+            | base64 -d > android/app/release.keystore
 
-      - name: Decode Firebase service account
-        run: |
-          echo "${{ secrets.FIREBASE_SERVICE_ACCOUNT_BASE64 }}" | base64 -d > /tmp/firebase-sa.json
+      - name: Authenticate to Google Cloud via Workload Identity Federation
+        # Exchanges the job's GitHub OIDC token (id-token: write above) for a
+        # short-lived (~1h) GCP access token bound to the Play Store service
+        # account, then writes an "external account" credentials JSON to a
+        # temp path and exports GOOGLE_APPLICATION_CREDENTIALS pointing at it.
+        # No long-lived JSON private key lives in the secrets anymore.
+        # Gated by the same condition as the upload step below — there's no
+        # value in burning an STS exchange on builds that won't upload.
+        if: >-
+          (github.event_name == 'workflow_dispatch' && inputs.publish == true) ||
+          (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') && !contains(github.ref, '-rc'))
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
+          service_account: ${{ secrets.GCP_PLAY_STORE_SA }}
+          create_credentials_file: true
 
       - name: Set up Ruby
         uses: ruby/setup-ruby@v1
         with:
           ruby-version: "3.2"
           bundler-cache: true
-
-      - name: Build & distribute via Fastlane
-        working-directory: android
-        env:
-          KEYSTORE_PATH: release.keystore
-          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
-          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
-          FIREBASE_APP_ID: ${{ secrets.FIREBASE_APP_ID }}
-          GOOGLE_APPLICATION_CREDENTIALS: /tmp/firebase-sa.json
-          VERSION_CODE: ${{ github.run_number }}
-          RELEASE_NOTES: ${{ github.event.inputs.release_notes }}
-        run: bundle exec fastlane distribute
 
       - name: Build AAB for Google Play
         working-directory: android
@@ -111,41 +152,37 @@ jobs:
           KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          # Monotonic versionCode from the run number. Without it the
+          # build.gradle.kts fallback (`?: 1`) ships version_code=1 — which
+          # Play Store rejects as already-used by an earlier release.
+          VERSION_CODE: ${{ github.run_number }}
         run: ./gradlew bundleRelease
 
       - name: Upload AAB to Google Play (internal track)
-        if: inputs.publish_to_play_store == true
+        # Publish when explicitly requested via workflow_dispatch input OR
+        # when triggered by a non-RC semver tag push (vX.Y.Z, not -rcN).
+        if: >-
+          (github.event_name == 'workflow_dispatch' && inputs.publish == true) ||
+          (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') && !contains(github.ref, '-rc'))
         working-directory: android
         env:
-          SUPPLY_JSON_KEY_PATH: /tmp/firebase-sa.json
+          # google-github-actions/auth above sets GOOGLE_APPLICATION_CREDENTIALS
+          # to a temp external-account JSON. Fastlane supply accepts that
+          # path the same way it accepts a service-account JSON.
+          SUPPLY_JSON_KEY_PATH: ${{ env.GOOGLE_APPLICATION_CREDENTIALS }}
         run: bundle exec fastlane release
 
       - name: Package native debug symbols
         run: |
           SYMBOLS_DIR="android/app/build/outputs/native-debug-symbols/release"
           mkdir -p "$SYMBOLS_DIR/lib/arm64-v8a"
-          # Copy unstripped .so files with debug symbols
           for lib in libvisio_ffi.so libvisio_video.so; do
             UNSTRIPPED=$(find target/aarch64-linux-android/release -name "$lib" -not -path "*/stripped/*" | head -1)
             if [ -n "$UNSTRIPPED" ]; then
               cp "$UNSTRIPPED" "$SYMBOLS_DIR/lib/arm64-v8a/"
             fi
           done
-          # Create native-debug-symbols.zip for Google Play upload
-          cd "$SYMBOLS_DIR" && zip -r "$GITHUB_WORKSPACE/native-debug-symbols.zip" lib/
-
-      - name: Find built APK
-        id: find-apk
-        if: always()
-        run: |
-          APK=$(find android/app/build/outputs -name "*.apk" -type f | head -1)
-          if [ -n "$APK" ]; then
-            echo "apk_path=$APK" >> $GITHUB_OUTPUT
-            echo "apk_name=$(basename $APK)" >> $GITHUB_OUTPUT
-            echo "Found APK: $APK"
-          else
-            echo "No APK found"
-          fi
+          cd "$SYMBOLS_DIR" && zip -r "$GITHUB_WORKSPACE/android-debug-symbols.zip" lib/
 
       - name: Find built AAB
         id: find-aab
@@ -159,47 +196,29 @@ jobs:
             echo "No AAB found"
           fi
 
-      - name: Upload APK artifact
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7
-        if: steps.find-apk.outputs.apk_path != ''
-        with:
-          name: android-apk
-          path: ${{ steps.find-apk.outputs.apk_path }}
-
       - name: Upload AAB artifact
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7
         if: steps.find-aab.outputs.aab_path != ''
         with:
           name: android-aab
           path: ${{ steps.find-aab.outputs.aab_path }}
+          retention-days: 14
+
+      - name: Attest AAB build provenance
+        # SLSA build provenance: signs an attestation that this AAB came
+        # from this commit on this workflow. Stored against the repo;
+        # verifiable with `gh attestation verify <file> --repo <repo>`.
+        # Skipped if the AAB build failed (no point attesting a missing file).
+        uses: actions/attest-build-provenance@b3e506e8c389afc651c5bacf2b8f2a1ea0557215 # v4
+        if: steps.find-aab.outputs.aab_path != ''
+        with:
+          subject-path: ${{ steps.find-aab.outputs.aab_path }}
 
       - name: Upload native debug symbols
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7
         if: always()
         with:
-          name: native-debug-symbols
-          path: native-debug-symbols.zip
+          name: android-debug-symbols
+          path: android-debug-symbols.zip
           if-no-files-found: warn
-
-      - name: Create GitHub Release
-        if: steps.find-apk.outputs.apk_path != '' || steps.find-aab.outputs.aab_path != ''
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          TAG="build-${{ github.run_number }}"
-          NOTES="${{ github.event.inputs.release_notes }}"
-          if [ -z "$NOTES" ]; then
-            NOTES="Build #${{ github.run_number }} from $(date -u +%Y-%m-%d)"
-          fi
-          FILES=()
-          if [ -n "${{ steps.find-apk.outputs.apk_path }}" ]; then
-            FILES+=("${{ steps.find-apk.outputs.apk_path }}")
-          fi
-          if [ -n "${{ steps.find-aab.outputs.aab_path }}" ]; then
-            FILES+=("${{ steps.find-aab.outputs.aab_path }}")
-          fi
-          gh release create "$TAG" \
-            "${FILES[@]}" \
-            --title "Android Build #${{ github.run_number }}" \
-            --notes "$NOTES" \
-            --prerelease
+          retention-days: 30

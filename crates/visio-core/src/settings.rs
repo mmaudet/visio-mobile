@@ -162,8 +162,8 @@ fn default_video_resolution() -> String {
 
 fn default_meet_instances() -> Vec<String> {
     vec![
+        "visio.numerique.gouv.fr".to_string(),
         "meet.linagora.com".to_string(),
-        "meet.numerique.gouv.fr".to_string(),
     ]
 }
 
@@ -723,8 +723,8 @@ mod tests {
         assert_eq!(
             s.meet_instances,
             vec![
-                "meet.linagora.com".to_string(),
-                "meet.numerique.gouv.fr".to_string()
+                "visio.numerique.gouv.fr".to_string(),
+                "meet.linagora.com".to_string()
             ]
         );
     }
@@ -932,8 +932,8 @@ mod tests {
         assert_eq!(
             store.get().meet_instances,
             vec![
-                "meet.linagora.com".to_string(),
-                "meet.numerique.gouv.fr".to_string()
+                "visio.numerique.gouv.fr".to_string(),
+                "meet.linagora.com".to_string()
             ]
         );
     }

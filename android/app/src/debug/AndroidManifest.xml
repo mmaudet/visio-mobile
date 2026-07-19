@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Debug-only manifest overlay. Adds:
+    1. Cleartext HTTP exemption (via network_security_config) so a dev can
+       point the app at a local docker-compose Meet + Keycloak stack
+       (10.0.2.2 from the Android emulator, or localhost via `adb reverse`
+       from a USB-connected device).
+    2. The `visio-test://connect` intent filter used by E2E UIAutomator
+       tests to drive the app with a pre-baked LiveKit URL + token,
+       bypassing the SSO flow.
+  Release builds keep Android's defaults: no cleartext, no test deep link.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application
+        android:networkSecurityConfig="@xml/network_security_config">
+        <activity
+            android:name=".MainActivity"
+            tools:node="merge"
+            xmlns:tools="http://schemas.android.com/tools">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:scheme="visio-test" android:host="connect" />
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>

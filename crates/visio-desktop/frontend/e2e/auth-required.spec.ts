@@ -60,7 +60,7 @@ test.describe('Join flow requiring OIDC authentication', () => {
     // Simulate the system browser redirecting back to the app with a code.
     await page.evaluate(() =>
       (window as any).__emitTauriEvent('deep-link://new-url', [
-        'visio://auth-callback?code=fake-code',
+        'visio://auth-callback?code=fake-code&state=fake-state',
       ]),
     );
 
@@ -77,7 +77,7 @@ test.describe('Join flow requiring OIDC authentication', () => {
     // exchange fails (e.g. expired code).
     await page.evaluate(() =>
       (window as any).__emitTauriEvent('deep-link://new-url', [
-        'visio://auth-callback?code=fake-code',
+        'visio://auth-callback?code=fake-code&state=fake-state',
       ]),
     );
 
@@ -87,7 +87,7 @@ test.describe('Join flow requiring OIDC authentication', () => {
       .poll(async () =>
         page.evaluate(() =>
           (window as any).__invokeLog.some(
-            (entry: any) => entry.cmd === 'exchange_oidc_code',
+            (entry: any) => entry.cmd === 'exchange_pkce_code',
           ),
         ),
       )

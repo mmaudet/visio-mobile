@@ -1,0 +1,14 @@
+# Trivy ignore list — keep this list minimal and document each entry.
+# Each line is a CVE or GHSA identifier; a `# reason:` comment line above
+# documents why it's safe to defer the fix.
+
+# rustls-webpki 0.101.7 — DoS via panic on malformed CRL BIT STRING.
+# This version is pulled transitively by livekit-api 0.4.14 → tokio-tungstenite
+# 0.20 → rustls 0.21, none of which we can upgrade without livekit-api
+# itself moving past rustls 0.21. Fixed series (0.103.13+) IS used by
+# reqwest 0.12 elsewhere in the tree (we already track that).
+# Risk assessment: the panic only fires when the TLS layer parses a CRL.
+# Our LiveKit connections do not exercise CRL parsing (LiveKit servers do
+# not serve CRLs; standard cert chain validation only). Re-evaluate when
+# livekit-api > 0.4.14 ships against rustls >= 0.23.
+GHSA-82j2-j2ch-gfr8

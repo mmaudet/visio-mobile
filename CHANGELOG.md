@@ -8,8 +8,70 @@ and this project adheres to
 
 ## [Unreleased]
 
+### Added
+
+- CI: Android publish authenticates to Play Store via Google Cloud
+  Workload Identity Federation instead of a long-lived service-account
+  JSON. The job mints a GitHub OIDC token, GCP STS exchanges it for a
+  ~1h access token bound to the Play Store SA. No JSON private key is
+  stored in repo secrets. `FIREBASE_SERVICE_ACCOUNT_BASE64` is now
+  unused and will be removed once the next publish run confirms WIF
+  works end-to-end.
+- CI: every shipping artifact (`.aab`, `.ipa`, `.dmg`, `.msi`, `.exe`,
+  `.AppImage`, `.deb`, `.flatpak`) now ships with a signed SLSA build
+  provenance attestation. Anyone can verify a binary really came from
+  this repo at a given commit with `gh attestation verify <file>
+  --repo mmaudet/visio-mobile`. The attestations live in the GitHub
+  attestations store (also pushed to Sigstore Rekor public ledger),
+  no extra files in releases. This puts the build at SLSA Level 3.
+- Desktop: the macOS `.app` and `.dmg` are now signed with a real
+  Developer ID Application certificate (Linagora, KUT463DS29) and
+  notarized via Apple's notarytool API. End users no longer see the
+  "unidentified developer" Gatekeeper warning; the app launches by
+  double-click. Hardened runtime is on; the existing camera / mic
+  entitlements (`com.apple.security.device.camera`,
+  `com.apple.security.device.audio-input`) carry the privacy
+  authorizations the app needs.
+- CI: pushing a semver tag (`vX.Y.Z` or `vX.Y.Z-rcN`) now triggers
+  the three build workflows automatically. Non-RC tags publish to
+  Play Store internal / App Store Connect; RC tags build only.
+  Desktop releases use the semver tag as the GitHub Release tag.
+
+### Changed
+
+- CI: Android publish now goes through Play Store internal track only;
+  the Firebase App Distribution channel and the per-run
+  `build-N` GitHub prereleases are dropped
+- CI: artifact retention reduced to 14 days across all build workflows
+- CI: every build workflow has explicit `concurrency: cancel-in-progress`
+  and `timeout-minutes` instead of relying on the GitHub defaults
+- CI: pin `ubuntu-latest` -> `ubuntu-24.04` and `windows-latest` ->
+  `windows-2022` so a GitHub-side image bump doesn't break a release
+  the day it ships
+- CI: dispatch input names are now uniform across the three workflows.
+  Android `publish_to_play_store` and iOS `publish_to_app_store` are
+  renamed to `publish`. Desktop gets a new `publish` input (default
+  false) — a default dispatch builds artifacts without creating a
+  `desktop-build-N` GitHub Release. Tag-triggered runs ignore the
+  input and always publish.
+- CI: Android `native-debug-symbols` artifact renamed to
+  `android-debug-symbols` so the platform prefix matches the other
+  artifacts (`android-aab`, `ios-ipa`, `desktop-*`)
+- CI: Desktop workflow display name aligned with the others:
+  "Build Desktop" -> "Build & Distribute Desktop"
+- CI: the shared Rust toolchain + cache setup is now a single
+  composite action at `.github/actions/setup-rust-toolchain/`
+  instead of being duplicated across the three build workflows.
+  Future SHA bumps for `dtolnay/rust-toolchain` or
+  `Swatinem/rust-cache` are a one-file edit.
+
 ### Fixed
 
+- iOS: App Store metadata. Release notes for all 6 locales now
+  describe 0.10.0 (OAuth 2.0 + PKCE, encrypted Keychain storage,
+  hardened HTTPS, security audits) instead of carrying the stale
+  0.9.0 changelog. Unblocks the Apple submission that was rejected
+  under Guideline 2.3.10 on 2026-06-05.
 - Desktop: OIDC sign-in from the join screen called a nonexistent
   Tauri command (start_oidc_auth) — broken since 0.8.x
 - Desktop: missing i18n keys shown raw (home.signIn,
@@ -17,6 +79,65 @@ and this project adheres to
 - E2E: Playwright suite repaired (mock crash, pre-join traversal,
   stale selectors) and now enforced by a CI job
 - Desktop: dead code removal and zero-eslint-warning cleanup
+
+## [0.10.0] - 2026-06-04
+
+### Added
+
+- Core: OAuth2 + PKCE (RFC 7636 / RFC 8252) login flow with JWT
+  access + rotating refresh tokens (`pkce`, `tokens` modules)
+- Core: shared HTTP client with no-redirect policy, 30s timeout,
+  HTTPS-only in release; bounded JSON body reads (10 MiB cap)
+- FFI: `pkce_generate`, `exchange_pkce_code`, `set_tokens`,
+  `refresh_tokens`, `TokenPair`; panic guards on every entry point
+- Android: PKCE flow via Chrome Custom Tabs; tokens stored in
+  EncryptedSharedPreferences with the originating meet instance
+- iOS: PKCE flow via ASWebAuthenticationSession; tokens, verifier,
+  state and meet instance stored in Keychain
+- Desktop: PKCE flow via system browser + deep-link callback;
+  in-process PendingPkce slot validates state before exchange
+- Docs: three security audit reports under `docs/security/`
+  (Android, Rust, cross-layer) dated 2026-06-04
+
+### Changed
+
+- Core: `SessionState::Authenticated` now carries a `TokenPair`
+  instead of a session cookie; all Bearer plumbing flows from
+  the new `access_token()` accessor
+- Core: default Meet instances become
+  `[visio.numerique.gouv.fr, meet.linagora.com]`; the
+  `visio.numerique.gouv.fr` host is the official French State
+  instance, replacing `meet.numerique.gouv.fr`
+- Android: `network_security_config` (cleartext HTTP to loopback
+  hosts) is now debug-only via the `src/debug/` source set
+
+### Fixed
+
+- Core: `scheme_for` now parses bare hosts via `IpAddr` so
+  `10.attacker.com` no longer downgrades to plaintext HTTP, and
+  IPv6 literals (`::1`, `[::1]:8080`) are handled correctly
+- Core: `TokenPair` and FFI `TokenPair` redact JWTs in their
+  `Debug` impl so accidental `tracing::error!("{:?}", _)` cannot
+  leak meeting credentials
+- Core: `create_room` no longer logs the response body (the body
+  carries the LiveKit JWT) — status + body length only
+- Core: PKCE verifier and state now use `rand::rngs::OsRng`
+  directly instead of `ThreadRng`
+- Android: `android:allowBackup=false` + `dataExtractionRules`
+  exclude `visio_auth.xml` from `adb backup` and Auto Backup
+- Android: `visio-test://connect` intent filter moved to the
+  `src/debug/` source set so release APKs cannot be driven via it
+- Android: `EncryptedSharedPreferences` failures no longer wipe
+  storage silently — narrower exception catch, callers can
+  detect via `secureStorageAvailable`
+- Android: PKCE state comparison uses `MessageDigest.isEqual`
+  (constant-time)
+- Android / iOS: session restore uses the meet instance the
+  tokens were minted for, not `getMeetInstances().first`, so a
+  hostile entry in the instance list cannot redirect Bearer
+  traffic on relaunch
+- iOS: PKCE state comparison uses a constant-time UTF-8 byte
+  compare
 
 ## [0.9.0] - 2026-04-07
 
