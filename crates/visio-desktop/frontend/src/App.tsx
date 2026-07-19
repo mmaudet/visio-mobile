@@ -169,6 +169,19 @@ interface VisioHistoryEntry {
   display_name: string | null
 }
 
+interface UserSearchResult {
+  id: string
+  email: string
+  full_name: string | null
+  short_name: string | null
+}
+interface RoomAccess {
+  id: string
+  user: UserSearchResult
+  resource: string
+  role: string
+}
+
 interface ReactionData {
   id: number
   participantSid: string
@@ -1500,8 +1513,8 @@ function CreateRoomDialog({
   const [copiedHttp, setCopiedHttp] = useState(false)
   const [copiedDeep, setCopiedDeep] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
-  const [searchResults, setSearchResults] = useState<any[]>([])
-  const [invitedUsers, setInvitedUsers] = useState<any[]>([])
+  const [searchResults, setSearchResults] = useState<UserSearchResult[]>([])
+  const [invitedUsers, setInvitedUsers] = useState<UserSearchResult[]>([])
   const [createdRoomId, setCreatedRoomId] = useState('')
   const [createdLivekitUrl, setCreatedLivekitUrl] = useState('')
   const [createdLivekitToken, setCreatedLivekitToken] = useState('')
@@ -1519,13 +1532,11 @@ function CreateRoomDialog({
     }
     const timer = setTimeout(async () => {
       try {
-        const results = await invoke<any[]>('search_users', {
+        const results = await invoke<UserSearchResult[]>('search_users', {
           query: searchQuery,
         })
         setSearchResults(
-          results.filter(
-            (u: any) => !invitedUsers.some((inv: any) => inv.id === u.id)
-          )
+          results.filter((u) => !invitedUsers.some((inv) => inv.id === u.id))
         )
       } catch {
         setSearchResults([])
@@ -1723,7 +1734,7 @@ function CreateRoomDialog({
                   />
                   {searchResults.length > 0 && (
                     <div className="search-dropdown">
-                      {searchResults.map((user: any) => (
+                      {searchResults.map((user) => (
                         <button
                           key={user.id}
                           type="button"
@@ -1744,16 +1755,14 @@ function CreateRoomDialog({
                   )}
                   {invitedUsers.length > 0 && (
                     <div className="invited-chips">
-                      {invitedUsers.map((user: any) => (
+                      {invitedUsers.map((user) => (
                         <span key={user.id} className="user-chip">
                           {user.full_name || user.email}
                           <button
                             className="chip-remove"
                             onClick={() =>
                               setInvitedUsers(
-                                invitedUsers.filter(
-                                  (u: any) => u.id !== user.id
-                                )
+                                invitedUsers.filter((u) => u.id !== user.id)
                               )
                             }
                           >
@@ -1975,9 +1984,9 @@ function InfoSidebar({
   const t = useT()
   const [copiedHttp, setCopiedHttp] = useState(false)
   const [copiedDeep, setCopiedDeep] = useState(false)
-  const [roomAccesses, setRoomAccesses] = useState<any[]>([])
+  const [roomAccesses, setRoomAccesses] = useState<RoomAccess[]>([])
   const [memberSearch, setMemberSearch] = useState('')
-  const [memberResults, setMemberResults] = useState<any[]>([])
+  const [memberResults, setMemberResults] = useState<UserSearchResult[]>([])
 
   // Build share URL with room display name param if available
   const shareUrl = (() => {
@@ -1998,7 +2007,7 @@ function InfoSidebar({
     if (!roomId) return
     const fetchAccesses = async () => {
       try {
-        const results = await invoke<any[]>('list_accesses', { roomId })
+        const results = await invoke<RoomAccess[]>('list_accesses', { roomId })
         setRoomAccesses(results)
       } catch {
         /* ignore - not owner/admin */
@@ -2015,13 +2024,11 @@ function InfoSidebar({
     }
     const timer = setTimeout(async () => {
       try {
-        const results = await invoke<any[]>('search_users', {
+        const results = await invoke<UserSearchResult[]>('search_users', {
           query: memberSearch,
         })
         setMemberResults(
-          results.filter(
-            (u: any) => !roomAccesses.some((a: any) => a.user.id === u.id)
-          )
+          results.filter((u) => !roomAccesses.some((a) => a.user.id === u.id))
         )
       } catch {
         setMemberResults([])
@@ -2121,7 +2128,7 @@ function InfoSidebar({
             />
             {memberResults.length > 0 && (
               <div className="search-dropdown">
-                {memberResults.map((user: any) => (
+                {memberResults.map((user) => (
                   <button
                     key={user.id}
                     type="button"
@@ -2129,9 +2136,12 @@ function InfoSidebar({
                     onClick={async () => {
                       try {
                         await invoke('add_access', { userId: user.id, roomId })
-                        const updated = await invoke<any[]>('list_accesses', {
-                          roomId,
-                        })
+                        const updated = await invoke<RoomAccess[]>(
+                          'list_accesses',
+                          {
+                            roomId,
+                          }
+                        )
                         setRoomAccesses(updated)
                       } catch {
                         /* ignore */
@@ -2148,7 +2158,7 @@ function InfoSidebar({
                 ))}
               </div>
             )}
-            {roomAccesses.map((access: any) => (
+            {roomAccesses.map((access) => (
               <div key={access.id} className="member-row">
                 <div className="member-info">
                   <span>{access.user.full_name || access.user.email}</span>
@@ -2163,7 +2173,7 @@ function InfoSidebar({
                       try {
                         await invoke('remove_access', { accessId: access.id })
                         setRoomAccesses((prev) =>
-                          prev.filter((a: any) => a.id !== access.id)
+                          prev.filter((a) => a.id !== access.id)
                         )
                       } catch {
                         /* ignore */
