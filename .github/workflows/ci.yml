@@ -100,9 +100,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
       - name: ESLint
-        run: npx eslint src/
+        run: npm run lint
       - name: Prettier check
-        run: npx prettier --check "src/**/*.{ts,tsx,css}"
+        run: npm run format:check
 
   test-frontend:
     runs-on: ubuntu-latest

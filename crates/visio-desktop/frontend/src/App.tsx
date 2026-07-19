@@ -578,6 +578,12 @@ function MeetingsTab({
     isError: boolean
   } | null>(null)
 
+  // Mirror of `meetings` for listeners registered once (avoids stale closure)
+  const meetingsRef = useRef<Meeting[]>([])
+  useEffect(() => {
+    meetingsRef.current = meetings
+  }, [meetings])
+
   // Notify parent of meeting count changes
   useEffect(() => {
     onMeetingCountChange?.(meetings.length)
@@ -644,7 +650,7 @@ function MeetingsTab({
     listen<string>('calendar-error', () => {
       setSyncToast({ message: t('calendar.sync.error'), isError: true })
       setTimeout(() => setSyncToast(null), 4000)
-      if (meetings.length === 0) setStatus('error')
+      if (meetingsRef.current.length === 0) setStatus('error')
     }).then((fn) => {
       unlistenError = fn
     })
@@ -652,7 +658,7 @@ function MeetingsTab({
       unlistenUpdated?.()
       unlistenError?.()
     }
-  }, [])
+  }, [t])
 
   const handleRefresh = async () => {
     // Only show full loading screen on initial load (no meetings yet)
@@ -939,7 +945,7 @@ function HomeView({
     return () => {
       unlisten?.()
     }
-  }, [])
+  }, [t])
 
   const [error, setError] = useState('')
   const [joining, setJoining] = useState(false)
@@ -961,7 +967,7 @@ function HomeView({
       setMeetUrl(deepLinkUrl)
       onDeepLinkConsumed()
     }
-  }, [deepLinkUrl])
+  }, [deepLinkUrl, onDeepLinkConsumed])
 
   useEffect(() => {
     const trimmed = meetUrl.trim()
@@ -1061,7 +1067,7 @@ function HomeView({
       clearTimeout(timer)
       controller.abort()
     }
-  }, [meetUrl])
+  }, [meetUrl, displayName, meetInstances])
 
   const handleJoin = async () => {
     const url = resolvedUrl
@@ -4131,6 +4137,7 @@ function PreJoinScreen({
     setSelectedAudioInput: setSelectedInput,
     setSelectedAudioOutput: setSelectedOutput,
     setSelectedVideoInput: setSelectedCamera,
+    enumerate,
   } = devices
   const [micLevel, setMicLevel] = useState(0)
   const [showFilters, setShowFilters] = useState(false)
@@ -4171,7 +4178,7 @@ function PreJoinScreen({
       .catch(() => {})
 
     // Load device lists via unified hook
-    devices.enumerate()
+    enumerate()
 
     // Subscribe to video frame events
     listen<{ track_sid: string; data: string; width: number; height: number }>(
@@ -4196,7 +4203,7 @@ function PreJoinScreen({
         invoke('stop_mic_preview').catch(() => {})
       }
     }
-  }, [])
+  }, [enumerate])
 
   // ---- Effect: camera on/off ----------------------------------------------
   useEffect(() => {
@@ -4758,6 +4765,8 @@ export default function App() {
   // Deep link
   const [deepLinkUrl, setDeepLinkUrl] = useState<string | null>(null)
   const [deepLinkError, setDeepLinkError] = useState<string | null>(null)
+  // Stable callback so HomeView effects can depend on it
+  const handleDeepLinkConsumed = useCallback(() => setDeepLinkUrl(null), [])
   // Meeting URL (set on join, used in info panel)
   const [currentMeetUrl, setCurrentMeetUrl] = useState('')
   const [currentRoomId, setCurrentRoomId] = useState<string | null>(null)
@@ -4940,6 +4949,10 @@ export default function App() {
     return () => {
       unlisten.then((fn) => fn())
     }
+    // Listener global enregistré une fois ; relire displayName/t à chaque
+    // frappe forcerait un ré-abonnement permanent pour un cas d'usage rare
+    // (deep link).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   // Auto-connect listener (CLI args: --livekit-url <url> --token <token>)
@@ -4969,7 +4982,9 @@ export default function App() {
             setTimeout(async () => {
               try {
                 await invoke('send_chat', { text: msg.text })
-              } catch {}
+              } catch {
+                // best-effort: un échec ne doit pas casser le scénario/handler clavier
+              }
             }, msg.delay)
           }
 
@@ -4980,7 +4995,9 @@ export default function App() {
               await invoke('toggle_mic', { enabled: false })
               await invoke('toggle_camera', { enabled: false })
               console.log("[TURN] Desktop muted (bot's turn)")
-            } catch {}
+            } catch {
+              // best-effort: un échec ne doit pas casser le scénario/handler clavier
+            }
           }, 5000)
           // 25s: unmute — Desktop's turn to speak
           setTimeout(async () => {
@@ -4988,7 +5005,9 @@ export default function App() {
               await invoke('toggle_mic', { enabled: true })
               await invoke('toggle_camera', { enabled: true })
               console.log('[TURN] Desktop speaking')
-            } catch {}
+            } catch {
+              // best-effort: un échec ne doit pas casser le scénario/handler clavier
+            }
           }, 25000)
           // 50s: mute — Android's turn
           setTimeout(async () => {
@@ -4996,7 +5015,9 @@ export default function App() {
               await invoke('toggle_mic', { enabled: false })
               await invoke('toggle_camera', { enabled: false })
               console.log("[TURN] Desktop muted (Android's turn)")
-            } catch {}
+            } catch {
+              // best-effort: un échec ne doit pas casser le scénario/handler clavier
+            }
           }, 50000)
           // 100s: unmute — everyone speaks
           setTimeout(async () => {
@@ -5004,7 +5025,9 @@ export default function App() {
               await invoke('toggle_mic', { enabled: true })
               await invoke('toggle_camera', { enabled: true })
               console.log('[TURN] Desktop unmuted (all speak)')
-            } catch {}
+            } catch {
+              // best-effort: un échec ne doit pas casser le scénario/handler clavier
+            }
           }, 100000)
 
           // Auto screen share during Desktop's turn (30-48s)
@@ -5372,7 +5395,9 @@ export default function App() {
         setMicEnabled(true)
         try {
           await invoke('toggle_mic', { enabled: true })
-        } catch {}
+        } catch {
+          // best-effort: un échec ne doit pas casser le scénario/handler clavier
+        }
       }
     }
     const handleKeyUp = async (e: KeyboardEvent) => {
@@ -5382,7 +5407,9 @@ export default function App() {
         setMicEnabled(false)
         try {
           await invoke('toggle_mic', { enabled: false })
-        } catch {}
+        } catch {
+          // best-effort: un échec ne doit pas casser le scénario/handler clavier
+        }
       }
     }
     window.addEventListener('keydown', handleKeyDown)
@@ -5515,7 +5542,7 @@ export default function App() {
               displayName={displayName}
               onDisplayNameChange={setDisplayName}
               deepLinkUrl={deepLinkUrl}
-              onDeepLinkConsumed={() => setDeepLinkUrl(null)}
+              onDeepLinkConsumed={handleDeepLinkConsumed}
               oidcEnabled={oidcEnabled}
               isAuthenticated={isAuthenticated}
               authenticatedMeetInstance={authenticatedMeetInstance}
