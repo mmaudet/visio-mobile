@@ -282,9 +282,8 @@ La suite tourne en local ; elle n'est jamais lancée en CI. Ajouter un job `test
         run: npx playwright test
       - name: Upload test results on failure
         if: failure()
-        uses: actions/upload-artifact@<SHA_DE_V4> # v4 — résoudre le SHA au moment de l'implémentation :
-        #   gh api repos/actions/upload-artifact/git/refs/tags/v4 --jq .object.sha
-        #   (le repo épingle les actions par SHA, ne pas laisser de tag)
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7
+        # même SHA épinglé que les 4 autres workflows du repo (build-*.yml)
         with:
           name: playwright-test-results
           path: crates/visio-desktop/frontend/test-results/
