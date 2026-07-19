@@ -265,6 +265,16 @@ export async function mockTauriCall(
           case 'disconnect':
             return;
           case 'connect':
+            // The real backend emits "connection-state-changed: connected"
+            // once the LiveKit connection succeeds; PreJoinScreen only opens
+            // the CallView after receiving it. Listeners are registered
+            // before connect() is invoked, so a 0ms delay is enough.
+            setTimeout(() => {
+              (window as any).__emitTauriEvent(
+                'connection-state-changed',
+                'connected',
+              );
+            }, 0);
             return;
           case 'set_display_name':
             return;
@@ -378,6 +388,9 @@ export async function joinMockRoom(
   await nameInput.fill('Test User');
 
   await page.getByTestId('home-join-button').click();
+
+  // The app shows a pre-join (lobby) screen before entering the call
+  await page.getByTestId('prejoin-join-button').click();
 
   // Wait for call view to render
   await page.getByTestId('call-mic-button').waitFor({ timeout: 5000 });

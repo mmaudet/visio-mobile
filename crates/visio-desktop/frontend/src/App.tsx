@@ -4719,7 +4719,11 @@ function PreJoinScreen({
         <button className="btn btn-secondary" onClick={onCancel}>
           {t('prejoin.cancel')}
         </button>
-        <button className="btn btn-primary" onClick={handleJoinNow}>
+        <button
+          className="btn btn-primary"
+          data-testid="prejoin-join-button"
+          onClick={handleJoinNow}
+        >
           {t('prejoin.joinNow')}
         </button>
       </div>
