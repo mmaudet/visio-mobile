@@ -492,7 +492,7 @@ Expected: tsc OK ; 0 occurrence.
 
 ```bash
 git add crates/visio-desktop/frontend/src/App.tsx
-git commit -m "chore(desktop): type room access API results (UserSearchResult, RoomAccess)"
+git commit -m "chore(desktop): type room access API results"
 ```
 
 ---
@@ -585,7 +585,7 @@ Expected: tout passe.
 
 ```bash
 git add crates/visio-desktop/frontend/src/App.tsx .github/workflows/ci.yml
-git commit -m "chore(desktop): zero eslint warnings (deps, empty catch) + align CI on npm scripts"
+git commit -m "chore(desktop): zero eslint warnings + align CI lint on npm scripts"
 ```
 
 ---
