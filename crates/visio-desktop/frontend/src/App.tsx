@@ -1419,6 +1419,7 @@ export default function App() {
   useEffect(() => {
     if (view === 'home' || view === 'lobby') return
 
+    let cancelled = false
     let unlistenFrame: UnlistenFn | null = null
     let unlistenTrackUnsub: UnlistenFn | null = null
 
@@ -1464,6 +1465,12 @@ export default function App() {
       pendingFrames.set(track_sid, data)
       scheduleFlush()
     }).then((fn) => {
+      // Cleanup may have run while listen() was still pending (fast view
+      // hop) — unlisten right away so the subscription doesn't leak.
+      if (cancelled) {
+        fn()
+        return
+      }
       unlistenFrame = fn
     })
 
@@ -1475,10 +1482,15 @@ export default function App() {
       pendingRemovals.add(trackSid)
       scheduleFlush()
     }).then((fn) => {
+      if (cancelled) {
+        fn()
+        return
+      }
       unlistenTrackUnsub = fn
     })
 
     return () => {
+      cancelled = true
       unlistenFrame?.()
       unlistenTrackUnsub?.()
       if (flushTimer !== null) clearTimeout(flushTimer)
@@ -1489,6 +1501,7 @@ export default function App() {
   useEffect(() => {
     if (view === 'home' || view === 'lobby') return
 
+    let cancelled = false
     let unlistenHand: UnlistenFn | null = null
     let unlistenUnread: UnlistenFn | null = null
     let unlistenSpeakers: UnlistenFn | null = null
@@ -1512,28 +1525,46 @@ export default function App() {
         }
       }
     ).then((fn) => {
+      // Same pending-listen race as the video-frame effect above.
+      if (cancelled) {
+        fn()
+        return
+      }
       unlistenHand = fn
     })
 
     listen<number>('unread-count-changed', (event) => {
       setUnreadCount(event.payload)
     }).then((fn) => {
+      if (cancelled) {
+        fn()
+        return
+      }
       unlistenUnread = fn
     })
 
     listen<string[]>('active-speakers-changed', (event) => {
       setActiveSpeakers(event.payload)
     }).then((fn) => {
+      if (cancelled) {
+        fn()
+        return
+      }
       unlistenSpeakers = fn
     })
 
     listen<string>('bandwidth-mode-changed', (event) => {
       setBandwidthMode(event.payload)
     }).then((fn) => {
+      if (cancelled) {
+        fn()
+        return
+      }
       unlistenBandwidth = fn
     })
 
     return () => {
+      cancelled = true
       unlistenHand?.()
       unlistenUnread?.()
       unlistenSpeakers?.()
@@ -1543,6 +1574,7 @@ export default function App() {
 
   // ---- Lobby events -------------------------------------------------------
   useEffect(() => {
+    let cancelled = false
     let unlistenDenied: UnlistenFn | null = null
     let unlistenTimeout: UnlistenFn | null = null
     let unlistenJoined: UnlistenFn | null = null
@@ -1553,6 +1585,11 @@ export default function App() {
       setView('home')
       alert(t('lobby.denied'))
     }).then((fn) => {
+      // Guard against cleanup having run while listen() was still pending.
+      if (cancelled) {
+        fn()
+        return
+      }
       unlistenDenied = fn
     })
 
@@ -1561,6 +1598,10 @@ export default function App() {
       setView('home')
       alert(t('lobby.timeout'))
     }).then((fn) => {
+      if (cancelled) {
+        fn()
+        return
+      }
       unlistenTimeout = fn
     })
 
@@ -1568,6 +1609,10 @@ export default function App() {
       const p = event.payload
       setWaitingParticipants((prev) => addWaitingParticipant(prev, p))
     }).then((fn) => {
+      if (cancelled) {
+        fn()
+        return
+      }
       unlistenJoined = fn
     })
 
@@ -1575,10 +1620,15 @@ export default function App() {
       const { id } = event.payload
       setWaitingParticipants((prev) => removeWaitingParticipant(prev, id))
     }).then((fn) => {
+      if (cancelled) {
+        fn()
+        return
+      }
       unlistenLeft = fn
     })
 
     return () => {
+      cancelled = true
       unlistenDenied?.()
       unlistenTimeout?.()
       unlistenJoined?.()
@@ -1592,15 +1642,22 @@ export default function App() {
     invoke<Meeting[]>('get_upcoming_meetings')
       .then(setUpcomingMeetings)
       .catch(() => {})
+    let cancelled = false
     let off: UnlistenFn | null = null
     listen<Meeting[]>('meetings-updated', (event) => {
       if (event.payload.length > 0) {
         setUpcomingMeetings(event.payload)
       }
     }).then((fn) => {
+      // Guard against cleanup having run while listen() was still pending.
+      if (cancelled) {
+        fn()
+        return
+      }
       off = fn
     })
     return () => {
+      cancelled = true
       off?.()
     }
   }, [])
@@ -1608,6 +1665,7 @@ export default function App() {
   // ---- Toast on participant join. Skip during the first 2s after the call
   // connects so the initial roster doesn't fire N toasts at once.
   useEffect(() => {
+    let cancelled = false
     let off: UnlistenFn | null = null
     listen<{ sid: string; identity: string; name: string }>(
       'participant-joined',
@@ -1620,9 +1678,15 @@ export default function App() {
         showToast(t('call.participantJoined').replace('{name}', who))
       }
     ).then((fn) => {
+      // Guard against cleanup having run while listen() was still pending.
+      if (cancelled) {
+        fn()
+        return
+      }
       off = fn
     })
     return () => {
+      cancelled = true
       off?.()
     }
   }, [callStartedMs, showToast, t])
@@ -1631,6 +1695,7 @@ export default function App() {
   // them whether it's the active view or not. Each reaction auto-expires
   // after 3.5s. The legacy listener inside the dead CallView never runs.
   useEffect(() => {
+    let cancelled = false
     let off: UnlistenFn | null = null
     listen<{ participantSid: string; participantName: string; emoji: string }>(
       'reaction-received',
@@ -1644,9 +1709,15 @@ export default function App() {
         setTimeout(() => setLiveReactions(removeReactionById(id)), 3500)
       }
     ).then((fn) => {
+      // Guard against cleanup having run while listen() was still pending.
+      if (cancelled) {
+        fn()
+        return
+      }
       off = fn
     })
     return () => {
+      cancelled = true
       off?.()
     }
   }, [])
@@ -2536,14 +2607,12 @@ export default function App() {
                 )
               }}
               onConnectInstance={(host) => {
-                pendingOidcRef.current = host
                 showToast(t('settings.instance.connecting'))
-                invoke('launch_oidc_browser', { meetInstance: host })
-                  .then(() => console.log('[oidc] browser launched for', host))
-                  .catch((e) => {
-                    console.error('[oidc] launch_oidc_browser failed:', e)
-                    showToast(`OIDC: ${String(e)}`)
-                  })
+                // Route through the shared wrapper so the OIDC watchdog is
+                // (re)armed for this flow — a stale watchdog from a previous
+                // Home sign-in would otherwise fire mid-flow, null the pending
+                // instance and drop the auth callback.
+                void handleLaunchOidc(host)
               }}
               onDisconnectInstance={(host) => {
                 invoke('logout_session', {
