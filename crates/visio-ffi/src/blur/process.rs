@@ -1,4 +1,5 @@
 use super::{convert, gaussian, model, segment};
+use std::collections::HashMap;
 use std::sync::Mutex;
 
 /// Background mode: Off, Blur (light/strong), or Image replacement (by image ID 1-8).
@@ -17,9 +18,11 @@ static MODE: Mutex<BackgroundMode> = Mutex::new(BackgroundMode::Off);
 /// Cached replacement image in I420 format, resized to current frame dimensions.
 static REPLACEMENT_CACHE: Mutex<Option<ReplacementImage>> = Mutex::new(None);
 
-/// Raw JPEG bytes for the current replacement image (used to re-generate I420
-/// when rotation or frame dimensions change).
-static REPLACEMENT_JPEG: Mutex<Option<(u8, Vec<u8>)>> = Mutex::new(None);
+/// Raw JPEG bytes for the available replacement images, keyed by ID.
+/// Mobile / desktop preload all bundled backgrounds at startup so the user can
+/// switch images mid-call without re-fetching from disk; previously this was a
+/// single slot which meant only the last-loaded image was usable.
+static REPLACEMENT_JPEGS: Mutex<Option<HashMap<u8, Vec<u8>>>> = Mutex::new(None);
 
 struct ReplacementImage {
     id: u8,
@@ -172,9 +175,16 @@ impl BlurProcessor {
     ) -> Result<(), String> {
         // Validate that the JPEG is decodable
         convert::jpeg_dimensions(jpeg_bytes)?;
-        *REPLACEMENT_JPEG.lock().map_err(|e| e.to_string())? = Some((id, jpeg_bytes.to_vec()));
-        // Invalidate cached I420 so it gets regenerated with correct dimensions/rotation
-        *REPLACEMENT_CACHE.lock().map_err(|e| e.to_string())? = None;
+        let mut guard = REPLACEMENT_JPEGS.lock().map_err(|e| e.to_string())?;
+        let map = guard.get_or_insert_with(HashMap::new);
+        map.insert(id, jpeg_bytes.to_vec());
+        // Invalidate cached I420 only if the currently-cached image is the
+        // one being replaced; switching to a different ID is handled by
+        // set_mode().
+        let mut cache = REPLACEMENT_CACHE.lock().map_err(|e| e.to_string())?;
+        if cache.as_ref().is_some_and(|c| c.id == id) {
+            *cache = None;
+        }
         Ok(())
     }
 
@@ -191,12 +201,10 @@ impl BlurProcessor {
             }
         }
 
-        // Need to regenerate — get JPEG bytes
-        let jpeg_guard = REPLACEMENT_JPEG.lock().ok()?;
-        let (stored_id, jpeg_bytes) = jpeg_guard.as_ref()?;
-        if *stored_id != id {
-            return None;
-        }
+        // Need to regenerate — get JPEG bytes for this ID
+        let jpeg_guard = REPLACEMENT_JPEGS.lock().ok()?;
+        let map = jpeg_guard.as_ref()?;
+        let jpeg_bytes = map.get(&id)?;
 
         let rgb = convert::decode_jpeg_to_rgb(jpeg_bytes).ok()?;
         let (src_w, src_h) = convert::jpeg_dimensions(jpeg_bytes).ok()?;

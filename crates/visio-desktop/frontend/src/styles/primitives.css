@@ -1,0 +1,278 @@
+/* ===========================================================================
+   Visio Desktop — UI primitives (design refonte 2026).
+   Reproduit la spec du handoff : .v-btn, .v-card, .v-input, .v-tag, .v-chip,
+   .v-seg, .v-eyebrow, .v-h1/h2, .v-sub, .v-mono.
+   =========================================================================== */
+
+/* ---- Buttons ------------------------------------------------------------- */
+.v-btn {
+  height: var(--ctl-h);
+  border: none;
+  cursor: pointer;
+  font-family: var(--font-ui);
+  font-weight: 600;
+  font-size: 15px;
+  border-radius: var(--r-btn);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  padding: 0 18px;
+  letter-spacing: -0.01em;
+  transition:
+    filter 0.15s,
+    background 0.15s,
+    box-shadow 0.15s;
+  white-space: nowrap;
+  color: var(--text);
+}
+.v-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+.v-btn.full {
+  width: 100%;
+}
+.v-btn.primary {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+.v-btn.primary:hover:not(:disabled) {
+  filter: brightness(1.08);
+}
+.v-btn.secondary {
+  background: var(--surface-2);
+  color: var(--text);
+}
+.v-btn.secondary:hover:not(:disabled) {
+  background: var(--surface-3);
+}
+.v-btn.outline {
+  background: transparent;
+  color: var(--text);
+  box-shadow: inset 0 0 0 1.5px var(--border);
+}
+.v-btn.outline:hover:not(:disabled) {
+  box-shadow: inset 0 0 0 1.5px var(--text-3);
+}
+.v-btn.ghost {
+  background: transparent;
+  color: var(--text-2);
+}
+.v-btn.ghost:hover:not(:disabled) {
+  background: var(--surface-2);
+}
+.v-btn.danger {
+  background: var(--danger);
+  color: #fff;
+}
+.v-btn.danger:hover:not(:disabled) {
+  filter: brightness(1.08);
+}
+.v-btn.sm {
+  height: 36px;
+  font-size: 13.5px;
+  border-radius: calc(var(--r-btn) - 2px);
+  padding: 0 14px;
+}
+.v-btn.icon {
+  width: var(--ctl-h);
+  padding: 0;
+}
+
+/* ---- Cards / surfaces ---------------------------------------------------- */
+.v-card {
+  background: var(--surface);
+  border-radius: var(--r-card);
+  box-shadow: var(--shadow-card);
+}
+.v-card.flat {
+  box-shadow: none;
+  border: 1px solid var(--border);
+}
+
+/* ---- Inputs / fields ----------------------------------------------------- */
+.v-input {
+  height: var(--ctl-h);
+  width: 100%;
+  border-radius: var(--r-input);
+  border: 1.5px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  font-family: var(--font-ui);
+  font-size: 14.5px;
+  padding: 0 14px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  transition:
+    border-color 0.15s,
+    box-shadow 0.15s;
+}
+.v-input:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--accent) 18%, transparent);
+}
+.v-input .ph {
+  color: var(--text-3);
+}
+.v-input input,
+.v-input textarea {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  font-family: inherit;
+  font-size: inherit;
+  outline: none;
+  padding: 0;
+}
+.v-input input::placeholder {
+  color: var(--text-3);
+}
+
+/* ---- Chips / tags -------------------------------------------------------- */
+.v-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 12px;
+  white-space: nowrap;
+  border-radius: var(--r-chip);
+  background: var(--surface-2);
+  color: var(--text-2);
+  font-size: 13px;
+  font-weight: 600;
+  border: none;
+  cursor: default;
+}
+.v-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 22px;
+  padding: 0 9px;
+  white-space: nowrap;
+  border-radius: 7px;
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+/* ---- Typography helpers -------------------------------------------------- */
+.v-eyebrow {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+.v-h1 {
+  font-size: 27px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+  color: var(--text);
+  margin: 0;
+}
+.v-h2 {
+  font-size: 19px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--text);
+  margin: 0;
+}
+.v-sub {
+  font-size: 14px;
+  color: var(--text-2);
+  line-height: 1.45;
+}
+.v-mono {
+  font-family: var(--font-mono);
+  letter-spacing: 0.02em;
+}
+
+/* ---- Segmented control --------------------------------------------------- */
+.v-seg {
+  display: flex;
+  gap: 4px;
+  background: var(--surface-2);
+  padding: 4px;
+  border-radius: calc(var(--r-btn) - 2px);
+}
+.v-seg > button {
+  flex: 1;
+  height: 36px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-family: var(--font-ui);
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--text-2);
+  border-radius: calc(var(--r-btn) - 4px);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+.v-seg > button.on {
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--shadow-card);
+}
+[data-theme='dark'] .v-seg > button.on {
+  background: var(--surface-3);
+}
+
+/* ---- Spinner keyframes (utilisé par <Spinner/>) -------------------------- */
+@keyframes vspin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+/* Floating reaction emoji over a call tile (3.5s total). */
+@keyframes vreact {
+  0% {
+    transform: translateY(0) scale(0.8);
+    opacity: 0;
+  }
+  10% {
+    transform: translateY(-30px) scale(1.1);
+    opacity: 1;
+  }
+  85% {
+    transform: translateY(-280px) scale(1);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(-340px) scale(0.9);
+    opacity: 0;
+  }
+}
+
+@keyframes vpulse {
+  0%,
+  100% {
+    opacity: 0.5;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+/* Scrollbars: hide unobtrusively */
+.v-scroll {
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+.v-scroll::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+.v-scroll::-webkit-scrollbar-thumb {
+  background: var(--surface-3);
+  border-radius: 4px;
+}

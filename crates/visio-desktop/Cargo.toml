@@ -42,6 +42,9 @@ windows = { version = "=0.58", features = [
 [features]
 default = ["oidc"]
 oidc = ["visio-core/oidc"]
+# Bespoke desktop-only chat encryption — keep OFF unless the web client
+# ships a matching decoder. See crates/visio-core/Cargo.toml.
+chat-encryption = ["visio-core/chat-encryption"]
 pipewire-camera = ["ashpd", "pipewire"]
 
 [target.'cfg(target_os = "linux")'.dependencies]

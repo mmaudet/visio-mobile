@@ -137,11 +137,22 @@ async fn connect_after_lobby_acceptance(
                 ConnectionState::Connected,
             ));
 
-            // Derive chat key from room name (unique per room, shared by all participants)
+            // Derive chat key from room name (unique per room, shared by all
+            // participants). Gated behind the `chat-encryption` Cargo feature:
+            // when the feature is OFF, no key is set, so send_message goes
+            // through the plaintext branch and the desktop client stays
+            // inter-operable with web clients that don't implement the
+            // bespoke `VC1:`-prefixed scheme. See features.rs:25 for the
+            // (unwired) runtime flag that mirrors this build-time gate.
+            #[cfg(feature = "chat-encryption")]
             {
                 let room_name = lk_room.name();
                 let key = crate::chat::derive_chat_key(&room_name);
                 *chat_key.lock().unwrap_or_else(|p| p.into_inner()) = Some(key);
+            }
+            #[cfg(not(feature = "chat-encryption"))]
+            {
+                let _ = &chat_key; // silence unused warning when feature off
             }
 
             tokio::spawn(async move {
@@ -722,7 +733,9 @@ impl RoomManager {
 
         let room = Arc::new(room);
 
-        // Derive chat key from room name (unique per room, shared by all participants)
+        // Derive chat key — gated on the `chat-encryption` Cargo feature.
+        // See the matching block above for the rationale.
+        #[cfg(feature = "chat-encryption")]
         {
             let room_name = room.name();
             let key = crate::chat::derive_chat_key(&room_name);
@@ -861,9 +874,51 @@ impl RoomManager {
             .await
     }
 
-    /// Allowed emoji IDs for reactions (matches Meet web client).
+    /// Allowed emoji IDs for reactions (internal shorthand used by all native
+    /// clients: desktop frontend, iOS, Android, integration tests).
     const ALLOWED_EMOJIS: &'static [&'static str] =
         &["thumbsUp", "clap", "joy", "openMouth", "tada", "heart"];
+
+    /// Translate an internal shorthand emoji ID to the wire-format ID expected
+    /// by the Meet web client (`features/reactions/types.ts::Emoji`). The web
+    /// client filters incoming reactions with `Object.values(Emoji).includes(...)`
+    /// so the desktop must send the hyphenated names or the reaction is dropped
+    /// silently on the web side.
+    fn emoji_id_to_wire(id: &str) -> &'static str {
+        match id {
+            "thumbsUp" => "thumbs-up",
+            "clap" => "clapping-hands",
+            "joy" => "face-with-tears-of-joy",
+            "openMouth" => "face-with-open-mouth",
+            "tada" => "party-popper",
+            "heart" => "red-heart",
+            // Unknown id: fall back to the input (will be rejected upstream).
+            _ => "",
+        }
+    }
+
+    /// Reverse of `emoji_id_to_wire`: translate a wire-format ID (sent by the
+    /// Meet web client) back to the shorthand used internally. Returns `None`
+    /// if the wire ID is unknown.
+    fn emoji_id_from_wire(wire: &str) -> Option<&'static str> {
+        Some(match wire {
+            // Meet web hyphenated IDs.
+            "thumbs-up" => "thumbsUp",
+            "clapping-hands" => "clap",
+            "face-with-tears-of-joy" => "joy",
+            "face-with-open-mouth" => "openMouth",
+            "party-popper" => "tada",
+            "red-heart" => "heart",
+            // Native shorthand (legacy desktop/iOS/Android peers).
+            "thumbsUp" => "thumbsUp",
+            "clap" => "clap",
+            "joy" => "joy",
+            "openMouth" => "openMouth",
+            "tada" => "tada",
+            "heart" => "heart",
+            _ => return None,
+        })
+    }
 
     /// Send an animated reaction visible to all participants.
     ///
@@ -893,9 +948,13 @@ impl RoomManager {
             .as_ref()
             .ok_or_else(|| VisioError::Room("not connected".into()))?;
 
+        // Send the Meet-web-compatible wire ID. Native peers translate back via
+        // `emoji_id_from_wire` (which also accepts the legacy shorthand for
+        // backwards compatibility with older desktop/iOS/Android builds).
+        let wire_emoji = Self::emoji_id_to_wire(emoji);
         let payload = serde_json::json!({
             "type": "reactionReceived",
-            "data": { "emoji": emoji }
+            "data": { "emoji": wire_emoji }
         });
         let data = payload.to_string().into_bytes();
 
@@ -2270,11 +2329,15 @@ impl EventLoopContext {
             return true;
         }
 
-        if let Some(emoji) = json["data"]["emoji"].as_str() {
-            if !RoomManager::ALLOWED_EMOJIS.contains(&emoji) {
-                tracing::debug!("ignoring unknown reaction emoji: {emoji}");
+        if let Some(wire_emoji) = json["data"]["emoji"].as_str() {
+            // Translate wire-format (Meet web's hyphenated IDs) back to the
+            // internal shorthand used by the native UI layers. Also accepts
+            // the legacy shorthand directly so older desktop/iOS/Android peers
+            // continue to interop.
+            let Some(emoji) = RoomManager::emoji_id_from_wire(wire_emoji) else {
+                tracing::debug!("ignoring unknown reaction emoji: {wire_emoji}");
                 return true;
-            }
+            };
             self.emitter.emit(VisioEvent::ReactionReceived {
                 participant_sid: psid.to_string(),
                 participant_name: sender_name.to_string(),
@@ -2492,6 +2555,55 @@ mod tests {
         assert!(RoomManager::ALLOWED_EMOJIS.contains(&"thumbsUp"));
         assert!(RoomManager::ALLOWED_EMOJIS.contains(&"heart"));
         assert!(!RoomManager::ALLOWED_EMOJIS.contains(&"invalid"));
+    }
+
+    #[test]
+    fn emoji_wire_format_roundtrips() {
+        // Every internal shorthand maps to a Meet-web wire ID and back.
+        for shorthand in RoomManager::ALLOWED_EMOJIS {
+            let wire = RoomManager::emoji_id_to_wire(shorthand);
+            assert!(!wire.is_empty(), "no wire mapping for {shorthand}");
+            assert_eq!(
+                RoomManager::emoji_id_from_wire(wire),
+                Some(*shorthand),
+                "wire roundtrip failed for {shorthand} -> {wire}"
+            );
+        }
+    }
+
+    #[test]
+    fn emoji_wire_format_matches_meet_web() {
+        // These IDs MUST match `features/reactions/types.ts::Emoji` in the
+        // Meet web client. The web side filters incoming reactions with
+        // `Object.values(Emoji).includes(emoji)`, so a mismatch silently drops
+        // the floating reaction on the web tile.
+        assert_eq!(RoomManager::emoji_id_to_wire("thumbsUp"), "thumbs-up");
+        assert_eq!(RoomManager::emoji_id_to_wire("clap"), "clapping-hands");
+        assert_eq!(
+            RoomManager::emoji_id_to_wire("joy"),
+            "face-with-tears-of-joy"
+        );
+        assert_eq!(
+            RoomManager::emoji_id_to_wire("openMouth"),
+            "face-with-open-mouth"
+        );
+        assert_eq!(RoomManager::emoji_id_to_wire("tada"), "party-popper");
+        assert_eq!(RoomManager::emoji_id_to_wire("heart"), "red-heart");
+    }
+
+    #[test]
+    fn emoji_wire_format_accepts_legacy_shorthand() {
+        // For backwards compatibility with older native peers (desktop/iOS/Android
+        // builds that pre-date the Meet-web wire format), the receive path must
+        // still accept the shorthand IDs directly.
+        for shorthand in RoomManager::ALLOWED_EMOJIS {
+            assert_eq!(
+                RoomManager::emoji_id_from_wire(shorthand),
+                Some(*shorthand),
+                "legacy shorthand passthrough failed for {shorthand}"
+            );
+        }
+        assert_eq!(RoomManager::emoji_id_from_wire("not-an-emoji"), None);
     }
 
     #[tokio::test]

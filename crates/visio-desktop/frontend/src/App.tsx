@@ -1,59 +1,26 @@
-import {
-  useState,
-  useEffect,
-  useRef,
-  useCallback,
-  createContext,
-  useContext,
-} from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
+import { useConfirm } from './components/ui/ConfirmProvider'
 import { invoke } from '@tauri-apps/api/core'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import { resolveResource } from '@tauri-apps/api/path'
 import { onOpenUrl } from '@tauri-apps/plugin-deep-link'
 import {
-  RiMicLine,
-  RiMicOffLine,
-  RiMicOffFill,
-  RiVideoOnLine,
-  RiVideoOffLine,
-  RiArrowUpSLine,
-  RiHand,
-  RiChat1Line,
-  RiGroupLine,
-  RiInformationLine,
-  RiRecordCircleLine,
-  RiFileCopyLine,
   RiCheckLine,
-  RiArrowLeftSLine,
-  RiFileTextLine,
-  RiMailLine,
+  RiCloseLine,
+  RiFileCopyLine,
   RiGlobalLine,
   RiSmartphoneLine,
-  RiApps2Line,
-  RiArrowRightSLine,
-  RiRefreshLine,
-  RiPhoneFill,
-  RiCloseLine,
-  RiSendPlane2Fill,
-  RiSettings3Line,
-  RiLogoutBoxRLine,
-  RiAccountCircleLine,
-  RiMore2Fill,
-  RiEmotionLine,
-  RiFullscreenLine,
-  RiFullscreenExitLine,
-  RiPushpinLine,
-  RiUnpinFill,
-  RiVolumeMuteLine,
-  RiAddLine,
-  RiGridLine,
-  RiSpeakLine,
 } from '@remixicon/react'
-import {
-  useDeviceEnumeration,
-  type NativeAudioDevice,
-  type NativeVideoDevice,
-} from './useDeviceEnumeration'
+import { useDeviceEnumeration } from './useDeviceEnumeration'
+import { DeskWindow } from './components/layout/DeskWindow'
+import { DeskSidebar, type NavKey } from './components/layout/DeskSidebar'
+import { Button as VButton } from './components/ui/Button'
+import { Icon as VIcon } from './components/Icon'
+import { HomeScreen } from './screens/HomeScreen'
+import { SettingsScreen } from './screens/SettingsScreen'
+import { LobbyScreen } from './screens/LobbyScreen'
+import { CallScreen } from './screens/CallScreen'
+import type { ThemeChoice } from './types'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -72,57 +39,6 @@ interface Participant {
   screen_share_track_sid: string | null
   connection_quality: string
   is_admin?: boolean
-}
-
-type FocusItem = {
-  participantSid: string
-  source: 'camera' | 'screen_share'
-} | null
-
-interface DisplayItem {
-  key: string
-  participant: Participant
-  source: 'camera' | 'screen_share'
-  trackSid: string | null
-  label: string
-  isScreenShare: boolean
-}
-
-function buildDisplayItems(
-  participants: Participant[],
-  t: TFunction
-): DisplayItem[] {
-  const items: DisplayItem[] = []
-  for (const p of participants) {
-    items.push({
-      key: `${p.sid}-camera`,
-      participant: p,
-      source: 'camera',
-      trackSid: p.video_track_sid,
-      label: p.name || p.identity || t('unknown'),
-      isScreenShare: false,
-    })
-    if (p.has_screen_share && p.screen_share_track_sid) {
-      items.push({
-        key: `${p.sid}-screen`,
-        participant: p,
-        source: 'screen_share',
-        trackSid: p.screen_share_track_sid,
-        label: p.name || p.identity || t('unknown'),
-        isScreenShare: true,
-      })
-    }
-  }
-  return items
-}
-
-interface ScreenSource {
-  id: string
-  name: string
-  source_type: string
-  width: number
-  height: number
-  thumbnail: string
 }
 
 interface ChatMessage {
@@ -164,51 +80,6 @@ interface Meeting {
   server_name: string
 }
 
-interface VisioHistoryEntry {
-  url: string
-  display_name: string | null
-}
-
-interface UserSearchResult {
-  id: string
-  email: string
-  full_name: string | null
-  short_name: string | null
-}
-interface RoomAccess {
-  id: string
-  user: UserSearchResult
-  resource: string
-  role: string
-}
-
-interface ReactionData {
-  id: number
-  participantSid: string
-  participantName: string
-  emoji: string
-  timestamp: number
-}
-
-const REACTION_EMOJIS: [string, string][] = [
-  ['thumbsUp', '\u{1F44D}'],
-  ['clap', '\u{1F44F}'],
-  ['joy', '\u{1F602}'],
-  ['openMouth', '\u{1F62E}'],
-  ['tada', '\u{1F389}'],
-  ['heart', '\u2764\uFE0F'],
-]
-
-// ---------------------------------------------------------------------------
-// i18n
-// ---------------------------------------------------------------------------
-
-type TFunction = (key: string) => string
-const I18nContext = createContext<TFunction>((key) => key)
-function useT() {
-  return useContext(I18nContext)
-}
-
 import en from '../../../../i18n/en.json'
 import fr from '../../../../i18n/fr.json'
 import de from '../../../../i18n/de.json'
@@ -231,1291 +102,41 @@ const SUPPORTED_LANGS = Object.keys(translations)
 
 const SLUG_REGEX = /^[a-z]{3}-[a-z]{4}-[a-z]{3}$/
 
-function extractSlug(input: string): string | null {
-  const trimmed = input.trim().replace(/\/$/, '')
-  const candidate = trimmed.includes('/')
-    ? trimmed.split('/').pop() || ''
-    : trimmed
-  return SLUG_REGEX.test(candidate) ? candidate : null
-}
-
 function detectSystemLang(): string {
   const navLang = navigator.language?.split('-')[0]
   return SUPPORTED_LANGS.includes(navLang) ? navLang : 'en'
 }
 
-// ---------------------------------------------------------------------------
-// Screen Share Icon
-// ---------------------------------------------------------------------------
-
-function ScreenShareIcon({ size = 16 }: Readonly<{ size?: number }>) {
+function isDarkTheme(theme: string): boolean {
+  if (theme === 'dark') return true
+  if (theme === 'light') return false
+  // 'system' or unknown: trust the media query
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor">
-      <path d="M21 3H3c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h7v2H8v2h8v-2h-2v-2h7c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 14H3V5h18v12z" />
-    </svg>
+    typeof window !== 'undefined' &&
+    window.matchMedia?.('(prefers-color-scheme: dark)').matches
   )
 }
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-function getInitials(name: string | null | undefined): string {
-  if (!name) return '?'
-  const parts = name.trim().split(/\s+/)
-  if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase()
-  return name.substring(0, 2).toUpperCase()
+function profileDisplayName(local: string, fromOidc: string): string {
+  return (fromOidc || local || '').trim() || 'Visio'
 }
 
-function getHue(name: string | null | undefined): number {
-  return (
-    [...(name || '')].reduce((h, c) => h + (c.codePointAt(0) ?? 0), 0) % 360
-  )
+function profileSubtitle(
+  isAuth: boolean,
+  meetInstance: string,
+  email: string
+): string {
+  if (!isAuth) return 'Anonyme'
+  if (meetInstance && /\bgouv\.fr\b/.test(meetInstance)) return 'ProConnect'
+  if (email) return email
+  if (meetInstance) return meetInstance
+  return ''
 }
 
-function formatTime(timestampMs: number): string {
-  if (!timestampMs) return ''
-  const d = new Date(timestampMs)
-  return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-}
-
-/** Render text with URLs auto-linked. */
-function AutoLinkText({ text }: Readonly<{ text: string }>) {
-  const parts = text.split(/(https?:\/\/[^\s<]+)/g)
-  return (
-    <>
-      {parts.map((part, i) =>
-        /^https?:\/\//.test(part) ? (
-          <a
-            key={`link-${i}-${part.length}`}
-            href={part}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="chat-link"
-          >
-            {part}
-          </a>
-        ) : (
-          <span key={`text-${i}-${part.length}`}>{part}</span>
-        )
-      )}
-    </>
-  )
-}
-
-// ---------------------------------------------------------------------------
-// Components
-// ---------------------------------------------------------------------------
-
-function StatusBadge({ state }: Readonly<{ state: string }>) {
-  const t = useT()
-  const key = `status.${state}`
-  return <span className={`status-badge ${state}`}>{t(key)}</span>
-}
-
-// -- Connection Quality Bars ------------------------------------------------
-
-function qualityToBars(quality: string): number {
-  if (quality === 'Excellent') return 3
-  if (quality === 'Good') return 2
-  if (quality === 'Poor') return 1
-  return 0
-}
-
-function ConnectionQualityBars({ quality }: Readonly<{ quality: string }>) {
-  const bars = qualityToBars(quality)
-  return (
-    <div className="connection-bars">
-      {[1, 2, 3].map((n) => (
-        <div
-          key={n}
-          className={`bar ${n <= bars ? 'bar-active' : ''}`}
-          style={{ height: `${n * 4 + 2}px` }}
-        />
-      ))}
-    </div>
-  )
-}
-
-// -- Participant Tile -------------------------------------------------------
-
-interface ParticipantTileProps {
-  participant: Participant
-  videoFrames: Map<string, string>
-  isActiveSpeaker?: boolean
-  handRaisePosition?: number
-  displayItem?: DisplayItem
-  onExpand?: () => void
-  bandwidthMode?: string
-}
-
-function ParticipantTile({
-  participant,
-  videoFrames,
-  isActiveSpeaker,
-  handRaisePosition,
-  displayItem,
-  onExpand,
-  bandwidthMode,
-}: Readonly<ParticipantTileProps>) {
-  const t = useT()
-  const isScreenShare = displayItem?.isScreenShare ?? false
-  const trackSid = displayItem
-    ? displayItem.trackSid
-    : participant.video_track_sid
-  let displayName: string
-  if (!displayItem) {
-    displayName = participant.name || participant.identity || t('unknown')
-  } else if (isScreenShare) {
-    displayName = `${displayItem.label} (${t('call.screenShare')})`
-  } else {
-    displayName = displayItem.label
-  }
-  const videoSrc = trackSid ? videoFrames.get(trackSid) : undefined
-
-  // Video paused by bandwidth degradation — show placeholder
-  const videoPausedByBw =
-    !isScreenShare &&
-    participant.has_video &&
-    trackSid != null &&
-    (bandwidthMode === 'audio_only' ||
-      (bandwidthMode === 'reduced_video' && !isActiveSpeaker))
-
-  return (
-    <div
-      className={`tile ${isActiveSpeaker && !isScreenShare ? 'tile-active-speaker' : ''}`}
-      {...(isActiveSpeaker && !isScreenShare
-        ? { 'data-testid': `speaker-border:${participant.sid}` }
-        : {})}
-    >
-      {videoSrc && !videoPausedByBw && (
-        <img
-          className={`tile-video${isScreenShare ? ' tile-video-screen' : ''}`}
-          src={`data:image/jpeg;base64,${videoSrc}`}
-          alt=""
-        />
-      )}
-      {!videoSrc && isScreenShare && (
-        <div className="tile-screen-placeholder">
-          <ScreenShareIcon size={48} />
-          <span>{t('call.screenShare')}</span>
-        </div>
-      )}
-      {((!videoSrc && !isScreenShare) || videoPausedByBw) && (
-        <div className="tile-avatar-no-cam">
-          <RiVideoOffLine
-            size={32}
-            color={videoPausedByBw ? '#ff9800' : undefined}
-          />
-          <span className="tile-initials-small">{displayName}</span>
-          {videoPausedByBw && (
-            <span className="tile-bw-paused">{t('bandwidth.videoPaused')}</span>
-          )}
-        </div>
-      )}
-      {isScreenShare && onExpand && (
-        <button
-          type="button"
-          className="tile-expand-btn"
-          onClick={(e) => {
-            e.stopPropagation()
-            onExpand()
-          }}
-          title={t('call.fullscreen')}
-        >
-          <RiFullscreenLine size={20} />
-        </button>
-      )}
-      <div className="tile-metadata">
-        {isScreenShare && (
-          <span className="tile-screen-icon">
-            <ScreenShareIcon size={14} />
-          </span>
-        )}
-        {!isScreenShare && participant.is_muted && (
-          <span className="tile-muted-icon">
-            <RiMicOffFill size={14} />
-          </span>
-        )}
-        {!isScreenShare && !participant.is_muted && isActiveSpeaker && (
-          <span className="tile-speaking-icon">
-            <RiMicLine size={14} />
-          </span>
-        )}
-        {!isScreenShare &&
-          handRaisePosition != null &&
-          handRaisePosition > 0 && (
-            <span className="tile-hand-badge">
-              <RiHand size={12} /> {handRaisePosition}
-            </span>
-          )}
-        <span className="tile-name">{displayName}</span>
-        <ConnectionQualityBars quality={participant.connection_quality} />
-      </div>
-    </div>
-  )
-}
-
-// -- Meetings Tab helpers (module-scope to satisfy S2004) -------------------
-
-function isMeetingImminent(m: Meeting): boolean {
-  const nowSec = Date.now() / 1000
-  const minutesUntil = (m.start_time - nowSec) / 60
-  return minutesUntil >= 0 && minutesUntil < 15
-}
-
-function isMeetingOngoing(m: Meeting): boolean {
-  const now = Date.now() / 1000
-  return m.start_time <= now && now <= m.end_time
-}
-
-function formatMeetingRelativeTime(m: Meeting, t: TFunction): string {
-  const nowSec = Date.now() / 1000
-  const minutesUntil = Math.round((m.start_time - nowSec) / 60)
-  const start = new Date(m.start_time * 1000)
-  const now = new Date()
-  const isToday =
-    start.getDate() === now.getDate() &&
-    start.getMonth() === now.getMonth() &&
-    start.getFullYear() === now.getFullYear()
-
-  if (isMeetingOngoing(m)) {
-    const end = new Date(m.end_time * 1000)
-    const untilStr = t('meetings.time.until').replace(
-      '{time}',
-      end.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-    )
-    return `${t('meetings.time.inProgress')} \u00B7 ${untilStr}`
-  }
-  if (minutesUntil < 60) {
-    return t('meetings.time.inMinutes').replace(
-      '{minutes}',
-      String(minutesUntil)
-    )
-  }
-  if (minutesUntil < 240) {
-    const hours = Math.floor(minutesUntil / 60)
-    const mins = minutesUntil % 60
-    return mins > 0
-      ? t('meetings.time.inHoursMinutes')
-          .replace('{hours}', String(hours))
-          .replace('{minutes}', mins.toString().padStart(2, '0'))
-      : t('meetings.time.inHours').replace('{hours}', String(hours))
-  }
-  if (isToday) {
-    return start.toLocaleTimeString([], {
-      hour: '2-digit',
-      minute: '2-digit',
-    })
-  }
-  return (
-    start.toLocaleDateString([], { weekday: 'short' }) +
-    ' ' +
-    start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-  )
-}
-
-function getDayLabel(ts: number, t: TFunction): string {
-  const date = new Date(ts * 1000)
-  const now = new Date()
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-  const meetDay = new Date(date.getFullYear(), date.getMonth(), date.getDate())
-  const diffDays = Math.round((meetDay.getTime() - today.getTime()) / 86400000)
-  if (diffDays === 0) return t('meetings.today')
-  if (diffDays === 1) return t('meetings.tomorrow')
-  return date.toLocaleDateString([], {
-    weekday: 'long',
-    day: 'numeric',
-    month: 'long',
-  })
-}
-
-function groupMeetingsByDay(
-  list: Meeting[],
-  t: TFunction
-): { label: string; meetings: Meeting[] }[] {
-  const groups: { label: string; meetings: Meeting[] }[] = []
-  for (const m of list) {
-    const label = getDayLabel(m.start_time, t)
-    const last = groups[groups.length - 1]
-    if (last && last.label === label) {
-      last.meetings.push(m)
-    } else {
-      groups.push({ label, meetings: [m] })
-    }
-  }
-  return groups
-}
-
-function formatSyncTime(lastSyncTime: Date, t: TFunction): string {
-  const diffMs = Date.now() - lastSyncTime.getTime()
-  const diffMin = Math.round(diffMs / 60000)
-  if (diffMin < 1) return t('meetings.sync').replace('{time}', '< 1 min')
-  return t('meetings.sync').replace('{time}', `${diffMin} min`)
-}
-
-// -- Meetings Tab -----------------------------------------------------------
-
-function MeetingsTab({
-  onJoin,
-  displayName,
-  onMeetingCountChange,
-}: Readonly<{
-  onJoin: (meetUrl: string, username: string | null) => void
-  displayName: string
-  onMeetingCountChange?: (count: number) => void
-}>) {
-  const t = useT()
-  const [status, setStatus] = useState<
-    'onboarding' | 'loading' | 'empty' | 'list' | 'error'
-  >('onboarding')
-  const [meetings, setMeetings] = useState<Meeting[]>([])
-  const [joining, setJoining] = useState<string | null>(null)
-  const [loadingMessage, setLoadingMessage] = useState<string>('')
-  const [lastSyncTime, setLastSyncTime] = useState<Date | null>(null)
-  const [refreshing, setRefreshing] = useState(false)
-  const [syncToast, setSyncToast] = useState<{
-    message: string
-    isError: boolean
-  } | null>(null)
-
-  // Mirror of `meetings` for listeners registered once (avoids stale closure)
-  const meetingsRef = useRef<Meeting[]>([])
-  useEffect(() => {
-    meetingsRef.current = meetings
-  }, [meetings])
-
-  // Notify parent of meeting count changes
-  useEffect(() => {
-    onMeetingCountChange?.(meetings.length)
-  }, [meetings.length, onMeetingCountChange])
-
-  // Load calendar URL and meetings on mount
-  useEffect(() => {
-    invoke<string | null>('get_calendar_url')
-      .then((url) => {
-        if (!url) {
-          setStatus('onboarding')
-          return
-        }
-        setStatus('loading')
-        invoke<Meeting[]>('get_upcoming_meetings')
-          .then((list) => {
-            setMeetings(list)
-            setLastSyncTime(new Date())
-            setStatus(list.length === 0 ? 'empty' : 'list')
-          })
-          .catch(() => setStatus('empty'))
-      })
-      .catch(() => setStatus('onboarding'))
-  }, [])
-
-  // Listen for meetings-updated events
-  useEffect(() => {
-    let unlistenUpdated: (() => void) | null = null
-    let unlistenError: (() => void) | null = null
-    listen<Meeting[]>('meetings-updated', (event) => {
-      const newMeetings = event.payload
-      // Retention guard: if the backend sends an empty list but we had
-      // meetings, keep the existing list (defense-in-depth for #126).
-      setMeetings((prev) => {
-        if (newMeetings.length === 0 && prev.length > 0) {
-          return prev
-        }
-        // Only show sync toast when meetings actually changed
-        const prevIds = new Set(prev.map((m) => m.id))
-        const newIds = new Set(newMeetings.map((m) => m.id))
-        const changed =
-          prevIds.size !== newIds.size ||
-          [...prevIds].some((id) => !newIds.has(id))
-        if (changed) {
-          const count = newMeetings.length
-          const msg =
-            count > 0
-              ? t('calendar.sync.success').replace('{count}', String(count))
-              : t('calendar.sync.noMeetings')
-          setSyncToast({ message: msg, isError: false })
-          setTimeout(() => setSyncToast(null), 3000)
-        }
-        return newMeetings
-      })
-      setLastSyncTime(new Date())
-      if (newMeetings.length > 0) {
-        setStatus('list')
-      } else {
-        setStatus((prev) => (prev === 'list' ? 'list' : 'empty'))
-      }
-    }).then((fn) => {
-      unlistenUpdated = fn
-    })
-    listen<string>('calendar-error', () => {
-      setSyncToast({ message: t('calendar.sync.error'), isError: true })
-      setTimeout(() => setSyncToast(null), 4000)
-      if (meetingsRef.current.length === 0) setStatus('error')
-    }).then((fn) => {
-      unlistenError = fn
-    })
-    return () => {
-      unlistenUpdated?.()
-      unlistenError?.()
-    }
-  }, [t])
-
-  const handleRefresh = async () => {
-    // Only show full loading screen on initial load (no meetings yet)
-    if (meetings.length === 0) {
-      setStatus('loading')
-      setLoadingMessage(t('meetings.calendar.downloading'))
-    }
-    setRefreshing(true)
-    try {
-      await invoke('refresh_calendar_now')
-      const list: Meeting[] = await invoke('get_upcoming_meetings')
-      setMeetings(list)
-      setLastSyncTime(new Date())
-      setStatus(list.length === 0 ? 'empty' : 'list')
-    } catch {
-      setSyncToast({ message: t('calendar.sync.error'), isError: true })
-      setTimeout(() => setSyncToast(null), 4000)
-      if (meetings.length === 0) {
-        setStatus('error')
-      }
-    } finally {
-      setRefreshing(false)
-    }
-  }
-
-  const handleJoinMeeting = async (m: Meeting) => {
-    setJoining(m.id)
-    try {
-      const uname = displayName.trim() || null
-      await invoke('set_display_name', { name: uname })
-      onJoin(m.room_url, uname)
-    } catch {
-      setJoining(null)
-    }
-  }
-
-  if (status === 'onboarding') {
-    return (
-      <div className="meetings-onboarding">
-        <RiGlobalLine size={48} />
-        <p>{t('meetings.onboarding')}</p>
-        <p className="meetings-hint">{t('meetings.onboarding.hint')}</p>
-      </div>
-    )
-  }
-
-  if (status === 'loading') {
-    return (
-      <div className="meetings-loading">
-        <span className="meetings-spinner" />
-        <p>{loadingMessage || t('meetings.loading')}</p>
-      </div>
-    )
-  }
-
-  if (status === 'empty') {
-    return (
-      <div className="meetings-empty">
-        <p>{t('meetings.empty')}</p>
-        <button
-          type="button"
-          className="btn btn-secondary"
-          onClick={handleRefresh}
-        >
-          {t('meetings.refresh')}
-        </button>
-      </div>
-    )
-  }
-
-  if (status === 'error') {
-    return (
-      <div className="meetings-empty">
-        <p>{t('calendar.sync.error')}</p>
-        <button
-          type="button"
-          className="btn btn-secondary"
-          onClick={handleRefresh}
-        >
-          {t('meetings.refresh')}
-        </button>
-      </div>
-    )
-  }
-
-  const grouped = groupMeetingsByDay(meetings, t)
-
-  return (
-    <div className="meetings-list">
-      <div className="meetings-list-header">
-        <span className="meetings-count">
-          {meetings.length} {t('meetings.count')}
-        </span>
-        <button
-          type="button"
-          className={`btn-icon${refreshing ? ' refreshing' : ''}`}
-          onClick={handleRefresh}
-          disabled={refreshing}
-          title={t('meetings.refresh')}
-        >
-          <RiRefreshLine size={18} />
-        </button>
-      </div>
-      {grouped.map((group) => (
-        <div key={group.label} className="meetings-day-group">
-          <div className="meetings-day-header">{group.label}</div>
-          {group.meetings.map((m) => {
-            const ongoing = isMeetingOngoing(m)
-            const imminent = isMeetingImminent(m) || ongoing
-            return (
-              <div
-                key={m.id}
-                className={`meeting-item${imminent ? ' meeting-imminent' : ''}${ongoing ? ' meeting-ongoing' : ''}`}
-              >
-                <div className="meeting-info">
-                  <span className="meeting-summary">
-                    {imminent && (
-                      <span
-                        className={`meeting-imminent-dot${ongoing ? ' meeting-ongoing-dot' : ''}`}
-                      />
-                    )}
-                    {m.summary || t('meetings.noTitle')}
-                  </span>
-                  <span className="meeting-time">
-                    {formatMeetingRelativeTime(m, t)}
-                  </span>
-                  <span className="meeting-server">{m.server_name}</span>
-                </div>
-                <button
-                  type="button"
-                  className="meeting-join-btn"
-                  disabled={joining === m.id}
-                  onClick={() => handleJoinMeeting(m)}
-                >
-                  {joining === m.id ? t('home.connecting') : t('home.join')}
-                </button>
-              </div>
-            )
-          })}
-        </div>
-      ))}
-      {lastSyncTime && (
-        <div className="meetings-sync-footer">
-          {formatSyncTime(lastSyncTime, t)}
-        </div>
-      )}
-      {syncToast && (
-        <div
-          className={`sync-toast ${syncToast.isError ? 'sync-toast-error' : 'sync-toast-success'}`}
-        >
-          {syncToast.message}
-        </div>
-      )}
-    </div>
-  )
-}
-
-// -- Home View --------------------------------------------------------------
-
-function HomeView({
-  onJoin,
-  onOpenSettings,
-  displayName,
-  onDisplayNameChange,
-  deepLinkUrl,
-  onDeepLinkConsumed,
-  oidcEnabled,
-  isAuthenticated,
-  authenticatedMeetInstance,
-  displayNameFromOidc,
-  emailFromOidc,
-  onLaunchOidc,
-  onLogout,
-  meetInstances,
-  registerPostAuthAction,
-}: Readonly<{
-  onJoin: (
-    meetUrl: string,
-    username: string | null,
-    roomId?: string,
-    accessLevel?: string,
-    livekitUrl?: string,
-    livekitToken?: string
-  ) => void
-  onOpenSettings: () => void
-  displayName: string
-  onDisplayNameChange: (name: string) => void
-  deepLinkUrl: string | null
-  onDeepLinkConsumed: () => void
-  oidcEnabled: boolean
-  isAuthenticated: boolean
-  authenticatedMeetInstance: string
-  displayNameFromOidc: string
-  emailFromOidc: string
-  onLaunchOidc: (meetInstance: string) => void
-  onLogout: () => void
-  meetInstances: string[]
-  registerPostAuthAction: (fn: (() => void) | null) => void
-}>) {
-  const t = useT()
-  const [activeTab, setActiveTab] = useState<'join' | 'meetings'>('join')
-  const [meetUrl, setMeetUrl] = useState('')
-  const [resolvedUrl, setResolvedUrl] = useState('')
-  const [visioHistory, setRoomHistory] = useState<VisioHistoryEntry[]>([])
-  const [meetingCount, setMeetingCount] = useState(0)
-  const [tick, setTick] = useState(0)
-  const [hasImminentMeeting, setHasImminentMeeting] = useState(false)
-  const [reminderToast, setReminderToast] = useState<string | null>(null)
-
-  // Fix 3: Tick every 60 s so countdown labels and imminent state update live
-  useEffect(() => {
-    const id = setInterval(() => setTick((n) => n + 1), 60_000)
-    return () => clearInterval(id)
-  }, [])
-
-  useEffect(() => {
-    invoke<VisioHistoryEntry[]>('get_visio_history')
-      .then(setRoomHistory)
-      .catch(() => {})
-  }, [])
-
-  // Load meeting count from cache on mount (so badge shows immediately)
-  useEffect(() => {
-    invoke<Meeting[]>('get_upcoming_meetings')
-      .then((list) => {
-        setMeetingCount(list.length)
-        setHasImminentMeeting(
-          list.some((m) => isMeetingImminent(m) || isMeetingOngoing(m))
-        )
-      })
-      .catch(() => {})
-  }, [])
-
-  // Also listen for meetings-updated to keep badge in sync even when not on meetings tab
-  const meetingsRef = useRef<Meeting[]>([])
-  useEffect(() => {
-    let unlisten: (() => void) | null = null
-    listen<Meeting[]>('meetings-updated', (event) => {
-      // Only update badge count if we received meetings; keep previous
-      // count when payload is empty (retention guard, #126).
-      if (event.payload.length > 0) {
-        setMeetingCount(event.payload.length)
-        meetingsRef.current = event.payload
-        setHasImminentMeeting(
-          event.payload.some((m) => isMeetingImminent(m) || isMeetingOngoing(m))
-        )
-      }
-    }).then((fn) => {
-      unlisten = fn
-    })
-    return () => {
-      unlisten?.()
-    }
-  }, [])
-
-  // Fix 3+4: Recompute imminent state on each tick
-  useEffect(() => {
-    if (meetingsRef.current.length > 0) {
-      setHasImminentMeeting(
-        meetingsRef.current.some(
-          (m) => isMeetingImminent(m) || isMeetingOngoing(m)
-        )
-      )
-    }
-  }, [tick])
-
-  // Fix 5: Listen for meeting-reminder events and show notification
-  useEffect(() => {
-    let unlisten: (() => void) | null = null
-    listen<{ summary: string; start_time: number }>(
-      'meeting-reminder',
-      (event) => {
-        const { summary } = event.payload
-        const msg = summary
-          ? `${summary} — ${t('meetings.time.inMinutes').replace('{minutes}', '15')}`
-          : t('meetings.time.inMinutes').replace('{minutes}', '15')
-        setReminderToast(msg)
-        setTimeout(() => setReminderToast(null), 5000)
-        // Also try system notification if available
-        if ('Notification' in window && Notification.permission === 'granted') {
-          new Notification(summary || t('home.tab.meetings'), {
-            body: t('meetings.time.inMinutes').replace('{minutes}', '15'),
-          })
-        } else if (
-          'Notification' in window &&
-          Notification.permission === 'default'
-        ) {
-          Notification.requestPermission()
-        }
-      }
-    ).then((fn) => {
-      unlisten = fn
-    })
-    return () => {
-      unlisten?.()
-    }
-  }, [t])
-
-  const [error, setError] = useState('')
-  const [joining, setJoining] = useState(false)
-  const [roomStatus, setRoomStatus] = useState<
-    | 'idle'
-    | 'checking'
-    | 'valid'
-    | 'not_found'
-    | 'auth_required'
-    | 'authenticating'
-    | 'error'
-  >('idle')
-  const [showServerPicker, setShowServerPicker] = useState(false)
-  const [customServer, setCustomServer] = useState('')
-  const [showCreateRoom, setShowCreateRoom] = useState(false)
-
-  useEffect(() => {
-    if (deepLinkUrl) {
-      setMeetUrl(deepLinkUrl)
-      onDeepLinkConsumed()
-    }
-  }, [deepLinkUrl, onDeepLinkConsumed])
-
-  useEffect(() => {
-    const trimmed = meetUrl.trim()
-    const isSlug = SLUG_REGEX.test(trimmed)
-
-    // Build list of URLs to try
-    const urlsToTry: string[] =
-      isSlug && meetInstances.length > 0
-        ? meetInstances.map((server) => `https://${server}/${trimmed}`)
-        : [trimmed]
-
-    const slug = extractSlug(urlsToTry[0])
-    if (!slug) {
-      // Try alias resolution before giving up
-      const candidate = trimmed.includes('/')
-        ? trimmed.replace(/\/$/, '').split('/').pop() || trimmed
-        : trimmed
-      const controller2 = new AbortController()
-      const timer2 = setTimeout(async () => {
-        try {
-          const resolved = await invoke<string | null>('resolve_visio_alias', {
-            name: candidate,
-          })
-          if (controller2.signal.aborted) return
-          if (resolved) {
-            setRoomStatus('checking')
-            const result = await invoke<{
-              status: string
-              livekit_url?: string
-              token?: string
-            }>('validate_room', {
-              url: resolved,
-              username: displayName.trim() || null,
-            })
-            if (controller2.signal.aborted) return
-            if (result.status === 'valid') {
-              setRoomStatus('valid')
-              setResolvedUrl(resolved)
-            } else if (result.status === 'auth_required') {
-              setRoomStatus('auth_required')
-              setResolvedUrl(resolved)
-            } else {
-              setRoomStatus('not_found')
-              setResolvedUrl(resolved)
-            }
-          } else {
-            setRoomStatus('idle')
-            setResolvedUrl(trimmed)
-          }
-        } catch {
-          if (!controller2.signal.aborted) {
-            setRoomStatus('idle')
-            setResolvedUrl(trimmed)
-          }
-        }
-      }, 500)
-      return () => {
-        clearTimeout(timer2)
-        controller2.abort()
-      }
-    }
-    setRoomStatus('checking')
-    const controller = new AbortController()
-    const timer = setTimeout(async () => {
-      try {
-        let foundValid = false
-        for (const url of urlsToTry) {
-          if (controller.signal.aborted) return
-          const result = await invoke<{
-            status: string
-            livekit_url?: string
-            token?: string
-          }>('validate_room', { url, username: displayName.trim() || null })
-          if (controller.signal.aborted) return
-          if (result.status === 'valid') {
-            setRoomStatus('valid')
-            setResolvedUrl(url)
-            foundValid = true
-            break
-          }
-          if (result.status === 'auth_required') {
-            setRoomStatus('auth_required')
-            setResolvedUrl(url)
-            foundValid = true // don't show not_found
-            break
-          }
-        }
-        if (!foundValid) {
-          setRoomStatus('not_found')
-          setResolvedUrl(urlsToTry[0])
-        }
-      } catch {
-        if (!controller.signal.aborted) setRoomStatus('error')
-      }
-    }, 500)
-    return () => {
-      clearTimeout(timer)
-      controller.abort()
-    }
-  }, [meetUrl, displayName, meetInstances])
-
-  const handleJoin = async () => {
-    const url = resolvedUrl
-    if (!url) {
-      setError(t('home.error.noUrl'))
-      return
-    }
-    setError('')
-    setJoining(true)
-    try {
-      const uname = displayName.trim() || null
-      await invoke('set_display_name', { name: uname })
-      onJoin(url, uname)
-    } catch (e) {
-      setError(String(e))
-      setJoining(false)
-    }
-  }
-
-  const handleAuth = () => {
-    try {
-      // Extract the instance hostname from the resolved URL
-      const url = new URL(
-        resolvedUrl.startsWith('http') ? resolvedUrl : `https://${resolvedUrl}`
-      )
-      setError('')
-      setRoomStatus('authenticating')
-      // The OIDC flow is asynchronous: the exchange code comes back via the
-      // visio://auth-callback deep link, then revalidateRoom runs (see below).
-      onLaunchOidc(url.hostname)
-    } catch (e) {
-      setError(String(e))
-      setRoomStatus('auth_required')
-    }
-  }
-
-  // Re-validate the room once the OIDC exchange completes successfully.
-  // Registered with App, which invokes it from the auth-callback handler.
-  const revalidateRoom = useCallback(() => {
-    if (roomStatus !== 'authenticating') return
-    setRoomStatus('checking')
-    invoke<{ status: string }>('validate_room', {
-      url: resolvedUrl,
-      username: displayName.trim() || null,
-    })
-      .then((result) => {
-        if (result.status === 'valid') setRoomStatus('valid')
-        else if (result.status === 'auth_required')
-          setRoomStatus('auth_required')
-        else setRoomStatus('error')
-      })
-      .catch(() => setRoomStatus('error'))
-  }, [roomStatus, resolvedUrl, displayName])
-
-  useEffect(() => {
-    registerPostAuthAction(revalidateRoom)
-    return () => registerPostAuthAction(null)
-  }, [registerPostAuthAction, revalidateRoom])
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') handleJoin()
-  }
-
-  return (
-    <div id="home" className="section active">
-      <div className="home-tabs">
-        <div className="home-tabs-group">
-          <button
-            type="button"
-            className={`home-tab${activeTab === 'join' ? ' home-tab-active' : ''}`}
-            onClick={() => setActiveTab('join')}
-          >
-            {t('home.tab.join')}
-          </button>
-          <button
-            type="button"
-            className={`home-tab${activeTab === 'meetings' ? ' home-tab-active' : ''}`}
-            onClick={() => setActiveTab('meetings')}
-          >
-            {t('home.tab.meetings')}
-            {meetingCount > 0 && (
-              <span
-                className={`tab-badge${hasImminentMeeting ? ' tab-badge-imminent' : ''}`}
-              >
-                {meetingCount}
-              </span>
-            )}
-          </button>
-        </div>
-        <button
-          type="button"
-          className="settings-gear"
-          onClick={onOpenSettings}
-          data-testid="home-settings-button"
-        >
-          <RiSettings3Line size={20} />
-        </button>
-      </div>
-      <div className="home-tab-content">
-        {activeTab === 'meetings' ? (
-          <MeetingsTab
-            onJoin={onJoin}
-            displayName={displayName}
-            onMeetingCountChange={setMeetingCount}
-          />
-        ) : (
-          <div className="join-form">
-            <img src="/logo.png?v=2" alt="Visio Mobile" className="home-logo" />
-            <h2>{t('app.title')}</h2>
-            {oidcEnabled && isAuthenticated ? (
-              <div className="auth-card">
-                <div className="auth-avatar">
-                  {(() => {
-                    const parts = displayNameFromOidc
-                      .split(' ')
-                      .filter(Boolean)
-                      .slice(0, 2)
-                    const initials = parts
-                      .map((p) => p[0]?.toUpperCase())
-                      .join('')
-                    return initials || emailFromOidc?.[0]?.toUpperCase() || '?'
-                  })()}
-                </div>
-                <div className="auth-info">
-                  <span className="auth-name">
-                    {displayNameFromOidc || emailFromOidc}
-                  </span>
-                  {emailFromOidc && displayNameFromOidc && (
-                    <span className="auth-email">{emailFromOidc}</span>
-                  )}
-                </div>
-                <button
-                  type="button"
-                  className="auth-logout"
-                  onClick={onLogout}
-                  title={t('home.logout')}
-                >
-                  <RiLogoutBoxRLine size={20} />
-                </button>
-              </div>
-            ) : oidcEnabled ? (
-              <div className="auth-status">
-                <button
-                  type="button"
-                  className="btn btn-primary"
-                  data-testid="home-connect-button"
-                  onClick={() => {
-                    if (meetInstances.length <= 1) {
-                      if (meetInstances.length > 0)
-                        onLaunchOidc(meetInstances[0])
-                    } else {
-                      setCustomServer('')
-                      setShowServerPicker(true)
-                    }
-                  }}
-                >
-                  <RiAccountCircleLine size={18} /> {t('home.connect')}
-                </button>
-                {showServerPicker && (
-                  <div
-                    className="server-picker-overlay"
-                    onClick={() => setShowServerPicker(false)}
-                  >
-                    <div
-                      className="server-picker"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <h3>{t('home.serverPicker.title')}</h3>
-                      <div className="server-list">
-                        {meetInstances.map((instance) => (
-                          <button
-                            type="button"
-                            key={instance}
-                            className="server-item"
-                            onClick={() => {
-                              setShowServerPicker(false)
-                              onLaunchOidc(instance)
-                            }}
-                          >
-                            {instance}
-                          </button>
-                        ))}
-                      </div>
-                      <div className="server-custom">
-                        <input
-                          type="text"
-                          placeholder="meet.example.com"
-                          value={customServer}
-                          onChange={(e) => setCustomServer(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter' && customServer.trim()) {
-                              setShowServerPicker(false)
-                              onLaunchOidc(customServer.trim())
-                            }
-                          }}
-                        />
-                        <button
-                          type="button"
-                          className="btn btn-secondary"
-                          disabled={!customServer.trim()}
-                          onClick={() => {
-                            if (customServer.trim()) {
-                              setShowServerPicker(false)
-                              onLaunchOidc(customServer.trim())
-                            }
-                          }}
-                        >
-                          {t('home.connect')}
-                        </button>
-                      </div>
-                      <button
-                        type="button"
-                        className="btn btn-cancel"
-                        onClick={() => setShowServerPicker(false)}
-                      >
-                        {t('home.serverPicker.cancel')}
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
-            ) : null}
-            <div className="form-group">
-              <label htmlFor="meetUrl">{t('home.meetUrl')}</label>
-              <input
-                id="meetUrl"
-                type="text"
-                placeholder="abc-defg-hij"
-                autoComplete="off"
-                data-testid="home-room-url-input"
-                value={meetUrl}
-                onChange={(e) => setMeetUrl(e.target.value)}
-                onKeyDown={handleKeyDown}
-              />
-              {roomStatus === 'checking' && (
-                <div
-                  className="room-status checking"
-                  data-testid="home-room-status"
-                >
-                  {t('home.room.checking')}
-                </div>
-              )}
-              {roomStatus === 'valid' && (
-                <div
-                  className="room-status valid"
-                  data-testid="home-room-status"
-                >
-                  {t('home.room.valid')}
-                </div>
-              )}
-              {roomStatus === 'not_found' && (
-                <div
-                  className="room-status not-found"
-                  data-testid="home-room-status"
-                >
-                  {t('home.room.notFound')}
-                </div>
-              )}
-              {roomStatus === 'auth_required' && (
-                <div
-                  className="room-status auth-required"
-                  data-testid="home-room-status"
-                >
-                  {t('home.room.authRequired')}
-                </div>
-              )}
-              {roomStatus === 'authenticating' && (
-                <div
-                  className="room-status checking"
-                  data-testid="home-room-status"
-                >
-                  {t('home.room.authenticating')}
-                </div>
-              )}
-              {roomStatus === 'error' && (
-                <div
-                  className="room-status error"
-                  data-testid="home-room-status"
-                >
-                  {t('home.room.error')}
-                </div>
-              )}
-            </div>
-            <div className="form-group">
-              <label htmlFor="username">{t('home.displayName')}</label>
-              <input
-                id="username"
-                type="text"
-                placeholder={t('home.displayName.placeholder')}
-                autoComplete="off"
-                data-testid="home-display-name-input"
-                value={displayName}
-                onChange={(e) => onDisplayNameChange(e.target.value)}
-                onKeyDown={handleKeyDown}
-              />
-            </div>
-            {/* Room display name removed from join form — only relevant
-                when creating a room (CreateRoomView handles it). */}
-            {roomStatus === 'auth_required' ? (
-              <button
-                type="button"
-                className="btn btn-primary"
-                onClick={handleAuth}
-                data-testid="home-signin-button"
-              >
-                {t('home.signIn')}
-              </button>
-            ) : (
-              <button
-                type="button"
-                className="btn btn-primary"
-                disabled={joining || roomStatus !== 'valid'}
-                onClick={handleJoin}
-                data-testid="home-join-button"
-              >
-                {joining ? t('home.connecting') : t('home.join')}
-              </button>
-            )}
-            {oidcEnabled && isAuthenticated && authenticatedMeetInstance && (
-              <button
-                type="button"
-                className="btn btn-primary"
-                style={{
-                  marginTop: '8px',
-                  background: 'var(--bg-tertiary)',
-                  color: 'var(--text)',
-                }}
-                onClick={() => setShowCreateRoom(true)}
-                data-testid="home-create-room-button"
-              >
-                {t('home.createRoom')}
-              </button>
-            )}
-            <div className="error-msg">{error}</div>
-            {visioHistory.length > 0 && (
-              <div className="room-history">
-                <h4>{t('home.recentRooms')}</h4>
-                {visioHistory.map((entry) => {
-                  const { url, display_name } = entry
-                  const slug = url.includes('/') ? url.split('/').pop() : url
-                  let host: string
-                  try {
-                    host = new URL(url).host
-                  } catch {
-                    host = url
-                  }
-                  const primaryLabel = display_name || slug || url
-                  const secondaryLabel = display_name
-                    ? `${slug} · ${host}`
-                    : host
-                  return (
-                    <button
-                      type="button"
-                      key={url}
-                      className="room-history-item"
-                      disabled={joining}
-                      onClick={async () => {
-                        setMeetUrl(url)
-                        setError('')
-                        setJoining(true)
-                        try {
-                          const uname = displayName.trim() || null
-                          const result = await invoke<{ status: string }>(
-                            'validate_room',
-                            { url, username: uname }
-                          )
-                          if (result.status === 'valid') {
-                            await invoke('set_display_name', { name: uname })
-                            onJoin(url, uname)
-                          } else {
-                            // Validation failed — fall back to filling the URL field so the user can see the status
-                            setJoining(false)
-                          }
-                        } catch (e) {
-                          setError(String(e))
-                          setJoining(false)
-                        }
-                      }}
-                      data-testid={`home_room_history_item_${url}`}
-                    >
-                      {joining && meetUrl === url ? (
-                        <span className="room-history-spinner" />
-                      ) : (
-                        <RiGlobalLine size={16} />
-                      )}
-                      <div className="room-history-info">
-                        <span className="room-history-slug">
-                          {primaryLabel}
-                        </span>
-                        {secondaryLabel && (
-                          <span className="room-history-host">
-                            {secondaryLabel}
-                          </span>
-                        )}
-                      </div>
-                    </button>
-                  )
-                })}
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-      {oidcEnabled && showCreateRoom && authenticatedMeetInstance && (
-        <CreateRoomDialog
-          meetInstance={authenticatedMeetInstance}
-          onCreated={async (
-            createdUrl,
-            roomId,
-            accessLevel,
-            livekitUrl,
-            livekitToken
-          ) => {
-            setShowCreateRoom(false)
-            const uname = displayName.trim() || null
-            try {
-              await invoke('set_display_name', { name: uname })
-              onJoin(
-                createdUrl,
-                uname,
-                roomId,
-                accessLevel,
-                livekitUrl,
-                livekitToken
-              )
-            } catch (e) {
-              setError(String(e))
-            }
-          }}
-          onCancel={() => setShowCreateRoom(false)}
-        />
-      )}
-      {reminderToast && (
-        <div className="sync-toast sync-toast-success">{reminderToast}</div>
-      )}
-    </div>
-  )
+function firstName(full: string): string {
+  const trimmed = full.trim()
+  if (!trimmed || trimmed === 'Visio') return ''
+  return trimmed.split(/\s+/)[0]
 }
 
 // -- Create Room Dialog -----------------------------------------------------
@@ -1524,6 +145,7 @@ function CreateRoomDialog({
   meetInstance,
   onCreated,
   onCancel,
+  t,
 }: Readonly<{
   meetInstance: string
   onCreated: (
@@ -1534,8 +156,8 @@ function CreateRoomDialog({
     livekitToken?: string
   ) => void
   onCancel: () => void
+  t: (key: string) => string
 }>) {
-  const t = useT()
   const [accessLevel, setAccessLevel] = useState<
     'public' | 'trusted' | 'restricted'
   >('public')
@@ -1546,8 +168,9 @@ function CreateRoomDialog({
   const [copiedHttp, setCopiedHttp] = useState(false)
   const [copiedDeep, setCopiedDeep] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
-  const [searchResults, setSearchResults] = useState<UserSearchResult[]>([])
-  const [invitedUsers, setInvitedUsers] = useState<UserSearchResult[]>([])
+  const [searchResults, setSearchResults] = useState<any[]>([])
+  const [invitedUsers, setInvitedUsers] = useState<any[]>([])
+  const [searching, setSearching] = useState(false)
   const [createdRoomId, setCreatedRoomId] = useState('')
   const [createdLivekitUrl, setCreatedLivekitUrl] = useState('')
   const [createdLivekitToken, setCreatedLivekitToken] = useState('')
@@ -1558,28 +181,29 @@ function CreateRoomDialog({
     ? `visio://${createdUrl.replace(/^https?:\/\//, '')}`
     : ''
 
-  const isNotInvited = useCallback(
-    (u: UserSearchResult) => !invitedUsers.some((inv) => inv.id === u.id),
-    [invitedUsers]
-  )
-
   useEffect(() => {
     if (searchQuery.length < 3) {
       setSearchResults([])
       return
     }
     const timer = setTimeout(async () => {
+      setSearching(true)
       try {
-        const results = await invoke<UserSearchResult[]>('search_users', {
+        const results = await invoke<any[]>('search_users', {
           query: searchQuery,
         })
-        setSearchResults(results.filter(isNotInvited))
+        setSearchResults(
+          results.filter(
+            (u: any) => !invitedUsers.some((inv: any) => inv.id === u.id)
+          )
+        )
       } catch {
         setSearchResults([])
       }
+      setSearching(false)
     }, 300)
     return () => clearTimeout(timer)
-  }, [searchQuery, isNotInvited])
+  }, [searchQuery, invitedUsers])
 
   const handleCreate = async () => {
     setCreating(true)
@@ -1657,7 +281,7 @@ function CreateRoomDialog({
       >
         <div className="settings-header">
           <span>{t('home.createRoom')}</span>
-          <button type="button" onClick={onCancel}>
+          <button onClick={onCancel}>
             <RiCloseLine size={20} />
           </button>
         </div>
@@ -1770,7 +394,7 @@ function CreateRoomDialog({
                   />
                   {searchResults.length > 0 && (
                     <div className="search-dropdown">
-                      {searchResults.map((user) => (
+                      {searchResults.map((user: any) => (
                         <button
                           key={user.id}
                           type="button"
@@ -1791,15 +415,16 @@ function CreateRoomDialog({
                   )}
                   {invitedUsers.length > 0 && (
                     <div className="invited-chips">
-                      {invitedUsers.map((user) => (
+                      {invitedUsers.map((user: any) => (
                         <span key={user.id} className="user-chip">
                           {user.full_name || user.email}
                           <button
-                            type="button"
                             className="chip-remove"
                             onClick={() =>
                               setInvitedUsers(
-                                invitedUsers.filter((u) => u.id !== user.id)
+                                invitedUsers.filter(
+                                  (u: any) => u.id !== user.id
+                                )
                               )
                             }
                           >
@@ -1823,7 +448,6 @@ function CreateRoomDialog({
                 <RiGlobalLine size={16} />
                 <span>{t('settings.incall.roomLink')}</span>
                 <button
-                  type="button"
                   className="info-copy-icon"
                   onClick={() => handleCopy(createdUrl, setCopiedHttp)}
                   title={t('settings.incall.copied')}
@@ -1845,7 +469,6 @@ function CreateRoomDialog({
                 <RiSmartphoneLine size={16} />
                 <span>{t('settings.incall.deepLink')}</span>
                 <button
-                  type="button"
                   className="info-copy-icon"
                   onClick={() => handleCopy(deepLink, setCopiedDeep)}
                   title={t('settings.incall.copied')}
@@ -1878,7 +501,6 @@ function CreateRoomDialog({
                         <RiGlobalLine size={16} />
                         <span>{t('home.createVisio.simplifiedUrl')}</span>
                         <button
-                          type="button"
                           className="info-copy-icon"
                           onClick={() =>
                             handleCopy(simplifiedUrl, setCopiedDeep)
@@ -1916,12 +538,11 @@ function CreateRoomDialog({
             justifyContent: 'flex-end',
           }}
         >
-          <button type="button" className="btn btn-cancel" onClick={onCancel}>
+          <button className="btn btn-cancel" onClick={onCancel}>
             {t('home.serverPicker.cancel')}
           </button>
           {!createdUrl ? (
             <button
-              type="button"
               className="btn btn-primary"
               style={{ width: 'auto' }}
               disabled={creating}
@@ -1933,7 +554,6 @@ function CreateRoomDialog({
             </button>
           ) : (
             <button
-              type="button"
               className="btn btn-primary"
               style={{ width: 'auto' }}
               onClick={() =>
@@ -1979,7 +599,6 @@ function CreateRoomDialog({
               }}
             >
               <button
-                type="button"
                 className="btn"
                 onClick={() => {
                   setAliasConflictName('')
@@ -1989,7 +608,6 @@ function CreateRoomDialog({
                 {t('alias.conflictCancel')}
               </button>
               <button
-                type="button"
                 className="btn btn-primary"
                 onClick={() => {
                   invoke('add_visio_alias', {
@@ -2010,347 +628,6 @@ function CreateRoomDialog({
   )
 }
 
-// -- Info Sidebar -----------------------------------------------------------
-
-function InfoSidebar({
-  meetUrl,
-  onClose,
-  roomId,
-  accessLevel,
-  roomDisplayName,
-}: Readonly<{
-  meetUrl: string
-  onClose: () => void
-  roomId?: string
-  accessLevel?: string
-  roomDisplayName?: string | null
-}>) {
-  const t = useT()
-  const [copiedHttp, setCopiedHttp] = useState(false)
-  const [copiedDeep, setCopiedDeep] = useState(false)
-  const [roomAccesses, setRoomAccesses] = useState<RoomAccess[]>([])
-  const [memberSearch, setMemberSearch] = useState('')
-  const [memberResults, setMemberResults] = useState<UserSearchResult[]>([])
-
-  // Build share URL with room display name param if available
-  const shareUrl = (() => {
-    if (!roomDisplayName) return meetUrl
-    const sep = meetUrl.includes('?') ? '&' : '?'
-    return `${meetUrl}${sep}visio=${encodeURIComponent(roomDisplayName)}`
-  })()
-
-  // Normalize URL for display (strip scheme)
-  const displayUrl = meetUrl.replace(/^https?:\/\//, '')
-  const deepLinkBase = `visio://${displayUrl}`
-  const deepLink = roomDisplayName
-    ? `${deepLinkBase}?visio=${encodeURIComponent(roomDisplayName)}`
-    : deepLinkBase
-
-  // Fetch accesses on mount if roomId is provided
-  useEffect(() => {
-    if (!roomId) return
-    const fetchAccesses = async () => {
-      try {
-        const results = await invoke<RoomAccess[]>('list_accesses', { roomId })
-        setRoomAccesses(results)
-      } catch {
-        /* ignore - not owner/admin */
-      }
-    }
-    fetchAccesses()
-  }, [roomId])
-
-  // Member search effect
-  const isNotMember = useCallback(
-    (u: UserSearchResult) => !roomAccesses.some((a) => a.user.id === u.id),
-    [roomAccesses]
-  )
-
-  useEffect(() => {
-    if (memberSearch.length < 3) {
-      setMemberResults([])
-      return
-    }
-    const timer = setTimeout(async () => {
-      try {
-        const results = await invoke<UserSearchResult[]>('search_users', {
-          query: memberSearch,
-        })
-        setMemberResults(results.filter(isNotMember))
-      } catch {
-        setMemberResults([])
-      }
-    }, 300)
-    return () => clearTimeout(timer)
-  }, [memberSearch, isNotMember])
-
-  const handleRemoveAccess = async (accessId: string) => {
-    try {
-      await invoke('remove_access', { accessId })
-      setRoomAccesses((prev) => prev.filter((a) => a.id !== accessId))
-    } catch {
-      /* ignore */
-    }
-  }
-
-  const handleCopyHttp = async () => {
-    try {
-      await navigator.clipboard.writeText(shareUrl)
-      setCopiedHttp(true)
-      setTimeout(() => setCopiedHttp(false), 2000)
-    } catch {
-      /* fallback: ignore */
-    }
-  }
-
-  const handleCopyDeep = async () => {
-    try {
-      await navigator.clipboard.writeText(deepLink)
-      setCopiedDeep(true)
-      setTimeout(() => setCopiedDeep(false), 2000)
-    } catch {
-      /* fallback: ignore */
-    }
-  }
-
-  return (
-    <div className="info-sidebar">
-      <div className="participants-header">
-        <span>{t('info.title')}</span>
-        <button
-          type="button"
-          className="chat-close"
-          aria-label={t('action.close')}
-          onClick={onClose}
-        >
-          <RiCloseLine size={20} />
-        </button>
-      </div>
-      <div className="info-body">
-        <div className="info-section">
-          <div className="info-link-header">
-            <RiGlobalLine size={16} />
-            <span>{t('settings.incall.roomLink')}</span>
-            <button
-              type="button"
-              className="info-copy-icon"
-              onClick={handleCopyHttp}
-              title={t('settings.incall.copied')}
-            >
-              {copiedHttp ? (
-                <RiCheckLine size={16} />
-              ) : (
-                <RiFileCopyLine size={16} />
-              )}
-            </button>
-          </div>
-          <input
-            className="info-link-input"
-            readOnly
-            value={shareUrl}
-            onClick={(e) => (e.target as HTMLInputElement).select()}
-          />
-        </div>
-        <div className="info-section">
-          <div className="info-link-header">
-            <RiSmartphoneLine size={16} />
-            <span>{t('settings.incall.deepLink')}</span>
-            <button
-              type="button"
-              className="info-copy-icon"
-              onClick={handleCopyDeep}
-              title={t('settings.incall.copied')}
-            >
-              {copiedDeep ? (
-                <RiCheckLine size={16} />
-              ) : (
-                <RiFileCopyLine size={16} />
-              )}
-            </button>
-          </div>
-          <input
-            className="info-link-input"
-            readOnly
-            value={deepLink}
-            onClick={(e) => (e.target as HTMLInputElement).select()}
-          />
-        </div>
-        {roomId && accessLevel === 'restricted' && (
-          <div className="members-section">
-            <h4 style={{ margin: '16px 0 8px' }}>{t('restricted.members')}</h4>
-            <input
-              type="text"
-              className="info-link-input"
-              placeholder={t('restricted.searchUsers')}
-              value={memberSearch}
-              onChange={(e) => setMemberSearch(e.target.value)}
-            />
-            {memberResults.length > 0 && (
-              <div className="search-dropdown">
-                {memberResults.map((user) => (
-                  <button
-                    key={user.id}
-                    type="button"
-                    className="search-result"
-                    onClick={async () => {
-                      try {
-                        await invoke('add_access', { userId: user.id, roomId })
-                        const updated = await invoke<RoomAccess[]>(
-                          'list_accesses',
-                          {
-                            roomId,
-                          }
-                        )
-                        setRoomAccesses(updated)
-                      } catch {
-                        /* ignore */
-                      }
-                      setMemberSearch('')
-                      setMemberResults([])
-                    }}
-                  >
-                    <span className="search-name">
-                      {user.full_name || user.email}
-                    </span>
-                    <span className="search-email">{user.email}</span>
-                  </button>
-                ))}
-              </div>
-            )}
-            {roomAccesses.map((access) => (
-              <div key={access.id} className="member-row">
-                <div className="member-info">
-                  <span>{access.user.full_name || access.user.email}</span>
-                  <span className="member-role">
-                    {t(`restricted.${access.role}`)}
-                  </span>
-                </div>
-                {access.role === 'member' && (
-                  <button
-                    type="button"
-                    className="btn btn-sm btn-danger"
-                    onClick={() => handleRemoveAccess(access.id)}
-                  >
-                    {t('restricted.remove')}
-                  </button>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-    </div>
-  )
-}
-
-// -- Tools Sidebar ----------------------------------------------------------
-
-function ToolsSidebar({ onClose }: Readonly<{ onClose: () => void }>) {
-  const t = useT()
-  const [subView, setSubView] = useState<'menu' | 'transcribe'>('menu')
-
-  if (subView === 'transcribe') {
-    return (
-      <div className="info-sidebar">
-        <div className="participants-header">
-          <button
-            type="button"
-            className="chat-close"
-            aria-label={t('action.back')}
-            onClick={() => setSubView('menu')}
-          >
-            <RiArrowLeftSLine size={20} />
-          </button>
-          <span style={{ flex: 1 }}>{t('transcribe.title')}</span>
-          <button
-            type="button"
-            className="chat-close"
-            aria-label={t('action.close')}
-            onClick={onClose}
-          >
-            <RiCloseLine size={20} />
-          </button>
-        </div>
-        <div className="info-body transcribe-body">
-          <h3 className="transcribe-heading">{t('transcribe.heading')}</h3>
-          <p className="transcribe-sub">{t('transcribe.subheading')}</p>
-          <div className="transcribe-features">
-            <div className="transcribe-feature">
-              <RiFileTextLine size={16} />
-              <span>{t('transcribe.newDoc')}</span>
-            </div>
-            <div className="transcribe-feature">
-              <RiMailLine size={16} />
-              <span>{t('transcribe.emailSent')}</span>
-            </div>
-            <div className="transcribe-feature">
-              <RiGlobalLine size={16} />
-              <span>
-                {t('transcribe.language')} : {t('transcribe.currentLanguage')}
-              </span>
-            </div>
-          </div>
-          <label className="transcribe-record-check">
-            <input type="checkbox" />
-            {t('transcribe.alsoRecord')}
-          </label>
-          <button
-            type="button"
-            className="btn btn-primary transcribe-start"
-            disabled
-          >
-            {t('transcribe.start')}
-          </button>
-          <p className="transcribe-notice">{t('transcribe.comingSoon')}</p>
-        </div>
-      </div>
-    )
-  }
-
-  return (
-    <div className="info-sidebar">
-      <div className="participants-header">
-        <span>{t('tools.title')}</span>
-        <button
-          type="button"
-          className="chat-close"
-          aria-label={t('action.close')}
-          onClick={onClose}
-        >
-          <RiCloseLine size={20} />
-        </button>
-      </div>
-      <div className="info-body">
-        <p className="tools-subtitle">{t('tools.subtitle')}</p>
-        <button
-          type="button"
-          className="tools-row"
-          onClick={() => setSubView('transcribe')}
-        >
-          <span className="tools-row-icon">
-            <RiFileTextLine size={20} />
-          </span>
-          <span className="tools-row-text">
-            <span className="tools-row-label">{t('control.transcribe')}</span>
-            <span className="tools-row-desc">{t('tools.transcribe.desc')}</span>
-          </span>
-          <RiArrowRightSLine size={18} />
-        </button>
-        <button type="button" className="tools-row" disabled>
-          <span className="tools-row-icon">
-            <RiRecordCircleLine size={20} />
-          </span>
-          <span className="tools-row-text">
-            <span className="tools-row-label">{t('control.record')}</span>
-            <span className="tools-row-desc">{t('tools.record.desc')}</span>
-          </span>
-          <RiArrowRightSLine size={18} />
-        </button>
-      </div>
-    </div>
-  )
-}
-
 // -- Waiting Screen ---------------------------------------------------------
 
 function WaitingScreen({
@@ -2366,7 +643,7 @@ function WaitingScreen({
         <div className="waiting-spinner" />
         <h2>{t('lobby.waiting')}</h2>
         <p>{t('lobby.waitingDesc')}</p>
-        <button type="button" className="btn btn-secondary" onClick={onCancel}>
+        <button className="btn btn-secondary" onClick={onCancel}>
           {t('lobby.cancel')}
         </button>
       </div>
@@ -2374,2461 +651,107 @@ function WaitingScreen({
   )
 }
 
-// -- Source Picker Modal ----------------------------------------------------
+// ---------------------------------------------------------------------------
+// Sidebar profile popover
+// ---------------------------------------------------------------------------
 
-function SourcePickerModal({
-  sources,
-  onSelect,
-  onClose,
-}: Readonly<{
-  sources: ScreenSource[]
-  onSelect: (sourceId: string) => void
+interface ProfileMenuProps {
+  t: (key: string) => string
+  showSignOut: boolean
+  onOpenSettings?: () => void
+  onSignOut: () => void
   onClose: () => void
-}>) {
-  const t = useT()
-  const monitors = sources.filter((s) => s.source_type === 'monitor')
-  const windows = sources.filter((s) => s.source_type === 'window')
-
-  return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div
-        className="settings-modal source-picker"
-        data-testid="screen-share-source-picker"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="settings-header">
-          <span>{t('call.selectSource')}</span>
-          <button type="button" onClick={onClose}>
-            <RiCloseLine size={20} />
-          </button>
-        </div>
-        <div className="source-grid">
-          {monitors.length > 0 && (
-            <>
-              <h4 className="source-section-title">{t('call.monitors')}</h4>
-              <div className="source-grid-items">
-                {monitors.map((s, i) => (
-                  <button
-                    type="button"
-                    key={s.id}
-                    className="source-card"
-                    data-testid={`screen-share-source-${i}`}
-                    onClick={() => onSelect(s.id)}
-                  >
-                    {s.thumbnail ? (
-                      <img
-                        src={s.thumbnail}
-                        alt={s.name}
-                        className="source-thumb"
-                      />
-                    ) : (
-                      <div className="source-thumb source-thumb-placeholder">
-                        <ScreenShareIcon size={32} />
-                      </div>
-                    )}
-                    <span className="source-card-label">{s.name}</span>
-                  </button>
-                ))}
-              </div>
-            </>
-          )}
-          <h4 className="source-section-title">{t('call.windows')}</h4>
-          {windows.length > 0 ? (
-            <div className="source-grid-items">
-              {windows.map((s, i) => (
-                <button
-                  type="button"
-                  key={s.id}
-                  className="source-card"
-                  data-testid={`screen-share-source-${monitors.length + i}`}
-                  onClick={() => onSelect(s.id)}
-                >
-                  {s.thumbnail ? (
-                    <img
-                      src={s.thumbnail}
-                      alt={s.name}
-                      className="source-thumb"
-                    />
-                  ) : (
-                    <div className="source-thumb source-thumb-placeholder">
-                      <RiApps2Line size={32} />
-                    </div>
-                  )}
-                  <span className="source-card-label">{s.name}</span>
-                </button>
-              ))}
-            </div>
-          ) : (
-            <p className="source-permission-hint">
-              {t('call.screenPermissionHint')}
-            </p>
-          )}
-        </div>
-      </div>
-    </div>
-  )
 }
 
-// -- Call View --------------------------------------------------------------
-
-function CallView({
-  participants,
-  localParticipant,
-  micEnabled,
-  camEnabled,
-  videoFrames,
-  messages,
-  handRaisedMap,
-  isHandRaised,
-  unreadCount,
-  showChat,
-  onToggleMic,
-  onToggleCam,
-  onHangUp,
-  onToggleHandRaise,
-  onToggleChat,
-  onSendChat,
-  onToggleParticipants,
-  showParticipants,
-  onToggleInfo,
-  showInfo,
-  meetUrl,
-  onToggleTranscription,
-  showTranscription,
-  onShowMicPicker,
-  onShowCamPicker,
-  showMicPicker,
-  showCamPicker,
-  audioInputs,
-  audioOutputs,
-  videoInputs,
-  selectedAudioInput,
-  selectedAudioOutput,
-  selectedVideoInput,
-  activeSpeakers,
-  onSelectAudioInput,
-  onSelectAudioOutput,
-  onSelectVideoInput,
-  waitingParticipants,
-  setWaitingParticipants,
-  roomId,
-  accessLevel,
-  roomDisplayName,
-  bandwidthMode,
-}: Readonly<{
-  participants: Participant[]
-  localParticipant: Participant | null
-  micEnabled: boolean
-  camEnabled: boolean
-  videoFrames: Map<string, string>
-  messages: ChatMessage[]
-  handRaisedMap: Record<string, number>
-  activeSpeakers: string[]
-  isHandRaised: boolean
-  unreadCount: number
-  showChat: boolean
-  onToggleMic: () => void
-  onToggleCam: () => void
-  onHangUp: () => void
-  onToggleHandRaise: () => void
-  onToggleChat: () => void
-  onSendChat: (text: string) => void
-  onToggleParticipants: () => void
-  showParticipants: boolean
-  onToggleInfo: () => void
-  showInfo: boolean
-  meetUrl: string
-  onToggleTranscription: () => void
-  showTranscription: boolean
-  onShowMicPicker: () => void
-  onShowCamPicker: () => void
-  showMicPicker: boolean
-  showCamPicker: boolean
-  audioInputs: NativeAudioDevice[]
-  audioOutputs: NativeAudioDevice[]
-  videoInputs: NativeVideoDevice[]
-  selectedAudioInput: string
-  selectedAudioOutput: string
-  selectedVideoInput: string
-  onSelectAudioInput: (name: string) => void
-  onSelectAudioOutput: (name: string) => void
-  onSelectVideoInput: (uniqueId: string) => void
-  waitingParticipants: Array<{ id: string; username: string }>
-  setWaitingParticipants: React.Dispatch<
-    React.SetStateAction<Array<{ id: string; username: string }>>
-  >
-  roomId?: string
-  accessLevel?: string
-  roomDisplayName?: string | null
-  bandwidthMode?: string
-}>) {
-  const t = useT()
-  const [focusedItem, setFocusedItem] = useState<FocusItem>(null)
-  const userPinnedRef = useRef(false) // tracks whether user manually pinned a participant
-  const [showFocusThumbnails, setShowFocusThumbnails] = useState(true)
-  const [isScreenSharing, setIsScreenSharing] = useState(false)
-  const [showSourcePicker, setShowSourcePicker] = useState(false)
-  const [screenSources, setScreenSources] = useState<ScreenSource[]>([])
-  const [chatInput, setChatInput] = useState('')
-  const chatScrollRef = useRef<HTMLDivElement>(null)
-  const [bgMode, setBgMode] = useState('off')
-  const [showOverflow, setShowOverflow] = useState(false)
-  const [showReactionPicker, setShowReactionPicker] = useState(false)
-  const [reactions, setReactions] = useState<ReactionData[]>([])
-  const reactionIdCounter = useRef(0)
-  const [participantMenu, setParticipantMenu] = useState<string | null>(null)
-
-  // Layout engine state: voice-activity sorted grid + speaker mode
-  const [layoutMode, setLayoutMode] = useState<'grid' | 'speaker'>('grid')
-  const [sortedOrder, setSortedOrder] = useState<string[]>([])
-  const [mainParticipantSid, setMainParticipantSid] = useState<string | null>(
-    null
-  )
-  const autoSpeakerTriggered = useRef(false)
-
-  // Listen for layout engine events from the Rust backend
-  useEffect(() => {
-    const unlisteners: Promise<UnlistenFn>[] = []
-    unlisteners.push(
-      listen<string[]>('participant-order-changed', (event) => {
-        setSortedOrder(event.payload)
-      })
-    )
-    unlisteners.push(
-      listen<string>('main-participant-changed', (event) => {
-        setMainParticipantSid(event.payload)
-      })
-    )
-    unlisteners.push(
-      listen<string>('layout-mode-changed', (event) => {
-        setLayoutMode(event.payload === 'speaker' ? 'speaker' : 'grid')
-      })
-    )
-    return () => {
-      for (const u of unlisteners) {
-        u.then((f) => f())
-      }
-    }
-  }, [])
-
-  // Auto-switch to speaker mode when > 6 participants (once per call)
-  useEffect(() => {
-    if (autoSpeakerTriggered.current) return
-    const totalCount = (localParticipant ? 1 : 0) + participants.length
-    if (totalCount > 6) {
-      autoSpeakerTriggered.current = true
-      invoke('set_layout_mode', { mode: 'speaker' }).catch(() => {})
-    }
-  }, [participants.length, localParticipant])
-
-  const handleToggleLayout = async () => {
-    const newMode = layoutMode === 'grid' ? 'speaker' : 'grid'
-    try {
-      await invoke('set_layout_mode', { mode: newMode })
-    } catch (e) {
-      console.error('set_layout_mode error:', e)
-    }
-  }
-
-  const handlePinParticipant = async (sid: string | null) => {
-    try {
-      await invoke('pin_participant', { sid })
-    } catch (e) {
-      console.error('pin_participant error:', e)
-    }
-  }
-
-  // Listen for reaction events
-  useEffect(() => {
-    let unlisten: UnlistenFn | null = null
-    listen<{ participantSid: string; participantName: string; emoji: string }>(
-      'reaction-received',
-      (event) => {
-        const { participantSid, participantName, emoji } = event.payload
-        const id = ++reactionIdCounter.current
-        const reaction: ReactionData = {
-          id,
-          participantSid,
-          participantName,
-          emoji,
-          timestamp: Date.now(),
-        }
-        setReactions((prev) => [...prev, reaction])
-        // Auto-remove after 3 seconds
-        setTimeout(() => {
-          setReactions((prev) => prev.filter((r) => r.id !== id))
-        }, 3000)
-      }
-    ).then((fn) => {
-      unlisten = fn
-    })
-    return () => {
-      unlisten?.()
-    }
-  }, [])
-
-  // Auto-focus when a screen share track is subscribed
-  useEffect(() => {
-    const unsub = listen<{
-      trackSid: string
-      participantSid: string
-      source: string
-    }>('track-subscribed', (event) => {
-      if (event.payload.source === 'screen_share') {
-        setFocusedItem({
-          participantSid: event.payload.participantSid,
-          source: 'screen_share',
-        })
-      }
-    })
-    return () => {
-      unsub.then((f) => f())
-    }
-  }, [])
-
-  // Auto-unfocus when focused screen share ends
-  useEffect(() => {
-    if (focusedItem?.source === 'screen_share') {
-      // Check both remote participants and local participant
-      const isLocal =
-        localParticipant && focusedItem.participantSid === localParticipant.sid
-      if (isLocal) {
-        if (!isScreenSharing) {
-          userPinnedRef.current = false
-          setFocusedItem(null)
-        }
-      } else {
-        const p = participants.find((p) => p.sid === focusedItem.participantSid)
-        if (!p?.has_screen_share) {
-          userPinnedRef.current = false
-          setFocusedItem(null)
-        }
-      }
-    }
-  }, [participants, focusedItem, localParticipant, isScreenSharing])
-
-  // Grid is the default layout — no auto-focus on active speaker.
-  // Users must explicitly click a participant to pin them.
-
-  const handleSendReaction = async (emojiId: string) => {
-    try {
-      await invoke('send_reaction', { emoji: emojiId })
-      // Show reaction locally (the echo from the server is filtered out)
-      const id = ++reactionIdCounter.current
-      setReactions((prev) => [
-        ...prev,
-        {
-          id,
-          participantSid: localParticipant?.sid ?? '',
-          participantName: localParticipant?.name ?? '',
-          emoji: emojiId,
-          timestamp: Date.now(),
-        },
-      ])
-    } catch (e) {
-      console.error('send_reaction error:', e)
-    }
-    setShowReactionPicker(false)
-    setShowOverflow(false)
-  }
-
-  // Load current background mode on mount
-  useEffect(() => {
-    invoke<string>('get_background_mode')
-      .then(setBgMode)
-      .catch(() => {})
-  }, [])
-
-  const handleBgMode = async (mode: string) => {
-    try {
-      if (mode.startsWith('image:')) {
-        const id = Number.parseInt(mode.slice(6), 10)
-        const path = await resolveResource(`backgrounds/${id}.jpg`)
-        await invoke('load_background_image', { id, jpegPath: path })
-      }
-      await invoke('set_background_mode', { mode })
-      setBgMode(mode)
-    } catch (e) {
-      console.error('set_background_mode error:', e)
-    }
-  }
-
-  // Close overflow/reaction picker when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      const target = e.target as Element
-      if (!target.closest('.overflow-menu, .reaction-picker, .control-btn')) {
-        setShowOverflow(false)
-        setShowReactionPicker(false)
-      }
-      if (!target.closest('.participant-menu-wrapper')) {
-        setParticipantMenu(null)
-      }
-    }
-    document.addEventListener('click', handleClickOutside)
-    return () => document.removeEventListener('click', handleClickOutside)
-  }, [])
-
-  useEffect(() => {
-    if (chatScrollRef.current) {
-      chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight
-    }
-  }, [messages.length])
-
-  const sendMessage = () => {
-    const text = chatInput.trim()
-    if (!text) return
-    setChatInput('')
-    onSendChat(text)
-  }
-
-  // Build allParticipants with local participant first
-  const allParticipants: Participant[] = []
-  if (localParticipant) {
-    // Override local participant's name to show "You" label, and sync mute/video state
-    allParticipants.push({
-      ...localParticipant,
-      name: localParticipant.name
-        ? `${localParticipant.name} (${t('call.you')})`
-        : t('call.you'),
-      is_muted: !micEnabled,
-      has_video: camEnabled,
-      video_track_sid: camEnabled ? 'local-camera' : null,
-      has_screen_share: isScreenSharing,
-      screen_share_track_sid: isScreenSharing ? 'local-screen' : null,
-    })
-  }
-  allParticipants.push(
-    ...participants.filter(
-      (p) => !localParticipant || p.sid !== localParticipant.sid
-    )
-  )
-  const unsortedDisplayItems = buildDisplayItems(allParticipants, t)
-
-  // Sort display items by voice-activity order from LayoutEngine
-  const displayItems =
-    sortedOrder.length > 0
-      ? [...unsortedDisplayItems].sort((a, b) => {
-          const ai = sortedOrder.indexOf(a.participant.sid)
-          const bi = sortedOrder.indexOf(b.participant.sid)
-          // Participants not in sorted order go to the end
-          const aSortIdx = ai >= 0 ? ai : sortedOrder.length
-          const bSortIdx = bi >= 0 ? bi : sortedOrder.length
-          return aSortIdx - bSortIdx
-        })
-      : unsortedDisplayItems
-
-  // Speaker mode: determine main tile and thumbnails from LayoutEngine
-  const speakerMainItem =
-    layoutMode === 'speaker' && mainParticipantSid
-      ? (displayItems.find(
-          (d) => d.participant.sid === mainParticipantSid && !d.isScreenShare
-        ) ??
-        displayItems[0] ??
-        null)
-      : null
-  const speakerThumbnailItems =
-    layoutMode === 'speaker' && speakerMainItem
-      ? displayItems.filter((d) => d.key !== speakerMainItem.key)
-      : []
-
-  // Legacy focus mode (click-to-pin, screen share) still takes priority
-  const focusedDisplayItem = focusedItem
-    ? displayItems.find(
-        (d) =>
-          d.participant.sid === focusedItem.participantSid &&
-          d.source === focusedItem.source
-      )
-    : null
-  const thumbnailItems = focusedDisplayItem
-    ? displayItems.filter((d) => d.key !== focusedDisplayItem.key)
-    : []
-
-  // Determine effective layout: legacy focus > speaker mode > grid
-  const effectiveLayout = focusedDisplayItem
-    ? 'focus'
-    : layoutMode === 'speaker' && speakerMainItem
-      ? 'speaker'
-      : 'grid'
-
-  // Compute grid layout: choose columns so all tiles are uniform
-  const gridCount = displayItems.length
-  let gridCols = 5
-  if (gridCount <= 1) gridCols = 1
-  else if (gridCount <= 4) gridCols = 2
-  else if (gridCount <= 9) gridCols = 3
-  else if (gridCount <= 16) gridCols = 4
-  const gridRows = Math.ceil(gridCount / gridCols)
-  const gridStyle: React.CSSProperties =
-    gridCount > 0
-      ? {
-          gridTemplateColumns: `repeat(${gridCols}, 1fr)`,
-          gridTemplateRows: `repeat(${gridRows}, 1fr)`,
-        }
-      : {}
-
-  return (
-    <div id="call" className="section active">
-      {/* Lobby waiting banner — persistent while participants are waiting */}
-      {waitingParticipants.length > 0 &&
-        (() => {
-          const first = waitingParticipants[0]
-          const parts = t('lobby.joinRequest').split('{{name}}')
-          const suffix =
-            waitingParticipants.length > 1
-              ? ` (+${waitingParticipants.length - 1})`
-              : ''
-          return (
-            <div className="lobby-notification">
-              <span className="lobby-notification-text">
-                {parts[0]}
-                <strong>{first.username}</strong>
-                {parts[1]}
-                {suffix}
-              </span>
-              <div className="lobby-notification-actions">
-                <button
-                  type="button"
-                  className="btn-admit"
-                  onClick={async () => {
-                    try {
-                      await invoke('admit_participant', {
-                        participantId: first.id,
-                      })
-                      setWaitingParticipants((prev) =>
-                        prev.filter((x) => x.id !== first.id)
-                      )
-                    } catch (e) {
-                      console.error('admit error:', e)
-                    }
-                  }}
-                >
-                  {t('lobby.admit')}
-                </button>
-                <button
-                  type="button"
-                  className="btn-view"
-                  onClick={() => {
-                    if (!showParticipants) onToggleParticipants()
-                  }}
-                >
-                  {t('lobby.view')}
-                </button>
-              </div>
-            </div>
-          )
-        })()}
-      <div className="call-body">
-        {/* Main video area */}
-        <div
-          className="call-content"
-          data-testid={`layout-mode:${effectiveLayout.toUpperCase()}`}
-        >
-          {effectiveLayout === 'focus' && focusedDisplayItem ? (
-            <div className="focus-layout">
-              <div
-                className="focus-main"
-                data-testid={`main-tile:${focusedDisplayItem.participant.sid}`}
-              >
-                {userPinnedRef.current && (
-                  <span
-                    className="pin-indicator"
-                    data-testid={`pin-indicator:${focusedDisplayItem.participant.sid}`}
-                    aria-hidden="true"
-                  />
-                )}
-                <ParticipantTile
-                  participant={focusedDisplayItem.participant}
-                  videoFrames={videoFrames}
-                  isActiveSpeaker={activeSpeakers.includes(
-                    focusedDisplayItem.participant.sid
-                  )}
-                  handRaisePosition={
-                    handRaisedMap[focusedDisplayItem.participant.sid]
-                  }
-                  displayItem={focusedDisplayItem}
-                  bandwidthMode={bandwidthMode}
-                />
-                <div className="focus-toolbar">
-                  <button
-                    type="button"
-                    className="focus-toolbar-btn"
-                    onClick={() => setShowFocusThumbnails((v) => !v)}
-                    title={
-                      showFocusThumbnails
-                        ? t('call.focus.hideThumbnails')
-                        : t('call.focus.showThumbnails')
-                    }
-                  >
-                    {showFocusThumbnails ? (
-                      <RiFullscreenLine size={18} />
-                    ) : (
-                      <RiFullscreenExitLine size={18} />
-                    )}
-                  </button>
-                  <button
-                    type="button"
-                    className="focus-toolbar-btn"
-                    onClick={() => {
-                      setFocusedItem(null)
-                      userPinnedRef.current = false
-                      setShowFocusThumbnails(true)
-                    }}
-                    title={t('call.focus.backToGrid')}
-                  >
-                    <RiCloseLine size={18} />
-                  </button>
-                </div>
-              </div>
-              {showFocusThumbnails && thumbnailItems.length > 0 && (
-                <div className="focus-thumbnails">
-                  {thumbnailItems.map((d, index) => (
-                    <button
-                      key={d.key}
-                      type="button"
-                      className="tile"
-                      data-testid={`secondary-tile-${index}:${d.participant.sid}`}
-                      onClick={() => {
-                        userPinnedRef.current = true
-                        setFocusedItem({
-                          participantSid: d.participant.sid,
-                          source: d.source,
-                        })
-                      }}
-                    >
-                      <ParticipantTile
-                        participant={d.participant}
-                        videoFrames={videoFrames}
-                        isActiveSpeaker={activeSpeakers.includes(
-                          d.participant.sid
-                        )}
-                        handRaisePosition={handRaisedMap[d.participant.sid]}
-                        displayItem={d}
-                        bandwidthMode={bandwidthMode}
-                      />
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          ) : effectiveLayout === 'speaker' && speakerMainItem ? (
-            <div className="focus-layout" data-testid="speaker-layout">
-              <div
-                className="focus-main speaker-main"
-                data-testid={`speaker-main-tile:${speakerMainItem.participant.sid}`}
-              >
-                <ParticipantTile
-                  participant={speakerMainItem.participant}
-                  videoFrames={videoFrames}
-                  isActiveSpeaker={activeSpeakers.includes(
-                    speakerMainItem.participant.sid
-                  )}
-                  handRaisePosition={
-                    handRaisedMap[speakerMainItem.participant.sid]
-                  }
-                  displayItem={speakerMainItem}
-                  bandwidthMode={bandwidthMode}
-                />
-                <div className="focus-toolbar">
-                  <button
-                    type="button"
-                    className="focus-toolbar-btn"
-                    onClick={() => setShowFocusThumbnails((v) => !v)}
-                    title={
-                      showFocusThumbnails
-                        ? t('call.focus.hideThumbnails')
-                        : t('call.focus.showThumbnails')
-                    }
-                  >
-                    {showFocusThumbnails ? (
-                      <RiFullscreenLine size={18} />
-                    ) : (
-                      <RiFullscreenExitLine size={18} />
-                    )}
-                  </button>
-                </div>
-              </div>
-              {showFocusThumbnails && speakerThumbnailItems.length > 0 && (
-                <div className="focus-thumbnails speaker-thumbnails">
-                  {speakerThumbnailItems.map((d, index) => {
-                    const isPinned = mainParticipantSid === d.participant.sid
-                    return (
-                      <button
-                        key={d.key}
-                        type="button"
-                        className={`tile${isPinned ? ' tile-pinned' : ''}`}
-                        data-testid={`speaker-thumb-${index}:${d.participant.sid}`}
-                        onClick={() => {
-                          // Click to pin/unpin in speaker mode
-                          handlePinParticipant(
-                            isPinned ? null : d.participant.sid
-                          )
-                        }}
-                      >
-                        <ParticipantTile
-                          participant={d.participant}
-                          videoFrames={videoFrames}
-                          isActiveSpeaker={activeSpeakers.includes(
-                            d.participant.sid
-                          )}
-                          handRaisePosition={handRaisedMap[d.participant.sid]}
-                          displayItem={d}
-                          bandwidthMode={bandwidthMode}
-                        />
-                        {isPinned && (
-                          <span className="tile-pin-badge">
-                            <RiPushpinLine size={12} />
-                          </span>
-                        )}
-                      </button>
-                    )
-                  })}
-                </div>
-              )}
-            </div>
-          ) : (
-            <div
-              className={`video-grid${gridCount === 0 ? ' video-grid-0' : ''}`}
-              style={gridStyle}
-              data-testid="call-participant-grid"
-            >
-              {displayItems.length === 0 ? (
-                <div className="empty-state">{t('call.noParticipants')}</div>
-              ) : (
-                displayItems.map((d, index) => (
-                  <button
-                    key={d.key}
-                    type="button"
-                    data-testid={`grid-tile-${index}:${d.participant.sid}`}
-                    onClick={() => {
-                      userPinnedRef.current = true
-                      setFocusedItem({
-                        participantSid: d.participant.sid,
-                        source: d.source,
-                      })
-                    }}
-                  >
-                    <ParticipantTile
-                      participant={d.participant}
-                      videoFrames={videoFrames}
-                      isActiveSpeaker={activeSpeakers.includes(
-                        d.participant.sid
-                      )}
-                      handRaisePosition={handRaisedMap[d.participant.sid]}
-                      displayItem={d}
-                      bandwidthMode={bandwidthMode}
-                      onExpand={
-                        d.isScreenShare
-                          ? () => {
-                              userPinnedRef.current = true
-                              setFocusedItem({
-                                participantSid: d.participant.sid,
-                                source: d.source,
-                              })
-                            }
-                          : undefined
-                      }
-                    />
-                  </button>
-                ))
-              )}
-            </div>
-          )}
-        </div>
-
-        {/* Chat sidebar */}
-        {showChat && (
-          <div className="chat-sidebar" data-testid="call-chat-sidebar">
-            <div className="chat-header">
-              <span>{t('chat')}</span>
-              <button
-                type="button"
-                className="chat-close"
-                aria-label={t('action.close')}
-                data-testid="chat-close-button"
-                onClick={onToggleChat}
-              >
-                <RiCloseLine size={20} />
-              </button>
-            </div>
-            <div
-              className="chat-messages"
-              ref={chatScrollRef}
-              data-testid="chat-message-list"
-            >
-              {messages.length === 0 ? (
-                <div className="chat-empty" data-testid="chat-empty">
-                  {t('chat.noMessages')}
-                </div>
-              ) : (
-                messages.map((m, i) => {
-                  const isOwn =
-                    localParticipant && m.sender_sid === localParticipant.sid
-                  const showName =
-                    !isOwn &&
-                    (i === 0 || messages[i - 1].sender_sid !== m.sender_sid)
-                  return (
-                    <div
-                      key={m.id}
-                      className={`chat-bubble ${isOwn ? 'chat-bubble-own' : ''}`}
-                      data-testid={`chat-bubble-${i}`}
-                    >
-                      {showName && (
-                        <div className="chat-sender">
-                          {m.sender_name || t('unknown')}
-                        </div>
-                      )}
-                      <div className="chat-text">
-                        <AutoLinkText text={m.text} />
-                      </div>
-                      <div className="chat-time">
-                        {formatTime(m.timestamp_ms)}
-                      </div>
-                    </div>
-                  )
-                })
-              )}
-            </div>
-            <div className="chat-input-bar">
-              <input
-                className="chat-input"
-                data-testid="chat-message-input"
-                value={chatInput}
-                onChange={(e) => setChatInput(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && sendMessage()}
-                maxLength={2000}
-                placeholder={t('chat.placeholder')}
-              />
-              <button
-                type="button"
-                className="chat-send"
-                data-testid="chat-send-button"
-                onClick={sendMessage}
-                disabled={!chatInput.trim()}
-              >
-                <RiSendPlane2Fill size={18} />
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Participants sidebar */}
-        {showParticipants && (
-          <div className="participants-sidebar">
-            <div className="participants-header">
-              <span>
-                {t('control.participants')}{' '}
-                <span className="participants-count">
-                  ({allParticipants.length})
-                </span>
-              </span>
-              <button
-                type="button"
-                className="chat-close"
-                aria-label={t('action.close')}
-                onClick={onToggleParticipants}
-              >
-                <RiCloseLine size={20} />
-              </button>
-            </div>
-            <div className="participants-list">
-              {waitingParticipants.length > 0 && (
-                <div className="lobby-section">
-                  <div className="lobby-header">
-                    <h4>
-                      {t('lobby.waitingParticipants')} (
-                      {waitingParticipants.length})
-                    </h4>
-                    <button
-                      type="button"
-                      className="btn btn-sm"
-                      onClick={async () => {
-                        for (const p of waitingParticipants) {
-                          await invoke('admit_participant', {
-                            participantId: p.id,
-                          })
-                        }
-                        setWaitingParticipants([])
-                      }}
-                    >
-                      {t('lobby.admitAll')}
-                    </button>
-                  </div>
-                  {waitingParticipants.map((p) => (
-                    <div key={p.id} className="lobby-participant">
-                      <span>{p.username}</span>
-                      <div className="lobby-actions">
-                        <button
-                          type="button"
-                          className="btn btn-sm btn-primary"
-                          onClick={async () => {
-                            await invoke('admit_participant', {
-                              participantId: p.id,
-                            })
-                            setWaitingParticipants((prev) =>
-                              prev.filter((x) => x.id !== p.id)
-                            )
-                          }}
-                        >
-                          {t('lobby.admit')}
-                        </button>
-                        <button
-                          type="button"
-                          className="btn btn-sm btn-danger"
-                          onClick={async () => {
-                            await invoke('deny_participant', {
-                              participantId: p.id,
-                            })
-                            setWaitingParticipants((prev) =>
-                              prev.filter((x) => x.id !== p.id)
-                            )
-                          }}
-                        >
-                          {t('lobby.deny')}
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-              {allParticipants.map((p) => {
-                const name = p.name || p.identity || t('unknown')
-                const isLocal =
-                  localParticipant && p.sid === localParticipant.sid
-                const isLocalAdmin = localParticipant?.is_admin
-                const isPinned = focusedItem?.participantSid === p.sid
-                const menuOpen = participantMenu === p.sid
-                return (
-                  <div key={p.sid} className="participant-row">
-                    <div
-                      className="participant-avatar-sm"
-                      style={{ background: `hsl(${getHue(name)}, 50%, 35%)` }}
-                    >
-                      {getInitials(name)}
-                    </div>
-                    <div className="participant-info">
-                      <div className="participant-display-name">{name}</div>
-                      {isLocal && (
-                        <div className="participant-you-label">
-                          {t('call.you')}
-                        </div>
-                      )}
-                    </div>
-                    <div className="participant-icons">
-                      {p.is_muted ? (
-                        <RiMicOffFill size={14} className="muted-icon" />
-                      ) : activeSpeakers.includes(p.sid) ? (
-                        <RiMicLine size={14} className="speaking-icon" />
-                      ) : null}
-                      {handRaisedMap[p.sid] > 0 && (
-                        <RiHand
-                          size={14}
-                          style={{ color: 'var(--hand-raise)' }}
-                        />
-                      )}
-                      <ConnectionQualityBars quality={p.connection_quality} />
-                      {!isLocal && (
-                        <div className="participant-menu-wrapper">
-                          <button
-                            type="button"
-                            className="participant-menu-btn"
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              setParticipantMenu(menuOpen ? null : p.sid)
-                            }}
-                          >
-                            <RiMore2Fill size={16} />
-                          </button>
-                          {menuOpen && (
-                            <div
-                              className="participant-context-menu"
-                              onClick={() => setParticipantMenu(null)}
-                            >
-                              <button
-                                type="button"
-                                className="context-menu-item"
-                                onClick={() => {
-                                  if (isPinned) {
-                                    userPinnedRef.current = false
-                                    setFocusedItem(null)
-                                  } else {
-                                    userPinnedRef.current = true
-                                    setFocusedItem({
-                                      participantSid: p.sid,
-                                      source: 'camera',
-                                    })
-                                  }
-                                }}
-                              >
-                                {isPinned ? (
-                                  <RiUnpinFill size={16} />
-                                ) : (
-                                  <RiPushpinLine size={16} />
-                                )}
-                                <span>
-                                  {isPinned
-                                    ? t('participant.unpin')
-                                    : t('participant.pin')}
-                                </span>
-                              </button>
-                              {isLocalAdmin && !p.is_muted && (
-                                <button
-                                  type="button"
-                                  className="context-menu-item"
-                                  onClick={async () => {
-                                    await invoke('mute_participant', {
-                                      identity: p.identity,
-                                    })
-                                  }}
-                                >
-                                  <RiVolumeMuteLine size={16} />
-                                  <span>{t('participant.mute')}</span>
-                                </button>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          </div>
-        )}
-
-        {/* Info sidebar */}
-        {showInfo && !showTranscription && (
-          <InfoSidebar
-            meetUrl={meetUrl}
-            onClose={onToggleInfo}
-            roomId={roomId}
-            accessLevel={accessLevel}
-            roomDisplayName={roomDisplayName}
-          />
-        )}
-
-        {/* Tools sidebar */}
-        {showTranscription && <ToolsSidebar onClose={onToggleTranscription} />}
-      </div>
-
-      {/* Reaction overlay */}
-      {reactions.length > 0 && (
-        <div className="reaction-overlay">
-          {reactions.map((r) => {
-            const emojiChar =
-              REACTION_EMOJIS.find(([id]) => id === r.emoji)?.[1] ?? r.emoji
-            return (
-              <div key={r.id} className="floating-reaction">
-                <span className="floating-reaction-emoji">{emojiChar}</span>
-                <span className="floating-reaction-name">
-                  {r.participantName}
-                </span>
-              </div>
-            )
-          })}
-        </div>
-      )}
-
-      {/* Overflow menu */}
-      {showOverflow && (
-        <div className="overflow-menu">
-          <button
-            type="button"
-            className={`overflow-item ${isHandRaised ? 'overflow-item-active' : ''}`}
-            onClick={() => {
-              onToggleHandRaise()
-              setShowOverflow(false)
-            }}
-            data-testid="call-hand-raise-button"
-          >
-            <RiHand size={20} />
-            <span>
-              {isHandRaised ? t('control.lowerHand') : t('control.raiseHand')}
-            </span>
-          </button>
-          <button
-            type="button"
-            className="overflow-item"
-            onClick={() => {
-              setShowReactionPicker(!showReactionPicker)
-              setShowOverflow(false)
-            }}
-          >
-            <RiEmotionLine size={20} />
-            <span>{t('control.reaction') ?? 'Reaction'}</span>
-          </button>
-          <button
-            type="button"
-            className={`overflow-item ${showTranscription ? 'overflow-item-active' : ''}`}
-            onClick={() => {
-              onToggleTranscription()
-              setShowOverflow(false)
-            }}
-          >
-            <RiApps2Line size={20} />
-            <span>{t('control.tools')}</span>
-          </button>
-          <button
-            type="button"
-            className={`overflow-item ${showInfo ? 'overflow-item-active' : ''}`}
-            onClick={() => {
-              onToggleInfo()
-              setShowOverflow(false)
-            }}
-          >
-            <RiInformationLine size={20} />
-            <span>{t('control.info')}</span>
-          </button>
-          <button
-            type="button"
-            className="overflow-item"
-            onClick={() => {
-              setShowOverflow(false)
-            }}
-            title={t('control.settings') ?? 'Settings'}
-          >
-            <RiSettings3Line size={20} />
-            <span>{t('control.settings') ?? 'Settings'}</span>
-          </button>
-        </div>
-      )}
-
-      {/* Reaction picker */}
-      {showReactionPicker && (
-        <div className="reaction-picker">
-          {REACTION_EMOJIS.map(([id, char]) => (
-            <button
-              type="button"
-              key={id}
-              className="reaction-picker-btn"
-              onClick={() => handleSendReaction(id)}
-              title={id}
-            >
-              {char}
-            </button>
-          ))}
-        </div>
-      )}
-
-      {/* Control bar */}
-      <div className="control-bar">
-        {/* Mic group */}
-        <div className="control-group">
-          <button
-            type="button"
-            className={`control-btn ${micEnabled ? '' : 'control-btn-off'}`}
-            onClick={onToggleMic}
-            title={micEnabled ? t('control.mute') : t('control.unmute')}
-            style={{ borderRadius: '8px 0 0 8px' }}
-            data-testid="call-mic-button"
-          >
-            {micEnabled ? <RiMicLine size={20} /> : <RiMicOffLine size={20} />}
-          </button>
-          <button
-            type="button"
-            className={`control-btn control-chevron ${micEnabled ? '' : 'control-btn-off'}`}
-            onClick={onShowMicPicker}
-            title={t('control.audioDevices')}
-            style={{ borderRadius: '0 8px 8px 0' }}
-            data-testid="call-mic-chevron"
-          >
-            <RiArrowUpSLine size={16} />
-          </button>
-        </div>
-
-        {/* Camera group */}
-        <div className="control-group">
-          <button
-            type="button"
-            className={`control-btn ${camEnabled ? '' : 'control-btn-off'}`}
-            onClick={onToggleCam}
-            title={camEnabled ? t('control.camOff') : t('control.camOn')}
-            style={{ borderRadius: '8px 0 0 8px' }}
-            data-testid="call-camera-button"
-          >
-            {camEnabled ? (
-              <RiVideoOnLine size={20} />
-            ) : (
-              <RiVideoOffLine size={20} />
-            )}
-          </button>
-          <button
-            type="button"
-            className={`control-btn control-chevron ${camEnabled ? '' : 'control-btn-off'}`}
-            onClick={onShowCamPicker}
-            title={t('control.camDevices')}
-            style={{ borderRadius: '0 8px 8px 0' }}
-            data-testid="call-camera-chevron"
-          >
-            <RiArrowUpSLine size={16} />
-          </button>
-        </div>
-
-        {/* Screen share */}
-        <button
-          type="button"
-          className={`control-btn ${isScreenSharing ? 'control-btn-active-danger' : ''}`}
-          onClick={async () => {
-            if (isScreenSharing) {
-              try {
-                await invoke('stop_screen_share')
-                setIsScreenSharing(false)
-              } catch (e) {
-                console.error('Failed to stop screen share:', e)
-              }
-            } else {
-              try {
-                const sources = await invoke<ScreenSource[]>(
-                  'list_screen_sources'
-                )
-                setScreenSources(sources)
-                setShowSourcePicker(true)
-              } catch (e) {
-                console.error('Failed to list screen sources:', e)
-              }
-            }
-          }}
-          title={isScreenSharing ? t('call.stopShare') : t('call.startShare')}
-          data-testid="call-screen-share-button"
-        >
-          <ScreenShareIcon size={20} />
-        </button>
-
-        {/* Layout toggle */}
-        <button
-          type="button"
-          className={`control-btn ${layoutMode === 'speaker' ? 'control-btn-hand' : ''}`}
-          onClick={handleToggleLayout}
-          title={
-            layoutMode === 'grid'
-              ? t('layout.switchToSpeaker')
-              : t('layout.switchToGrid')
-          }
-          data-testid="call-layout-toggle"
-        >
-          {layoutMode === 'grid' ? (
-            <RiSpeakLine size={20} />
-          ) : (
-            <RiGridLine size={20} />
-          )}
-        </button>
-
-        {/* Participants */}
-        <button
-          type="button"
-          className={`control-btn ${showParticipants ? 'control-btn-hand' : ''}`}
-          onClick={onToggleParticipants}
-          title={t('control.participants')}
-          data-testid="call-participants-button"
-        >
-          <RiGroupLine size={20} />
-          <span
-            className="unread-badge"
-            style={{ background: 'var(--accent)' }}
-          >
-            {allParticipants.length}
-          </span>
-        </button>
-
-        {/* Chat */}
-        <button
-          type="button"
-          className={`control-btn ${showChat ? 'control-btn-hand' : ''}`}
-          onClick={onToggleChat}
-          title={t('chat')}
-          data-testid="call-chat-button"
-        >
-          <RiChat1Line size={20} />
-          {unreadCount > 0 && (
-            <span className="unread-badge" data-testid="chat-unread-badge">
-              {unreadCount > 9 ? '9+' : unreadCount}
-            </span>
-          )}
-        </button>
-
-        {/* More (overflow) */}
-        <button
-          type="button"
-          className={`control-btn ${showOverflow ? 'control-btn-hand' : ''}`}
-          onClick={() => {
-            setShowOverflow(!showOverflow)
-            setShowReactionPicker(false)
-          }}
-          title={t('control.more') ?? 'More'}
-        >
-          <RiMore2Fill size={20} />
-        </button>
-
-        {/* Hangup */}
-        <button
-          type="button"
-          className="control-btn control-btn-hangup"
-          onClick={onHangUp}
-          title={t('control.leave')}
-          data-testid="call-hangup-button"
-        >
-          <RiPhoneFill size={20} />
-        </button>
-      </div>
-
-      {/* Mic device picker */}
-      {showMicPicker && (
-        <div className="device-picker" data-testid="device-picker-audio">
-          <div className="device-section">
-            <div className="device-section-title">{t('device.microphone')}</div>
-            {audioInputs.map((d, i) => (
-              <label
-                key={d.name}
-                className="device-option"
-                data-testid={`device-option-input-${i}`}
-              >
-                <input
-                  type="radio"
-                  name="audioInput"
-                  checked={selectedAudioInput === d.name}
-                  onChange={() => onSelectAudioInput(d.name)}
-                />
-                {d.name}
-                {d.is_default && ' \u2605'}
-              </label>
-            ))}
-            {audioInputs.length === 0 && (
-              <div
-                style={{
-                  fontSize: '0.8rem',
-                  color: '#929292',
-                  padding: '4px 8px',
-                }}
-              >
-                {t('device.noMic')}
-              </div>
-            )}
-          </div>
-          <div className="device-section">
-            <div className="device-section-title">{t('device.speaker')}</div>
-            {audioOutputs.map((d, i) => (
-              <label
-                key={d.name}
-                className="device-option"
-                data-testid={`device-option-output-${i}`}
-              >
-                <input
-                  type="radio"
-                  name="audioOutput"
-                  checked={selectedAudioOutput === d.name}
-                  onChange={() => onSelectAudioOutput(d.name)}
-                />
-                {d.name}
-                {d.is_default && ' \u2605'}
-              </label>
-            ))}
-            {audioOutputs.length === 0 && (
-              <div
-                style={{
-                  fontSize: '0.8rem',
-                  color: '#929292',
-                  padding: '4px 8px',
-                }}
-              >
-                {t('device.noSpeaker')}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Camera device picker */}
-      {showCamPicker && (
-        <div
-          className="device-picker"
-          data-testid="device-picker-video"
-          style={{ minWidth: 300 }}
-        >
-          <div className="device-section">
-            <div className="device-section-title">{t('device.camera')}</div>
-            {videoInputs.map((d, i) => (
-              <label
-                key={d.unique_id}
-                className="device-option"
-                data-testid={`device-option-camera-${i}`}
-              >
-                <input
-                  type="radio"
-                  name="videoInput"
-                  checked={selectedVideoInput === d.unique_id}
-                  onChange={() => onSelectVideoInput(d.unique_id)}
-                />
-                {d.name}
-                {d.is_default && ' \u2605'}
-              </label>
-            ))}
-            {videoInputs.length === 0 && (
-              <div
-                style={{
-                  fontSize: '0.8rem',
-                  color: '#929292',
-                  padding: '4px 8px',
-                }}
-              >
-                {t('device.noCamera')}
-              </div>
-            )}
-          </div>
-          <div className="device-section">
-            <div className="device-section-title">
-              {t('settings.incall.background')}
-            </div>
-            <div className="bg-mode-buttons">
-              <button
-                type="button"
-                className={`bg-mode-btn ${bgMode === 'off' ? 'bg-mode-btn-active' : ''}`}
-                onClick={() => handleBgMode('off')}
-              >
-                {t('settings.incall.bgOff')}
-              </button>
-              <button
-                type="button"
-                className={`bg-mode-btn ${bgMode === 'blur' ? 'bg-mode-btn-active' : ''}`}
-                onClick={() => handleBgMode('blur')}
-              >
-                {t('settings.incall.bgBlur')}
-              </button>
-            </div>
-            <div className="bg-image-grid">
-              {[1, 2, 3, 4, 5, 6, 7, 8].map((id) => (
-                <button
-                  type="button"
-                  key={id}
-                  className={`bg-image-thumb ${bgMode === 'image:' + id ? 'bg-image-thumb-active' : ''}`}
-                  onClick={() => handleBgMode('image:' + id)}
-                >
-                  <img
-                    src={`/backgrounds/thumbnails/${id}.jpg`}
-                    alt={`Background ${id}`}
-                    draggable={false}
-                  />
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
-      {showSourcePicker && (
-        <SourcePickerModal
-          sources={screenSources}
-          onSelect={async (sourceId) => {
-            setShowSourcePicker(false)
-            try {
-              await invoke('start_screen_share', { sourceId })
-              setIsScreenSharing(true)
-            } catch (e) {
-              console.error('Failed to start screen share:', e)
-            }
-          }}
-          onClose={() => setShowSourcePicker(false)}
-        />
-      )}
-    </div>
-  )
-}
-
-// -- Settings View ----------------------------------------------------------
-
-function SettingsView({
+function ProfileMenu({
+  t,
+  showSignOut,
+  onOpenSettings,
+  onSignOut,
   onClose,
-  onLanguageChange,
-  onThemeChange,
-  onDisplayNameChange,
-  initialDisplayName,
-}: Readonly<{
-  onClose: () => void
-  onLanguageChange: (lang: string) => void
-  onThemeChange: (theme: string) => void
-  onDisplayNameChange: (name: string) => void
-  initialDisplayName: string
-}>) {
-  const t = useT()
-  const [form, setForm] = useState({
-    displayName: initialDisplayName,
-    language: 'fr',
-    micOnJoin: true,
-    cameraOnJoin: false,
-    theme: 'light',
-    adaptiveModeEnabled: false,
-  })
-  const [meetInstances, setMeetInstances] = useState<string[]>([])
-  const [meetInstancesLoaded, setMeetInstancesLoaded] = useState(false)
-  const [newInstance, setNewInstance] = useState('')
-  const [calendarUrl, setCalendarUrl] = useState('')
-  const [calendarRefreshInterval, setCalendarRefreshInterval] =
-    useState('Minutes15')
-
-  const addInstance = () => {
-    if (!meetInstancesLoaded) return
-    const val = newInstance.trim().toLowerCase()
-    if (val && !meetInstances.includes(val)) {
-      const next = [...meetInstances, val]
-      setMeetInstances(next)
-      invoke('set_meet_instances', { instances: next })
-      setNewInstance('')
-    }
-  }
-
+}: ProfileMenuProps) {
   useEffect(() => {
-    invoke<Settings>('get_settings')
-      .then((s) => {
-        setForm((prev) => ({
-          ...prev,
-          language: s.language || 'fr',
-          micOnJoin: s.mic_enabled_on_join ?? true,
-          cameraOnJoin: s.camera_enabled_on_join ?? false,
-          theme: s.theme || 'light',
-          adaptiveModeEnabled: s.adaptive_mode_enabled ?? false,
-        }))
-      })
-      .catch(() => {})
-    invoke<string[]>('get_meet_instances')
-      .then((instances) => {
-        setMeetInstances(instances)
-        setMeetInstancesLoaded(true)
-      })
-      .catch(() => {
-        setMeetInstancesLoaded(true)
-      })
-    invoke<string | null>('get_calendar_url')
-      .then((url) => setCalendarUrl(url ?? ''))
-      .catch(() => {})
-    invoke<string>('get_calendar_refresh_interval')
-      .then((interval) => setCalendarRefreshInterval(interval))
-      .catch(() => {})
-  }, [])
-
-  const [saveStatus, setSaveStatus] = useState<string | null>(null)
-
-  const save = async () => {
-    await invoke('set_display_name', { name: form.displayName || null })
-    await invoke('set_mic_enabled_on_join', { enabled: form.micOnJoin })
-    await invoke('set_camera_enabled_on_join', { enabled: form.cameraOnJoin })
-    await invoke('set_adaptive_mode_enabled', {
-      enabled: form.adaptiveModeEnabled,
-    })
-    await invoke('set_calendar_url', { url: calendarUrl.trim() || null })
-    await invoke('set_calendar_refresh_interval', {
-      interval: calendarRefreshInterval,
-    })
-    if (calendarUrl.trim()) {
-      try {
-        await invoke('refresh_calendar_now')
-      } catch {
-        // calendar refresh is best-effort on save
+    const onDoc = (e: MouseEvent) => {
+      const tgt = e.target as Element | null
+      if (!tgt) return
+      if (
+        !tgt.closest('[data-profile-menu]') &&
+        !tgt.closest('[data-profile-trigger]')
+      ) {
+        onClose()
       }
     }
-    setSaveStatus(t('settings.saved'))
-    onDisplayNameChange(form.displayName)
-    setTimeout(() => onClose(), 800)
-  }
-
-  return (
-    <div className="settings-page">
-      <div className="settings-page-header">
-        <button
-          type="button"
-          className="settings-back-btn"
-          data-testid="settings-close-button"
-          onClick={onClose}
-        >
-          <RiArrowLeftSLine size={22} />
-        </button>
-        <span>{t('settings')}</span>
-      </div>
-      <div className="settings-page-body">
-        <div className="settings-section">
-          <label className="settings-label">{t('settings.displayName')}</label>
-          <input
-            className="settings-input"
-            data-testid="settings-display-name-input"
-            value={form.displayName}
-            onChange={(e) => setForm({ ...form, displayName: e.target.value })}
-          />
-        </div>
-        <div className="settings-section">
-          <label className="settings-label">{t('settings.language')}</label>
-          <select
-            value={form.language}
-            data-testid="settings-language-select"
-            onChange={(e) => {
-              const lang = e.target.value
-              setForm({ ...form, language: lang })
-              invoke('set_language', { lang: lang || null })
-              onLanguageChange(lang)
-            }}
-          >
-            {SUPPORTED_LANGS.map((code) => (
-              <option
-                key={code}
-                value={code}
-                data-testid={`settings-language-${code}`}
-              >
-                {translations[code]['lang.' + code]}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className="settings-section">
-          <label className="settings-label">{t('settings.theme')}</label>
-          <select
-            value={form.theme}
-            onChange={(e) => {
-              const theme = e.target.value
-              setForm({ ...form, theme })
-              invoke('set_theme', { theme })
-              onThemeChange(theme)
-            }}
-          >
-            <option value="light">{t('settings.theme.light')}</option>
-            <option value="dark">{t('settings.theme.dark')}</option>
-          </select>
-        </div>
-        <div className="settings-section">
-          <label className="settings-label">{t('settings.micOnJoin')}</label>
-          <input
-            type="checkbox"
-            checked={form.micOnJoin}
-            onChange={(e) => setForm({ ...form, micOnJoin: e.target.checked })}
-          />
-        </div>
-        <div className="settings-section">
-          <label className="settings-label">{t('settings.camOnJoin')}</label>
-          <input
-            type="checkbox"
-            checked={form.cameraOnJoin}
-            onChange={(e) =>
-              setForm({ ...form, cameraOnJoin: e.target.checked })
-            }
-          />
-        </div>
-        <div className="settings-section">
-          <label className="settings-label">{t('settings.adaptiveMode')}</label>
-          <input
-            type="checkbox"
-            checked={form.adaptiveModeEnabled}
-            onChange={(e) =>
-              setForm({ ...form, adaptiveModeEnabled: e.target.checked })
-            }
-          />
-        </div>
-        <div className="settings-section settings-section-col">
-          <label className="settings-label">
-            {t('settings.meetInstances')}
-          </label>
-          {meetInstances.map((inst) => (
-            <div key={inst} className="instance-row">
-              <span>{inst}</span>
-              <button
-                type="button"
-                className="btn-icon"
-                aria-label={t('action.remove')}
-                onClick={() => {
-                  if (!meetInstancesLoaded) return
-                  const next = meetInstances.filter((x) => x !== inst)
-                  setMeetInstances(next)
-                  invoke('set_meet_instances', { instances: next })
-                }}
-              >
-                <RiCloseLine size={16} />
-              </button>
-            </div>
-          ))}
-          <div className="instance-add-row">
-            <input
-              id="newInstance"
-              type="text"
-              placeholder={t('settings.instancePlaceholder')}
-              value={newInstance}
-              onChange={(e) => setNewInstance(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') addInstance()
-              }}
-              disabled={!meetInstancesLoaded}
-            />
-            <button
-              type="button"
-              className="btn-icon"
-              aria-label={t('action.add')}
-              onClick={addInstance}
-              disabled={!meetInstancesLoaded || !newInstance.trim()}
-            >
-              <RiAddLine size={16} />
-            </button>
-          </div>
-        </div>
-        <div className="settings-section settings-section-col">
-          <label className="settings-label">{t('settings.calendarUrl')}</label>
-          <input
-            className="settings-input"
-            type="url"
-            placeholder="https://cal.example.com/feed.ics"
-            value={calendarUrl}
-            onChange={(e) => setCalendarUrl(e.target.value)}
-          />
-          <span className="settings-hint">
-            {t('settings.calendarUrl.hint')}
-          </span>
-        </div>
-        <div className="settings-section">
-          <label className="settings-label">
-            {t('settings.calendarRefresh')}
-          </label>
-          <select
-            value={calendarRefreshInterval}
-            onChange={(e) => setCalendarRefreshInterval(e.target.value)}
-          >
-            <option value="Minutes5">
-              {t('settings.calendarRefresh.5min')}
-            </option>
-            <option value="Minutes15">
-              {t('settings.calendarRefresh.15min')}
-            </option>
-            <option value="Hour1">{t('settings.calendarRefresh.1h')}</option>
-            <option value="Hours4">{t('settings.calendarRefresh.4h')}</option>
-            <option value="Manual">
-              {t('settings.calendarRefresh.manual')}
-            </option>
-          </select>
-        </div>
-        <div className="settings-section">
-          <label className="settings-label">{t('settings.recentVisios')}</label>
-          <button
-            type="button"
-            className="settings-clear-history"
-            onClick={async () => {
-              await invoke('clear_visio_history')
-              setSaveStatus(t('settings.historyCleared'))
-              setTimeout(() => setSaveStatus(null), 2000)
-            }}
-          >
-            {t('settings.clearHistory')}
-          </button>
-        </div>
-      </div>
-      <div className="settings-page-footer">
-        {saveStatus && (
-          <span className="settings-save-status">{saveStatus}</span>
-        )}
-        <button type="button" className="settings-save" onClick={save}>
-          {t('settings.save')}
-        </button>
-      </div>
-    </div>
-  )
-}
-
-// ---------------------------------------------------------------------------
-// Shared hook: audio device fallback on Bluetooth connect/disconnect
-// ---------------------------------------------------------------------------
-
-// resolveAudioFallback, handleAudioDevicesChanged, and
-// useAudioDeviceFallback have been moved into useDeviceEnumeration.ts
-
-// ---------------------------------------------------------------------------
-// Pre-Join Screen
-// ---------------------------------------------------------------------------
-
-// NativeAudioDevice and NativeVideoDevice aliases removed — using
-// NativeAudioDevice and NativeVideoDevice from useDeviceEnumeration.ts
-
-/** Save user preferences (display name, mic/camera state, audio mode) before joining. */
-async function savePreJoinPreferences(
-  displayName: string | null,
-  isMicOn: boolean,
-  isCameraOn: boolean,
-  audioMode: string
-) {
-  await invoke('set_display_name', { name: displayName }).catch(() => {})
-  await invoke('set_mic_enabled_on_join', { enabled: isMicOn }).catch(() => {})
-  await invoke('set_camera_enabled_on_join', { enabled: isCameraOn }).catch(
-    () => {}
-  )
-  await invoke('set_audio_mode', { mode: audioMode }).catch(() => {})
-}
-
-/** Stop camera and mic previews before transitioning to the call screen. */
-async function stopPreviews() {
-  await invoke('stop_camera_preview').catch(() => {})
-  await invoke('stop_mic_preview').catch(() => {})
-}
-
-/** Append an unlisten callback, chaining with any previous one. */
-function chainUnlisten(
-  ref: React.MutableRefObject<UnlistenFn | null>,
-  unlisten: UnlistenFn
-) {
-  const prev = ref.current
-  ref.current = () => {
-    unlisten()
-    prev?.()
-  }
-}
-
-function PreJoinScreen({
-  roomUrl,
-  username,
-  roomDisplayName,
-  lang,
-  isDark,
-  onJoin,
-  onCancel,
-  livekitUrl,
-  livekitToken,
-}: Readonly<{
-  roomUrl: string
-  username: string | null
-  roomDisplayName?: string | null
-  lang: string
-  isDark: boolean
-  onJoin: (
-    username: string | null,
-    micOn: boolean,
-    camOn: boolean,
-    audioMode: string
-  ) => void
-  onCancel: () => void
-  livekitUrl?: string | null
-  livekitToken?: string | null
-}>) {
-  const t = useCallback(
-    (key: string) => translations[lang]?.[key] ?? translations.en[key] ?? key,
-    [lang]
-  )
-
-  const slugSource = roomUrl.split('?')[0]
-  const slug = slugSource.includes('/')
-    ? slugSource.split('/').pop()
-    : slugSource
-
-  // ---- State ---------------------------------------------------------------
-  const [displayName, setDisplayName] = useState(username ?? '')
-  const [isCameraOn, setIsCameraOn] = useState(false)
-  const [isMicOn, setIsMicOn] = useState(true)
-  const [audioMode, setAudioMode] = useState<'computer' | 'none'>('computer')
-  const [previewFrame, setPreviewFrame] = useState<string | null>(null)
-  // Unified device enumeration (lobby context — enumerates on mount)
-  const devices = useDeviceEnumeration({
-    onInputFallback: () => {
-      invoke('stop_mic_preview')
-        .catch(() => {})
-        .then(() => invoke('start_mic_preview'))
-        .catch(() => {})
-    },
-  })
-  const {
-    audioInputs: inputDevices,
-    audioOutputs: outputDevices,
-    videoInputs: videoDevices,
-    selectedAudioInput: selectedInput,
-    selectedAudioOutput: selectedOutput,
-    selectedVideoInput: selectedCamera,
-    setSelectedAudioInput: setSelectedInput,
-    setSelectedAudioOutput: setSelectedOutput,
-    setSelectedVideoInput: setSelectedCamera,
-    enumerate,
-  } = devices
-  const [micLevel, setMicLevel] = useState(0)
-  const [showFilters, setShowFilters] = useState(false)
-  const [backgroundMode, setBackgroundMode] = useState('off')
-
-  // Close filter panel on Escape
-  useEffect(() => {
-    if (!showFilters) return
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setShowFilters(false)
+      if (e.key === 'Escape') onClose()
     }
+    document.addEventListener('mousedown', onDoc)
     document.addEventListener('keydown', onKey)
-    return () => document.removeEventListener('keydown', onKey)
-  }, [showFilters])
-  const [waitingState, setWaitingState] = useState<
-    'idle' | 'waiting' | 'denied' | 'timeout'
-  >('idle')
-
-  // ---- Refs ----------------------------------------------------------------
-  const micPollRef = useRef<ReturnType<typeof setInterval> | null>(null)
-  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const unlistenVideoRef = useRef<UnlistenFn | null>(null)
-  // When true, the component is transitioning to the call view — skip
-  // stopping camera/mic in the cleanup to avoid killing the capture that
-  // toggle_camera(true) just started in onJoin.
-  const joiningRef = useRef(false)
-
-  // ---- Effect: load settings and device lists on mount --------------------
-  useEffect(() => {
-    // Load saved settings
-    invoke<Settings>('get_settings')
-      .then((s) => {
-        if (s.display_name) setDisplayName(s.display_name)
-        setIsMicOn(s.mic_enabled_on_join ?? true)
-        setIsCameraOn(s.camera_enabled_on_join ?? false)
-        if (s.audio_mode === 'none') setAudioMode('none')
-      })
-      .catch(() => {})
-
-    // Load device lists via unified hook
-    enumerate()
-
-    // Subscribe to video frame events
-    listen<{ track_sid: string; data: string; width: number; height: number }>(
-      'video-frame',
-      (event) => {
-        if (event.payload.track_sid === 'local-camera') {
-          setPreviewFrame(event.payload.data)
-        }
-      }
-    ).then((unlisten) => {
-      unlistenVideoRef.current = unlisten
-    })
-
     return () => {
-      unlistenVideoRef.current?.()
-      if (micPollRef.current) clearInterval(micPollRef.current)
-      if (timeoutRef.current) clearTimeout(timeoutRef.current)
-      // Only stop previews if we're NOT transitioning to the call view.
-      // Otherwise this kills the camera/mic that onJoin just started.
-      if (!joiningRef.current) {
-        invoke('stop_camera_preview').catch(() => {})
-        invoke('stop_mic_preview').catch(() => {})
-      }
+      document.removeEventListener('mousedown', onDoc)
+      document.removeEventListener('keydown', onKey)
     }
-  }, [enumerate])
-
-  // ---- Effect: camera on/off ----------------------------------------------
-  useEffect(() => {
-    if (isCameraOn) {
-      invoke('start_camera_preview').catch(() => {})
-    } else {
-      invoke('stop_camera_preview').catch(() => {})
-      setPreviewFrame(null)
-    }
-  }, [isCameraOn])
-
-  // ---- Effect: mic on/off + audioMode -------------------------------------
-  useEffect(() => {
-    if (isMicOn && audioMode === 'computer') {
-      invoke('start_mic_preview').catch(() => {})
-      micPollRef.current = setInterval(async () => {
-        try {
-          const level = await invoke<number>('get_mic_level')
-          setMicLevel(level)
-        } catch {
-          setMicLevel(0)
-        }
-      }, 100)
-    } else {
-      invoke('stop_mic_preview').catch(() => {})
-      if (micPollRef.current) {
-        clearInterval(micPollRef.current)
-        micPollRef.current = null
-      }
-      setMicLevel(0)
-    }
-    return () => {
-      if (micPollRef.current) {
-        clearInterval(micPollRef.current)
-        micPollRef.current = null
-      }
-    }
-  }, [isMicOn, audioMode])
-
-  // Audio device fallback is now handled by useDeviceEnumeration hook.
-
-  // ---- Handlers -----------------------------------------------------------
-  const handleSelectCamera = async (uniqueId: string) => {
-    setSelectedCamera(uniqueId)
-    try {
-      await invoke('set_camera_device', { uniqueId: uniqueId || null })
-    } catch {
-      /* ignore */
-    }
-    if (isCameraOn) {
-      try {
-        await invoke('stop_camera_preview')
-      } catch {
-        /* ignore */
-      }
-      try {
-        await invoke('start_camera_preview')
-      } catch {
-        /* ignore */
-      }
-    }
-  }
-
-  const handleSelectInput = async (name: string) => {
-    setSelectedInput(name)
-    try {
-      await invoke('select_audio_input', { deviceName: name })
-    } catch {
-      /* ignore */
-    }
-  }
-
-  const handleSelectOutput = async (name: string) => {
-    setSelectedOutput(name)
-    try {
-      await invoke('select_audio_output', { deviceName: name })
-    } catch {
-      /* ignore */
-    }
-  }
-
-  const handleSetBackgroundMode = async (mode: string) => {
-    setBackgroundMode(mode)
-    try {
-      if (mode.startsWith('image:')) {
-        const id = Number.parseInt(mode.slice(6), 10)
-        const path = await resolveResource(`backgrounds/${id}.jpg`)
-        await invoke('load_background_image', { id, jpegPath: path })
-      }
-      await invoke('set_background_mode', { mode })
-    } catch {
-      /* ignore */
-    }
-  }
-
-  const handleJoinNow = async () => {
-    const finalName = displayName.trim() || null
-
-    await savePreJoinPreferences(finalName, isMicOn, isCameraOn, audioMode)
-    await stopPreviews()
-
-    // When the room creator has LiveKit credentials from room creation,
-    // connect directly using connect_with_token to bypass the lobby.
-    // This avoids the "waiting for authorization" state for public rooms
-    // where the creator would otherwise be stuck waiting for self-approval.
-    if (livekitUrl && livekitToken) {
-      try {
-        await invoke('connect_with_token', { livekitUrl, token: livekitToken })
-        // Record in history (connect_with_token bypasses the event-based
-        // history recording since last_meet_url is not set).
-        invoke('add_visio_to_history', {
-          url: roomUrl,
-          displayName: roomDisplayName ?? null,
-        }).catch(() => {})
-        joiningRef.current = true
-        onJoin(finalName, isMicOn, isCameraOn, audioMode)
-      } catch (e) {
-        console.error('connect_with_token failed:', e)
-        setWaitingState('idle')
-      }
-      return
-    }
-
-    setWaitingState('waiting')
-
-    // Start 60s timeout
-    timeoutRef.current = setTimeout(() => {
-      setWaitingState((prev) => (prev === 'waiting' ? 'timeout' : prev))
-    }, 60_000)
-
-    // Register event listeners BEFORE calling connect() to avoid a race
-    // condition: for public rooms (no lobby), connect() obtains the token,
-    // connects to LiveKit, and emits "connected" synchronously before
-    // returning. If listeners are registered after await connect(), they miss
-    // the event and the UI stays stuck on "waiting for authorization".
-    const unlistenDenied = await listen<string>('lobby-denied', () => {
-      if (timeoutRef.current) clearTimeout(timeoutRef.current)
-      setWaitingState('denied')
-    })
-    chainUnlisten(unlistenVideoRef, unlistenDenied)
-
-    const unlistenState = await listen<string>(
-      'connection-state-changed',
-      (event) => {
-        if (event.payload === 'connected') {
-          if (timeoutRef.current) clearTimeout(timeoutRef.current)
-          joiningRef.current = true
-          onJoin(finalName, isMicOn, isCameraOn, audioMode)
-        }
-      }
-    )
-    chainUnlisten(unlistenVideoRef, unlistenState)
-
-    // Connect to the room. For lobby-gated rooms, connect() returns Ok
-    // immediately while the user is still waiting_for_host. The listeners
-    // above will call onJoin once the backend transitions to "connected".
-    try {
-      await invoke('connect', { meetUrl: roomUrl, username: finalName })
-    } catch {
-      if (timeoutRef.current) clearTimeout(timeoutRef.current)
-      setWaitingState('idle')
-      return
-    }
-  }
-
-  const handleBack = () => {
-    if (timeoutRef.current) clearTimeout(timeoutRef.current)
-    setWaitingState('idle')
-    onCancel()
-  }
-
-  // ---- Waiting state overlay ----------------------------------------------
-  if (waitingState !== 'idle') {
-    return (
-      <div
-        className="prejoin-waiting-overlay"
-        data-theme={isDark ? 'dark' : 'light'}
-      >
-        <div className="prejoin-waiting-content">
-          {waitingState === 'waiting' && (
-            <>
-              <div className="prejoin-spinner" />
-              <p className="prejoin-waiting-label">
-                {t('prejoin.waitingForApproval')}
-              </p>
-              <button
-                type="button"
-                className="btn btn-secondary"
-                onClick={handleBack}
-              >
-                {t('prejoin.cancel')}
-              </button>
-            </>
-          )}
-          {waitingState === 'denied' && (
-            <>
-              <p className="prejoin-waiting-error">
-                {t('prejoin.accessDenied')}
-              </p>
-              <button
-                type="button"
-                className="btn btn-secondary"
-                onClick={handleBack}
-              >
-                {t('prejoin.backToHome')}
-              </button>
-            </>
-          )}
-          {waitingState === 'timeout' && (
-            <>
-              <p className="prejoin-waiting-error">
-                {t('prejoin.requestTimeout')}
-              </p>
-              <button
-                type="button"
-                className="btn btn-secondary"
-                onClick={handleBack}
-              >
-                {t('prejoin.backToHome')}
-              </button>
-            </>
-          )}
-        </div>
-      </div>
-    )
-  }
-
-  // ---- Main layout --------------------------------------------------------
-  const selectedCamName =
-    videoDevices.find((d) => d.unique_id === selectedCamera)?.name ?? ''
-  const selectedInputName =
-    inputDevices.find((d) => d.name === selectedInput)?.name ?? selectedInput
-  const selectedOutputName =
-    outputDevices.find((d) => d.name === selectedOutput)?.name ?? selectedOutput
-
+  }, [onClose])
   return (
-    <div className="prejoin-container" data-theme={isDark ? 'dark' : 'light'}>
-      {/* Header */}
-      <div className="prejoin-header">
-        <span className="prejoin-app-name">Visio Mobile</span>
-        {roomDisplayName ? (
-          <>
-            <span className="prejoin-slug">{roomDisplayName}</span>
-            <span className="prejoin-slug-secondary">{slug}</span>
-          </>
-        ) : (
-          <span className="prejoin-slug">{slug}</span>
-        )}
-      </div>
-
-      {/* Display name */}
-      <div className="prejoin-name-row">
-        <input
-          className="prejoin-name-input"
-          type="text"
-          value={displayName}
-          onChange={(e) => setDisplayName(e.target.value)}
-          placeholder={t('prejoin.displayName')}
-          maxLength={100}
-        />
-      </div>
-
-      {/* Two-column body */}
-      <div className="prejoin-body">
-        {/* Left: camera preview */}
-        <div className="prejoin-camera-panel">
-          <div className="prejoin-preview">
-            {isCameraOn && previewFrame ? (
-              <img
-                className="prejoin-preview-img"
-                src={`data:image/jpeg;base64,${previewFrame}`}
-                alt=""
-              />
-            ) : (
-              <div className="prejoin-preview-off">
-                <RiVideoOffLine size={40} color="var(--text-secondary)" />
-              </div>
-            )}
-          </div>
-
-          {/* Camera device row */}
-          <div className="prejoin-device-row">
-            <div className="prejoin-device-selector">
-              <RiVideoOnLine size={16} />
-              <select
-                className="prejoin-select"
-                value={selectedCamera}
-                onChange={(e) => handleSelectCamera(e.target.value)}
-                title={t('prejoin.camera')}
-              >
-                {videoDevices.length === 0 && (
-                  <option value="">{t('prejoin.camera')}</option>
-                )}
-                {videoDevices.map((d) => (
-                  <option key={d.unique_id} value={d.unique_id}>
-                    {d.name}
-                  </option>
-                ))}
-                {videoDevices.length > 0 && selectedCamera === '' && (
-                  <option value="">
-                    {selectedCamName || t('prejoin.camera')}
-                  </option>
-                )}
-              </select>
-            </div>
-            <button
-              type="button"
-              className={`prejoin-toggle${isCameraOn ? ' active' : ''}`}
-              onClick={() => setIsCameraOn((v) => !v)}
-              title={t('prejoin.camera')}
-            >
-              {isCameraOn ? (
-                <RiVideoOnLine size={18} />
-              ) : (
-                <RiVideoOffLine size={18} />
-              )}
-            </button>
-          </div>
-
-          {/* Background filter row */}
-          <button
-            type="button"
-            className={`prejoin-filter-btn${showFilters ? ' active' : ''}`}
-            onClick={() => setShowFilters((v) => !v)}
-          >
-            <span>{t('prejoin.backgroundFilters')}</span>
-            <RiArrowRightSLine size={16} />
-          </button>
-        </div>
-
-        {/* Right: audio panel */}
-        <div className="prejoin-audio-panel">
-          {/* Computer audio option */}
-          <label
-            className={`prejoin-audio-option${audioMode === 'computer' ? ' selected' : ''}`}
-          >
-            <input
-              type="radio"
-              name="audioMode"
-              value="computer"
-              checked={audioMode === 'computer'}
-              onChange={() => setAudioMode('computer')}
-            />
-            <span className="prejoin-audio-option-label">
-              {t('prejoin.computerAudio')}
-            </span>
-          </label>
-
-          {audioMode === 'computer' && (
-            <div className="prejoin-audio-details">
-              {/* Mic row */}
-              <div className="prejoin-device-row">
-                <div className="prejoin-device-selector">
-                  <RiMicLine size={16} />
-                  <select
-                    className="prejoin-select"
-                    value={selectedInput}
-                    onChange={(e) => handleSelectInput(e.target.value)}
-                    title={t('prejoin.microphone')}
-                  >
-                    {inputDevices.length === 0 && (
-                      <option value="">{t('prejoin.microphone')}</option>
-                    )}
-                    {inputDevices.map((d) => (
-                      <option key={d.name} value={d.name}>
-                        {d.name}
-                      </option>
-                    ))}
-                    {inputDevices.length > 0 && selectedInput === '' && (
-                      <option value="">
-                        {selectedInputName || t('prejoin.microphone')}
-                      </option>
-                    )}
-                  </select>
-                </div>
-                <button
-                  type="button"
-                  className={`prejoin-toggle${isMicOn ? ' active' : ''}`}
-                  onClick={() => setIsMicOn((v) => !v)}
-                  title={t('prejoin.microphone')}
-                >
-                  {isMicOn ? (
-                    <RiMicLine size={18} />
-                  ) : (
-                    <RiMicOffLine size={18} />
-                  )}
-                </button>
-              </div>
-
-              {/* VU meter */}
-              <div className="prejoin-vu-track" data-testid="prejoin-vu-track">
-                <div
-                  className="prejoin-vu-bar"
-                  data-testid="prejoin-vu-bar"
-                  style={{
-                    width: `${Math.round(Math.min(micLevel * 25, 1) * 100)}%`,
-                  }}
-                />
-              </div>
-
-              {/* Speaker row */}
-              <div className="prejoin-device-row prejoin-speaker-row">
-                <div className="prejoin-device-selector">
-                  <RiVolumeMuteLine size={16} />
-                  <select
-                    className="prejoin-select"
-                    value={selectedOutput}
-                    onChange={(e) => handleSelectOutput(e.target.value)}
-                    title="Speaker"
-                  >
-                    {outputDevices.length === 0 && (
-                      <option value="">Speaker</option>
-                    )}
-                    {outputDevices.map((d) => (
-                      <option key={d.name} value={d.name}>
-                        {d.name}
-                      </option>
-                    ))}
-                    {outputDevices.length > 0 && selectedOutput === '' && (
-                      <option value="">
-                        {selectedOutputName || t('device.speaker')}
-                      </option>
-                    )}
-                  </select>
-                </div>
-              </div>
-              <button
-                type="button"
-                className="btn btn-secondary prejoin-test-btn"
-                onClick={() => invoke('play_speaker_test').catch(() => {})}
-              >
-                {t('prejoin.testSpeaker')}
-              </button>
-            </div>
-          )}
-
-          {/* No audio option */}
-          <label
-            className={`prejoin-audio-option${audioMode === 'none' ? ' selected' : ''}`}
-          >
-            <input
-              type="radio"
-              name="audioMode"
-              value="none"
-              checked={audioMode === 'none'}
-              onChange={() => setAudioMode('none')}
-            />
-            <span className="prejoin-audio-option-label">
-              {t('prejoin.noAudio')}
-            </span>
-          </label>
-        </div>
-      </div>
-
-      {/* Actions */}
-      <div className="prejoin-actions">
-        <button type="button" className="btn btn-secondary" onClick={onCancel}>
-          {t('prejoin.cancel')}
-        </button>
+    <div
+      data-profile-menu
+      style={{
+        position: 'absolute',
+        bottom: 72,
+        left: 16,
+        width: 240,
+        background: 'var(--surface)',
+        borderRadius: 'var(--r-card)',
+        boxShadow: 'var(--shadow-pop)',
+        border: '1px solid var(--border)',
+        padding: 6,
+        zIndex: 40,
+      }}
+    >
+      {onOpenSettings && (
         <button
-          type="button"
-          className="btn btn-primary"
-          data-testid="prejoin-join-button"
-          onClick={handleJoinNow}
+          onClick={onOpenSettings}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10,
+            width: '100%',
+            border: 'none',
+            background: 'transparent',
+            cursor: 'pointer',
+            padding: '10px 12px',
+            borderRadius: 8,
+            fontSize: 13.5,
+            color: 'var(--text)',
+            fontFamily: 'var(--font-ui)',
+            textAlign: 'left',
+          }}
         >
-          {t('prejoin.joinNow')}
+          <VIcon name="settings" size={16} style={{ color: 'var(--text-2)' }} />
+          <span>{t('sidebar.settings')}</span>
         </button>
-      </div>
-
-      {/* Background filter side panel */}
-      {showFilters && (
-        <div className="prejoin-filter-panel">
-          <div className="prejoin-filter-panel-header">
-            <span>{t('prejoin.backgroundFilters')}</span>
-            <button type="button" onClick={() => setShowFilters(false)}>
-              <RiCloseLine size={20} />
-            </button>
-          </div>
-          <div className="prejoin-filter-grid">
-            {/* Off */}
-            <button
-              type="button"
-              className={`prejoin-filter-thumb${backgroundMode === 'off' ? ' active' : ''}`}
-              onClick={() => handleSetBackgroundMode('off')}
-            >
-              <div className="prejoin-filter-thumb-off" />
-              <span>{t('prejoin.bgOff')}</span>
-            </button>
-            {/* Blur */}
-            <button
-              type="button"
-              className={`prejoin-filter-thumb${backgroundMode === 'blur' ? ' active' : ''}`}
-              onClick={() => handleSetBackgroundMode('blur')}
-            >
-              <div className="prejoin-filter-thumb-blur" />
-              <span>{t('prejoin.bgBlur')}</span>
-            </button>
-            {/* Blur light */}
-            <button
-              type="button"
-              className={`prejoin-filter-thumb${backgroundMode === 'blur-light' ? ' active' : ''}`}
-              onClick={() => handleSetBackgroundMode('blur-light')}
-            >
-              <div className="prejoin-filter-thumb-blur-light" />
-              <span>{t('prejoin.bgBlurLight')}</span>
-            </button>
-            {/* Background images 1-8 */}
-            {[1, 2, 3, 4, 5, 6, 7, 8].map((n) => (
-              <button
-                type="button"
-                key={n}
-                className={`prejoin-filter-thumb${backgroundMode === 'image:' + n ? ' active' : ''}`}
-                onClick={() => handleSetBackgroundMode('image:' + n)}
-              >
-                <img
-                  src={`/backgrounds/thumbnails/${n}.jpg`}
-                  alt={`Background ${n}`}
-                  draggable={false}
-                  style={{
-                    width: '100%',
-                    height: '100%',
-                    objectFit: 'cover',
-                    borderRadius: 6,
-                  }}
-                />
-                <span>{n}</span>
-              </button>
-            ))}
-          </div>
-        </div>
+      )}
+      {showSignOut && (
+        <button
+          onClick={onSignOut}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10,
+            width: '100%',
+            border: 'none',
+            background: 'transparent',
+            cursor: 'pointer',
+            padding: '10px 12px',
+            borderRadius: 8,
+            fontSize: 13.5,
+            color: 'var(--danger)',
+            fontFamily: 'var(--font-ui)',
+            textAlign: 'left',
+          }}
+        >
+          <VIcon name="logout" size={16} />
+          <span>{t('settings.signOut')}</span>
+        </button>
       )}
     </div>
   )
@@ -4866,10 +789,7 @@ export default function App() {
   const [unreadCount, setUnreadCount] = useState(0)
   const [handRaisedMap, setHandRaisedMap] = useState<Record<string, number>>({})
   const [activeSpeakers, setActiveSpeakers] = useState<string[]>([])
-  const [showChat, setShowChat] = useState(false)
   const [showParticipants, setShowParticipants] = useState(false)
-  const [showInfo, setShowInfo] = useState(false)
-  const [showTranscription, setShowTranscription] = useState(false)
   const [showMicPicker, setShowMicPicker] = useState(false)
   const [showCamPicker, setShowCamPicker] = useState(false)
   // Lobby / waiting room
@@ -4879,14 +799,7 @@ export default function App() {
   // lobbyNotification removed — banner now driven by waitingParticipants directly
 
   // Deep link
-  const [deepLinkUrl, setDeepLinkUrl] = useState<string | null>(null)
   const [deepLinkError, setDeepLinkError] = useState<string | null>(null)
-  // Stable callback so HomeView effects can depend on it
-  const handleDeepLinkConsumed = useCallback(() => setDeepLinkUrl(null), [])
-  // Meeting URL (set on join, used in info panel)
-  const [currentMeetUrl, setCurrentMeetUrl] = useState('')
-  const [currentRoomId, setCurrentRoomId] = useState<string | null>(null)
-  const [currentAccessLevel, setCurrentAccessLevel] = useState<string>('')
   // Display name (shared between Home and Settings)
   const [displayName, setDisplayName] = useState('')
   // i18n
@@ -4902,20 +815,70 @@ export default function App() {
   const [authenticatedMeetInstance, setAuthenticatedMeetInstance] = useState('')
   const [meetInstances, setMeetInstances] = useState<string[]>([])
   const pendingOidcRef = useRef<string | null>(null)
-  // One-shot action run once the OIDC flow settles — after a successful code
-  // exchange, or after a launch/exchange failure so the UI recovers (e.g.
-  // HomeView re-validating a room that required authentication).
-  const postAuthActionRef = useRef<(() => void) | null>(null)
-  const registerPostAuthAction = useCallback((fn: (() => void) | null) => {
-    postAuthActionRef.current = fn
-  }, [])
   const [bandwidthMode, setBandwidthMode] = useState<string>('full')
   const settingsRef = useRef<Settings | null>(null)
+
+  // ---- Refonte UI desktop ------------------------------------------------
+  const [showCreateRoom, setShowCreateRoom] = useState(false)
+  const [upcomingMeetings, setUpcomingMeetings] = useState<Meeting[]>([])
+  const [homeJoinError, setHomeJoinError] = useState<string | null>(null)
+  const [homeJoinPending, setHomeJoinPending] = useState(false)
+  const [showProfileMenu, setShowProfileMenu] = useState(false)
+  const [visioLinksEnabled, setVisioLinksEnabled] = useState(true)
+  const [notificationsEnabled, setNotificationsEnabled] = useState(true)
+  const [appBgMode, setAppBgMode] = useState<string>('off')
+  // Background images bundled with the app (see tauri.conf.json > bundle.resources:
+  // "../../assets/backgrounds/*.jpg": "backgrounds/"). The current set is named
+  // 1.jpg..8.jpg under assets/backgrounds/ — IDs are assigned by sorted filename.
+  // Each entry holds the u8 id used by Rust's load_background_image/set_background_mode
+  // ("image:N") and an absolute file:// path or /public path the UI can render
+  // as a thumbnail. The list is populated at startup once the Rust side has
+  // registered the images.
+  // TODO: replace the static 1..8 list with a Tauri command that lists the
+  // unpacked `backgrounds/` resource dir at runtime (avoids touching this file
+  // every time a designer drops a new JPEG in assets/backgrounds/).
+  const [bgImages, setBgImages] = useState<
+    Array<{ id: number; thumbUrl: string }>
+  >([])
+  const [callStartedMs, setCallStartedMs] = useState<number | null>(null)
+  const [infoToast, setInfoToast] = useState<string | null>(null)
+  const [layoutMode, setLayoutMode] = useState<string>('grid')
+  const [homeMode, setHomeMode] = useState<'main' | 'calendar'>('main')
+  const [calendarConfigured, setCalendarConfigured] = useState(false)
+  const [recentVisios, setRecentVisios] = useState<
+    Array<{ url: string; display_name?: string | null }>
+  >([])
+  const [liveReactions, setLiveReactions] = useState<
+    Array<{ id: number; sid: string; emoji: string; ts: number }>
+  >([])
+  const reactionCounter = useRef(0)
+  const [pinnedSid, setPinnedSid] = useState<string | null>(null)
+
+  const showToast = useCallback((text: string, ms = 2400) => {
+    setInfoToast(text)
+    setTimeout(() => setInfoToast((cur) => (cur === text ? null : cur)), ms)
+  }, [])
 
   const t = useCallback(
     (key: string) => translations[lang]?.[key] ?? translations.en[key] ?? key,
     [lang]
   )
+  const confirm = useConfirm()
+
+  const handleNavigate = useCallback((k: NavKey) => {
+    if (k === 'settings') {
+      setView('settings')
+      return
+    }
+    if (k === 'calendar') {
+      setHomeMode('calendar')
+      setView('home')
+      invoke('refresh_calendar_now').catch(() => {})
+      return
+    }
+    setHomeMode('main')
+    setView('home')
+  }, [])
 
   // Check OIDC feature flag on mount
   useEffect(() => {
@@ -4953,10 +916,61 @@ export default function App() {
     invoke<string[]>('get_meet_instances')
       .then(setMeetInstances)
       .catch(() => {})
+    // Track whether a calendar URL is configured (drives sidebar enablement).
+    invoke<string | null>('get_calendar_url')
+      .then((url) => setCalendarConfigured(!!url && url.trim().length > 0))
+      .catch(() => setCalendarConfigured(false))
+    // Visio history — Rust auto-appends every successful join; we re-query
+    // each time the user returns to Home (see effect below) so the most
+    // recent meeting always shows up first.
+    invoke<Array<{ url: string; display_name?: string | null }>>(
+      'get_visio_history'
+    )
+      .then(setRecentVisios)
+      .catch(() => {})
 
-    // Load ONNX segmentation model for background blur
+    // Load ONNX segmentation model for background blur. Without this, the
+    // BlurProcessor falls through to a no-op on every frame and the user
+    // sees no effect — so log loudly when it fails (path missing, ORT
+    // init crash, …) instead of swallowing.
     resolveResource('models/selfie_segmentation.onnx')
       .then((path) => invoke('load_blur_model', { modelPath: path }))
+      .then(() => console.log('[blur] model loaded'))
+      .catch((e) => console.error('[blur] model load failed:', e))
+
+    // Pre-register bundled background images with Rust so they can be picked
+    // by ID via set_background_mode("image:N"). Rust's list_background_images
+    // command enumerates the unpacked `backgrounds/` resource dir and returns
+    // the available IDs — so dropping a new N.jpg under assets/backgrounds/
+    // is enough to make it appear in the picker.
+    ;(async () => {
+      let ids: number[] = []
+      try {
+        ids = await invoke<number[]>('list_background_images')
+      } catch {
+        ids = []
+      }
+      const loaded: Array<{ id: number; thumbUrl: string }> = []
+      for (const id of ids) {
+        try {
+          const path = await resolveResource(`backgrounds/${id}.jpg`)
+          await invoke('load_background_image', { id, jpegPath: path })
+          loaded.push({ id, thumbUrl: `/backgrounds/thumbnails/${id}.jpg` })
+        } catch {
+          // Image present in dir but unreadable — skip silently.
+        }
+      }
+      setBgImages(loaded)
+    })()
+
+    // Background mode (sync from Rust SettingsStore)
+    invoke<string>('get_background_mode')
+      .then((m) => setAppBgMode(m || 'off'))
+      .catch(() => {})
+
+    // Initial layout mode
+    invoke<string>('get_layout_mode')
+      .then((m) => setLayoutMode(m || 'grid'))
       .catch(() => {})
   }, [])
 
@@ -5005,13 +1019,9 @@ export default function App() {
                     }
                   })
                   .catch(() => {})
-                postAuthActionRef.current?.()
               })
               .catch((e) => {
                 console.error('PKCE code exchange failed:', e)
-                // Recover from the "authenticating" state: the registered
-                // action re-validates the room back to auth_required.
-                postAuthActionRef.current?.()
               })
           }
           return
@@ -5021,7 +1031,6 @@ export default function App() {
         const pathSegment = parsed.pathname.replace(/^\//, '')
         if (!host || !pathSegment) return
 
-        const deepLinkDisplayName = parsed.searchParams.get('visio')
         invoke<string[]>('get_meet_instances').then(async (instances) => {
           if (!instances.includes(host)) {
             setDeepLinkError(
@@ -5033,11 +1042,6 @@ export default function App() {
           // If path is a valid slug, use directly
           if (SLUG_REGEX.test(pathSegment)) {
             setView('home')
-            let roomUrl = `https://${host}/${pathSegment}`
-            if (deepLinkDisplayName) {
-              roomUrl += `?visio=${encodeURIComponent(deepLinkDisplayName)}`
-            }
-            setDeepLinkUrl(roomUrl)
             setDeepLinkError(null)
             return
           }
@@ -5050,11 +1054,6 @@ export default function App() {
             )
             if (resolved) {
               setView('home')
-              let roomUrl = resolved
-              if (deepLinkDisplayName) {
-                roomUrl += `?visio=${encodeURIComponent(deepLinkDisplayName)}`
-              }
-              setDeepLinkUrl(roomUrl)
               setDeepLinkError(null)
             } else {
               setDeepLinkError(
@@ -5074,10 +1073,6 @@ export default function App() {
     return () => {
       unlisten.then((fn) => fn())
     }
-    // Listener global enregistré une fois ; relire displayName/t à chaque
-    // frappe forcerait un ré-abonnement permanent pour un cas d'usage rare
-    // (deep link).
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   // Auto-connect listener (CLI args: --livekit-url <url> --token <token>)
@@ -5092,93 +1087,67 @@ export default function App() {
         const { livekit_url, token } = event.payload
         try {
           await invoke('connect_with_token', { livekitUrl: livekit_url, token })
-          setCurrentMeetUrl(livekit_url)
           setView('call')
 
-          // Auto-chat messages for E2E test (turn-based)
-          const messages = [
-            { delay: 3000, text: 'Desktop joined the room!' },
-            { delay: 25000, text: 'Desktop: my turn to speak!' },
-            { delay: 35000, text: 'Desktop: screen sharing active' },
-            { delay: 50000, text: "Desktop: muted — Android's turn" },
-            { delay: 100000, text: 'Desktop: everyone speaking together!' },
-          ]
-          for (const msg of messages) {
+          if (import.meta.env.DEV) {
+            // E2E turn-based test scaffolding (auto chat + mic/cam + screen
+            // share). Gated to dev builds only.
+            const messages = [
+              { delay: 3000, text: 'Desktop joined the room!' },
+              { delay: 25000, text: 'Desktop: my turn to speak!' },
+              { delay: 35000, text: 'Desktop: screen sharing active' },
+              { delay: 50000, text: "Desktop: muted — Android's turn" },
+              { delay: 100000, text: 'Desktop: everyone speaking together!' },
+            ]
+            for (const msg of messages) {
+              setTimeout(async () => {
+                try {
+                  await invoke('send_chat', { text: msg.text })
+                } catch {}
+              }, msg.delay)
+            }
             setTimeout(async () => {
               try {
-                await invoke('send_chat', { text: msg.text })
-              } catch {
-                // best-effort: un échec ne doit pas casser le scénario/handler clavier
-              }
-            }, msg.delay)
+                await invoke('toggle_mic', { enabled: false })
+                await invoke('toggle_camera', { enabled: false })
+              } catch {}
+            }, 5000)
+            setTimeout(async () => {
+              try {
+                await invoke('toggle_mic', { enabled: true })
+                await invoke('toggle_camera', { enabled: true })
+              } catch {}
+            }, 25000)
+            setTimeout(async () => {
+              try {
+                await invoke('toggle_mic', { enabled: false })
+                await invoke('toggle_camera', { enabled: false })
+              } catch {}
+            }, 50000)
+            setTimeout(async () => {
+              try {
+                await invoke('toggle_mic', { enabled: true })
+                await invoke('toggle_camera', { enabled: true })
+              } catch {}
+            }, 100000)
+            setTimeout(async () => {
+              try {
+                const sources = await invoke<
+                  Array<{ id: string; name: string; source_type: string }>
+                >('list_screen_sources')
+                const monitor =
+                  sources.find((s) => s.source_type === 'Monitor') || sources[0]
+                if (monitor) {
+                  await invoke('start_screen_share', { sourceId: monitor.id })
+                  setTimeout(async () => {
+                    try {
+                      await invoke('stop_screen_share')
+                    } catch {}
+                  }, 18000)
+                }
+              } catch {}
+            }, 30000)
           }
-
-          // Turn-based speaking: Desktop speaks at 25-50s, muted otherwise (except warmup 0-5s and final 100-120s)
-          // 5s: mute mic+cam (bot's turn)
-          setTimeout(async () => {
-            try {
-              await invoke('toggle_mic', { enabled: false })
-              await invoke('toggle_camera', { enabled: false })
-              console.log("[TURN] Desktop muted (bot's turn)")
-            } catch {
-              // best-effort: un échec ne doit pas casser le scénario/handler clavier
-            }
-          }, 5000)
-          // 25s: unmute — Desktop's turn to speak
-          setTimeout(async () => {
-            try {
-              await invoke('toggle_mic', { enabled: true })
-              await invoke('toggle_camera', { enabled: true })
-              console.log('[TURN] Desktop speaking')
-            } catch {
-              // best-effort: un échec ne doit pas casser le scénario/handler clavier
-            }
-          }, 25000)
-          // 50s: mute — Android's turn
-          setTimeout(async () => {
-            try {
-              await invoke('toggle_mic', { enabled: false })
-              await invoke('toggle_camera', { enabled: false })
-              console.log("[TURN] Desktop muted (Android's turn)")
-            } catch {
-              // best-effort: un échec ne doit pas casser le scénario/handler clavier
-            }
-          }, 50000)
-          // 100s: unmute — everyone speaks
-          setTimeout(async () => {
-            try {
-              await invoke('toggle_mic', { enabled: true })
-              await invoke('toggle_camera', { enabled: true })
-              console.log('[TURN] Desktop unmuted (all speak)')
-            } catch {
-              // best-effort: un échec ne doit pas casser le scénario/handler clavier
-            }
-          }, 100000)
-
-          // Auto screen share during Desktop's turn (30-48s)
-          setTimeout(async () => {
-            try {
-              const sources = await invoke<
-                Array<{ id: string; name: string; source_type: string }>
-              >('list_screen_sources')
-              const monitor =
-                sources.find((s) => s.source_type === 'Monitor') || sources[0]
-              if (monitor) {
-                console.log('[TURN] Desktop screen share started')
-                await invoke('start_screen_share', { sourceId: monitor.id })
-                setTimeout(async () => {
-                  try {
-                    await invoke('stop_screen_share')
-                    console.log('[TURN] Desktop screen share stopped')
-                  } catch (err) {
-                    console.error('Screen share stop failed:', err)
-                  }
-                }, 18000)
-              }
-            } catch (err) {
-              console.error('Screen share failed:', err)
-            }
-          }, 30000)
         } catch (err) {
           console.error('Auto-connect failed:', err)
         }
@@ -5189,15 +1158,67 @@ export default function App() {
     }
   }, [])
 
-  // Apply theme to document
+  // Dev/debug only: navigate via URL hash between SAFE views (home/settings).
+  // Lobby and Call need real state (lobbyRoomUrl, livekit creds, connection
+  // state) — jumping into them via hash with empty state crashes connect()
+  // and dead-locks the join flow, so they're intentionally excluded.
   useEffect(() => {
-    document.documentElement.dataset.theme = theme
+    const apply = () => {
+      const h = window.location.hash.replace(/^#/, '')
+      if (h === 'home' || h === 'settings') {
+        setView(h as View)
+      }
+    }
+    apply()
+    window.addEventListener('hashchange', apply)
+    return () => window.removeEventListener('hashchange', apply)
+  }, [])
+
+  // Apply theme to document. We always set an explicit data-theme="light" or
+  // "dark" attribute so the legacy App.css [data-theme='dark'] selectors keep
+  // matching — even when the user picked 'system' and the OS happens to be
+  // dark. The token CSS keys off the same attribute, so both stylesheets stay
+  // in lockstep.
+  useEffect(() => {
+    const root = document.documentElement
+    const applyResolved = () => {
+      let resolved: 'light' | 'dark'
+      if (theme === 'light' || theme === 'dark') {
+        resolved = theme
+      } else {
+        resolved = window.matchMedia?.('(prefers-color-scheme: dark)').matches
+          ? 'dark'
+          : 'light'
+      }
+      root.setAttribute('data-theme', resolved)
+    }
+    applyResolved()
+    if (theme === 'system') {
+      const mq = window.matchMedia('(prefers-color-scheme: dark)')
+      mq.addEventListener('change', applyResolved)
+      return () => mq.removeEventListener('change', applyResolved)
+    }
   }, [theme])
 
-  // ---- Unified device enumeration (in-call context) -----------------------
-  // Lazy: does NOT enumerate until a picker is opened (avoids macOS mic
-  // permission issue #161). Fallback + audio-devices-changed handled by hook.
-  const inCallDevices = useDeviceEnumeration()
+  const viewRef = useRef(view)
+  viewRef.current = view
+
+  // ---- Unified device enumeration (lobby + in-call) -----------------------
+  // ONE hook for the whole app — duplicating it (one here, one in LobbyScreen)
+  // produced double `audio-devices-changed` subscriptions and racing fallback
+  // calls. The lobby-specific "restart mic preview on device change" runs
+  // through the fallback callback below, gated on view.
+  const onAudioInputFallback = useCallback(() => {
+    if (viewRef.current === 'lobby') {
+      invoke('stop_mic_preview')
+        .catch(() => {})
+        .then(() => invoke('start_mic_preview'))
+        .catch(() => {})
+    }
+  }, [])
+  const inCallDevices = useDeviceEnumeration({
+    onInputFallback: onAudioInputFallback,
+  })
   const {
     audioInputs,
     audioOutputs,
@@ -5212,32 +1233,35 @@ export default function App() {
     enumerate: enumerateDevices,
   } = inCallDevices
 
-  const viewRef = useRef(view)
-  viewRef.current = view
-
-  // Trigger enumeration lazily when a device picker is first opened.
+  // Trigger enumeration lazily when a device picker is first opened or when
+  // the user navigates to the Settings screen (so Mic/Camera pickers show
+  // real device names instead of empty fallbacks).
   useEffect(() => {
-    if ((!showMicPicker && !showCamPicker) || devicesEnumerated) return
+    if (devicesEnumerated) return
+    if (!showMicPicker && !showCamPicker && view !== 'settings') return
     enumerateDevices()
-  }, [showMicPicker, showCamPicker, devicesEnumerated, enumerateDevices])
+  }, [showMicPicker, showCamPicker, view, devicesEnumerated, enumerateDevices])
 
-  // ---- Click outside to close device pickers ------------------------------
-  useEffect(() => {
-    const handleClick = (e: MouseEvent) => {
-      if (!(e.target as Element).closest('.device-picker, .control-chevron')) {
-        setShowMicPicker(false)
-        setShowCamPicker(false)
-      }
-    }
-    document.addEventListener('click', handleClick)
-    return () => document.removeEventListener('click', handleClick)
-  }, [])
+  // Outside-click closing of the device pickers is handled inside CallScreen
+  // (CallPicker uses [data-call-picker]/[data-call-btn] anchors). The legacy
+  // App-level handler keyed off .device-picker/.control-chevron and silently
+  // killed the new carets on every click.
 
   // ---- Polling ------------------------------------------------------------
   const poll = useCallback(async () => {
     try {
       const state: string = await invoke('get_connection_state')
-      setConnectionState(state)
+      setConnectionState((prev) => {
+        // Latch the call start timestamp on the rising edge of 'connected' so
+        // the CallScreen timer reflects the actual call duration, not the
+        // React mount time.
+        if (state === 'connected' && prev !== 'connected') {
+          setCallStartedMs(Date.now())
+        } else if (state === 'disconnected') {
+          setCallStartedMs(null)
+        }
+        return state
+      })
 
       if (
         state === 'disconnected' &&
@@ -5245,19 +1269,7 @@ export default function App() {
         viewRef.current !== 'settings'
       ) {
         setView('home')
-        setMicEnabled(false)
-        setCamEnabled(false)
-        setMessages([])
-        setVideoFrames(new Map())
-        setShowChat(false)
-        setShowParticipants(false)
-        setShowInfo(false)
-        setShowTranscription(false)
-        setIsHandRaised(false)
-        setUnreadCount(0)
-        setHandRaisedMap({})
-        setActiveSpeakers([])
-        setLocalParticipant(null)
+        resetCallState()
         return
       }
 
@@ -5462,6 +1474,158 @@ export default function App() {
   }, [t])
 
   // ---- Handlers -----------------------------------------------------------
+  // ---- Refonte: chargement des réunions pour la home ---------------------
+  useEffect(() => {
+    invoke<Meeting[]>('get_upcoming_meetings')
+      .then(setUpcomingMeetings)
+      .catch(() => {})
+    let off: UnlistenFn | null = null
+    listen<Meeting[]>('meetings-updated', (event) => {
+      if (event.payload.length > 0) {
+        setUpcomingMeetings(event.payload)
+      }
+    }).then((fn) => {
+      off = fn
+    })
+    return () => {
+      off?.()
+    }
+  }, [])
+
+  // ---- Toast on participant join. Skip during the first 2s after the call
+  // connects so the initial roster doesn't fire N toasts at once.
+  useEffect(() => {
+    let off: UnlistenFn | null = null
+    listen<{ sid: string; identity: string; name: string }>(
+      'participant-joined',
+      (event) => {
+        if (callStartedMs == null || Date.now() - callStartedMs < 2000) {
+          return
+        }
+        const who = event.payload.name || event.payload.identity || ''
+        if (!who) return
+        showToast(t('call.participantJoined').replace('{name}', who))
+      }
+    ).then((fn) => {
+      off = fn
+    })
+    return () => {
+      off?.()
+    }
+  }, [callStartedMs, showToast, t])
+
+  // ---- Listen for reaction-received events at App-level so CallScreen sees
+  // them whether it's the active view or not. Each reaction auto-expires
+  // after 3.5s. The legacy listener inside the dead CallView never runs.
+  useEffect(() => {
+    let off: UnlistenFn | null = null
+    listen<{ participantSid: string; participantName: string; emoji: string }>(
+      'reaction-received',
+      (event) => {
+        const { participantSid, emoji } = event.payload
+        const id = ++reactionCounter.current
+        setLiveReactions((prev) => [
+          ...prev,
+          { id, sid: participantSid, emoji, ts: Date.now() },
+        ])
+        setTimeout(() => {
+          setLiveReactions((prev) => prev.filter((r) => r.id !== id))
+        }, 3500)
+      }
+    ).then((fn) => {
+      off = fn
+    })
+    return () => {
+      off?.()
+    }
+  }, [])
+
+  // ---- Refonte: helpers Home → handleJoin --------------------------------
+  const handleNewMeeting = useCallback(() => {
+    if (!isAuthenticated && oidcEnabled) {
+      // Pas connecté : kicker l'OIDC sur l'instance par défaut.
+      const target = meetInstances[0] || authenticatedMeetInstance
+      if (target) {
+        pendingOidcRef.current = target
+        invoke('launch_oidc_browser', { meetInstance: target }).catch((e) =>
+          console.error('OIDC launch failed:', e)
+        )
+        return
+      }
+    }
+    setShowCreateRoom(true)
+  }, [isAuthenticated, oidcEnabled, meetInstances, authenticatedMeetInstance])
+
+  const handleJoinByCode = useCallback(
+    async (raw: string) => {
+      setHomeJoinError(null)
+      setHomeJoinPending(true)
+      try {
+        const trimmed = raw.trim().replace(/\/$/, '')
+        const candidates: string[] = []
+        if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+          candidates.push(trimmed)
+        } else if (trimmed.includes('/')) {
+          candidates.push(`https://${trimmed}`)
+        } else if (SLUG_REGEX.test(trimmed)) {
+          // slug seul → essayer chaque instance connue
+          for (const inst of meetInstances) {
+            candidates.push(`https://${inst}/${trimmed}`)
+          }
+          if (authenticatedMeetInstance) {
+            candidates.unshift(
+              `https://${authenticatedMeetInstance}/${trimmed}`
+            )
+          }
+        } else {
+          // alias éventuel
+          try {
+            const resolved = await invoke<string | null>(
+              'resolve_visio_alias',
+              {
+                name: trimmed,
+              }
+            )
+            if (resolved) candidates.push(resolved)
+          } catch {
+            /* ignore */
+          }
+        }
+        if (candidates.length === 0) {
+          setHomeJoinError(t('home.error.noUrl'))
+          return
+        }
+        for (const url of candidates) {
+          const result = await invoke<{
+            status: string
+            livekit_url?: string
+            token?: string
+          }>('validate_room', {
+            url,
+            username: displayName.trim() || null,
+          })
+          if (result.status === 'valid' || result.status === 'auth_required') {
+            await handleJoin(
+              url,
+              displayName.trim() || null,
+              undefined,
+              undefined,
+              result.livekit_url,
+              result.token
+            )
+            return
+          }
+        }
+        setHomeJoinError(t('home.room.notFound'))
+      } catch (e) {
+        setHomeJoinError(String(e))
+      } finally {
+        setHomeJoinPending(false)
+      }
+    },
+    [authenticatedMeetInstance, displayName, meetInstances, t]
+  )
+
   const handleJoin = async (
     meetUrl: string,
     username?: string | null,
@@ -5470,21 +1634,19 @@ export default function App() {
     livekitUrl?: string,
     livekitToken?: string
   ) => {
-    // Extract room display name from query param before storing URL
-    let displayNameFromUrl: string | null = null
+    // Extract room display name from query param before storing URL. Only
+    // overwrite a name that was pre-seeded (e.g. calendar summary) when the
+    // URL actually carries a ?visio= override — otherwise keep what the
+    // caller set.
     try {
       const parsed = new URL(
         meetUrl.startsWith('http') ? meetUrl : `https://${meetUrl}`
       )
       const raw = parsed.searchParams.get('visio')
-      if (raw) displayNameFromUrl = decodeURIComponent(raw)
+      if (raw) setCurrentRoomDisplayName(decodeURIComponent(raw))
     } catch {
       /* ignore */
     }
-    setCurrentRoomDisplayName(displayNameFromUrl)
-    setCurrentMeetUrl(meetUrl)
-    if (roomId) setCurrentRoomId(roomId)
-    if (accessLevel) setCurrentAccessLevel(accessLevel)
     setLobbyRoomUrl(meetUrl)
     setLobbyUsername(username ?? null)
     setLobbyLivekitUrl(livekitUrl && livekitUrl.length > 0 ? livekitUrl : null)
@@ -5505,24 +1667,26 @@ export default function App() {
     }
   }
 
-  // Push-to-talk: hold Space to temporarily unmute
+  // Push-to-talk: hold Space to temporarily unmute. We read micEnabled via a
+  // ref so the global listener stays stable and isn't rebound on every mic
+  // toggle (the old dep array [view, micEnabled] re-registered the listener
+  // every time the mic state flipped).
   const pushToTalkRef = useRef(false)
+  const micEnabledRef = useRef(micEnabled)
+  micEnabledRef.current = micEnabled
   useEffect(() => {
     if (view !== 'call') return
     const handleKeyDown = async (e: KeyboardEvent) => {
       if (e.code !== 'Space' || e.repeat) return
-      // Don't activate if typing in an input
       const tag = (e.target as HTMLElement)?.tagName
       if (tag === 'INPUT' || tag === 'TEXTAREA') return
       e.preventDefault()
-      if (!micEnabled && !pushToTalkRef.current) {
+      if (!micEnabledRef.current && !pushToTalkRef.current) {
         pushToTalkRef.current = true
         setMicEnabled(true)
         try {
           await invoke('toggle_mic', { enabled: true })
-        } catch {
-          // best-effort: un échec ne doit pas casser le scénario/handler clavier
-        }
+        } catch {}
       }
     }
     const handleKeyUp = async (e: KeyboardEvent) => {
@@ -5532,9 +1696,7 @@ export default function App() {
         setMicEnabled(false)
         try {
           await invoke('toggle_mic', { enabled: false })
-        } catch {
-          // best-effort: un échec ne doit pas casser le scénario/handler clavier
-        }
+        } catch {}
       }
     }
     window.addEventListener('keydown', handleKeyDown)
@@ -5543,7 +1705,46 @@ export default function App() {
       window.removeEventListener('keydown', handleKeyDown)
       window.removeEventListener('keyup', handleKeyUp)
     }
-  }, [view, micEnabled])
+  }, [view])
+
+  // Refresh visio history when we land back on Home (the user just hung up).
+  useEffect(() => {
+    if (view !== 'home') return
+    invoke<Array<{ url: string; display_name?: string | null }>>(
+      'get_visio_history'
+    )
+      .then(setRecentVisios)
+      .catch(() => {})
+  }, [view])
+
+  // In-call keyboard shortcuts (Cmd on macOS, Ctrl elsewhere).
+  // - Cmd/Ctrl+D : toggle mic
+  // - Cmd/Ctrl+E : toggle camera
+  // The handlers read latest state via refs so the listener stays stable.
+  useEffect(() => {
+    if (view !== 'call') return
+    const onKey = (e: KeyboardEvent) => {
+      const mod = e.metaKey || e.ctrlKey
+      if (!mod) return
+      const tag = (e.target as HTMLElement)?.tagName
+      if (tag === 'INPUT' || tag === 'TEXTAREA') return
+      if (e.key === 'd' || e.key === 'D') {
+        e.preventDefault()
+        const next = !micEnabledRef.current
+        setMicEnabled(next)
+        invoke('toggle_mic', { enabled: next }).catch(() => {})
+      } else if (e.key === 'e' || e.key === 'E') {
+        e.preventDefault()
+        setCamEnabled((cur) => {
+          const next = !cur
+          invoke('toggle_camera', { enabled: next }).catch(() => {})
+          return next
+        })
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [view])
 
   const handleToggleCam = async () => {
     const next = !camEnabled
@@ -5556,6 +1757,21 @@ export default function App() {
     }
   }
 
+  const resetCallState = useCallback(() => {
+    setMicEnabled(false)
+    setCamEnabled(false)
+    setMessages([])
+    setVideoFrames(new Map())
+    setShowParticipants(false)
+    setConnectionState('disconnected')
+    setIsHandRaised(false)
+    setUnreadCount(0)
+    setHandRaisedMap({})
+    setActiveSpeakers([])
+    setLocalParticipant(null)
+    setBandwidthMode('full')
+  }, [])
+
   const handleHangUp = async () => {
     try {
       await invoke('disconnect')
@@ -5563,23 +1779,7 @@ export default function App() {
       console.error('disconnect error:', e)
     }
     setView('home')
-    setMicEnabled(false)
-    setCamEnabled(false)
-    setMessages([])
-    setVideoFrames(new Map())
-    setShowChat(false)
-    setShowParticipants(false)
-    setShowInfo(false)
-    setShowTranscription(false)
-    setConnectionState('disconnected')
-    setIsHandRaised(false)
-    setUnreadCount(0)
-    setHandRaisedMap({})
-    setActiveSpeakers([])
-    setLocalParticipant(null)
-    setCurrentMeetUrl('')
-    setBandwidthMode('full')
-    setBandwidthMode('full')
+    resetCallState()
   }
 
   const handleToggleHandRaise = async () => {
@@ -5593,17 +1793,6 @@ export default function App() {
     } catch (e) {
       console.error('hand raise error:', e)
     }
-  }
-
-  const handleToggleChat = async () => {
-    const newState = !showChat
-    setShowChat(newState)
-    try {
-      await invoke('set_chat_open', { open: newState })
-    } catch (e) {
-      console.error('set_chat_open error:', e)
-    }
-    if (newState) setUnreadCount(0)
   }
 
   const handleSendChat = async (text: string) => {
@@ -5642,150 +1831,420 @@ export default function App() {
     }
   }
 
+  // ---- Sign out -----------------------------------------------------------
+  const handleSignOut = useCallback(() => {
+    const finish = () => {
+      setIsAuthenticated(false)
+      setAuthenticatedMeetInstance('')
+      setDisplayNameFromOidc('')
+      setEmailFromOidc('')
+      showToast(t('settings.signOut.done'))
+      setView('home')
+    }
+    if (authenticatedMeetInstance) {
+      invoke('logout_session', {
+        meetUrl: `https://${authenticatedMeetInstance}`,
+      })
+        .then(finish)
+        .catch(finish)
+    } else {
+      // Anonymous build: just clear local identity state.
+      invoke('set_display_name', { name: null }).catch(() => {})
+      setDisplayName('')
+      finish()
+    }
+  }, [authenticatedMeetInstance, showToast, t])
+
   // ---- Render -------------------------------------------------------------
   return (
-    <I18nContext.Provider value={t}>
-      {(view === 'call' || connectionState === 'waiting_for_host') && (
-        <header>
-          <h1>{currentRoomDisplayName || t('app.title')}</h1>
-          <StatusBadge state={connectionState} />
-        </header>
-      )}
+    <>
       {view === 'call' && bandwidthMode !== 'full' && (
-        <div className="bandwidth-indicator">
+        <div
+          className="bandwidth-indicator"
+          style={{
+            position: 'fixed',
+            top: 12,
+            left: '50%',
+            transform: 'translateX(-50%)',
+            zIndex: 50,
+            background: 'var(--warn)',
+            color: '#fff',
+            padding: '6px 14px',
+            borderRadius: 'var(--r-card)',
+            fontSize: 12,
+            fontWeight: 600,
+            boxShadow: 'var(--shadow-pop)',
+          }}
+        >
           {bandwidthMode === 'reduced_video'
             ? t('bandwidth.reducedVideo')
             : t('bandwidth.audioOnly')}
         </div>
       )}
-      <main>
+      <main
+        style={{ height: '100vh', display: 'flex', flexDirection: 'column' }}
+      >
         {view === 'home' && (
-          <>
-            <HomeView
-              onJoin={handleJoin}
-              onOpenSettings={() => setView('settings')}
-              displayName={displayName}
-              onDisplayNameChange={setDisplayName}
-              deepLinkUrl={deepLinkUrl}
-              onDeepLinkConsumed={handleDeepLinkConsumed}
-              oidcEnabled={oidcEnabled}
-              isAuthenticated={isAuthenticated}
-              authenticatedMeetInstance={authenticatedMeetInstance}
-              displayNameFromOidc={displayNameFromOidc}
-              emailFromOidc={emailFromOidc}
-              onLaunchOidc={async (meetInstance: string) => {
-                try {
-                  pendingOidcRef.current = meetInstance
-                  await invoke('launch_oidc_browser', { meetInstance })
-                } catch (e) {
-                  console.error('Failed to open browser for OIDC:', e)
-                  pendingOidcRef.current = null
-                  // Recover from the "authenticating" state: the registered
-                  // action re-validates the room back to auth_required.
-                  postAuthActionRef.current?.()
-                }
+          <DeskWindow>
+            <DeskSidebar
+              active={homeMode === 'calendar' ? 'calendar' : 'home'}
+              onNavigate={handleNavigate}
+              themeIsDark={isDarkTheme(theme)}
+              profile={{
+                name: profileDisplayName(displayName, displayNameFromOidc),
+                subtitle: profileSubtitle(
+                  isAuthenticated,
+                  authenticatedMeetInstance,
+                  emailFromOidc
+                ),
               }}
-              registerPostAuthAction={registerPostAuthAction}
+              labels={{
+                home: t('sidebar.home'),
+                calendar: t('sidebar.calendar'),
+                settings: t('sidebar.settings'),
+              }}
+              disabled={{
+                calendar: {
+                  disabled: !calendarConfigured,
+                  title: !calendarConfigured
+                    ? t('sidebar.calendar.disabled.hint')
+                    : undefined,
+                },
+              }}
+              newMeetingSlot={
+                isAuthenticated && oidcEnabled ? (
+                  <VButton
+                    variant="primary"
+                    full
+                    onClick={handleNewMeeting}
+                    icon={<VIcon name="video" size={18} />}
+                  >
+                    {t('home.newMeetingButton')}
+                  </VButton>
+                ) : null
+              }
+              onProfileClick={() => setShowProfileMenu((v) => !v)}
+            />
+            <HomeScreen
+              t={t}
+              userFirstName={firstName(
+                profileDisplayName(displayName, displayNameFromOidc)
+              )}
+              instanceHost={
+                authenticatedMeetInstance || meetInstances[0] || null
+              }
+              showInstanceChip={isAuthenticated && !!authenticatedMeetInstance}
+              showSignInCta={oidcEnabled && !isAuthenticated}
+              meetings={upcomingMeetings}
+              showNewMeeting={isAuthenticated && oidcEnabled}
+              mode={homeMode}
               meetInstances={meetInstances}
-              onLogout={() => {
-                if (authenticatedMeetInstance) {
-                  invoke('logout_session', {
-                    meetUrl: `https://${authenticatedMeetInstance}`,
-                  }).then(() => {
-                    setIsAuthenticated(false)
-                    setAuthenticatedMeetInstance('')
-                    setDisplayNameFromOidc('')
-                    setEmailFromOidc('')
-                  })
-                }
+              authenticatedMeetInstance={authenticatedMeetInstance}
+              onNewMeeting={handleNewMeeting}
+              onJoinByCode={handleJoinByCode}
+              onOpenMeeting={(m) => {
+                const uname = displayName.trim() || null
+                // Pre-seed the displayed title with the calendar summary so
+                // the Lobby header shows "COCO 2026" instead of falling back
+                // to the generic "Réunion d'équipe" placeholder. handleJoin
+                // will overwrite it from a ?visio= query param if present.
+                if (m.summary) setCurrentRoomDisplayName(m.summary)
+                invoke('set_display_name', { name: uname })
+                  .then(() => handleJoin(m.room_url, uname))
+                  .catch((e) => setHomeJoinError(String(e)))
+              }}
+              onOpenCalendar={() => {
+                setHomeMode('calendar')
+                invoke('refresh_calendar_now').catch(() => {})
+              }}
+              onRefreshCalendar={() => {
+                invoke('refresh_calendar_now').catch(() => {})
+                showToast(t('home.upcoming.refreshed'))
+              }}
+              onOpenInstance={() => setView('settings')}
+              onSignIn={() => setView('settings')}
+              recentVisios={recentVisios}
+              onOpenRecentVisio={(url) => {
+                const uname = displayName.trim() || null
+                invoke('set_display_name', { name: uname })
+                  .then(() => handleJoin(url, uname))
+                  .catch((e) => setHomeJoinError(String(e)))
               }}
             />
-            {deepLinkError && (
-              <div className="deep-link-error">
-                <span>{deepLinkError}</span>
-                <button type="button" onClick={() => setDeepLinkError(null)}>
+            {(homeJoinError || deepLinkError) && (
+              <div
+                style={{
+                  position: 'absolute',
+                  bottom: 24,
+                  left: 'calc(var(--sidebar-w, 250px) + 24px)',
+                  right: 28,
+                  background: 'var(--danger)',
+                  color: '#fff',
+                  padding: '12px 16px',
+                  borderRadius: 'var(--r-card)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: 12,
+                  boxShadow: 'var(--shadow-pop)',
+                  fontSize: 14,
+                  fontWeight: 600,
+                }}
+              >
+                <span>{homeJoinError || deepLinkError}</span>
+                <button
+                  onClick={() => {
+                    setHomeJoinError(null)
+                    setDeepLinkError(null)
+                  }}
+                  style={{
+                    background: 'transparent',
+                    border: 'none',
+                    color: '#fff',
+                    cursor: 'pointer',
+                    padding: 4,
+                    display: 'inline-flex',
+                  }}
+                  aria-label="dismiss"
+                >
                   <RiCloseLine size={16} />
                 </button>
               </div>
             )}
-          </>
+            {homeJoinPending && (
+              <div
+                style={{
+                  position: 'absolute',
+                  top: 14,
+                  right: 18,
+                  background: 'var(--surface)',
+                  color: 'var(--text-2)',
+                  padding: '8px 14px',
+                  borderRadius: 'var(--r-card)',
+                  fontSize: 13,
+                  boxShadow: 'var(--shadow-pop)',
+                }}
+              >
+                {t('home.connecting')}
+              </div>
+            )}
+            {showProfileMenu && (
+              <ProfileMenu
+                t={t}
+                showSignOut={isAuthenticated}
+                onOpenSettings={() => {
+                  setShowProfileMenu(false)
+                  setView('settings')
+                }}
+                onSignOut={async () => {
+                  setShowProfileMenu(false)
+                  const ok = await confirm({
+                    title: t('settings.signOut'),
+                    message: t('settings.signOut.confirm'),
+                    confirmLabel: t('settings.signOut'),
+                    cancelLabel: t('settings.cancel'),
+                    danger: true,
+                  })
+                  if (ok) handleSignOut()
+                }}
+                onClose={() => setShowProfileMenu(false)}
+              />
+            )}
+          </DeskWindow>
         )}
-        {view === 'lobby' && (
-          <PreJoinScreen
-            roomUrl={lobbyRoomUrl}
-            username={lobbyUsername}
-            roomDisplayName={currentRoomDisplayName}
-            lang={lang}
-            isDark={theme === 'dark'}
-            onJoin={async (_username, micOn, camOn, lobbyAudioMode) => {
-              // Apply lobby mic/camera overrides before showing the call view.
-              // Without this, micEnabled/camEnabled stay at their initial false
-              // values and the lobby toggles are silently ignored (#172).
-              const wantMic = micOn && lobbyAudioMode !== 'none'
-              if (wantMic) {
-                try {
-                  await invoke('toggle_mic', { enabled: true })
-                  setMicEnabled(true)
-                } catch (e) {
-                  console.error('Failed to enable mic on join:', e)
-                }
-              }
-              if (camOn) {
-                try {
-                  await invoke('toggle_camera', { enabled: true })
-                  setCamEnabled(true)
-                } catch (e) {
-                  console.error('Failed to enable camera on join:', e)
-                }
-              }
-              setView('call')
+        {infoToast && (
+          <div
+            style={{
+              position: 'fixed',
+              bottom: 24,
+              left: '50%',
+              transform: 'translateX(-50%)',
+              background: 'var(--surface)',
+              color: 'var(--text)',
+              padding: '10px 18px',
+              borderRadius: 'var(--r-card)',
+              fontSize: 13.5,
+              fontWeight: 500,
+              boxShadow: 'var(--shadow-pop)',
+              border: '1px solid var(--border)',
+              zIndex: 9000,
             }}
-            onCancel={() => setView('home')}
-            livekitUrl={lobbyLivekitUrl}
-            livekitToken={lobbyLivekitToken}
-          />
+            role="status"
+          >
+            {infoToast}
+          </div>
+        )}
+        {view === 'home' &&
+          oidcEnabled &&
+          showCreateRoom &&
+          authenticatedMeetInstance && (
+            <CreateRoomDialog
+              meetInstance={authenticatedMeetInstance}
+              t={t}
+              onCreated={async (
+                createdUrl,
+                roomId,
+                accessLevel,
+                livekitUrl,
+                livekitToken
+              ) => {
+                setShowCreateRoom(false)
+                const uname = displayName.trim() || null
+                try {
+                  await invoke('set_display_name', { name: uname })
+                  handleJoin(
+                    createdUrl,
+                    uname,
+                    roomId,
+                    accessLevel,
+                    livekitUrl,
+                    livekitToken
+                  )
+                } catch (e) {
+                  setHomeJoinError(String(e))
+                }
+              }}
+              onCancel={() => setShowCreateRoom(false)}
+            />
+          )}
+        {view === 'lobby' && connectionState !== 'waiting_for_host' && (
+          <DeskWindow>
+            <LobbyScreen
+              t={t}
+              themeIsDark={isDarkTheme(theme)}
+              roomTitle={currentRoomDisplayName || ''}
+              roomUrl={lobbyRoomUrl}
+              livekitUrl={lobbyLivekitUrl}
+              livekitToken={lobbyLivekitToken}
+              initialUsername={lobbyUsername}
+              waitingParticipants={waitingParticipants}
+              connectionState={connectionState}
+              audioInputs={audioInputs}
+              videoInputs={videoInputs}
+              selectedAudioInput={selectedAudioInput}
+              selectedVideoInput={selectedVideoInput}
+              setSelectedAudioInput={handleSelectAudioInput}
+              setSelectedVideoInput={handleSelectVideoInput}
+              enumerateDevices={enumerateDevices}
+              bgMode={appBgMode}
+              bgImages={bgImages}
+              onSetBgMode={(mode) => {
+                setAppBgMode(mode)
+                invoke('set_background_mode', { mode })
+                  .catch((e) => {
+                    console.error('set_background_mode failed:', e)
+                    showToast(`Background error: ${String(e)}`)
+                  })
+                  .finally(() => {
+                    // The camera preview pipeline only re-reads the background
+                    // mode on (re)start, so restart it to make the new effect
+                    // visible immediately. No-op when the camera is off.
+                    invoke('stop_camera_preview')
+                      .catch(() => {})
+                      .then(() => invoke('start_camera_preview'))
+                      .catch(() => {})
+                  })
+              }}
+              onAdmit={(id) => {
+                invoke('admit_participant', { participantId: id }).catch(
+                  () => {}
+                )
+                setWaitingParticipants((prev) =>
+                  prev.filter((p) => p.id !== id)
+                )
+              }}
+              onDeny={(id) => {
+                invoke('deny_participant', { participantId: id }).catch(
+                  () => {}
+                )
+                setWaitingParticipants((prev) =>
+                  prev.filter((p) => p.id !== id)
+                )
+              }}
+              onAdmitAll={() => {
+                waitingParticipants.forEach((p) => {
+                  invoke('admit_participant', { participantId: p.id }).catch(
+                    () => {}
+                  )
+                })
+                setWaitingParticipants([])
+              }}
+              onJoined={async (_username, micOn, camOn, lobbyAudioMode) => {
+                const wantMic = micOn && lobbyAudioMode !== 'none'
+                if (wantMic) {
+                  try {
+                    await invoke('toggle_mic', { enabled: true })
+                    setMicEnabled(true)
+                  } catch (e) {
+                    console.error('Failed to enable mic on join:', e)
+                  }
+                }
+                if (camOn) {
+                  try {
+                    await invoke('toggle_camera', { enabled: true })
+                    setCamEnabled(true)
+                  } catch (e) {
+                    console.error('Failed to enable camera on join:', e)
+                  }
+                }
+                setView('call')
+              }}
+              onCancel={async () => {
+                try {
+                  await invoke('cancel_lobby')
+                } catch {}
+                try {
+                  await invoke('disconnect')
+                } catch {}
+                setConnectionState('disconnected')
+                setView('home')
+              }}
+            />
+          </DeskWindow>
         )}
         {view === 'call' && connectionState !== 'waiting_for_host' && (
-          <CallView
+          <CallScreen
+            t={t}
+            roomTitle={currentRoomDisplayName}
             participants={participants}
             localParticipant={localParticipant}
             micEnabled={micEnabled}
             camEnabled={camEnabled}
-            videoFrames={videoFrames}
-            messages={messages}
-            handRaisedMap={handRaisedMap}
-            activeSpeakers={activeSpeakers}
             isHandRaised={isHandRaised}
+            videoFrames={videoFrames}
+            activeSpeakers={activeSpeakers}
+            handRaisedMap={handRaisedMap}
+            messages={messages}
             unreadCount={unreadCount}
-            showChat={showChat}
+            encrypted={messages.some((m) => m.encrypted)}
+            meetUrl={lobbyRoomUrl}
+            onSendChat={(text) => {
+              handleSendChat(text).catch(() => {})
+            }}
             onToggleMic={handleToggleMic}
             onToggleCam={handleToggleCam}
             onHangUp={handleHangUp}
             onToggleHandRaise={handleToggleHandRaise}
-            onToggleChat={handleToggleChat}
-            onSendChat={handleSendChat}
-            onToggleParticipants={() => setShowParticipants(!showParticipants)}
-            showParticipants={showParticipants}
-            onToggleInfo={() => {
-              setShowInfo(!showInfo)
-              if (showInfo) setShowTranscription(false)
+            onReact={(emoji) => {
+              invoke('send_reaction', { emoji }).catch(() => {})
+              // Echo locally — Rust filters self-echoes from the broadcast,
+              // so the sender otherwise never sees their own animation.
+              if (localParticipant?.sid) {
+                const id = ++reactionCounter.current
+                setLiveReactions((prev) => [
+                  ...prev,
+                  {
+                    id,
+                    sid: localParticipant.sid,
+                    emoji,
+                    ts: Date.now(),
+                  },
+                ])
+                setTimeout(() => {
+                  setLiveReactions((prev) => prev.filter((r) => r.id !== id))
+                }, 3500)
+              }
             }}
-            showInfo={showInfo}
-            meetUrl={currentMeetUrl}
-            onToggleTranscription={() =>
-              setShowTranscription(!showTranscription)
-            }
-            showTranscription={showTranscription}
-            onShowMicPicker={() => {
-              setShowMicPicker(!showMicPicker)
-              setShowCamPicker(false)
-            }}
-            onShowCamPicker={() => {
-              setShowCamPicker(!showCamPicker)
-              setShowMicPicker(false)
-            }}
-            showMicPicker={showMicPicker}
-            showCamPicker={showCamPicker}
             audioInputs={audioInputs}
             audioOutputs={audioOutputs}
             videoInputs={videoInputs}
@@ -5795,12 +2254,57 @@ export default function App() {
             onSelectAudioInput={handleSelectAudioInput}
             onSelectAudioOutput={handleSelectAudioOutput}
             onSelectVideoInput={handleSelectVideoInput}
-            waitingParticipants={waitingParticipants}
-            setWaitingParticipants={setWaitingParticipants}
-            roomId={currentRoomId || undefined}
-            accessLevel={currentAccessLevel || undefined}
-            roomDisplayName={currentRoomDisplayName}
-            bandwidthMode={bandwidthMode}
+            onShowMicPicker={() => {
+              setShowMicPicker((v) => !v)
+              setShowCamPicker(false)
+            }}
+            onShowCamPicker={() => {
+              setShowCamPicker((v) => !v)
+              setShowMicPicker(false)
+            }}
+            showMicPicker={showMicPicker}
+            showCamPicker={showCamPicker}
+            onClosePickers={() => {
+              setShowMicPicker(false)
+              setShowCamPicker(false)
+            }}
+            onOpenSettings={() => {
+              setView('settings')
+            }}
+            bgMode={appBgMode}
+            bgImages={bgImages}
+            onSetBgMode={(mode) => {
+              setAppBgMode(mode)
+              invoke('set_background_mode', { mode }).catch(() => {})
+              // In-call the LiveKit local video track holds a cached frame
+              // pipeline that doesn't re-read the bg mode until the track
+              // is republished. Cycling toggle_camera off→on is the
+              // cheapest way to force a republish so the new effect
+              // applies to the outgoing stream immediately. The brief
+              // flicker is the same UX as the web client.
+              if (camEnabled) {
+                invoke('toggle_camera', { enabled: false })
+                  .catch(() => {})
+                  .then(() => invoke('toggle_camera', { enabled: true }))
+                  .catch(() => {})
+              }
+            }}
+            callStartedMs={callStartedMs}
+            layoutMode={layoutMode}
+            onToggleLayout={() => {
+              const next = layoutMode === 'speaker' ? 'grid' : 'speaker'
+              setLayoutMode(next)
+              invoke('set_layout_mode', { mode: next }).catch(() => {})
+            }}
+            onTogglePeople={() => setShowParticipants((v) => !v)}
+            peopleOpen={showParticipants}
+            liveReactions={liveReactions}
+            pinnedSid={pinnedSid}
+            onTogglePin={(sid) => {
+              const next = pinnedSid === sid ? null : sid
+              setPinnedSid(next)
+              invoke('pin_participant', { sid: next }).catch(() => {})
+            }}
           />
         )}
         {connectionState === 'waiting_for_host' && (
@@ -5809,12 +2313,12 @@ export default function App() {
             onCancel={async () => {
               try {
                 await invoke('cancel_lobby')
-              } catch {
+              } catch (_) {
                 /* ignore */
               }
               try {
                 await invoke('disconnect')
-              } catch {
+              } catch (_) {
                 /* ignore */
               }
               setConnectionState('disconnected')
@@ -5823,20 +2327,142 @@ export default function App() {
           />
         )}
         {view === 'settings' && (
-          <SettingsView
-            onClose={() => {
-              setView('home')
-              invoke<string[]>('get_meet_instances')
-                .then(setMeetInstances)
-                .catch(() => {})
-            }}
-            onLanguageChange={(l) => setLang(l)}
-            onThemeChange={(t) => setTheme(t)}
-            onDisplayNameChange={setDisplayName}
-            initialDisplayName={displayName}
-          />
+          <DeskWindow>
+            <DeskSidebar
+              active="settings"
+              onNavigate={handleNavigate}
+              themeIsDark={isDarkTheme(theme)}
+              profile={{
+                name: profileDisplayName(displayName, displayNameFromOidc),
+                subtitle: profileSubtitle(
+                  isAuthenticated,
+                  authenticatedMeetInstance,
+                  emailFromOidc
+                ),
+              }}
+              labels={{
+                home: t('sidebar.home'),
+                calendar: t('sidebar.calendar'),
+                settings: t('sidebar.settings'),
+              }}
+              disabled={{
+                calendar: {
+                  disabled: !calendarConfigured,
+                  title: !calendarConfigured
+                    ? t('sidebar.calendar.disabled.hint')
+                    : undefined,
+                },
+              }}
+              newMeetingSlot={
+                isAuthenticated && oidcEnabled ? (
+                  <VButton
+                    variant="primary"
+                    full
+                    onClick={handleNewMeeting}
+                    icon={<VIcon name="video" size={18} />}
+                  >
+                    {t('home.newMeetingButton')}
+                  </VButton>
+                ) : null
+              }
+              onProfileClick={() => setShowProfileMenu((v) => !v)}
+            />
+            <SettingsScreen
+              t={t}
+              displayName={profileDisplayName(displayName, displayNameFromOidc)}
+              email={emailFromOidc}
+              isAuthenticated={isAuthenticated}
+              oidcEnabled={oidcEnabled}
+              onChangeDisplayName={setDisplayName}
+              theme={(theme as ThemeChoice) || 'system'}
+              onChangeTheme={(next) => {
+                setTheme(next)
+                invoke('set_theme', { theme: next }).catch(() => {})
+              }}
+              lang={lang}
+              onChangeLanguage={(l) => setLang(l)}
+              instanceHost={authenticatedMeetInstance || meetInstances[0] || ''}
+              meetInstances={meetInstances}
+              onChangeMeetInstances={(next) => {
+                setMeetInstances(next)
+                invoke('set_meet_instances', { instances: next }).catch(
+                  () => {}
+                )
+              }}
+              onConnectInstance={(host) => {
+                pendingOidcRef.current = host
+                showToast(t('settings.instance.connecting'))
+                invoke('launch_oidc_browser', { meetInstance: host })
+                  .then(() => console.log('[oidc] browser launched for', host))
+                  .catch((e) => {
+                    console.error('[oidc] launch_oidc_browser failed:', e)
+                    showToast(`OIDC: ${String(e)}`)
+                  })
+              }}
+              onDisconnectInstance={(host) => {
+                invoke('logout_session', {
+                  meetUrl: `https://${host}`,
+                })
+                  .then(() => {
+                    setIsAuthenticated(false)
+                    setAuthenticatedMeetInstance('')
+                    setDisplayNameFromOidc('')
+                    setEmailFromOidc('')
+                    showToast(t('settings.signOut.done'))
+                  })
+                  .catch(() => {})
+              }}
+              audioInputs={audioInputs}
+              videoInputs={videoInputs}
+              selectedAudioInput={selectedAudioInput}
+              selectedVideoInput={selectedVideoInput}
+              onSelectAudioInput={handleSelectAudioInput}
+              onSelectVideoInput={handleSelectVideoInput}
+              visioLinksEnabled={visioLinksEnabled}
+              onToggleVisioLinks={setVisioLinksEnabled}
+              notificationsEnabled={notificationsEnabled}
+              onToggleNotifications={setNotificationsEnabled}
+              onSignOut={handleSignOut}
+              onClearLocalData={async () => {
+                const ok = await confirm({
+                  title: t('settings.row.clearData'),
+                  message: t('settings.row.clearData.confirm'),
+                  confirmLabel: t('settings.row.clearData'),
+                  cancelLabel: t('settings.cancel'),
+                  danger: true,
+                })
+                if (ok) {
+                  invoke('clear_visio_history').catch(() => {})
+                  showToast(t('settings.row.clearData.done'))
+                }
+              }}
+              onCalendarUrlChange={(url) =>
+                setCalendarConfigured(url.trim().length > 0)
+              }
+              appVersion="0.10.0"
+              translations={translations}
+            />
+            {showProfileMenu && (
+              <ProfileMenu
+                t={t}
+                showSignOut={isAuthenticated}
+                onSignOut={async () => {
+                  setShowProfileMenu(false)
+                  const ok = await confirm({
+                    title: t('settings.signOut'),
+                    message: t('settings.signOut.confirm'),
+                    confirmLabel: t('settings.signOut'),
+                    cancelLabel: t('settings.cancel'),
+                    danger: true,
+                  })
+                  if (ok) handleSignOut()
+                }}
+                onClose={() => setShowProfileMenu(false)}
+              />
+            )}
+          </DeskWindow>
         )}
       </main>
-    </I18nContext.Provider>
+    </>
   )
 }
