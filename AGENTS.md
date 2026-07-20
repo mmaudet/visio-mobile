@@ -88,6 +88,7 @@ npx playwright test path/to/test.ts  # Run a single test file
 ```
 
 > There are no unit tests for the TypeScript frontend. All TS tests are Playwright E2E.
+> The suite runs in CI on every PR to `main` (job `test-frontend`).
 
 ---
 
@@ -118,11 +119,11 @@ cargo clippy -- -D warnings
 
 ### TypeScript
 
-No ESLint or Prettier config exists. Type-check only:
-
 ```sh
 # Working directory: crates/visio-desktop/frontend/
-npx tsc --noEmit
+npm run lint          # ESLint — any warning fails the run (--max-warnings 0)
+npm run format:check  # Prettier check
+npx tsc --noEmit      # Type-check
 ```
 
 ---
@@ -213,7 +214,7 @@ npx tsc --noEmit
 - Add new keys to all locale files in `i18n/` simultaneously.
 
 **Formatting**
-- No formatter is configured. Follow the existing style: 2-space indentation, double quotes for JSX attributes, trailing commas in multi-line structures.
+- Prettier is configured (`.prettierrc`: single quotes, no semicolons, 2-space indent, trailing commas); check with `npm run format:check`, apply with `npx prettier --write src/`.
 - Keep lines under ~100 characters where practical.
 
 ---
@@ -222,9 +223,14 @@ npx tsc --noEmit
 
 | Job | Command | Trigger |
 |---|---|---|
-| `test-rust` | `cargo test -p visio-core --lib` | PR to `main` |
+| `lint-git` | `gitlint` on PR commits | PR to `main` |
+| `check-changelog` / `lint-changelog` | CHANGELOG updated, lines < 80 | PR to `main` |
 | `lint-rust` | `cargo fmt --check` + `cargo clippy -D warnings` | PR to `main` |
-| `lint-android` | `./gradlew ktlintCheck` | PR to `main` |
+| `lint-kotlin` | `./gradlew ktlintCheck` | PR to `main` |
+| `lint-frontend` | `npm run lint` + `npm run format:check` | PR to `main` |
+| `check-i18n` | `./scripts/check-i18n.sh` | PR to `main` |
+| `test-rust` | `cargo test -p visio-core --lib` (+ LiveKit integration) | PR to `main` |
+| `test-frontend` | `npx playwright test` | PR to `main` |
 | `test-android-ui` | `./gradlew connectedAndroidTest` | `workflow_dispatch` only |
 
 All CI jobs must pass before merging to `main`.

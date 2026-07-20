@@ -72,6 +72,13 @@ and this project adheres to
   hardened HTTPS, security audits) instead of carrying the stale
   0.9.0 changelog. Unblocks the Apple submission that was rejected
   under Guideline 2.3.10 on 2026-06-05.
+- Desktop: OIDC sign-in from the join screen called a nonexistent
+  Tauri command (start_oidc_auth) — broken since 0.8.x
+- Desktop: missing i18n keys shown raw (home.signIn,
+  home.room.authRequired/authenticating, action.*)
+- E2E: Playwright suite repaired (mock crash, pre-join traversal,
+  stale selectors) and now enforced by a CI job
+- Desktop: dead code removal and zero-eslint-warning cleanup
 
 ## [0.10.0] - 2026-06-04
 

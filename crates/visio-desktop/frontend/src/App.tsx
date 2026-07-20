@@ -169,6 +169,19 @@ interface VisioHistoryEntry {
   display_name: string | null
 }
 
+interface UserSearchResult {
+  id: string
+  email: string
+  full_name: string | null
+  short_name: string | null
+}
+interface RoomAccess {
+  id: string
+  user: UserSearchResult
+  resource: string
+  role: string
+}
+
 interface ReactionData {
   id: number
   participantSid: string
@@ -229,85 +242,6 @@ function extractSlug(input: string): string | null {
 function detectSystemLang(): string {
   const navLang = navigator.language?.split('-')[0]
   return SUPPORTED_LANGS.includes(navLang) ? navLang : 'en'
-}
-
-// ---------------------------------------------------------------------------
-// Logo SVG tricolore
-// ---------------------------------------------------------------------------
-
-function VisioLogo({ size = 64 }: Readonly<{ size?: number }>) {
-  // Camera body: 64×54 (ratio ~1.19), centered at x=52
-  // Wifi arcs: 3 concentric arcs (r=10,17,24) centered at (52,62), pointing up
-  // Stripe: same width as camera body (64), centered on same axis
-  const stripeX = 20
-  const thirdW = 64 / 3
-  return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 128 128"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-      className="home-logo"
-    >
-      {/* Camera body */}
-      <rect x="20" y="26" width="64" height="54" rx="10" fill="#000091" />
-      {/* Camera lens notch */}
-      <path d="M84 44 L108 32 L108 74 L84 62 Z" fill="#000091" />
-      {/* Wifi dot */}
-      <circle cx="52" cy="62" r="3" fill="#fff" />
-      {/* Wifi arc — small (r=10) */}
-      <path
-        d="M45 55 A10 10 0 0 1 59 55"
-        stroke="#fff"
-        strokeWidth="3"
-        strokeLinecap="round"
-        fill="none"
-      />
-      {/* Wifi arc — medium (r=17) */}
-      <path
-        d="M40 50 A17 17 0 0 1 64 50"
-        stroke="#fff"
-        strokeWidth="3"
-        strokeLinecap="round"
-        fill="none"
-      />
-      {/* Wifi arc — large (r=24) */}
-      <path
-        d="M35 45 A24 24 0 0 1 69 45"
-        stroke="#fff"
-        strokeWidth="3"
-        strokeLinecap="round"
-        fill="none"
-      />
-      {/* Tricolore stripe — centered under camera body */}
-      <rect
-        x={stripeX}
-        y="92"
-        width={thirdW}
-        height="9"
-        rx="3"
-        fill="#000091"
-      />
-      <rect
-        x={stripeX + thirdW}
-        y="92"
-        width={thirdW}
-        height="9"
-        fill="#FFFFFF"
-        stroke="#D1D1D6"
-        strokeWidth="0.5"
-      />
-      <rect
-        x={stripeX + thirdW * 2}
-        y="92"
-        width={thirdW}
-        height="9"
-        rx="3"
-        fill="#E1000F"
-      />
-    </svg>
-  )
 }
 
 // ---------------------------------------------------------------------------
@@ -437,9 +371,6 @@ function ParticipantTile({
   } else {
     displayName = displayItem.label
   }
-  const initials = getInitials(displayName)
-  const hue = getHue(displayName)
-
   const videoSrc = trackSid ? videoFrames.get(trackSid) : undefined
 
   // Video paused by bandwidth degradation — show placeholder
@@ -638,7 +569,6 @@ function MeetingsTab({
     'onboarding' | 'loading' | 'empty' | 'list' | 'error'
   >('onboarding')
   const [meetings, setMeetings] = useState<Meeting[]>([])
-  const [calendarUrl, setCalendarUrl] = useState<string | null>(null)
   const [joining, setJoining] = useState<string | null>(null)
   const [loadingMessage, setLoadingMessage] = useState<string>('')
   const [lastSyncTime, setLastSyncTime] = useState<Date | null>(null)
@@ -647,6 +577,12 @@ function MeetingsTab({
     message: string
     isError: boolean
   } | null>(null)
+
+  // Mirror of `meetings` for listeners registered once (avoids stale closure)
+  const meetingsRef = useRef<Meeting[]>([])
+  useEffect(() => {
+    meetingsRef.current = meetings
+  }, [meetings])
 
   // Notify parent of meeting count changes
   useEffect(() => {
@@ -657,7 +593,6 @@ function MeetingsTab({
   useEffect(() => {
     invoke<string | null>('get_calendar_url')
       .then((url) => {
-        setCalendarUrl(url ?? null)
         if (!url) {
           setStatus('onboarding')
           return
@@ -715,7 +650,7 @@ function MeetingsTab({
     listen<string>('calendar-error', () => {
       setSyncToast({ message: t('calendar.sync.error'), isError: true })
       setTimeout(() => setSyncToast(null), 4000)
-      if (meetings.length === 0) setStatus('error')
+      if (meetingsRef.current.length === 0) setStatus('error')
     }).then((fn) => {
       unlistenError = fn
     })
@@ -723,7 +658,7 @@ function MeetingsTab({
       unlistenUpdated?.()
       unlistenError?.()
     }
-  }, [])
+  }, [t])
 
   const handleRefresh = async () => {
     // Only show full loading screen on initial load (no meetings yet)
@@ -888,6 +823,7 @@ function HomeView({
   onLaunchOidc,
   onLogout,
   meetInstances,
+  registerPostAuthAction,
 }: Readonly<{
   onJoin: (
     meetUrl: string,
@@ -910,11 +846,11 @@ function HomeView({
   onLaunchOidc: (meetInstance: string) => void
   onLogout: () => void
   meetInstances: string[]
+  registerPostAuthAction: (fn: (() => void) | null) => void
 }>) {
   const t = useT()
   const [activeTab, setActiveTab] = useState<'join' | 'meetings'>('join')
   const [meetUrl, setMeetUrl] = useState('')
-  const [roomDisplayName, setRoomDisplayName] = useState('')
   const [resolvedUrl, setResolvedUrl] = useState('')
   const [visioHistory, setRoomHistory] = useState<VisioHistoryEntry[]>([])
   const [meetingCount, setMeetingCount] = useState(0)
@@ -1009,7 +945,7 @@ function HomeView({
     return () => {
       unlisten?.()
     }
-  }, [])
+  }, [t])
 
   const [error, setError] = useState('')
   const [joining, setJoining] = useState(false)
@@ -1031,7 +967,7 @@ function HomeView({
       setMeetUrl(deepLinkUrl)
       onDeepLinkConsumed()
     }
-  }, [deepLinkUrl])
+  }, [deepLinkUrl, onDeepLinkConsumed])
 
   useEffect(() => {
     const trimmed = meetUrl.trim()
@@ -1131,18 +1067,13 @@ function HomeView({
       clearTimeout(timer)
       controller.abort()
     }
-  }, [meetUrl])
+  }, [meetUrl, displayName, meetInstances])
 
   const handleJoin = async () => {
-    let url = resolvedUrl
+    const url = resolvedUrl
     if (!url) {
       setError(t('home.error.noUrl'))
       return
-    }
-    const trimmedDisplayName = roomDisplayName.trim()
-    if (trimmedDisplayName) {
-      const sep = url.includes('?') ? '&' : '?'
-      url = `${url}${sep}visio=${encodeURIComponent(trimmedDisplayName)}`
     }
     setError('')
     setJoining(true)
@@ -1156,28 +1087,45 @@ function HomeView({
     }
   }
 
-  const handleAuth = async () => {
+  const handleAuth = () => {
     try {
       // Extract the instance hostname from the resolved URL
       const url = new URL(
         resolvedUrl.startsWith('http') ? resolvedUrl : `https://${resolvedUrl}`
       )
+      setError('')
       setRoomStatus('authenticating')
-      await invoke('start_oidc_auth', { meetInstance: url.hostname })
-      // After auth, re-trigger validation by bumping state
-      setRoomStatus('checking')
-      const result = await invoke<{ status: string }>('validate_room', {
-        url: resolvedUrl,
-        username: displayName.trim() || null,
-      })
-      if (result.status === 'valid') setRoomStatus('valid')
-      else if (result.status === 'auth_required') setRoomStatus('auth_required')
-      else setRoomStatus('error')
+      // The OIDC flow is asynchronous: the exchange code comes back via the
+      // visio://auth-callback deep link, then revalidateRoom runs (see below).
+      onLaunchOidc(url.hostname)
     } catch (e) {
       setError(String(e))
       setRoomStatus('auth_required')
     }
   }
+
+  // Re-validate the room once the OIDC exchange completes successfully.
+  // Registered with App, which invokes it from the auth-callback handler.
+  const revalidateRoom = useCallback(() => {
+    if (roomStatus !== 'authenticating') return
+    setRoomStatus('checking')
+    invoke<{ status: string }>('validate_room', {
+      url: resolvedUrl,
+      username: displayName.trim() || null,
+    })
+      .then((result) => {
+        if (result.status === 'valid') setRoomStatus('valid')
+        else if (result.status === 'auth_required')
+          setRoomStatus('auth_required')
+        else setRoomStatus('error')
+      })
+      .catch(() => setRoomStatus('error'))
+  }, [roomStatus, resolvedUrl, displayName])
+
+  useEffect(() => {
+    registerPostAuthAction(revalidateRoom)
+    return () => registerPostAuthAction(null)
+  }, [registerPostAuthAction, revalidateRoom])
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') handleJoin()
@@ -1411,7 +1359,11 @@ function HomeView({
             {/* Room display name removed from join form — only relevant
                 when creating a room (CreateRoomView handles it). */}
             {roomStatus === 'auth_required' ? (
-              <button className="btn btn-primary" onClick={handleAuth}>
+              <button
+                className="btn btn-primary"
+                onClick={handleAuth}
+                data-testid="home-signin-button"
+              >
                 {t('home.signIn')}
               </button>
             ) : (
@@ -1437,27 +1389,6 @@ function HomeView({
               >
                 {t('home.createRoom')}
               </button>
-            )}
-            {roomStatus === 'auth_required' && (
-              <div
-                className="room-status auth-required"
-                data-testid="home-room-status"
-              >
-                {t('home.room.authRequired')}
-              </div>
-            )}
-            {roomStatus === 'authenticating' && (
-              <div
-                className="room-status checking"
-                data-testid="home-room-status"
-              >
-                {t('home.room.authenticating')}
-              </div>
-            )}
-            {roomStatus === 'error' && (
-              <div className="room-status error" data-testid="home-room-status">
-                {t('home.room.error')}
-              </div>
             )}
             <div className="error-msg">{error}</div>
             {visioHistory.length > 0 && (
@@ -1592,9 +1523,8 @@ function CreateRoomDialog({
   const [copiedHttp, setCopiedHttp] = useState(false)
   const [copiedDeep, setCopiedDeep] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
-  const [searchResults, setSearchResults] = useState<any[]>([])
-  const [invitedUsers, setInvitedUsers] = useState<any[]>([])
-  const [searching, setSearching] = useState(false)
+  const [searchResults, setSearchResults] = useState<UserSearchResult[]>([])
+  const [invitedUsers, setInvitedUsers] = useState<UserSearchResult[]>([])
   const [createdRoomId, setCreatedRoomId] = useState('')
   const [createdLivekitUrl, setCreatedLivekitUrl] = useState('')
   const [createdLivekitToken, setCreatedLivekitToken] = useState('')
@@ -1611,20 +1541,16 @@ function CreateRoomDialog({
       return
     }
     const timer = setTimeout(async () => {
-      setSearching(true)
       try {
-        const results = await invoke<any[]>('search_users', {
+        const results = await invoke<UserSearchResult[]>('search_users', {
           query: searchQuery,
         })
         setSearchResults(
-          results.filter(
-            (u: any) => !invitedUsers.some((inv: any) => inv.id === u.id)
-          )
+          results.filter((u) => !invitedUsers.some((inv) => inv.id === u.id))
         )
       } catch {
         setSearchResults([])
       }
-      setSearching(false)
     }, 300)
     return () => clearTimeout(timer)
   }, [searchQuery, invitedUsers])
@@ -1818,7 +1744,7 @@ function CreateRoomDialog({
                   />
                   {searchResults.length > 0 && (
                     <div className="search-dropdown">
-                      {searchResults.map((user: any) => (
+                      {searchResults.map((user) => (
                         <button
                           key={user.id}
                           type="button"
@@ -1839,16 +1765,14 @@ function CreateRoomDialog({
                   )}
                   {invitedUsers.length > 0 && (
                     <div className="invited-chips">
-                      {invitedUsers.map((user: any) => (
+                      {invitedUsers.map((user) => (
                         <span key={user.id} className="user-chip">
                           {user.full_name || user.email}
                           <button
                             className="chip-remove"
                             onClick={() =>
                               setInvitedUsers(
-                                invitedUsers.filter(
-                                  (u: any) => u.id !== user.id
-                                )
+                                invitedUsers.filter((u) => u.id !== user.id)
                               )
                             }
                           >
@@ -2070,9 +1994,9 @@ function InfoSidebar({
   const t = useT()
   const [copiedHttp, setCopiedHttp] = useState(false)
   const [copiedDeep, setCopiedDeep] = useState(false)
-  const [roomAccesses, setRoomAccesses] = useState<any[]>([])
+  const [roomAccesses, setRoomAccesses] = useState<RoomAccess[]>([])
   const [memberSearch, setMemberSearch] = useState('')
-  const [memberResults, setMemberResults] = useState<any[]>([])
+  const [memberResults, setMemberResults] = useState<UserSearchResult[]>([])
 
   // Build share URL with room display name param if available
   const shareUrl = (() => {
@@ -2093,7 +2017,7 @@ function InfoSidebar({
     if (!roomId) return
     const fetchAccesses = async () => {
       try {
-        const results = await invoke<any[]>('list_accesses', { roomId })
+        const results = await invoke<RoomAccess[]>('list_accesses', { roomId })
         setRoomAccesses(results)
       } catch {
         /* ignore - not owner/admin */
@@ -2110,13 +2034,11 @@ function InfoSidebar({
     }
     const timer = setTimeout(async () => {
       try {
-        const results = await invoke<any[]>('search_users', {
+        const results = await invoke<UserSearchResult[]>('search_users', {
           query: memberSearch,
         })
         setMemberResults(
-          results.filter(
-            (u: any) => !roomAccesses.some((a: any) => a.user.id === u.id)
-          )
+          results.filter((u) => !roomAccesses.some((a) => a.user.id === u.id))
         )
       } catch {
         setMemberResults([])
@@ -2216,7 +2138,7 @@ function InfoSidebar({
             />
             {memberResults.length > 0 && (
               <div className="search-dropdown">
-                {memberResults.map((user: any) => (
+                {memberResults.map((user) => (
                   <button
                     key={user.id}
                     type="button"
@@ -2224,9 +2146,12 @@ function InfoSidebar({
                     onClick={async () => {
                       try {
                         await invoke('add_access', { userId: user.id, roomId })
-                        const updated = await invoke<any[]>('list_accesses', {
-                          roomId,
-                        })
+                        const updated = await invoke<RoomAccess[]>(
+                          'list_accesses',
+                          {
+                            roomId,
+                          }
+                        )
                         setRoomAccesses(updated)
                       } catch {
                         /* ignore */
@@ -2243,7 +2168,7 @@ function InfoSidebar({
                 ))}
               </div>
             )}
-            {roomAccesses.map((access: any) => (
+            {roomAccesses.map((access) => (
               <div key={access.id} className="member-row">
                 <div className="member-info">
                   <span>{access.user.full_name || access.user.email}</span>
@@ -2258,7 +2183,7 @@ function InfoSidebar({
                       try {
                         await invoke('remove_access', { accessId: access.id })
                         setRoomAccesses((prev) =>
-                          prev.filter((a: any) => a.id !== access.id)
+                          prev.filter((a) => a.id !== access.id)
                         )
                       } catch {
                         /* ignore */
@@ -3920,7 +3845,11 @@ function SettingsView({
   return (
     <div className="settings-page">
       <div className="settings-page-header">
-        <button className="settings-back-btn" onClick={onClose}>
+        <button
+          className="settings-back-btn"
+          data-testid="settings-close-button"
+          onClick={onClose}
+        >
           <RiArrowLeftSLine size={22} />
         </button>
         <span>{t('settings')}</span>
@@ -4212,6 +4141,7 @@ function PreJoinScreen({
     setSelectedAudioInput: setSelectedInput,
     setSelectedAudioOutput: setSelectedOutput,
     setSelectedVideoInput: setSelectedCamera,
+    enumerate,
   } = devices
   const [micLevel, setMicLevel] = useState(0)
   const [showFilters, setShowFilters] = useState(false)
@@ -4252,7 +4182,7 @@ function PreJoinScreen({
       .catch(() => {})
 
     // Load device lists via unified hook
-    devices.enumerate()
+    enumerate()
 
     // Subscribe to video frame events
     listen<{ track_sid: string; data: string; width: number; height: number }>(
@@ -4277,7 +4207,7 @@ function PreJoinScreen({
         invoke('stop_mic_preview').catch(() => {})
       }
     }
-  }, [])
+  }, [enumerate])
 
   // ---- Effect: camera on/off ----------------------------------------------
   useEffect(() => {
@@ -4721,7 +4651,11 @@ function PreJoinScreen({
         <button className="btn btn-secondary" onClick={onCancel}>
           {t('prejoin.cancel')}
         </button>
-        <button className="btn btn-primary" onClick={handleJoinNow}>
+        <button
+          className="btn btn-primary"
+          data-testid="prejoin-join-button"
+          onClick={handleJoinNow}
+        >
           {t('prejoin.joinNow')}
         </button>
       </div>
@@ -4835,6 +4769,8 @@ export default function App() {
   // Deep link
   const [deepLinkUrl, setDeepLinkUrl] = useState<string | null>(null)
   const [deepLinkError, setDeepLinkError] = useState<string | null>(null)
+  // Stable callback so HomeView effects can depend on it
+  const handleDeepLinkConsumed = useCallback(() => setDeepLinkUrl(null), [])
   // Meeting URL (set on join, used in info panel)
   const [currentMeetUrl, setCurrentMeetUrl] = useState('')
   const [currentRoomId, setCurrentRoomId] = useState<string | null>(null)
@@ -4853,10 +4789,14 @@ export default function App() {
   const [emailFromOidc, setEmailFromOidc] = useState('')
   const [authenticatedMeetInstance, setAuthenticatedMeetInstance] = useState('')
   const [meetInstances, setMeetInstances] = useState<string[]>([])
-  const [pendingOidcInstance, setPendingOidcInstance] = useState<string | null>(
-    null
-  )
   const pendingOidcRef = useRef<string | null>(null)
+  // One-shot action run once the OIDC flow settles — after a successful code
+  // exchange, or after a launch/exchange failure so the UI recovers (e.g.
+  // HomeView re-validating a room that required authentication).
+  const postAuthActionRef = useRef<(() => void) | null>(null)
+  const registerPostAuthAction = useCallback((fn: (() => void) | null) => {
+    postAuthActionRef.current = fn
+  }, [])
   const [bandwidthMode, setBandwidthMode] = useState<string>('full')
   const settingsRef = useRef<Settings | null>(null)
 
@@ -4925,7 +4865,6 @@ export default function App() {
           const meetInstance = pendingOidcRef.current
           if (code && stateParam && meetInstance) {
             pendingOidcRef.current = null
-            setPendingOidcInstance(null)
             invoke<{
               display_name?: string
               email?: string
@@ -4954,9 +4893,13 @@ export default function App() {
                     }
                   })
                   .catch(() => {})
+                postAuthActionRef.current?.()
               })
               .catch((e) => {
                 console.error('PKCE code exchange failed:', e)
+                // Recover from the "authenticating" state: the registered
+                // action re-validates the room back to auth_required.
+                postAuthActionRef.current?.()
               })
           }
           return
@@ -5019,6 +4962,10 @@ export default function App() {
     return () => {
       unlisten.then((fn) => fn())
     }
+    // Listener global enregistré une fois ; relire displayName/t à chaque
+    // frappe forcerait un ré-abonnement permanent pour un cas d'usage rare
+    // (deep link).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   // Auto-connect listener (CLI args: --livekit-url <url> --token <token>)
@@ -5048,7 +4995,9 @@ export default function App() {
             setTimeout(async () => {
               try {
                 await invoke('send_chat', { text: msg.text })
-              } catch {}
+              } catch {
+                // best-effort: un échec ne doit pas casser le scénario/handler clavier
+              }
             }, msg.delay)
           }
 
@@ -5059,7 +5008,9 @@ export default function App() {
               await invoke('toggle_mic', { enabled: false })
               await invoke('toggle_camera', { enabled: false })
               console.log("[TURN] Desktop muted (bot's turn)")
-            } catch {}
+            } catch {
+              // best-effort: un échec ne doit pas casser le scénario/handler clavier
+            }
           }, 5000)
           // 25s: unmute — Desktop's turn to speak
           setTimeout(async () => {
@@ -5067,7 +5018,9 @@ export default function App() {
               await invoke('toggle_mic', { enabled: true })
               await invoke('toggle_camera', { enabled: true })
               console.log('[TURN] Desktop speaking')
-            } catch {}
+            } catch {
+              // best-effort: un échec ne doit pas casser le scénario/handler clavier
+            }
           }, 25000)
           // 50s: mute — Android's turn
           setTimeout(async () => {
@@ -5075,7 +5028,9 @@ export default function App() {
               await invoke('toggle_mic', { enabled: false })
               await invoke('toggle_camera', { enabled: false })
               console.log("[TURN] Desktop muted (Android's turn)")
-            } catch {}
+            } catch {
+              // best-effort: un échec ne doit pas casser le scénario/handler clavier
+            }
           }, 50000)
           // 100s: unmute — everyone speaks
           setTimeout(async () => {
@@ -5083,7 +5038,9 @@ export default function App() {
               await invoke('toggle_mic', { enabled: true })
               await invoke('toggle_camera', { enabled: true })
               console.log('[TURN] Desktop unmuted (all speak)')
-            } catch {}
+            } catch {
+              // best-effort: un échec ne doit pas casser le scénario/handler clavier
+            }
           }, 100000)
 
           // Auto screen share during Desktop's turn (30-48s)
@@ -5451,7 +5408,9 @@ export default function App() {
         setMicEnabled(true)
         try {
           await invoke('toggle_mic', { enabled: true })
-        } catch {}
+        } catch {
+          // best-effort: un échec ne doit pas casser le scénario/handler clavier
+        }
       }
     }
     const handleKeyUp = async (e: KeyboardEvent) => {
@@ -5461,7 +5420,9 @@ export default function App() {
         setMicEnabled(false)
         try {
           await invoke('toggle_mic', { enabled: false })
-        } catch {}
+        } catch {
+          // best-effort: un échec ne doit pas casser le scénario/handler clavier
+        }
       }
     }
     window.addEventListener('keydown', handleKeyDown)
@@ -5594,7 +5555,7 @@ export default function App() {
               displayName={displayName}
               onDisplayNameChange={setDisplayName}
               deepLinkUrl={deepLinkUrl}
-              onDeepLinkConsumed={() => setDeepLinkUrl(null)}
+              onDeepLinkConsumed={handleDeepLinkConsumed}
               oidcEnabled={oidcEnabled}
               isAuthenticated={isAuthenticated}
               authenticatedMeetInstance={authenticatedMeetInstance}
@@ -5602,15 +5563,17 @@ export default function App() {
               emailFromOidc={emailFromOidc}
               onLaunchOidc={async (meetInstance: string) => {
                 try {
-                  setPendingOidcInstance(meetInstance)
                   pendingOidcRef.current = meetInstance
                   await invoke('launch_oidc_browser', { meetInstance })
                 } catch (e) {
                   console.error('Failed to open browser for OIDC:', e)
-                  setPendingOidcInstance(null)
                   pendingOidcRef.current = null
+                  // Recover from the "authenticating" state: the registered
+                  // action re-validates the room back to auth_required.
+                  postAuthActionRef.current?.()
                 }
               }}
+              registerPostAuthAction={registerPostAuthAction}
               meetInstances={meetInstances}
               onLogout={() => {
                 if (authenticatedMeetInstance) {
@@ -5734,12 +5697,12 @@ export default function App() {
             onCancel={async () => {
               try {
                 await invoke('cancel_lobby')
-              } catch (_) {
+              } catch {
                 /* ignore */
               }
               try {
                 await invoke('disconnect')
-              } catch (_) {
+              } catch {
                 /* ignore */
               }
               setConnectionState('disconnected')

@@ -1,6 +1,7 @@
 [general]
 contrib=contrib-title-conventional-commits
 regex-style-search=true
+ignore=B6
 
 [title-max-length]
 line-length=72

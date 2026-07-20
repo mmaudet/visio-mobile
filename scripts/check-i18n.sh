@@ -18,6 +18,26 @@ for key in sorted(data.keys()):
 ")
 
 MISSING=0
+
+# Check that all literal t('...') keys used in the desktop frontend exist
+FRONTEND_SRC="$REPO_ROOT/crates/visio-desktop/frontend/src"
+USED_KEYS=$(FRONTEND_SRC="$FRONTEND_SRC" python3 <<'PYEOF'
+import os, re, pathlib
+src = pathlib.Path(os.environ["FRONTEND_SRC"])
+keys = set()
+for f in list(src.rglob("*.ts")) + list(src.rglob("*.tsx")):
+    keys.update(re.findall(r"(?<![A-Za-z0-9_])t\('([A-Za-z0-9_.]+)'", f.read_text()))
+for k in sorted(keys):
+    print(k)
+PYEOF
+)
+MISSING_USED=$(comm -23 <(echo "$USED_KEYS") <(echo "$SOURCE_KEYS"))
+if [ -n "$MISSING_USED" ]; then
+    echo "USED in frontend but MISSING in en.json:"
+    echo "$MISSING_USED" | sed 's/^/  - /'
+    MISSING=1
+fi
+
 for locale_file in "$I18N_DIR"/*.json; do
     locale=$(basename "$locale_file" .json)
     [ "$locale" = "en" ] && continue
