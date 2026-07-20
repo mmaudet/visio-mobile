@@ -231,6 +231,11 @@ const SUPPORTED_LANGS = Object.keys(translations)
 
 const SLUG_REGEX = /^[a-z]{3}-[a-z]{4}-[a-z]{3}$/
 
+// How long the desktop waits for the visio://auth-callback deep link after
+// opening the browser before surfacing an error (instances without PKCE
+// support never redirect back).
+const OIDC_CALLBACK_TIMEOUT_MS = 120_000
+
 function extractSlug(input: string): string | null {
   const trimmed = input.trim().replace(/\/$/, '')
   const candidate = trimmed.includes('/')
@@ -831,6 +836,7 @@ function HomeView({
   authenticatedMeetInstance,
   displayNameFromOidc,
   emailFromOidc,
+  authError,
   onLaunchOidc,
   onLogout,
   meetInstances,
@@ -854,6 +860,7 @@ function HomeView({
   authenticatedMeetInstance: string
   displayNameFromOidc: string
   emailFromOidc: string
+  authError: string | null
   onLaunchOidc: (meetInstance: string) => void
   onLogout: () => void
   meetInstances: string[]
@@ -1413,6 +1420,11 @@ function HomeView({
               </button>
             )}
             <div className="error-msg">{error}</div>
+            {authError && (
+              <div className="error-msg" data-testid="home-auth-error">
+                {t(authError)}
+              </div>
+            )}
             {visioHistory.length > 0 && (
               <div className="room-history">
                 <h4>{t('home.recentRooms')}</h4>
@@ -4902,6 +4914,9 @@ export default function App() {
   const [authenticatedMeetInstance, setAuthenticatedMeetInstance] = useState('')
   const [meetInstances, setMeetInstances] = useState<string[]>([])
   const pendingOidcRef = useRef<string | null>(null)
+  // Error key shown when the OIDC callback never arrives (watchdog timeout).
+  const [authError, setAuthError] = useState<string | null>(null)
+  const oidcTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   // One-shot action run once the OIDC flow settles — after a successful code
   // exchange, or after a launch/exchange failure so the UI recovers (e.g.
   // HomeView re-validating a room that required authentication).
@@ -4977,6 +4992,11 @@ export default function App() {
           const meetInstance = pendingOidcRef.current
           if (code && stateParam && meetInstance) {
             pendingOidcRef.current = null
+            if (oidcTimeoutRef.current) {
+              clearTimeout(oidcTimeoutRef.current)
+              oidcTimeoutRef.current = null
+            }
+            setAuthError(null)
             invoke<{
               display_name?: string
               email?: string
@@ -5673,10 +5693,26 @@ export default function App() {
               authenticatedMeetInstance={authenticatedMeetInstance}
               displayNameFromOidc={displayNameFromOidc}
               emailFromOidc={emailFromOidc}
+              authError={authError}
               onLaunchOidc={async (meetInstance: string) => {
                 try {
                   pendingOidcRef.current = meetInstance
+                  setAuthError(null)
                   await invoke('launch_oidc_browser', { meetInstance })
+                  // Watchdog: if no auth-callback deep link arrives in time
+                  // (e.g. an instance without PKCE support, which never
+                  // redirects back), stop waiting and tell the user instead
+                  // of hanging on "Authenticating…" forever.
+                  const timeoutOverride = (
+                    window as unknown as { __OIDC_TIMEOUT_MS?: number }
+                  ).__OIDC_TIMEOUT_MS
+                  oidcTimeoutRef.current = setTimeout(() => {
+                    if (pendingOidcRef.current) {
+                      pendingOidcRef.current = null
+                      setAuthError('home.authTimeout')
+                      postAuthActionRef.current?.()
+                    }
+                  }, timeoutOverride ?? OIDC_CALLBACK_TIMEOUT_MS)
                 } catch (e) {
                   console.error('Failed to open browser for OIDC:', e)
                   pendingOidcRef.current = null

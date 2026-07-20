@@ -82,6 +82,9 @@ and this project adheres to
 - Desktop: explicit type="button" on all buttons (SonarCloud S9011)
 - Desktop: reduced function nesting in search/access handlers
   (SonarCloud S2004)
+- Desktop: OIDC sign-in now shows a clear error after a 2-minute
+  timeout instead of waiting forever when the Meet instance does not
+  support the PKCE mobile flow (no deployed instance has it yet)
 
 ## [0.10.0] - 2026-06-04
 

@@ -14,6 +14,7 @@
   "home.room.authRequired": "Authenticatie vereist",
   "home.room.authenticating": "Authenticeren...",
   "home.signIn": "Inloggen",
+  "home.authTimeout": "Geen antwoord van de server — deze instantie ondersteunt mobiel inloggen mogelijk nog niet. Probeer het opnieuw.",
   "action.close": "Sluiten",
   "action.back": "Terug",
   "action.remove": "Verwijderen",

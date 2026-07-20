@@ -120,4 +120,23 @@ test.describe('Join flow requiring OIDC authentication', () => {
     // instead of staying stuck on "Authenticating…" forever.
     await expect(signInButton(page)).toBeVisible();
   });
+
+  test('shows an error and recovers when the OIDC callback never arrives', async ({
+    page,
+  }) => {
+    // Shorten the app-side callback timeout for the test (the production
+    // value is 120 s — the app honors this test hook).
+    await page.evaluate(() => {
+      (window as any).__OIDC_TIMEOUT_MS = 500;
+    });
+    await signInButton(page).click();
+
+    // No deep link ever arrives (e.g. an instance without PKCE support):
+    // the app must surface an error and offer sign-in again instead of
+    // waiting silently forever.
+    await expect(page.getByTestId('home-auth-error')).toBeVisible({
+      timeout: 5000,
+    });
+    await expect(signInButton(page)).toBeVisible();
+  });
 });
