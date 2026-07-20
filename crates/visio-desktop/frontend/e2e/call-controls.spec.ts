@@ -1,5 +1,11 @@
-import { test, expect } from '@playwright/test';
-import { joinMockRoom } from './tauri-mock';
+import { test, expect, type Page } from '@playwright/test';
+import { getInvokeLog, joinMockRoom } from './tauri-mock';
+
+/** Last recorded args of a command, or undefined if it was never called. */
+async function lastInvokeArgs(page: Page, cmd: string) {
+  const log = (await getInvokeLog(page)).filter((e) => e.cmd === cmd);
+  return log.at(-1)?.args;
+}
 
 test.describe('Call Controls', () => {
   test.beforeEach(async ({ page }) => {
@@ -20,35 +26,49 @@ test.describe('Call Controls', () => {
   });
 
   test('can toggle microphone', async ({ page }) => {
+    // Mic is enabled when the call starts (joinMockRoom joins with mic on).
     const micBtn = page.getByTestId('call-mic-button');
     await micBtn.click(); // mute
+    await expect
+      .poll(async () => (await lastInvokeArgs(page, 'toggle_mic'))?.enabled)
+      .toBe(false);
     await micBtn.click(); // unmute
-    // Should not crash
-    await expect(micBtn).toBeVisible();
+    await expect
+      .poll(async () => (await lastInvokeArgs(page, 'toggle_mic'))?.enabled)
+      .toBe(true);
   });
 
   test('can toggle camera', async ({ page }) => {
     const camBtn = page.getByTestId('call-camera-button');
     await camBtn.click(); // off
+    await expect
+      .poll(async () => (await lastInvokeArgs(page, 'toggle_camera'))?.enabled)
+      .toBe(false);
     await camBtn.click(); // on
-    await expect(camBtn).toBeVisible();
+    await expect
+      .poll(async () => (await lastInvokeArgs(page, 'toggle_camera'))?.enabled)
+      .toBe(true);
   });
 
-  test('can toggle hand raise via overflow menu', async ({ page }) => {
-    // Hand raise is inside the overflow menu, toggled by the "More" button.
-    // The "More" button has no data-testid, so locate it by its class and position.
-    const overflowTrigger = page.locator('.control-bar .control-btn:not([data-testid])').first();
-    await overflowTrigger.click();
-
-    // The overflow menu should now be visible with the hand raise button
+  test('can toggle hand raise from the control bar', async ({ page }) => {
+    // The redesign has no overflow menu: hand raise is a first-class button
+    // directly in the call bar.
     const handBtn = page.getByTestId('call-hand-raise-button');
     await expect(handBtn).toBeVisible();
-    await handBtn.click(); // raise hand (this also closes the overflow)
 
-    // Re-open overflow to lower hand
-    await overflowTrigger.click();
-    await expect(handBtn).toBeVisible();
+    await handBtn.click(); // raise hand
+    await expect
+      .poll(async () =>
+        (await getInvokeLog(page)).some((e) => e.cmd === 'raise_hand'),
+      )
+      .toBe(true);
+
     await handBtn.click(); // lower hand
+    await expect
+      .poll(async () =>
+        (await getInvokeLog(page)).some((e) => e.cmd === 'lower_hand'),
+      )
+      .toBe(true);
   });
 
   test('participant grid is visible', async ({ page }) => {

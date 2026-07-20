@@ -183,6 +183,14 @@ jobs:
           openssl pkey -in "$RUNNER_TEMP/asc/AuthKey.p8" -noout
           echo "ASC API key .p8 is valid PEM private key"
 
+      # Smoke-check the no-OIDC (anonymous-only) build variant. Linux only
+      # because that's the cheapest runner; this guards the feature flag from
+      # bit-rotting without extending the full release matrix.
+      - name: Cargo check --no-default-features (no-OIDC smoke)
+        if: matrix.platform == 'linux'
+        working-directory: crates/visio-desktop
+        run: cargo check --no-default-features
+
       - name: Build Tauri app (Linux with PipeWire)
         if: matrix.platform == 'linux'
         working-directory: crates/visio-desktop

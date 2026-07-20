@@ -42,6 +42,8 @@ export interface MockCallState {
   oidcLaunchFails?: boolean;
   /** When true, exchange_pkce_code rejects (e.g. expired or invalid code) */
   oidcExchangeFails?: boolean;
+  /** Instances returned by get_meet_instances (deep links to unknown hosts are rejected) */
+  meetInstances?: string[];
 }
 
 const defaultState: MockCallState = {
@@ -227,6 +229,14 @@ export async function mockTauriCall(
             return state.videoInputDevices;
           case 'list_screen_sources':
             return state.screenSources;
+          case 'has_screen_recording_permission':
+            return true;
+          case 'request_screen_recording_permission':
+            return true;
+          case 'open_screen_recording_settings':
+            return;
+          case 'restart_app':
+            return;
           case 'toggle_mic':
             micEnabled = args?.enabled ?? !micEnabled;
             return;
@@ -294,7 +304,7 @@ export async function mockTauriCall(
           case 'set_settings':
             return;
           case 'get_meet_instances':
-            return [];
+            return state.meetInstances ?? [];
           case 'get_session_state':
             return { state: 'unauthenticated' };
           case 'get_visio_history':
@@ -368,7 +378,23 @@ export async function mockTauriCall(
 }
 
 /**
- * Navigate to home and join a room (triggering CallView with mock).
+ * Read the recorded invoke() calls (most specs assert backend wiring through
+ * this, e.g. that picking a device really called select_audio_input).
+ */
+export async function getInvokeLog(
+  page: Page,
+): Promise<Array<{ cmd: string; args: any }>> {
+  return page.evaluate(() => (window as any).__invokeLog);
+}
+
+/**
+ * Navigate to home and join a room through the redesign flow:
+ * HomeScreen (join card) → LobbyScreen (prejoin-join-button) → CallScreen.
+ *
+ * There is intentionally NO display-name fill step: neither HomeScreen nor
+ * LobbyScreen renders a name input in the redesign. The lobby takes the name
+ * from settings (`get_settings.display_name`, "Test User" in this mock) and
+ * passes it to `set_display_name`/`connect` on join.
  */
 export async function joinMockRoom(
   page: Page,
@@ -381,21 +407,18 @@ export async function joinMockRoom(
   const urlInput = page.getByTestId('home-room-url-input');
   await urlInput.fill('https://meet.example.com/abc-defg-hij');
 
-  // Wait for room validation (the mock returns "valid" after 500ms debounce)
   await page.getByTestId('home-join-button').waitFor({ state: 'attached', timeout: 5000 });
 
-  // Wait until the button is enabled (room status becomes "valid")
+  // Wait until the debounced (450ms) validation has marked the room "valid"
+  // — while "checking"/"not_found" the redesign disables the join button.
   await page.waitForFunction(() => {
     const btn = document.querySelector('[data-testid="home-join-button"]') as HTMLButtonElement;
     return btn && !btn.disabled;
   }, undefined, { timeout: 5000 });
 
-  const nameInput = page.getByTestId('home-display-name-input');
-  await nameInput.fill('Test User');
-
   await page.getByTestId('home-join-button').click();
 
-  // The app shows a pre-join (lobby) screen before entering the call
+  // The app shows the lobby (pre-join) screen before entering the call
   await page.getByTestId('prejoin-join-button').click();
 
   // Wait for call view to render

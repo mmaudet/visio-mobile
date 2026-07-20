@@ -1,5 +1,10 @@
 #!/bin/bash
 set -euo pipefail
+# comm(1) expects input sorted in the current locale's collation, but the
+# key lists are produced by Python's codepoint sort. Pin C collation so the
+# comparison is byte-wise and matches Python under any user locale (e.g.
+# fr_FR.UTF-8 orders "authenticating" before "authRequired" and breaks comm).
+export LC_ALL=C
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 I18N_DIR="$REPO_ROOT/i18n"
 SOURCE="$I18N_DIR/en.json"

@@ -39,6 +39,8 @@ and this project adheres to
 
 ### Changed
 
+- Desktop: complete UI redesign merged (4 modular screens, ui kit,
+  design tokens) replacing the legacy single-file screens
 - CI: Android publish now goes through Play Store internal track only;
   the Firebase App Distribution channel and the per-run
   `build-N` GitHub prereleases are dropped
@@ -82,6 +84,13 @@ and this project adheres to
 - Desktop: explicit type="button" on all buttons (SonarCloud S9011)
 - Desktop: reduced function nesting in search/access handlers
   (SonarCloud S2004)
+- Desktop: port the "room requires authentication" join flow onto the
+  UI redesign (sign-in button on auth_required, OIDC browser launch,
+  post-auth room re-validation) and restore the visio:// deep-link
+  prefill of the join field
+- Desktop: OIDC sign-in shows home.authTimeout after a 2-minute
+  watchdog instead of waiting forever when the instance never
+  redirects to visio://auth-callback
 
 ## [0.10.0] - 2026-06-04
 
@@ -116,6 +125,16 @@ and this project adheres to
 
 ### Fixed
 
+- Desktop (macOS): screen sharing now recovers from the "empty
+  Settings list" loop. When `CGPreflightScreenCaptureAccess()`
+  reports no permission, the app now calls
+  `CGRequestScreenCaptureAccess()` before its restart modal so
+  macOS creates the TCC entry tied to the current binary's cdhash.
+  Previously, on a fresh install or after a code-signing identity
+  change, the System Settings → Screen Recording list was empty
+  and the user had no toggle to flip. The app appeared installed,
+  the modal said "enable in Settings", and Settings showed nothing
+  to enable.
 - Core: `scheme_for` now parses bare hosts via `IpAddr` so
   `10.attacker.com` no longer downgrades to plaintext HTTP, and
   IPv6 literals (`::1`, `[::1]:8080`) are handled correctly

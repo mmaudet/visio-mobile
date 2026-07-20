@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { joinMockRoom } from './tauri-mock';
+import { getInvokeLog, joinMockRoom } from './tauri-mock';
 
 test.describe('Chat', () => {
   test.beforeEach(async ({ page }) => {
@@ -26,31 +26,43 @@ test.describe('Chat', () => {
 
     // Input should be cleared after send
     await expect(input).toHaveValue('');
+    // The text is handed to the backend and the message list (refreshed by
+    // the 1s poll) ends up showing our own bubble.
+    await expect
+      .poll(async () =>
+        (await getInvokeLog(page)).some(
+          (e) =>
+            e.cmd === 'send_chat' && e.args?.text === 'Hello from Playwright',
+        ),
+      )
+      .toBe(true);
+    await expect(page.getByText('Hello from Playwright')).toBeVisible();
+    await expect(page.getByTestId('chat-empty')).not.toBeVisible();
   });
 
-  test('send button is disabled when input is empty', async ({ page }) => {
-    await page.getByTestId('call-chat-button').click();
-
-    const sendBtn = page.getByTestId('chat-send-button');
-    const input = page.getByTestId('chat-message-input');
-
-    // Empty input
-    await expect(input).toHaveValue('');
-    // Send button should be disabled
-    await expect(sendBtn).toBeDisabled();
-  });
-
-  test('send button becomes enabled when text is entered', async ({
+  test('clicking send with an empty or blank input sends nothing', async ({
     page,
   }) => {
+    // The redesign's send button is never disabled: the guard lives in the
+    // submit handler (blank drafts are dropped). Verify the guard holds.
     await page.getByTestId('call-chat-button').click();
 
-    const sendBtn = page.getByTestId('chat-send-button');
-    const input = page.getByTestId('chat-message-input');
+    await page.getByTestId('chat-send-button').click();
+    // Extra round-trip time to let any (erroneous) send fire.
+    await page.waitForTimeout(300);
+    expect(
+      (await getInvokeLog(page)).some((e) => e.cmd === 'send_chat'),
+    ).toBe(false);
 
-    await expect(sendBtn).toBeDisabled();
-    await input.fill('Hello');
-    await expect(sendBtn).toBeEnabled();
+    // Whitespace-only drafts are trimmed away and must not send either.
+    const input = page.getByTestId('chat-message-input');
+    await input.fill('   ');
+    await page.getByTestId('chat-send-button').click();
+    await page.waitForTimeout(300);
+    expect(
+      (await getInvokeLog(page)).some((e) => e.cmd === 'send_chat'),
+    ).toBe(false);
+    await expect(page.getByTestId('chat-empty')).toBeVisible();
   });
 
   test('can close chat sidebar', async ({ page }) => {
@@ -70,6 +82,13 @@ test.describe('Chat', () => {
 
     // Input should be cleared after send
     await expect(input).toHaveValue('');
+    await expect
+      .poll(async () =>
+        (await getInvokeLog(page)).some(
+          (e) => e.cmd === 'send_chat' && e.args?.text === 'Hello via Enter',
+        ),
+      )
+      .toBe(true);
   });
 
   test('chat message list is visible', async ({ page }) => {

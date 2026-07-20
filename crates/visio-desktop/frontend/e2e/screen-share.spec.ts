@@ -46,15 +46,15 @@ test.describe('Screen Share', () => {
 
   test('can close source picker by clicking overlay', async ({ page }) => {
     await page.getByTestId('call-screen-share-button').click();
-    await expect(
-      page.getByTestId('screen-share-source-picker'),
-    ).toBeVisible();
+    const picker = page.getByTestId('screen-share-source-picker');
+    await expect(picker).toBeVisible();
 
-    // Click on the overlay (outside the modal)
-    await page.locator('.modal-overlay').click({ position: { x: 5, y: 5 } });
+    // The redesign's overlay has no .modal-overlay class: it is the picker's
+    // full-screen parent div, whose onClick closes the picker (the modal
+    // content stops propagation). Click a top-left corner of it.
+    const overlay = picker.locator('..');
+    await overlay.click({ position: { x: 5, y: 5 } });
 
-    await expect(
-      page.getByTestId('screen-share-source-picker'),
-    ).not.toBeVisible();
+    await expect(picker).not.toBeVisible();
   });
 });
