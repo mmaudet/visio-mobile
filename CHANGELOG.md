@@ -79,6 +79,9 @@ and this project adheres to
 - E2E: Playwright suite repaired (mock crash, pre-join traversal,
   stale selectors) and now enforced by a CI job
 - Desktop: dead code removal and zero-eslint-warning cleanup
+- Desktop: explicit type="button" on all buttons (SonarCloud S9011)
+- Desktop: reduced function nesting in search/access handlers
+  (SonarCloud S2004)
 
 ## [0.10.0] - 2026-06-04
 
