@@ -5,7 +5,7 @@ import { IconBtn } from '../components/ui/IconBtn'
 import { Tag } from '../components/ui/Tag'
 import { Avatar } from '../components/ui/Avatar'
 import { VisioMark } from '../components/ui/VisioMark'
-import { useConfirm } from '../components/ui/ConfirmProvider'
+import { useConfirm } from '../components/ui/useConfirm'
 import type { Participant, ChatMessage, ScreenSource } from '../types'
 import type {
   NativeAudioDevice,
@@ -56,7 +56,6 @@ export interface CallScreenProps {
   showMicPicker: boolean
   showCamPicker: boolean
   onClosePickers: () => void
-  onOpenSettings: () => void
   bgMode: string
   bgImages: BgImage[]
   onSetBgMode: (mode: string) => void
@@ -999,7 +998,6 @@ interface AudioPickerProps {
   selectedOutput: string
   onPickInput: (name: string) => void
   onPickOutput: (name: string) => void
-  onOpenSettings: () => void
   onClose: () => void
 }
 function AudioPicker({
@@ -1010,7 +1008,6 @@ function AudioPicker({
   selectedOutput,
   onPickInput,
   onPickOutput,
-  onOpenSettings,
   onClose,
 }: AudioPickerProps) {
   return (
@@ -1055,7 +1052,6 @@ interface VideoPickerProps {
   bgImages: BgImage[]
   onPickInput: (uniqueId: string) => void
   onSetBgMode: (mode: string) => void
-  onOpenSettings: () => void
   onClose: () => void
 }
 function VideoPicker({
@@ -1066,7 +1062,6 @@ function VideoPicker({
   bgImages,
   onPickInput,
   onSetBgMode,
-  onOpenSettings,
   onClose,
 }: VideoPickerProps) {
   return (
@@ -1411,46 +1406,6 @@ function Empty({ label }: { label: string }) {
     </div>
   )
 }
-function Divider() {
-  return (
-    <hr
-      style={{
-        border: 'none',
-        borderTop: '1px solid rgba(255,255,255,0.08)',
-        margin: '6px 4px',
-      }}
-    />
-  )
-}
-function FooterLink({
-  label,
-  onClick,
-}: {
-  label: string
-  onClick: () => void
-}) {
-  return (
-    <button
-      onClick={onClick}
-      style={{
-        display: 'block',
-        width: '100%',
-        padding: '8px 10px',
-        border: 'none',
-        background: 'transparent',
-        color: 'var(--accent)',
-        fontFamily: 'var(--font-ui)',
-        fontSize: 13,
-        fontWeight: 600,
-        cursor: 'pointer',
-        borderRadius: 8,
-        textAlign: 'left',
-      }}
-    >
-      {label}
-    </button>
-  )
-}
 
 // ---------------------------------------------------------------------------
 // CallScreen — main composition
@@ -1492,7 +1447,6 @@ export function CallScreen(props: CallScreenProps) {
     showMicPicker,
     showCamPicker,
     onClosePickers,
-    onOpenSettings,
     bgMode,
     bgImages,
     onSetBgMode,
@@ -1964,10 +1918,6 @@ export function CallScreen(props: CallScreenProps) {
                   onSelectAudioOutput(n)
                   onClosePickers()
                 }}
-                onOpenSettings={() => {
-                  onClosePickers()
-                  onOpenSettings()
-                }}
                 onClose={onClosePickers}
               />
             )}
@@ -1998,10 +1948,6 @@ export function CallScreen(props: CallScreenProps) {
                   onSetBgMode(m)
                   // Don't close the picker — users routinely cycle through
                   // a few backgrounds before settling on one.
-                }}
-                onOpenSettings={() => {
-                  onClosePickers()
-                  onOpenSettings()
                 }}
                 onClose={onClosePickers}
               />

@@ -12,7 +12,7 @@ import { Button } from '../components/ui/Button'
 import { Tag } from '../components/ui/Tag'
 import { Row } from '../components/ui/Row'
 import { Toggle } from '../components/ui/Toggle'
-import { useConfirm } from '../components/ui/ConfirmProvider'
+import { useConfirm } from '../components/ui/useConfirm'
 import type { ThemeChoice } from '../types'
 import type {
   NativeAudioDevice,
@@ -37,7 +37,6 @@ export interface SettingsScreenProps {
   displayName: string
   email: string
   isAuthenticated: boolean
-  oidcEnabled: boolean
   onChangeDisplayName: (name: string) => void
   // Theme
   theme: ThemeChoice
@@ -352,7 +351,6 @@ export function SettingsScreen({
   displayName,
   email,
   isAuthenticated,
-  oidcEnabled,
   onChangeDisplayName,
   theme,
   onChangeTheme,

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { useConfirm } from './components/ui/ConfirmProvider'
+import { useConfirm } from './components/ui/useConfirm'
 import { invoke } from '@tauri-apps/api/core'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import { resolveResource } from '@tauri-apps/api/path'
@@ -78,6 +78,14 @@ interface Meeting {
   room_url: string
   deep_link: string
   server_name: string
+}
+
+// Mirrors visio-core's UserSearchResult (serde serializes None → null).
+interface UserSearchResult {
+  id: string
+  email: string
+  full_name: string | null
+  short_name: string | null
 }
 
 import en from '../../../../i18n/en.json'
@@ -168,9 +176,8 @@ function CreateRoomDialog({
   const [copiedHttp, setCopiedHttp] = useState(false)
   const [copiedDeep, setCopiedDeep] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
-  const [searchResults, setSearchResults] = useState<any[]>([])
-  const [invitedUsers, setInvitedUsers] = useState<any[]>([])
-  const [searching, setSearching] = useState(false)
+  const [searchResults, setSearchResults] = useState<UserSearchResult[]>([])
+  const [invitedUsers, setInvitedUsers] = useState<UserSearchResult[]>([])
   const [createdRoomId, setCreatedRoomId] = useState('')
   const [createdLivekitUrl, setCreatedLivekitUrl] = useState('')
   const [createdLivekitToken, setCreatedLivekitToken] = useState('')
@@ -187,20 +194,16 @@ function CreateRoomDialog({
       return
     }
     const timer = setTimeout(async () => {
-      setSearching(true)
       try {
-        const results = await invoke<any[]>('search_users', {
+        const results = await invoke<UserSearchResult[]>('search_users', {
           query: searchQuery,
         })
         setSearchResults(
-          results.filter(
-            (u: any) => !invitedUsers.some((inv: any) => inv.id === u.id)
-          )
+          results.filter((u) => !invitedUsers.some((inv) => inv.id === u.id))
         )
       } catch {
         setSearchResults([])
       }
-      setSearching(false)
     }, 300)
     return () => clearTimeout(timer)
   }, [searchQuery, invitedUsers])
@@ -394,7 +397,7 @@ function CreateRoomDialog({
                   />
                   {searchResults.length > 0 && (
                     <div className="search-dropdown">
-                      {searchResults.map((user: any) => (
+                      {searchResults.map((user) => (
                         <button
                           key={user.id}
                           type="button"
@@ -415,16 +418,14 @@ function CreateRoomDialog({
                   )}
                   {invitedUsers.length > 0 && (
                     <div className="invited-chips">
-                      {invitedUsers.map((user: any) => (
+                      {invitedUsers.map((user) => (
                         <span key={user.id} className="user-chip">
                           {user.full_name || user.email}
                           <button
                             className="chip-remove"
                             onClick={() =>
                               setInvitedUsers(
-                                invitedUsers.filter(
-                                  (u: any) => u.id !== user.id
-                                )
+                                invitedUsers.filter((u) => u.id !== user.id)
                               )
                             }
                           >
@@ -975,6 +976,10 @@ export default function App() {
   }, [])
 
   // Deep link listener
+  // displayName is read via a ref so the listener stays registered once and
+  // isn't torn down/re-registered on every keystroke in the name field.
+  const displayNameRef = useRef(displayName)
+  displayNameRef.current = displayName
   useEffect(() => {
     const unlisten = onOpenUrl((urls: string[]) => {
       if (urls.length === 0) return
@@ -1005,7 +1010,7 @@ export default function App() {
                 setAuthenticatedMeetInstance(meetInstance)
                 setDisplayNameFromOidc(result.display_name || '')
                 setEmailFromOidc(result.email || '')
-                if (result.display_name && !displayName.trim()) {
+                if (result.display_name && !displayNameRef.current.trim()) {
                   setDisplayName(result.display_name)
                 }
                 invoke<string[]>('get_meet_instances')
@@ -1073,7 +1078,7 @@ export default function App() {
     return () => {
       unlisten.then((fn) => fn())
     }
-  }, [])
+  }, [t])
 
   // Auto-connect listener (CLI args: --livekit-url <url> --token <token>)
   // Backend retries emission multiple times; we ignore duplicates once connected.
@@ -1103,32 +1108,42 @@ export default function App() {
               setTimeout(async () => {
                 try {
                   await invoke('send_chat', { text: msg.text })
-                } catch {}
+                } catch {
+                  // E2E scaffolding — best effort.
+                }
               }, msg.delay)
             }
             setTimeout(async () => {
               try {
                 await invoke('toggle_mic', { enabled: false })
                 await invoke('toggle_camera', { enabled: false })
-              } catch {}
+              } catch {
+                // E2E scaffolding — best effort.
+              }
             }, 5000)
             setTimeout(async () => {
               try {
                 await invoke('toggle_mic', { enabled: true })
                 await invoke('toggle_camera', { enabled: true })
-              } catch {}
+              } catch {
+                // E2E scaffolding — best effort.
+              }
             }, 25000)
             setTimeout(async () => {
               try {
                 await invoke('toggle_mic', { enabled: false })
                 await invoke('toggle_camera', { enabled: false })
-              } catch {}
+              } catch {
+                // E2E scaffolding — best effort.
+              }
             }, 50000)
             setTimeout(async () => {
               try {
                 await invoke('toggle_mic', { enabled: true })
                 await invoke('toggle_camera', { enabled: true })
-              } catch {}
+              } catch {
+                // E2E scaffolding — best effort.
+              }
             }, 100000)
             setTimeout(async () => {
               try {
@@ -1142,10 +1157,14 @@ export default function App() {
                   setTimeout(async () => {
                     try {
                       await invoke('stop_screen_share')
-                    } catch {}
+                    } catch {
+                      // E2E scaffolding — best effort.
+                    }
                   }, 18000)
                 }
-              } catch {}
+              } catch {
+                // E2E scaffolding — best effort.
+              }
             }, 30000)
           }
         } catch (err) {
@@ -1248,6 +1267,21 @@ export default function App() {
   // killed the new carets on every click.
 
   // ---- Polling ------------------------------------------------------------
+  const resetCallState = useCallback(() => {
+    setMicEnabled(false)
+    setCamEnabled(false)
+    setMessages([])
+    setVideoFrames(new Map())
+    setShowParticipants(false)
+    setConnectionState('disconnected')
+    setIsHandRaised(false)
+    setUnreadCount(0)
+    setHandRaisedMap({})
+    setActiveSpeakers([])
+    setLocalParticipant(null)
+    setBandwidthMode('full')
+  }, [])
+
   const poll = useCallback(async () => {
     try {
       const state: string = await invoke('get_connection_state')
@@ -1286,7 +1320,7 @@ export default function App() {
     } catch (e) {
       console.error('poll error:', e)
     }
-  }, [])
+  }, [resetCallState])
 
   useEffect(() => {
     if (view === 'home' || view === 'lobby') return
@@ -1686,7 +1720,9 @@ export default function App() {
         setMicEnabled(true)
         try {
           await invoke('toggle_mic', { enabled: true })
-        } catch {}
+        } catch {
+          // Push-to-talk — best effort.
+        }
       }
     }
     const handleKeyUp = async (e: KeyboardEvent) => {
@@ -1696,7 +1732,9 @@ export default function App() {
         setMicEnabled(false)
         try {
           await invoke('toggle_mic', { enabled: false })
-        } catch {}
+        } catch {
+          // Push-to-talk — best effort.
+        }
       }
     }
     window.addEventListener('keydown', handleKeyDown)
@@ -1756,21 +1794,6 @@ export default function App() {
       setCamEnabled(!next)
     }
   }
-
-  const resetCallState = useCallback(() => {
-    setMicEnabled(false)
-    setCamEnabled(false)
-    setMessages([])
-    setVideoFrames(new Map())
-    setShowParticipants(false)
-    setConnectionState('disconnected')
-    setIsHandRaised(false)
-    setUnreadCount(0)
-    setHandRaisedMap({})
-    setActiveSpeakers([])
-    setLocalParticipant(null)
-    setBandwidthMode('full')
-  }, [])
 
   const handleHangUp = async () => {
     try {
@@ -2192,10 +2215,14 @@ export default function App() {
               onCancel={async () => {
                 try {
                   await invoke('cancel_lobby')
-                } catch {}
+                } catch {
+                  // Best-effort cleanup on cancel.
+                }
                 try {
                   await invoke('disconnect')
-                } catch {}
+                } catch {
+                  // Best-effort cleanup on cancel.
+                }
                 setConnectionState('disconnected')
                 setView('home')
               }}
@@ -2268,9 +2295,6 @@ export default function App() {
               setShowMicPicker(false)
               setShowCamPicker(false)
             }}
-            onOpenSettings={() => {
-              setView('settings')
-            }}
             bgMode={appBgMode}
             bgImages={bgImages}
             onSetBgMode={(mode) => {
@@ -2313,12 +2337,12 @@ export default function App() {
             onCancel={async () => {
               try {
                 await invoke('cancel_lobby')
-              } catch (_) {
+              } catch {
                 /* ignore */
               }
               try {
                 await invoke('disconnect')
-              } catch (_) {
+              } catch {
                 /* ignore */
               }
               setConnectionState('disconnected')
@@ -2372,7 +2396,6 @@ export default function App() {
               displayName={profileDisplayName(displayName, displayNameFromOidc)}
               email={emailFromOidc}
               isAuthenticated={isAuthenticated}
-              oidcEnabled={oidcEnabled}
               onChangeDisplayName={setDisplayName}
               theme={(theme as ThemeChoice) || 'system'}
               onChangeTheme={(next) => {

@@ -314,7 +314,7 @@ export function LobbyScreen({
         micPollRef.current = null
       }
     }
-  }, [isMicOn, audioMode])
+  }, [isMicOn, audioMode, t])
 
   // ---- Handlers -----------------------------------------------------------
   const handleSelectInput = useCallback(

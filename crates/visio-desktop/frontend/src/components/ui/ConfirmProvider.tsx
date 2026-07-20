@@ -1,24 +1,6 @@
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useRef,
-  useState,
-  type ReactNode,
-} from 'react'
+import { useCallback, useRef, useState, type ReactNode } from 'react'
 import { ConfirmModal } from './ConfirmModal'
-
-export interface ConfirmOptions {
-  title?: string
-  message: string
-  confirmLabel: string
-  cancelLabel: string
-  danger?: boolean
-}
-
-type ConfirmFn = (opts: ConfirmOptions) => Promise<boolean>
-
-const ConfirmContext = createContext<ConfirmFn | null>(null)
+import { ConfirmContext, type ConfirmOptions } from './useConfirm'
 
 interface PendingConfirm extends ConfirmOptions {
   resolve: (value: boolean) => void
@@ -29,7 +11,7 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
   const pendingRef = useRef<PendingConfirm | null>(null)
   pendingRef.current = pending
 
-  const confirm = useCallback<ConfirmFn>((opts) => {
+  const confirm = useCallback((opts: ConfirmOptions) => {
     return new Promise<boolean>((resolve) => {
       setPending({ ...opts, resolve })
     })
@@ -59,12 +41,4 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
       )}
     </ConfirmContext.Provider>
   )
-}
-
-export function useConfirm(): ConfirmFn {
-  const ctx = useContext(ConfirmContext)
-  if (!ctx) {
-    throw new Error('useConfirm must be used inside <ConfirmProvider>')
-  }
-  return ctx
 }
