@@ -14,6 +14,7 @@
   "home.room.authRequired": "Autenticación requerida",
   "home.room.authenticating": "Autenticando...",
   "home.signIn": "Iniciar sesión",
+  "home.authTimeout": "Sin respuesta del servidor: es posible que esta instancia aún no admita el inicio de sesión móvil. Inténtelo de nuevo.",
   "action.close": "Cerrar",
   "action.back": "Volver",
   "action.remove": "Eliminar",

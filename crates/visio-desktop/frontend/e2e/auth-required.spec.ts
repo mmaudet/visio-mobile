@@ -10,8 +10,7 @@ import { mockTauriCall, type MockCallState } from './tauri-mock';
  * re-validated once the visio://auth-callback deep link brings the exchange
  * code back to the app.
  */
-// re-enabled by the auth port task
-test.describe.skip('Join flow requiring OIDC authentication', () => {
+test.describe('Join flow requiring OIDC authentication', () => {
   // The sign-in button replaces the join button when the room requires
   // authentication.
   const signInButton = (page: Page) => page.getByTestId('home-signin-button');
@@ -26,8 +25,9 @@ test.describe.skip('Join flow requiring OIDC authentication', () => {
       .getByTestId('home-room-url-input')
       .fill('https://meet.example.com/abc-defg-hij');
     // When the room requires auth, the join button is replaced by the
-    // sign-in button and the status message is shown.
+    // sign-in button and the status padlock is shown (redesign display).
     await expect(page.getByTestId('home-join-button')).toHaveCount(0);
+    await expect(signInButton(page)).toBeVisible();
     await expect(page.getByTestId('home-room-status').first()).toBeVisible();
   };
 
@@ -119,6 +119,25 @@ test.describe.skip('Join flow requiring OIDC authentication', () => {
 
     // The browser cannot be opened: the UI must recover to the sign-in state
     // instead of staying stuck on "Authenticating…" forever.
+    await expect(signInButton(page)).toBeVisible();
+  });
+
+  test('shows an error and recovers when the OIDC callback never arrives', async ({
+    page,
+  }) => {
+    // Shorten the app-side callback timeout for the test (the production
+    // value is 120 s — the app honors this test hook).
+    await page.evaluate(() => {
+      (window as any).__OIDC_TIMEOUT_MS = 500;
+    });
+    await signInButton(page).click();
+
+    // No deep link ever arrives (e.g. an instance without PKCE support):
+    // the app must surface an error and offer sign-in again instead of
+    // waiting silently forever.
+    await expect(page.getByTestId('home-auth-error')).toBeVisible({
+      timeout: 5000,
+    });
     await expect(signInButton(page)).toBeVisible();
   });
 });

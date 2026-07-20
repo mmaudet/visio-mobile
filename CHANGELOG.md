@@ -82,6 +82,13 @@ and this project adheres to
 - Desktop: explicit type="button" on all buttons (SonarCloud S9011)
 - Desktop: reduced function nesting in search/access handlers
   (SonarCloud S2004)
+- Desktop: port the "room requires authentication" join flow onto the
+  UI redesign (sign-in button on auth_required, OIDC browser launch,
+  post-auth room re-validation) and restore the visio:// deep-link
+  prefill of the join field
+- Desktop: OIDC sign-in shows home.authTimeout after a 2-minute
+  watchdog instead of waiting forever when the instance never
+  redirects to visio://auth-callback
 
 ## [0.10.0] - 2026-06-04
 

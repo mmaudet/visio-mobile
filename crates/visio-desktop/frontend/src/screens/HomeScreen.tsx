@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import { Icon } from '../components/Icon'
 import { Tag } from '../components/ui/Tag'
@@ -37,6 +37,18 @@ export interface HomeScreenProps {
    *  in `visio_history`; we surface up to 5 below the "À venir" card. */
   recentVisios?: Array<{ url: string; display_name?: string | null }>
   onOpenRecentVisio?: (url: string) => void
+  /** Room URL resolved from a visio:// deep link — prefilled into the join
+   *  field once, then cleared via onDeepLinkConsumed. */
+  deepLinkUrl: string | null
+  onDeepLinkConsumed: () => void
+  /** i18n key of an authentication error to surface (e.g. the OIDC callback
+   *  watchdog fired), null when there is nothing to show. */
+  authError: string | null
+  /** Start the system-browser OIDC flow for a Meet instance hostname. */
+  onLaunchOidc: (meetInstance: string) => void
+  /** Register a one-shot action App runs once the OIDC flow settles (after
+   *  the code exchange, or after a launch/exchange/timeout failure). */
+  registerPostAuthAction: (fn: (() => void) | null) => void
 }
 
 function isOngoing(m: Meeting): boolean {
@@ -219,12 +231,33 @@ export function HomeScreen({
   onSignIn,
   recentVisios = [],
   onOpenRecentVisio,
+  deepLinkUrl,
+  onDeepLinkConsumed,
+  authError,
+  onLaunchOidc,
+  registerPostAuthAction,
 }: HomeScreenProps) {
   const [joinCode, setJoinCode] = useState('')
   const [search, setSearch] = useState('')
   const [joinStatus, setJoinStatus] = useState<
-    'idle' | 'checking' | 'valid' | 'auth_required' | 'not_found'
+    | 'idle'
+    | 'checking'
+    | 'valid'
+    | 'auth_required'
+    | 'authenticating'
+    | 'not_found'
   >('idle')
+  // Resolved URL of the room that answered auth_required — the sign-in
+  // button launches OIDC on its hostname and revalidateRoom re-checks it.
+  const [authRoomUrl, setAuthRoomUrl] = useState<string | null>(null)
+
+  // Prefill the join field when a visio:// room deep link arrives.
+  useEffect(() => {
+    if (deepLinkUrl) {
+      setJoinCode(deepLinkUrl)
+      onDeepLinkConsumed()
+    }
+  }, [deepLinkUrl, onDeepLinkConsumed])
 
   // Debounced slug validation — mirrors the legacy live validator.
   useEffect(() => {
@@ -279,6 +312,7 @@ export function HomeScreen({
             return
           }
           if (result.status === 'auth_required') {
+            setAuthRoomUrl(url)
             setJoinStatus('auth_required')
             return
           }
@@ -293,6 +327,47 @@ export function HomeScreen({
       clearTimeout(timer)
     }
   }, [joinCode, authenticatedMeetInstance, meetInstances])
+
+  // Sign-in button: start the OIDC flow on the hostname of the room that
+  // required authentication. The flow is asynchronous — the exchange code
+  // comes back via the visio://auth-callback deep link, then revalidateRoom
+  // below runs.
+  const handleAuth = () => {
+    if (!authRoomUrl) return
+    try {
+      const url = new URL(
+        authRoomUrl.startsWith('http') ? authRoomUrl : `https://${authRoomUrl}`
+      )
+      setJoinStatus('authenticating')
+      onLaunchOidc(url.hostname)
+    } catch {
+      setJoinStatus('auth_required')
+    }
+  }
+
+  // Re-validate the room once the OIDC flow settles (successful exchange, or
+  // launch/exchange/timeout failure → back to auth_required). Registered
+  // with App, which invokes it from the auth-callback handler.
+  const revalidateRoom = useCallback(() => {
+    if (joinStatus !== 'authenticating' || !authRoomUrl) return
+    setJoinStatus('checking')
+    invoke<{ status: string }>('validate_room', {
+      url: authRoomUrl,
+      username: null,
+    })
+      .then((result) => {
+        if (result.status === 'valid') setJoinStatus('valid')
+        else if (result.status === 'auth_required')
+          setJoinStatus('auth_required')
+        else setJoinStatus('not_found')
+      })
+      .catch(() => setJoinStatus('auth_required'))
+  }, [joinStatus, authRoomUrl])
+
+  useEffect(() => {
+    registerPostAuthAction(revalidateRoom)
+    return () => registerPostAuthAction(null)
+  }, [registerPostAuthAction, revalidateRoom])
 
   const isCalendarMode = mode === 'calendar'
   const visibleMeetings = useMemo(() => {
@@ -315,6 +390,12 @@ export function HomeScreen({
   }, [])
 
   const submitJoin = () => {
+    // The join button is swapped for sign-in in this state — Enter in the
+    // input must do the same instead of joining into a silent auth failure.
+    if (joinStatus === 'auth_required') {
+      handleAuth()
+      return
+    }
     const code = joinCode.trim()
     if (code) onJoinByCode(code)
   }
@@ -514,6 +595,15 @@ export function HomeScreen({
                     />
                   </span>
                 )}
+                {joinStatus === 'authenticating' && (
+                  <span data-testid="home-room-status">
+                    <Icon
+                      name="dot"
+                      size={10}
+                      style={{ color: 'var(--text-3)' }}
+                    />
+                  </span>
+                )}
                 {joinStatus === 'not_found' && (
                   <span data-testid="home-room-status">
                     <Icon
@@ -524,17 +614,43 @@ export function HomeScreen({
                   </span>
                 )}
               </div>
-              <Button
-                data-testid="home-join-button"
-                variant={joinStatus === 'valid' ? 'primary' : 'secondary'}
-                full
-                onClick={submitJoin}
-                disabled={
-                  joinStatus === 'checking' || joinStatus === 'not_found'
-                }
-              >
-                {t('home.join.cta')}
-              </Button>
+              {joinStatus === 'authenticating' && (
+                <div style={{ fontSize: 13, color: 'var(--text-3)' }}>
+                  {t('home.room.authenticating')}
+                </div>
+              )}
+              {joinStatus === 'auth_required' ? (
+                <Button
+                  data-testid="home-signin-button"
+                  variant="primary"
+                  full
+                  onClick={handleAuth}
+                >
+                  {t('home.join.authRequired')}
+                </Button>
+              ) : (
+                <Button
+                  data-testid="home-join-button"
+                  variant={joinStatus === 'valid' ? 'primary' : 'secondary'}
+                  full
+                  onClick={submitJoin}
+                  disabled={
+                    joinStatus === 'checking' ||
+                    joinStatus === 'not_found' ||
+                    joinStatus === 'authenticating'
+                  }
+                >
+                  {t('home.join.cta')}
+                </Button>
+              )}
+              {authError && (
+                <div
+                  data-testid="home-auth-error"
+                  style={{ fontSize: 13, color: 'var(--danger)' }}
+                >
+                  {t(authError)}
+                </div>
+              )}
             </div>
           </div>
         )}

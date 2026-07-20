@@ -110,6 +110,11 @@ const SUPPORTED_LANGS = Object.keys(translations)
 
 const SLUG_REGEX = /^[a-z]{3}-[a-z]{4}-[a-z]{3}$/
 
+// How long the desktop waits for the visio://auth-callback deep link after
+// opening the browser before surfacing an error (instances without PKCE
+// support never redirect back).
+const OIDC_CALLBACK_TIMEOUT_MS = 120_000
+
 function detectSystemLang(): string {
   const navLang = navigator.language?.split('-')[0]
   return SUPPORTED_LANGS.includes(navLang) ? navLang : 'en'
@@ -801,6 +806,10 @@ export default function App() {
 
   // Deep link
   const [deepLinkError, setDeepLinkError] = useState<string | null>(null)
+  // Room URL resolved from a visio:// deep link, prefilled into Home's join
+  // field (consumed once by HomeScreen via onDeepLinkConsumed).
+  const [deepLinkUrl, setDeepLinkUrl] = useState<string | null>(null)
+  const handleDeepLinkConsumed = useCallback(() => setDeepLinkUrl(null), [])
   // Display name (shared between Home and Settings)
   const [displayName, setDisplayName] = useState('')
   // i18n
@@ -816,6 +825,16 @@ export default function App() {
   const [authenticatedMeetInstance, setAuthenticatedMeetInstance] = useState('')
   const [meetInstances, setMeetInstances] = useState<string[]>([])
   const pendingOidcRef = useRef<string | null>(null)
+  // Error key shown when the OIDC callback never arrives (watchdog timeout).
+  const [authError, setAuthError] = useState<string | null>(null)
+  const oidcTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // One-shot action run once the OIDC flow settles — after a successful code
+  // exchange, or after a launch/exchange failure so the UI recovers (e.g.
+  // HomeScreen re-validating a room that required authentication).
+  const postAuthActionRef = useRef<(() => void) | null>(null)
+  const registerPostAuthAction = useCallback((fn: (() => void) | null) => {
+    postAuthActionRef.current = fn
+  }, [])
   const [bandwidthMode, setBandwidthMode] = useState<string>('full')
   const settingsRef = useRef<Settings | null>(null)
 
@@ -996,6 +1015,11 @@ export default function App() {
           const meetInstance = pendingOidcRef.current
           if (code && stateParam && meetInstance) {
             pendingOidcRef.current = null
+            if (oidcTimeoutRef.current) {
+              clearTimeout(oidcTimeoutRef.current)
+              oidcTimeoutRef.current = null
+            }
+            setAuthError(null)
             invoke<{
               display_name?: string
               email?: string
@@ -1024,9 +1048,13 @@ export default function App() {
                     }
                   })
                   .catch(() => {})
+                postAuthActionRef.current?.()
               })
               .catch((e) => {
                 console.error('PKCE code exchange failed:', e)
+                // Recover from the "authenticating" state: the registered
+                // action re-validates the room back to auth_required.
+                postAuthActionRef.current?.()
               })
           }
           return
@@ -1036,6 +1064,7 @@ export default function App() {
         const pathSegment = parsed.pathname.replace(/^\//, '')
         if (!host || !pathSegment) return
 
+        const deepLinkDisplayName = parsed.searchParams.get('visio')
         invoke<string[]>('get_meet_instances').then(async (instances) => {
           if (!instances.includes(host)) {
             setDeepLinkError(
@@ -1047,6 +1076,11 @@ export default function App() {
           // If path is a valid slug, use directly
           if (SLUG_REGEX.test(pathSegment)) {
             setView('home')
+            let roomUrl = `https://${host}/${pathSegment}`
+            if (deepLinkDisplayName) {
+              roomUrl += `?visio=${encodeURIComponent(deepLinkDisplayName)}`
+            }
+            setDeepLinkUrl(roomUrl)
             setDeepLinkError(null)
             return
           }
@@ -1059,6 +1093,11 @@ export default function App() {
             )
             if (resolved) {
               setView('home')
+              let roomUrl = resolved
+              if (deepLinkDisplayName) {
+                roomUrl += `?visio=${encodeURIComponent(deepLinkDisplayName)}`
+              }
+              setDeepLinkUrl(roomUrl)
               setDeepLinkError(null)
             } else {
               setDeepLinkError(
@@ -1575,20 +1614,54 @@ export default function App() {
   }, [])
 
   // ---- Refonte: helpers Home → handleJoin --------------------------------
+  // Start the system-browser OIDC flow for a Meet instance. The exchange
+  // code comes back asynchronously via the visio://auth-callback deep link
+  // (see the onOpenUrl handler above).
+  const handleLaunchOidc = useCallback(async (meetInstance: string) => {
+    try {
+      pendingOidcRef.current = meetInstance
+      setAuthError(null)
+      await invoke('launch_oidc_browser', { meetInstance })
+      // Watchdog: if no auth-callback deep link arrives in time (e.g. an
+      // instance without PKCE support, which never redirects back), stop
+      // waiting and tell the user instead of hanging on "Authenticating…"
+      // forever.
+      const timeoutOverride = (
+        window as unknown as { __OIDC_TIMEOUT_MS?: number }
+      ).__OIDC_TIMEOUT_MS
+      oidcTimeoutRef.current = setTimeout(() => {
+        if (pendingOidcRef.current) {
+          pendingOidcRef.current = null
+          setAuthError('home.authTimeout')
+          postAuthActionRef.current?.()
+        }
+      }, timeoutOverride ?? OIDC_CALLBACK_TIMEOUT_MS)
+    } catch (e) {
+      console.error('Failed to open browser for OIDC:', e)
+      pendingOidcRef.current = null
+      // Recover from the "authenticating" state: the registered action
+      // re-validates the room back to auth_required.
+      postAuthActionRef.current?.()
+    }
+  }, [])
+
   const handleNewMeeting = useCallback(() => {
     if (!isAuthenticated && oidcEnabled) {
       // Pas connecté : kicker l'OIDC sur l'instance par défaut.
       const target = meetInstances[0] || authenticatedMeetInstance
       if (target) {
-        pendingOidcRef.current = target
-        invoke('launch_oidc_browser', { meetInstance: target }).catch((e) =>
-          console.error('OIDC launch failed:', e)
-        )
+        handleLaunchOidc(target)
         return
       }
     }
     setShowCreateRoom(true)
-  }, [isAuthenticated, oidcEnabled, meetInstances, authenticatedMeetInstance])
+  }, [
+    isAuthenticated,
+    oidcEnabled,
+    meetInstances,
+    authenticatedMeetInstance,
+    handleLaunchOidc,
+  ])
 
   const handleJoinByCode = useCallback(
     async (raw: string) => {
@@ -1993,6 +2066,11 @@ export default function App() {
                   .then(() => handleJoin(url, uname))
                   .catch((e) => setHomeJoinError(String(e)))
               }}
+              deepLinkUrl={deepLinkUrl}
+              onDeepLinkConsumed={handleDeepLinkConsumed}
+              authError={authError}
+              onLaunchOidc={handleLaunchOidc}
+              registerPostAuthAction={registerPostAuthAction}
             />
             {(homeJoinError || deepLinkError) && (
               <div

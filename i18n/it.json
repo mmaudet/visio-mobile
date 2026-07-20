@@ -14,6 +14,7 @@
   "home.room.authRequired": "Autenticazione richiesta",
   "home.room.authenticating": "Autenticazione...",
   "home.signIn": "Accedi",
+  "home.authTimeout": "Nessuna risposta dal server: questa istanza potrebbe non supportare ancora l'accesso mobile. Riprova.",
   "action.close": "Chiudi",
   "action.back": "Indietro",
   "action.remove": "Rimuovi",

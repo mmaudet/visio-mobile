@@ -14,6 +14,7 @@
   "home.room.authRequired": "Authentifizierung erforderlich",
   "home.room.authenticating": "Authentifizierung...",
   "home.signIn": "Anmelden",
+  "home.authTimeout": "Keine Antwort vom Server — diese Instanz unterstützt die mobile Anmeldung möglicherweise noch nicht. Bitte versuchen Sie es erneut.",
   "action.close": "Schließen",
   "action.back": "Zurück",
   "action.remove": "Entfernen",
