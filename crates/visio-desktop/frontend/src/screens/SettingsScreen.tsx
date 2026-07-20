@@ -959,8 +959,7 @@ export function SettingsScreen({
                   calendarUrl ? (
                     <button
                       type="button"
-                      onClick={async (e) => {
-                        e.stopPropagation()
+                      onClick={async () => {
                         const ok = await confirm({
                           title: t('settings.calendarUrl.disconnect'),
                           message: t('settings.calendarUrl.disconnect.confirm'),

@@ -33,9 +33,8 @@ export function Row({
     gap: 14,
     padding: 'var(--row-pad) 0',
     borderBottom: last ? 'none' : '1px solid var(--hair)',
-    cursor: interactive ? 'pointer' : 'default',
   }
-  const body = (
+  const main = (
     <>
       {icon && (
         <div
@@ -80,36 +79,46 @@ export function Row({
           </div>
         )}
       </div>
-      {trailing}
     </>
   )
   if (!interactive) {
     return (
       <div data-testid={testId} aria-label={ariaLabel} style={rowStyle}>
-        {body}
+        {main}
+        {trailing}
       </div>
     )
   }
+  // Interactive variant: the <button> wraps the main content only and
+  // `trailing` stays a sibling — interactive trailing content (e.g. the
+  // calendar disconnect button) must never nest a <button> in a <button>.
+  // data-testid stays on the outer row so text assertions span trailing too.
   return (
-    <button
-      type="button"
-      data-testid={testId}
-      aria-label={ariaLabel}
-      onClick={onClick}
-      style={{
-        ...rowStyle,
-        width: '100%',
-        background: 'none',
-        border: 'none',
-        borderBottom: rowStyle.borderBottom,
-        font: 'inherit',
-        color: 'inherit',
-        textAlign: 'left',
-        fontFamily: 'var(--font-ui)',
-      }}
-    >
-      {body}
-    </button>
+    <div data-testid={testId} style={rowStyle}>
+      <button
+        type="button"
+        aria-label={ariaLabel}
+        onClick={onClick}
+        style={{
+          flex: 1,
+          minWidth: 0,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 14,
+          padding: 0,
+          background: 'none',
+          border: 'none',
+          cursor: 'pointer',
+          font: 'inherit',
+          color: 'inherit',
+          textAlign: 'left',
+          fontFamily: 'var(--font-ui)',
+        }}
+      >
+        {main}
+      </button>
+      {trailing}
+    </div>
   )
 }
 

@@ -39,10 +39,13 @@ export function ConfirmModal({
         zIndex: 10000,
       }}
     >
-      {/* Backdrop: a native button so backdrop-click-to-cancel stays
-          keyboard- and pointer-accessible without ARIA hacks. */}
+      {/* Backdrop: a native button so backdrop-click-to-cancel needs no ARIA
+          hacks. tabIndex -1 keeps it out of keyboard focus: Enter must reach
+          the document handler (confirm) only from the dialog's own buttons,
+          and keyboard cancel is already covered by Escape. */}
       <button
         type="button"
+        tabIndex={-1}
         aria-label={cancelLabel}
         onClick={onCancel}
         style={{
