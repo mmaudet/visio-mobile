@@ -211,6 +211,7 @@ function PopoverMenu({
       ) : (
         items.map((it) => (
           <button
+            type="button"
             key={it.key}
             data-testid={it.testId}
             onClick={() => onPick(it.key)}
@@ -548,6 +549,7 @@ export function SettingsScreen({
           <Avatar name={displayName || 'Visio'} size={52} />
           <div style={{ flex: 1, minWidth: 0 }}>
             <button
+              type="button"
               onClick={() => toggleMenu('name')}
               data-testid="settings-display-name-trigger"
               style={{
@@ -782,6 +784,7 @@ export function SettingsScreen({
                               </span>
                               {inst === instanceHost && isAuthenticated ? (
                                 <button
+                                  type="button"
                                   onClick={async () => {
                                     const ok = await confirm({
                                       title: t('settings.instance.disconnect'),
@@ -812,6 +815,7 @@ export function SettingsScreen({
                                 </button>
                               ) : (
                                 <button
+                                  type="button"
                                   onClick={() => onConnectInstance(inst)}
                                   style={{
                                     background: 'var(--accent)',
@@ -829,6 +833,7 @@ export function SettingsScreen({
                                 </button>
                               )}
                               <button
+                                type="button"
                                 aria-label={t('action.remove')}
                                 onClick={async () => {
                                   const ok = await confirm({
@@ -872,6 +877,7 @@ export function SettingsScreen({
                           }}
                         />
                         <button
+                          type="button"
                           aria-label={t('action.add')}
                           onClick={handleAddInstance}
                           disabled={!newInstance.trim()}
@@ -949,6 +955,7 @@ export function SettingsScreen({
                 trailing={
                   calendarUrl ? (
                     <button
+                      type="button"
                       onClick={async (e) => {
                         e.stopPropagation()
                         const ok = await confirm({
@@ -1024,6 +1031,7 @@ export function SettingsScreen({
             <div style={{ padding: '12px 0' }}>
               <div className="v-seg">
                 <button
+                  type="button"
                   className={theme === 'system' ? 'on' : ''}
                   onClick={() => onChangeTheme('system')}
                 >
@@ -1031,12 +1039,14 @@ export function SettingsScreen({
                   {t('settings.theme.system')}
                 </button>
                 <button
+                  type="button"
                   className={theme === 'light' ? 'on' : ''}
                   onClick={() => onChangeTheme('light')}
                 >
                   <Icon name="sun" size={14} /> {t('settings.theme.light')}
                 </button>
                 <button
+                  type="button"
                   className={theme === 'dark' ? 'on' : ''}
                   onClick={() => onChangeTheme('dark')}
                 >
@@ -1074,6 +1084,7 @@ export function SettingsScreen({
         >
           {isAuthenticated ? (
             <button
+              type="button"
               onClick={async () => {
                 const ok = await confirm({
                   title: t('settings.signOut'),

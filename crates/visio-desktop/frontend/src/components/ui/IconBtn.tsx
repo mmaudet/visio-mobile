@@ -74,7 +74,7 @@ export function IconBtn({
       style={{ position: 'relative', display: 'inline-flex' }}
       className={className}
     >
-      <button {...rest} aria-label={ariaLabel} style={btnStyle}>
+      <button type="button" {...rest} aria-label={ariaLabel} style={btnStyle}>
         <Icon name={name as IconName} size={size} />
       </button>
       {badge != null && (

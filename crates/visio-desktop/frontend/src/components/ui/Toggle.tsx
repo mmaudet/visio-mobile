@@ -8,6 +8,7 @@ export interface ToggleProps {
 export function Toggle({ on, onChange, disabled, ariaLabel }: ToggleProps) {
   return (
     <button
+      type="button"
       role="switch"
       aria-checked={on}
       aria-label={ariaLabel}

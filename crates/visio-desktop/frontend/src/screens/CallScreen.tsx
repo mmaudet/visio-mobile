@@ -435,6 +435,7 @@ function ChatPanel({ t, messages, localSid, onSend, onClose }: ChatPanelProps) {
           {t('call.discussion')}
         </span>
         <button
+          type="button"
           data-testid="chat-close-button"
           onClick={onClose}
           style={{
@@ -660,6 +661,7 @@ function ParticipantsPanel({
           </span>
         </span>
         <button
+          type="button"
           onClick={onClose}
           style={{
             background: 'transparent',
@@ -685,6 +687,7 @@ function ParticipantsPanel({
           }}
         >
           <button
+            type="button"
             onClick={muteAll}
             style={{
               flex: 1,
@@ -703,6 +706,7 @@ function ParticipantsPanel({
           </button>
           {anyHandRaised && (
             <button
+              type="button"
               onClick={lowerAll}
               style={{
                 flex: 1,
@@ -789,6 +793,7 @@ function ParticipantsPanel({
               />
               {isLocalAdmin && !isLocal && !p.is_muted && (
                 <button
+                  type="button"
                   onClick={() => muteOne(p.identity)}
                   aria-label={t('participants.muteOne')}
                   title={t('participants.muteOne')}
@@ -811,6 +816,7 @@ function ParticipantsPanel({
                 </button>
               )}
               <button
+                type="button"
                 onClick={() => onTogglePin(p.sid)}
                 aria-label={t(
                   pinnedSid === p.sid
@@ -891,6 +897,7 @@ function DeskCtrl({
     >
       <div style={{ position: 'relative' }}>
         <button
+          type="button"
           data-testid={testId}
           onClick={onClick}
           aria-label={label}
@@ -924,6 +931,7 @@ function DeskCtrl({
         </button>
         {caret && (
           <button
+            type="button"
             data-call-caret
             data-testid={caretTestId}
             onClick={onCaretClick}
@@ -1211,6 +1219,7 @@ function BgImageGrid({ t, images, bgMode, onSetBgMode }: BgImageGridProps) {
         const alt = t('bg.imageAlt').replace('{n}', String(img.id))
         return (
           <button
+            type="button"
             key={img.id}
             onClick={() => onSetBgMode(mode)}
             aria-label={alt}
@@ -1384,6 +1393,7 @@ interface PickerRowProps {
 function PickerRow({ label, active, onClick, testId }: PickerRowProps) {
   return (
     <button
+      type="button"
       data-testid={testId}
       onClick={onClick}
       style={{
@@ -2173,6 +2183,7 @@ function CallInfoPopover({ t, meetUrl, onClose }: CallInfoPopoverProps) {
           {meetUrl || '—'}
         </span>
         <button
+          type="button"
           onClick={copy}
           disabled={!meetUrl}
           style={{
@@ -2263,6 +2274,7 @@ function ScreenSharePicker({
             {t('call.selectSource')}
           </div>
           <button
+            type="button"
             onClick={onClose}
             aria-label={t('settings.cancel')}
             style={{
@@ -2376,6 +2388,7 @@ function ScreenSourceSection({
         >
           {sources.map((s, i) => (
             <button
+              type="button"
               key={s.id}
               data-testid={`screen-share-source-${indexOffset + i}`}
               onClick={() => onPick(s.id)}
@@ -2496,6 +2509,7 @@ function ReactionPicker({ t, onPick, onClose }: ReactionPickerProps) {
     >
       {emojis.map(([id, glyph]) => (
         <button
+          type="button"
           key={id}
           onClick={() => onPick(id)}
           aria-label={t(`reaction.${id}`)}

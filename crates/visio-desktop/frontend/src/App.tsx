@@ -152,6 +152,62 @@ function firstName(full: string): string {
   return trimmed.split(/\s+/)[0]
 }
 
+interface WaitingParticipant {
+  id: string
+  username: string
+}
+
+interface LiveReaction {
+  id: number
+  sid: string
+  emoji: string
+  ts: number
+}
+
+// State updaters shared by the event listeners below. Kept at module scope so
+// the listener callbacks stay within the max function nesting depth (Sonar
+// typescript:S2004).
+const addWaitingParticipant = (
+  prev: WaitingParticipant[],
+  p: WaitingParticipant
+): WaitingParticipant[] =>
+  prev.some((x) => x.id === p.id) ? prev : [...prev, p]
+
+const removeWaitingParticipant = (
+  prev: WaitingParticipant[],
+  id: string
+): WaitingParticipant[] => prev.filter((x) => x.id !== id)
+
+const removeReactionById =
+  (id: number) =>
+  (prev: LiveReaction[]): LiveReaction[] =>
+    prev.filter((r) => r.id !== id)
+
+// Best-effort invokes whose rejection is intentionally ignored.
+const ignoreInvokeError = () => {}
+
+// E2E scaffolding (dev builds only): share the primary monitor for ~18 s so
+// turn-based scenarios observe a screen share appearing and disappearing.
+async function e2eShareScreenBriefly(): Promise<void> {
+  try {
+    const sources = await invoke<
+      Array<{ id: string; name: string; source_type: string }>
+    >('list_screen_sources')
+    const monitor =
+      sources.find((s) => s.source_type === 'Monitor') || sources[0]
+    if (!monitor) return
+    await invoke('start_screen_share', { sourceId: monitor.id })
+    await new Promise((resolve) => setTimeout(resolve, 18000))
+    try {
+      await invoke('stop_screen_share')
+    } catch {
+      // E2E scaffolding — best effort.
+    }
+  } catch {
+    // E2E scaffolding — best effort.
+  }
+}
+
 // -- Create Room Dialog -----------------------------------------------------
 
 function CreateRoomDialog({
@@ -203,9 +259,8 @@ function CreateRoomDialog({
         const results = await invoke<UserSearchResult[]>('search_users', {
           query: searchQuery,
         })
-        setSearchResults(
-          results.filter((u) => !invitedUsers.some((inv) => inv.id === u.id))
-        )
+        const invitedIds = new Set(invitedUsers.map((inv) => inv.id))
+        setSearchResults(results.filter((u) => !invitedIds.has(u.id)))
       } catch {
         setSearchResults([])
       }
@@ -289,7 +344,7 @@ function CreateRoomDialog({
       >
         <div className="settings-header">
           <span>{t('home.createRoom')}</span>
-          <button onClick={onCancel}>
+          <button type="button" onClick={onCancel}>
             <RiCloseLine size={20} />
           </button>
         </div>
@@ -427,6 +482,7 @@ function CreateRoomDialog({
                         <span key={user.id} className="user-chip">
                           {user.full_name || user.email}
                           <button
+                            type="button"
                             className="chip-remove"
                             onClick={() =>
                               setInvitedUsers(
@@ -454,6 +510,7 @@ function CreateRoomDialog({
                 <RiGlobalLine size={16} />
                 <span>{t('settings.incall.roomLink')}</span>
                 <button
+                  type="button"
                   className="info-copy-icon"
                   onClick={() => handleCopy(createdUrl, setCopiedHttp)}
                   title={t('settings.incall.copied')}
@@ -475,6 +532,7 @@ function CreateRoomDialog({
                 <RiSmartphoneLine size={16} />
                 <span>{t('settings.incall.deepLink')}</span>
                 <button
+                  type="button"
                   className="info-copy-icon"
                   onClick={() => handleCopy(deepLink, setCopiedDeep)}
                   title={t('settings.incall.copied')}
@@ -507,6 +565,7 @@ function CreateRoomDialog({
                         <RiGlobalLine size={16} />
                         <span>{t('home.createVisio.simplifiedUrl')}</span>
                         <button
+                          type="button"
                           className="info-copy-icon"
                           onClick={() =>
                             handleCopy(simplifiedUrl, setCopiedDeep)
@@ -544,11 +603,12 @@ function CreateRoomDialog({
             justifyContent: 'flex-end',
           }}
         >
-          <button className="btn btn-cancel" onClick={onCancel}>
+          <button type="button" className="btn btn-cancel" onClick={onCancel}>
             {t('home.serverPicker.cancel')}
           </button>
           {!createdUrl ? (
             <button
+              type="button"
               className="btn btn-primary"
               style={{ width: 'auto' }}
               disabled={creating}
@@ -560,6 +620,7 @@ function CreateRoomDialog({
             </button>
           ) : (
             <button
+              type="button"
               className="btn btn-primary"
               style={{ width: 'auto' }}
               onClick={() =>
@@ -605,6 +666,7 @@ function CreateRoomDialog({
               }}
             >
               <button
+                type="button"
                 className="btn"
                 onClick={() => {
                   setAliasConflictName('')
@@ -614,6 +676,7 @@ function CreateRoomDialog({
                 {t('alias.conflictCancel')}
               </button>
               <button
+                type="button"
                 className="btn btn-primary"
                 onClick={() => {
                   invoke('add_visio_alias', {
@@ -649,7 +712,7 @@ function WaitingScreen({
         <div className="waiting-spinner" />
         <h2>{t('lobby.waiting')}</h2>
         <p>{t('lobby.waitingDesc')}</p>
-        <button className="btn btn-secondary" onClick={onCancel}>
+        <button type="button" className="btn btn-secondary" onClick={onCancel}>
           {t('lobby.cancel')}
         </button>
       </div>
@@ -715,6 +778,7 @@ function ProfileMenu({
     >
       {onOpenSettings && (
         <button
+          type="button"
           onClick={onOpenSettings}
           style={{
             display: 'flex',
@@ -738,6 +802,7 @@ function ProfileMenu({
       )}
       {showSignOut && (
         <button
+          type="button"
           onClick={onSignOut}
           style={{
             display: 'flex',
@@ -800,7 +865,7 @@ export default function App() {
   const [showCamPicker, setShowCamPicker] = useState(false)
   // Lobby / waiting room
   const [waitingParticipants, setWaitingParticipants] = useState<
-    Array<{ id: string; username: string }>
+    WaitingParticipant[]
   >([])
   // lobbyNotification removed — banner now driven by waitingParticipants directly
 
@@ -868,9 +933,7 @@ export default function App() {
   const [recentVisios, setRecentVisios] = useState<
     Array<{ url: string; display_name?: string | null }>
   >([])
-  const [liveReactions, setLiveReactions] = useState<
-    Array<{ id: number; sid: string; emoji: string; ts: number }>
-  >([])
+  const [liveReactions, setLiveReactions] = useState<LiveReaction[]>([])
   const reactionCounter = useRef(0)
   const [pinnedSid, setPinnedSid] = useState<string | null>(null)
 
@@ -1029,7 +1092,7 @@ export default function App() {
               code,
               stateParam,
             })
-              .then((result) => {
+              .then(async (result) => {
                 setIsAuthenticated(true)
                 setAuthenticatedMeetInstance(meetInstance)
                 setDisplayNameFromOidc(result.display_name || '')
@@ -1037,17 +1100,18 @@ export default function App() {
                 if (result.display_name && !displayNameRef.current.trim()) {
                   setDisplayName(result.display_name)
                 }
-                invoke<string[]>('get_meet_instances')
-                  .then((current) => {
-                    if (!current.includes(meetInstance)) {
-                      const next = [...current, meetInstance]
-                      setMeetInstances(next)
-                      invoke('set_meet_instances', { instances: next })
-                    } else {
-                      setMeetInstances(current)
-                    }
-                  })
-                  .catch(() => {})
+                try {
+                  const current = await invoke<string[]>('get_meet_instances')
+                  if (!current.includes(meetInstance)) {
+                    const next = [...current, meetInstance]
+                    setMeetInstances(next)
+                    invoke('set_meet_instances', { instances: next })
+                  } else {
+                    setMeetInstances(current)
+                  }
+                } catch {
+                  // Meet-instance list persistence is best effort.
+                }
                 postAuthActionRef.current?.()
               })
               .catch((e) => {
@@ -1184,26 +1248,8 @@ export default function App() {
                 // E2E scaffolding — best effort.
               }
             }, 100000)
-            setTimeout(async () => {
-              try {
-                const sources = await invoke<
-                  Array<{ id: string; name: string; source_type: string }>
-                >('list_screen_sources')
-                const monitor =
-                  sources.find((s) => s.source_type === 'Monitor') || sources[0]
-                if (monitor) {
-                  await invoke('start_screen_share', { sourceId: monitor.id })
-                  setTimeout(async () => {
-                    try {
-                      await invoke('stop_screen_share')
-                    } catch {
-                      // E2E scaffolding — best effort.
-                    }
-                  }, 18000)
-                }
-              } catch {
-                // E2E scaffolding — best effort.
-              }
+            setTimeout(() => {
+              void e2eShareScreenBriefly()
             }, 30000)
           }
         } catch (err) {
@@ -1518,22 +1564,16 @@ export default function App() {
       unlistenTimeout = fn
     })
 
-    listen<{ id: string; username: string }>(
-      'lobby-participant-joined',
-      (event) => {
-        const p = event.payload
-        setWaitingParticipants((prev) => {
-          if (prev.some((x) => x.id === p.id)) return prev
-          return [...prev, p]
-        })
-      }
-    ).then((fn) => {
+    listen<WaitingParticipant>('lobby-participant-joined', (event) => {
+      const p = event.payload
+      setWaitingParticipants((prev) => addWaitingParticipant(prev, p))
+    }).then((fn) => {
       unlistenJoined = fn
     })
 
     listen<{ id: string }>('lobby-participant-left', (event) => {
       const { id } = event.payload
-      setWaitingParticipants((prev) => prev.filter((x) => x.id !== id))
+      setWaitingParticipants((prev) => removeWaitingParticipant(prev, id))
     }).then((fn) => {
       unlistenLeft = fn
     })
@@ -1601,9 +1641,7 @@ export default function App() {
           ...prev,
           { id, sid: participantSid, emoji, ts: Date.now() },
         ])
-        setTimeout(() => {
-          setLiveReactions((prev) => prev.filter((r) => r.id !== id))
-        }, 3500)
+        setTimeout(() => setLiveReactions(removeReactionById(id)), 3500)
       }
     ).then((fn) => {
       off = fn
@@ -1618,6 +1656,13 @@ export default function App() {
   // code comes back asynchronously via the visio://auth-callback deep link
   // (see the onOpenUrl handler above).
   const handleLaunchOidc = useCallback(async (meetInstance: string) => {
+    // A previous launch may still have a pending watchdog: cancel it so a
+    // stale timer cannot fire during the new flow and report a bogus
+    // timeout (double-click, retry after error, …).
+    if (oidcTimeoutRef.current) {
+      clearTimeout(oidcTimeoutRef.current)
+      oidcTimeoutRef.current = null
+    }
     try {
       pendingOidcRef.current = meetInstance
       setAuthError(null)
@@ -1848,7 +1893,7 @@ export default function App() {
         e.preventDefault()
         setCamEnabled((cur) => {
           const next = !cur
-          invoke('toggle_camera', { enabled: next }).catch(() => {})
+          invoke('toggle_camera', { enabled: next }).catch(ignoreInvokeError)
           return next
         })
       }
@@ -2074,6 +2119,7 @@ export default function App() {
             />
             {(homeJoinError || deepLinkError) && (
               <div
+                data-testid="home-error-banner"
                 style={{
                   position: 'absolute',
                   bottom: 24,
@@ -2094,6 +2140,7 @@ export default function App() {
               >
                 <span>{homeJoinError || deepLinkError}</span>
                 <button
+                  type="button"
                   onClick={() => {
                     setHomeJoinError(null)
                     setDeepLinkError(null)
@@ -2345,9 +2392,7 @@ export default function App() {
                     ts: Date.now(),
                   },
                 ])
-                setTimeout(() => {
-                  setLiveReactions((prev) => prev.filter((r) => r.id !== id))
-                }, 3500)
+                setTimeout(() => setLiveReactions(removeReactionById(id)), 3500)
               }
             }}
             audioInputs={audioInputs}

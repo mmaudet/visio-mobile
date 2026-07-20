@@ -396,6 +396,9 @@ export function HomeScreen({
       handleAuth()
       return
     }
+    // An OIDC flow is already running for this room: Enter must not
+    // re-submit and kick a duplicate join/launch behind it.
+    if (joinStatus === 'authenticating') return
     const code = joinCode.trim()
     if (code) onJoinByCode(code)
   }
@@ -438,6 +441,7 @@ export function HomeScreen({
             only ever displayed a toast with the imminent-meeting count. */}
         {showInstanceChip && instanceHost && (
           <button
+            type="button"
             onClick={onOpenInstance}
             className="v-chip"
             style={{
@@ -487,6 +491,7 @@ export function HomeScreen({
           >
             {showNewMeeting && (
               <button
+                type="button"
                 data-testid="home-create-room-button"
                 onClick={onNewMeeting}
                 style={{
@@ -669,6 +674,7 @@ export function HomeScreen({
             </div>
             {isCalendarMode ? (
               <button
+                type="button"
                 onClick={onRefreshCalendar}
                 style={{
                   background: 'none',
@@ -688,6 +694,7 @@ export function HomeScreen({
               </button>
             ) : (
               <button
+                type="button"
                 onClick={onOpenCalendar}
                 style={{
                   background: 'none',

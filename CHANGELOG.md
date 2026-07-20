@@ -39,6 +39,8 @@ and this project adheres to
 
 ### Changed
 
+- Desktop: complete UI redesign merged (4 modular screens, ui kit,
+  design tokens) replacing the legacy single-file screens
 - CI: Android publish now goes through Play Store internal track only;
   the Firebase App Distribution channel and the per-run
   `build-N` GitHub prereleases are dropped

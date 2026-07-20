@@ -124,6 +124,7 @@ interface DDeviceProps {
 function DDevice({ icon, label, value, onClick }: DDeviceProps) {
   return (
     <button
+      type="button"
       onClick={onClick}
       style={{
         display: 'flex',
@@ -639,6 +640,7 @@ export function LobbyScreen({
               >
                 <span>{deviceError}</span>
                 <button
+                  type="button"
                   onClick={() => setDeviceError(null)}
                   aria-label={t('lobby.error.dismiss')}
                   style={{
@@ -895,6 +897,7 @@ export function LobbyScreen({
                     </span>
                   </div>
                   <button
+                    type="button"
                     onClick={onAdmitAll}
                     style={{
                       background: 'none',
@@ -1026,6 +1029,7 @@ function BgPanel({ t, bgMode, bgImages, onSetBgMode }: BgPanelProps) {
           const selected = bgMode === mode
           return (
             <button
+              type="button"
               key={mode}
               onClick={() => onSetBgMode(mode)}
               style={{
@@ -1074,6 +1078,7 @@ function BgPanel({ t, bgMode, bgImages, onSetBgMode }: BgPanelProps) {
           const selected = bgMode === mode
           return (
             <button
+              type="button"
               key={img.id}
               onClick={() => onSetBgMode(mode)}
               aria-label={t('bg.imageAlt').replace('{n}', String(img.id))}
@@ -1159,6 +1164,7 @@ function PickerMenu({ title, items, onPick, onClose }: PickerMenuProps) {
       ) : (
         items.map((it) => (
           <button
+            type="button"
             key={it.key}
             onClick={() => onPick(it.key)}
             style={{

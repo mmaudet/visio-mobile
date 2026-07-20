@@ -42,6 +42,8 @@ export interface MockCallState {
   oidcLaunchFails?: boolean;
   /** When true, exchange_pkce_code rejects (e.g. expired or invalid code) */
   oidcExchangeFails?: boolean;
+  /** Instances returned by get_meet_instances (deep links to unknown hosts are rejected) */
+  meetInstances?: string[];
 }
 
 const defaultState: MockCallState = {
@@ -302,7 +304,7 @@ export async function mockTauriCall(
           case 'set_settings':
             return;
           case 'get_meet_instances':
-            return [];
+            return state.meetInstances ?? [];
           case 'get_session_state':
             return { state: 'unauthenticated' };
           case 'get_visio_history':

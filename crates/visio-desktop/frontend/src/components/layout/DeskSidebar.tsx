@@ -76,6 +76,7 @@ function NavItem({
   }
   return (
     <button
+      type="button"
       data-testid={testId}
       onClick={onClick}
       disabled={disabled}
@@ -164,6 +165,7 @@ export function DeskSidebar({
       />
 
       <button
+        type="button"
         data-profile-trigger
         onClick={onProfileClick}
         style={{
