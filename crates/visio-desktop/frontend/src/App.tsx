@@ -415,6 +415,7 @@ function ParticipantTile({
       )}
       {isScreenShare && onExpand && (
         <button
+          type="button"
           className="tile-expand-btn"
           onClick={(e) => {
             e.stopPropagation()
@@ -718,7 +719,11 @@ function MeetingsTab({
     return (
       <div className="meetings-empty">
         <p>{t('meetings.empty')}</p>
-        <button className="btn btn-secondary" onClick={handleRefresh}>
+        <button
+          type="button"
+          className="btn btn-secondary"
+          onClick={handleRefresh}
+        >
           {t('meetings.refresh')}
         </button>
       </div>
@@ -729,7 +734,11 @@ function MeetingsTab({
     return (
       <div className="meetings-empty">
         <p>{t('calendar.sync.error')}</p>
-        <button className="btn btn-secondary" onClick={handleRefresh}>
+        <button
+          type="button"
+          className="btn btn-secondary"
+          onClick={handleRefresh}
+        >
           {t('meetings.refresh')}
         </button>
       </div>
@@ -745,6 +754,7 @@ function MeetingsTab({
           {meetings.length} {t('meetings.count')}
         </span>
         <button
+          type="button"
           className={`btn-icon${refreshing ? ' refreshing' : ''}`}
           onClick={handleRefresh}
           disabled={refreshing}
@@ -779,6 +789,7 @@ function MeetingsTab({
                   <span className="meeting-server">{m.server_name}</span>
                 </div>
                 <button
+                  type="button"
                   className="meeting-join-btn"
                   disabled={joining === m.id}
                   onClick={() => handleJoinMeeting(m)}
@@ -1136,12 +1147,14 @@ function HomeView({
       <div className="home-tabs">
         <div className="home-tabs-group">
           <button
+            type="button"
             className={`home-tab${activeTab === 'join' ? ' home-tab-active' : ''}`}
             onClick={() => setActiveTab('join')}
           >
             {t('home.tab.join')}
           </button>
           <button
+            type="button"
             className={`home-tab${activeTab === 'meetings' ? ' home-tab-active' : ''}`}
             onClick={() => setActiveTab('meetings')}
           >
@@ -1156,6 +1169,7 @@ function HomeView({
           </button>
         </div>
         <button
+          type="button"
           className="settings-gear"
           onClick={onOpenSettings}
           data-testid="home-settings-button"
@@ -1197,6 +1211,7 @@ function HomeView({
                   )}
                 </div>
                 <button
+                  type="button"
                   className="auth-logout"
                   onClick={onLogout}
                   title={t('home.logout')}
@@ -1207,6 +1222,7 @@ function HomeView({
             ) : oidcEnabled ? (
               <div className="auth-status">
                 <button
+                  type="button"
                   className="btn btn-primary"
                   data-testid="home-connect-button"
                   onClick={() => {
@@ -1234,6 +1250,7 @@ function HomeView({
                       <div className="server-list">
                         {meetInstances.map((instance) => (
                           <button
+                            type="button"
                             key={instance}
                             className="server-item"
                             onClick={() => {
@@ -1259,6 +1276,7 @@ function HomeView({
                           }}
                         />
                         <button
+                          type="button"
                           className="btn btn-secondary"
                           disabled={!customServer.trim()}
                           onClick={() => {
@@ -1272,6 +1290,7 @@ function HomeView({
                         </button>
                       </div>
                       <button
+                        type="button"
                         className="btn btn-cancel"
                         onClick={() => setShowServerPicker(false)}
                       >
@@ -1360,6 +1379,7 @@ function HomeView({
                 when creating a room (CreateRoomView handles it). */}
             {roomStatus === 'auth_required' ? (
               <button
+                type="button"
                 className="btn btn-primary"
                 onClick={handleAuth}
                 data-testid="home-signin-button"
@@ -1368,6 +1388,7 @@ function HomeView({
               </button>
             ) : (
               <button
+                type="button"
                 className="btn btn-primary"
                 disabled={joining || roomStatus !== 'valid'}
                 onClick={handleJoin}
@@ -1378,6 +1399,7 @@ function HomeView({
             )}
             {oidcEnabled && isAuthenticated && authenticatedMeetInstance && (
               <button
+                type="button"
                 className="btn btn-primary"
                 style={{
                   marginTop: '8px',
@@ -1409,6 +1431,7 @@ function HomeView({
                     : host
                   return (
                     <button
+                      type="button"
                       key={url}
                       className="room-history-item"
                       disabled={joining}
@@ -1535,6 +1558,11 @@ function CreateRoomDialog({
     ? `visio://${createdUrl.replace(/^https?:\/\//, '')}`
     : ''
 
+  const isNotInvited = useCallback(
+    (u: UserSearchResult) => !invitedUsers.some((inv) => inv.id === u.id),
+    [invitedUsers]
+  )
+
   useEffect(() => {
     if (searchQuery.length < 3) {
       setSearchResults([])
@@ -1545,15 +1573,13 @@ function CreateRoomDialog({
         const results = await invoke<UserSearchResult[]>('search_users', {
           query: searchQuery,
         })
-        setSearchResults(
-          results.filter((u) => !invitedUsers.some((inv) => inv.id === u.id))
-        )
+        setSearchResults(results.filter(isNotInvited))
       } catch {
         setSearchResults([])
       }
     }, 300)
     return () => clearTimeout(timer)
-  }, [searchQuery, invitedUsers])
+  }, [searchQuery, isNotInvited])
 
   const handleCreate = async () => {
     setCreating(true)
@@ -1631,7 +1657,7 @@ function CreateRoomDialog({
       >
         <div className="settings-header">
           <span>{t('home.createRoom')}</span>
-          <button onClick={onCancel}>
+          <button type="button" onClick={onCancel}>
             <RiCloseLine size={20} />
           </button>
         </div>
@@ -1769,6 +1795,7 @@ function CreateRoomDialog({
                         <span key={user.id} className="user-chip">
                           {user.full_name || user.email}
                           <button
+                            type="button"
                             className="chip-remove"
                             onClick={() =>
                               setInvitedUsers(
@@ -1796,6 +1823,7 @@ function CreateRoomDialog({
                 <RiGlobalLine size={16} />
                 <span>{t('settings.incall.roomLink')}</span>
                 <button
+                  type="button"
                   className="info-copy-icon"
                   onClick={() => handleCopy(createdUrl, setCopiedHttp)}
                   title={t('settings.incall.copied')}
@@ -1817,6 +1845,7 @@ function CreateRoomDialog({
                 <RiSmartphoneLine size={16} />
                 <span>{t('settings.incall.deepLink')}</span>
                 <button
+                  type="button"
                   className="info-copy-icon"
                   onClick={() => handleCopy(deepLink, setCopiedDeep)}
                   title={t('settings.incall.copied')}
@@ -1849,6 +1878,7 @@ function CreateRoomDialog({
                         <RiGlobalLine size={16} />
                         <span>{t('home.createVisio.simplifiedUrl')}</span>
                         <button
+                          type="button"
                           className="info-copy-icon"
                           onClick={() =>
                             handleCopy(simplifiedUrl, setCopiedDeep)
@@ -1886,11 +1916,12 @@ function CreateRoomDialog({
             justifyContent: 'flex-end',
           }}
         >
-          <button className="btn btn-cancel" onClick={onCancel}>
+          <button type="button" className="btn btn-cancel" onClick={onCancel}>
             {t('home.serverPicker.cancel')}
           </button>
           {!createdUrl ? (
             <button
+              type="button"
               className="btn btn-primary"
               style={{ width: 'auto' }}
               disabled={creating}
@@ -1902,6 +1933,7 @@ function CreateRoomDialog({
             </button>
           ) : (
             <button
+              type="button"
               className="btn btn-primary"
               style={{ width: 'auto' }}
               onClick={() =>
@@ -1947,6 +1979,7 @@ function CreateRoomDialog({
               }}
             >
               <button
+                type="button"
                 className="btn"
                 onClick={() => {
                   setAliasConflictName('')
@@ -1956,6 +1989,7 @@ function CreateRoomDialog({
                 {t('alias.conflictCancel')}
               </button>
               <button
+                type="button"
                 className="btn btn-primary"
                 onClick={() => {
                   invoke('add_visio_alias', {
@@ -2027,6 +2061,11 @@ function InfoSidebar({
   }, [roomId])
 
   // Member search effect
+  const isNotMember = useCallback(
+    (u: UserSearchResult) => !roomAccesses.some((a) => a.user.id === u.id),
+    [roomAccesses]
+  )
+
   useEffect(() => {
     if (memberSearch.length < 3) {
       setMemberResults([])
@@ -2037,15 +2076,22 @@ function InfoSidebar({
         const results = await invoke<UserSearchResult[]>('search_users', {
           query: memberSearch,
         })
-        setMemberResults(
-          results.filter((u) => !roomAccesses.some((a) => a.user.id === u.id))
-        )
+        setMemberResults(results.filter(isNotMember))
       } catch {
         setMemberResults([])
       }
     }, 300)
     return () => clearTimeout(timer)
-  }, [memberSearch, roomAccesses])
+  }, [memberSearch, isNotMember])
+
+  const handleRemoveAccess = async (accessId: string) => {
+    try {
+      await invoke('remove_access', { accessId })
+      setRoomAccesses((prev) => prev.filter((a) => a.id !== accessId))
+    } catch {
+      /* ignore */
+    }
+  }
 
   const handleCopyHttp = async () => {
     try {
@@ -2072,6 +2118,7 @@ function InfoSidebar({
       <div className="participants-header">
         <span>{t('info.title')}</span>
         <button
+          type="button"
           className="chat-close"
           aria-label={t('action.close')}
           onClick={onClose}
@@ -2085,6 +2132,7 @@ function InfoSidebar({
             <RiGlobalLine size={16} />
             <span>{t('settings.incall.roomLink')}</span>
             <button
+              type="button"
               className="info-copy-icon"
               onClick={handleCopyHttp}
               title={t('settings.incall.copied')}
@@ -2108,6 +2156,7 @@ function InfoSidebar({
             <RiSmartphoneLine size={16} />
             <span>{t('settings.incall.deepLink')}</span>
             <button
+              type="button"
               className="info-copy-icon"
               onClick={handleCopyDeep}
               title={t('settings.incall.copied')}
@@ -2178,17 +2227,9 @@ function InfoSidebar({
                 </div>
                 {access.role === 'member' && (
                   <button
+                    type="button"
                     className="btn btn-sm btn-danger"
-                    onClick={async () => {
-                      try {
-                        await invoke('remove_access', { accessId: access.id })
-                        setRoomAccesses((prev) =>
-                          prev.filter((a) => a.id !== access.id)
-                        )
-                      } catch {
-                        /* ignore */
-                      }
-                    }}
+                    onClick={() => handleRemoveAccess(access.id)}
                   >
                     {t('restricted.remove')}
                   </button>
@@ -2213,6 +2254,7 @@ function ToolsSidebar({ onClose }: Readonly<{ onClose: () => void }>) {
       <div className="info-sidebar">
         <div className="participants-header">
           <button
+            type="button"
             className="chat-close"
             aria-label={t('action.back')}
             onClick={() => setSubView('menu')}
@@ -2221,6 +2263,7 @@ function ToolsSidebar({ onClose }: Readonly<{ onClose: () => void }>) {
           </button>
           <span style={{ flex: 1 }}>{t('transcribe.title')}</span>
           <button
+            type="button"
             className="chat-close"
             aria-label={t('action.close')}
             onClick={onClose}
@@ -2251,7 +2294,11 @@ function ToolsSidebar({ onClose }: Readonly<{ onClose: () => void }>) {
             <input type="checkbox" />
             {t('transcribe.alsoRecord')}
           </label>
-          <button className="btn btn-primary transcribe-start" disabled>
+          <button
+            type="button"
+            className="btn btn-primary transcribe-start"
+            disabled
+          >
             {t('transcribe.start')}
           </button>
           <p className="transcribe-notice">{t('transcribe.comingSoon')}</p>
@@ -2265,6 +2312,7 @@ function ToolsSidebar({ onClose }: Readonly<{ onClose: () => void }>) {
       <div className="participants-header">
         <span>{t('tools.title')}</span>
         <button
+          type="button"
           className="chat-close"
           aria-label={t('action.close')}
           onClick={onClose}
@@ -2274,7 +2322,11 @@ function ToolsSidebar({ onClose }: Readonly<{ onClose: () => void }>) {
       </div>
       <div className="info-body">
         <p className="tools-subtitle">{t('tools.subtitle')}</p>
-        <button className="tools-row" onClick={() => setSubView('transcribe')}>
+        <button
+          type="button"
+          className="tools-row"
+          onClick={() => setSubView('transcribe')}
+        >
           <span className="tools-row-icon">
             <RiFileTextLine size={20} />
           </span>
@@ -2284,7 +2336,7 @@ function ToolsSidebar({ onClose }: Readonly<{ onClose: () => void }>) {
           </span>
           <RiArrowRightSLine size={18} />
         </button>
-        <button className="tools-row" disabled>
+        <button type="button" className="tools-row" disabled>
           <span className="tools-row-icon">
             <RiRecordCircleLine size={20} />
           </span>
@@ -2314,7 +2366,7 @@ function WaitingScreen({
         <div className="waiting-spinner" />
         <h2>{t('lobby.waiting')}</h2>
         <p>{t('lobby.waitingDesc')}</p>
-        <button className="btn btn-secondary" onClick={onCancel}>
+        <button type="button" className="btn btn-secondary" onClick={onCancel}>
           {t('lobby.cancel')}
         </button>
       </div>
@@ -2346,7 +2398,7 @@ function SourcePickerModal({
       >
         <div className="settings-header">
           <span>{t('call.selectSource')}</span>
-          <button onClick={onClose}>
+          <button type="button" onClick={onClose}>
             <RiCloseLine size={20} />
           </button>
         </div>
@@ -2357,6 +2409,7 @@ function SourcePickerModal({
               <div className="source-grid-items">
                 {monitors.map((s, i) => (
                   <button
+                    type="button"
                     key={s.id}
                     className="source-card"
                     data-testid={`screen-share-source-${i}`}
@@ -2384,6 +2437,7 @@ function SourcePickerModal({
             <div className="source-grid-items">
               {windows.map((s, i) => (
                 <button
+                  type="button"
                   key={s.id}
                   className="source-card"
                   data-testid={`screen-share-source-${monitors.length + i}`}
@@ -2834,6 +2888,7 @@ function CallView({
               </span>
               <div className="lobby-notification-actions">
                 <button
+                  type="button"
                   className="btn-admit"
                   onClick={async () => {
                     try {
@@ -2851,6 +2906,7 @@ function CallView({
                   {t('lobby.admit')}
                 </button>
                 <button
+                  type="button"
                   className="btn-view"
                   onClick={() => {
                     if (!showParticipants) onToggleParticipants()
@@ -2895,6 +2951,7 @@ function CallView({
                 />
                 <div className="focus-toolbar">
                   <button
+                    type="button"
                     className="focus-toolbar-btn"
                     onClick={() => setShowFocusThumbnails((v) => !v)}
                     title={
@@ -2910,6 +2967,7 @@ function CallView({
                     )}
                   </button>
                   <button
+                    type="button"
                     className="focus-toolbar-btn"
                     onClick={() => {
                       setFocusedItem(null)
@@ -2973,6 +3031,7 @@ function CallView({
                 />
                 <div className="focus-toolbar">
                   <button
+                    type="button"
                     className="focus-toolbar-btn"
                     onClick={() => setShowFocusThumbnails((v) => !v)}
                     title={
@@ -3083,6 +3142,7 @@ function CallView({
             <div className="chat-header">
               <span>{t('chat')}</span>
               <button
+                type="button"
                 className="chat-close"
                 aria-label={t('action.close')}
                 data-testid="chat-close-button"
@@ -3140,6 +3200,7 @@ function CallView({
                 placeholder={t('chat.placeholder')}
               />
               <button
+                type="button"
                 className="chat-send"
                 data-testid="chat-send-button"
                 onClick={sendMessage}
@@ -3162,6 +3223,7 @@ function CallView({
                 </span>
               </span>
               <button
+                type="button"
                 className="chat-close"
                 aria-label={t('action.close')}
                 onClick={onToggleParticipants}
@@ -3178,6 +3240,7 @@ function CallView({
                       {waitingParticipants.length})
                     </h4>
                     <button
+                      type="button"
                       className="btn btn-sm"
                       onClick={async () => {
                         for (const p of waitingParticipants) {
@@ -3196,6 +3259,7 @@ function CallView({
                       <span>{p.username}</span>
                       <div className="lobby-actions">
                         <button
+                          type="button"
                           className="btn btn-sm btn-primary"
                           onClick={async () => {
                             await invoke('admit_participant', {
@@ -3209,6 +3273,7 @@ function CallView({
                           {t('lobby.admit')}
                         </button>
                         <button
+                          type="button"
                           className="btn btn-sm btn-danger"
                           onClick={async () => {
                             await invoke('deny_participant', {
@@ -3265,6 +3330,7 @@ function CallView({
                       {!isLocal && (
                         <div className="participant-menu-wrapper">
                           <button
+                            type="button"
                             className="participant-menu-btn"
                             onClick={(e) => {
                               e.stopPropagation()
@@ -3279,6 +3345,7 @@ function CallView({
                               onClick={() => setParticipantMenu(null)}
                             >
                               <button
+                                type="button"
                                 className="context-menu-item"
                                 onClick={() => {
                                   if (isPinned) {
@@ -3306,6 +3373,7 @@ function CallView({
                               </button>
                               {isLocalAdmin && !p.is_muted && (
                                 <button
+                                  type="button"
                                   className="context-menu-item"
                                   onClick={async () => {
                                     await invoke('mute_participant', {
@@ -3366,6 +3434,7 @@ function CallView({
       {showOverflow && (
         <div className="overflow-menu">
           <button
+            type="button"
             className={`overflow-item ${isHandRaised ? 'overflow-item-active' : ''}`}
             onClick={() => {
               onToggleHandRaise()
@@ -3379,6 +3448,7 @@ function CallView({
             </span>
           </button>
           <button
+            type="button"
             className="overflow-item"
             onClick={() => {
               setShowReactionPicker(!showReactionPicker)
@@ -3389,6 +3459,7 @@ function CallView({
             <span>{t('control.reaction') ?? 'Reaction'}</span>
           </button>
           <button
+            type="button"
             className={`overflow-item ${showTranscription ? 'overflow-item-active' : ''}`}
             onClick={() => {
               onToggleTranscription()
@@ -3399,6 +3470,7 @@ function CallView({
             <span>{t('control.tools')}</span>
           </button>
           <button
+            type="button"
             className={`overflow-item ${showInfo ? 'overflow-item-active' : ''}`}
             onClick={() => {
               onToggleInfo()
@@ -3409,6 +3481,7 @@ function CallView({
             <span>{t('control.info')}</span>
           </button>
           <button
+            type="button"
             className="overflow-item"
             onClick={() => {
               setShowOverflow(false)
@@ -3426,6 +3499,7 @@ function CallView({
         <div className="reaction-picker">
           {REACTION_EMOJIS.map(([id, char]) => (
             <button
+              type="button"
               key={id}
               className="reaction-picker-btn"
               onClick={() => handleSendReaction(id)}
@@ -3442,6 +3516,7 @@ function CallView({
         {/* Mic group */}
         <div className="control-group">
           <button
+            type="button"
             className={`control-btn ${micEnabled ? '' : 'control-btn-off'}`}
             onClick={onToggleMic}
             title={micEnabled ? t('control.mute') : t('control.unmute')}
@@ -3451,6 +3526,7 @@ function CallView({
             {micEnabled ? <RiMicLine size={20} /> : <RiMicOffLine size={20} />}
           </button>
           <button
+            type="button"
             className={`control-btn control-chevron ${micEnabled ? '' : 'control-btn-off'}`}
             onClick={onShowMicPicker}
             title={t('control.audioDevices')}
@@ -3464,6 +3540,7 @@ function CallView({
         {/* Camera group */}
         <div className="control-group">
           <button
+            type="button"
             className={`control-btn ${camEnabled ? '' : 'control-btn-off'}`}
             onClick={onToggleCam}
             title={camEnabled ? t('control.camOff') : t('control.camOn')}
@@ -3477,6 +3554,7 @@ function CallView({
             )}
           </button>
           <button
+            type="button"
             className={`control-btn control-chevron ${camEnabled ? '' : 'control-btn-off'}`}
             onClick={onShowCamPicker}
             title={t('control.camDevices')}
@@ -3489,6 +3567,7 @@ function CallView({
 
         {/* Screen share */}
         <button
+          type="button"
           className={`control-btn ${isScreenSharing ? 'control-btn-active-danger' : ''}`}
           onClick={async () => {
             if (isScreenSharing) {
@@ -3518,6 +3597,7 @@ function CallView({
 
         {/* Layout toggle */}
         <button
+          type="button"
           className={`control-btn ${layoutMode === 'speaker' ? 'control-btn-hand' : ''}`}
           onClick={handleToggleLayout}
           title={
@@ -3536,6 +3616,7 @@ function CallView({
 
         {/* Participants */}
         <button
+          type="button"
           className={`control-btn ${showParticipants ? 'control-btn-hand' : ''}`}
           onClick={onToggleParticipants}
           title={t('control.participants')}
@@ -3552,6 +3633,7 @@ function CallView({
 
         {/* Chat */}
         <button
+          type="button"
           className={`control-btn ${showChat ? 'control-btn-hand' : ''}`}
           onClick={onToggleChat}
           title={t('chat')}
@@ -3567,6 +3649,7 @@ function CallView({
 
         {/* More (overflow) */}
         <button
+          type="button"
           className={`control-btn ${showOverflow ? 'control-btn-hand' : ''}`}
           onClick={() => {
             setShowOverflow(!showOverflow)
@@ -3579,6 +3662,7 @@ function CallView({
 
         {/* Hangup */}
         <button
+          type="button"
           className="control-btn control-btn-hangup"
           onClick={onHangUp}
           title={t('control.leave')}
@@ -3697,12 +3781,14 @@ function CallView({
             </div>
             <div className="bg-mode-buttons">
               <button
+                type="button"
                 className={`bg-mode-btn ${bgMode === 'off' ? 'bg-mode-btn-active' : ''}`}
                 onClick={() => handleBgMode('off')}
               >
                 {t('settings.incall.bgOff')}
               </button>
               <button
+                type="button"
                 className={`bg-mode-btn ${bgMode === 'blur' ? 'bg-mode-btn-active' : ''}`}
                 onClick={() => handleBgMode('blur')}
               >
@@ -3712,6 +3798,7 @@ function CallView({
             <div className="bg-image-grid">
               {[1, 2, 3, 4, 5, 6, 7, 8].map((id) => (
                 <button
+                  type="button"
                   key={id}
                   className={`bg-image-thumb ${bgMode === 'image:' + id ? 'bg-image-thumb-active' : ''}`}
                   onClick={() => handleBgMode('image:' + id)}
@@ -3846,6 +3933,7 @@ function SettingsView({
     <div className="settings-page">
       <div className="settings-page-header">
         <button
+          type="button"
           className="settings-back-btn"
           data-testid="settings-close-button"
           onClick={onClose}
@@ -3938,6 +4026,7 @@ function SettingsView({
             <div key={inst} className="instance-row">
               <span>{inst}</span>
               <button
+                type="button"
                 className="btn-icon"
                 aria-label={t('action.remove')}
                 onClick={() => {
@@ -3964,6 +4053,7 @@ function SettingsView({
               disabled={!meetInstancesLoaded}
             />
             <button
+              type="button"
               className="btn-icon"
               aria-label={t('action.add')}
               onClick={addInstance}
@@ -4010,6 +4100,7 @@ function SettingsView({
         <div className="settings-section">
           <label className="settings-label">{t('settings.recentVisios')}</label>
           <button
+            type="button"
             className="settings-clear-history"
             onClick={async () => {
               await invoke('clear_visio_history')
@@ -4025,7 +4116,7 @@ function SettingsView({
         {saveStatus && (
           <span className="settings-save-status">{saveStatus}</span>
         )}
-        <button className="settings-save" onClick={save}>
+        <button type="button" className="settings-save" onClick={save}>
           {t('settings.save')}
         </button>
       </div>
@@ -4393,7 +4484,11 @@ function PreJoinScreen({
               <p className="prejoin-waiting-label">
                 {t('prejoin.waitingForApproval')}
               </p>
-              <button className="btn btn-secondary" onClick={handleBack}>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={handleBack}
+              >
                 {t('prejoin.cancel')}
               </button>
             </>
@@ -4403,7 +4498,11 @@ function PreJoinScreen({
               <p className="prejoin-waiting-error">
                 {t('prejoin.accessDenied')}
               </p>
-              <button className="btn btn-secondary" onClick={handleBack}>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={handleBack}
+              >
                 {t('prejoin.backToHome')}
               </button>
             </>
@@ -4413,7 +4512,11 @@ function PreJoinScreen({
               <p className="prejoin-waiting-error">
                 {t('prejoin.requestTimeout')}
               </p>
-              <button className="btn btn-secondary" onClick={handleBack}>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={handleBack}
+              >
                 {t('prejoin.backToHome')}
               </button>
             </>
@@ -4502,6 +4605,7 @@ function PreJoinScreen({
               </select>
             </div>
             <button
+              type="button"
               className={`prejoin-toggle${isCameraOn ? ' active' : ''}`}
               onClick={() => setIsCameraOn((v) => !v)}
               title={t('prejoin.camera')}
@@ -4516,6 +4620,7 @@ function PreJoinScreen({
 
           {/* Background filter row */}
           <button
+            type="button"
             className={`prejoin-filter-btn${showFilters ? ' active' : ''}`}
             onClick={() => setShowFilters((v) => !v)}
           >
@@ -4570,6 +4675,7 @@ function PreJoinScreen({
                   </select>
                 </div>
                 <button
+                  type="button"
                   className={`prejoin-toggle${isMicOn ? ' active' : ''}`}
                   onClick={() => setIsMicOn((v) => !v)}
                   title={t('prejoin.microphone')}
@@ -4620,6 +4726,7 @@ function PreJoinScreen({
                 </div>
               </div>
               <button
+                type="button"
                 className="btn btn-secondary prejoin-test-btn"
                 onClick={() => invoke('play_speaker_test').catch(() => {})}
               >
@@ -4648,10 +4755,11 @@ function PreJoinScreen({
 
       {/* Actions */}
       <div className="prejoin-actions">
-        <button className="btn btn-secondary" onClick={onCancel}>
+        <button type="button" className="btn btn-secondary" onClick={onCancel}>
           {t('prejoin.cancel')}
         </button>
         <button
+          type="button"
           className="btn btn-primary"
           data-testid="prejoin-join-button"
           onClick={handleJoinNow}
@@ -4665,13 +4773,14 @@ function PreJoinScreen({
         <div className="prejoin-filter-panel">
           <div className="prejoin-filter-panel-header">
             <span>{t('prejoin.backgroundFilters')}</span>
-            <button onClick={() => setShowFilters(false)}>
+            <button type="button" onClick={() => setShowFilters(false)}>
               <RiCloseLine size={20} />
             </button>
           </div>
           <div className="prejoin-filter-grid">
             {/* Off */}
             <button
+              type="button"
               className={`prejoin-filter-thumb${backgroundMode === 'off' ? ' active' : ''}`}
               onClick={() => handleSetBackgroundMode('off')}
             >
@@ -4680,6 +4789,7 @@ function PreJoinScreen({
             </button>
             {/* Blur */}
             <button
+              type="button"
               className={`prejoin-filter-thumb${backgroundMode === 'blur' ? ' active' : ''}`}
               onClick={() => handleSetBackgroundMode('blur')}
             >
@@ -4688,6 +4798,7 @@ function PreJoinScreen({
             </button>
             {/* Blur light */}
             <button
+              type="button"
               className={`prejoin-filter-thumb${backgroundMode === 'blur-light' ? ' active' : ''}`}
               onClick={() => handleSetBackgroundMode('blur-light')}
             >
@@ -4697,6 +4808,7 @@ function PreJoinScreen({
             {/* Background images 1-8 */}
             {[1, 2, 3, 4, 5, 6, 7, 8].map((n) => (
               <button
+                type="button"
                 key={n}
                 className={`prejoin-filter-thumb${backgroundMode === 'image:' + n ? ' active' : ''}`}
                 onClick={() => handleSetBackgroundMode('image:' + n)}
@@ -5591,7 +5703,7 @@ export default function App() {
             {deepLinkError && (
               <div className="deep-link-error">
                 <span>{deepLinkError}</span>
-                <button onClick={() => setDeepLinkError(null)}>
+                <button type="button" onClick={() => setDeepLinkError(null)}>
                   <RiCloseLine size={16} />
                 </button>
               </div>
