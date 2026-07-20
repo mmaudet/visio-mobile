@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import type { CSSProperties, ReactNode } from 'react'
 import { Icon, type IconName } from '../Icon'
 
 export interface RowProps {
@@ -25,34 +25,18 @@ export function Row({
   onClick,
   ariaLabel,
   testId,
-}: RowProps) {
+}: Readonly<RowProps>) {
   const interactive = !!onClick
-  return (
-    <div
-      data-testid={testId}
-      role={interactive ? 'button' : undefined}
-      tabIndex={interactive ? 0 : undefined}
-      aria-label={ariaLabel}
-      onClick={onClick}
-      onKeyDown={
-        interactive
-          ? (e) => {
-              if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault()
-                onClick?.()
-              }
-            }
-          : undefined
-      }
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: 14,
-        padding: 'var(--row-pad) 0',
-        borderBottom: last ? 'none' : '1px solid var(--hair)',
-        cursor: interactive ? 'pointer' : 'default',
-      }}
-    >
+  const rowStyle: CSSProperties = {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 14,
+    padding: 'var(--row-pad) 0',
+    borderBottom: last ? 'none' : '1px solid var(--hair)',
+    cursor: interactive ? 'pointer' : 'default',
+  }
+  const body = (
+    <>
       {icon && (
         <div
           style={{
@@ -97,7 +81,35 @@ export function Row({
         )}
       </div>
       {trailing}
-    </div>
+    </>
+  )
+  if (!interactive) {
+    return (
+      <div data-testid={testId} aria-label={ariaLabel} style={rowStyle}>
+        {body}
+      </div>
+    )
+  }
+  return (
+    <button
+      type="button"
+      data-testid={testId}
+      aria-label={ariaLabel}
+      onClick={onClick}
+      style={{
+        ...rowStyle,
+        width: '100%',
+        background: 'none',
+        border: 'none',
+        borderBottom: rowStyle.borderBottom,
+        font: 'inherit',
+        color: 'inherit',
+        textAlign: 'left',
+        fontFamily: 'var(--font-ui)',
+      }}
+    >
+      {body}
+    </button>
   )
 }
 

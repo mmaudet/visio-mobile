@@ -19,7 +19,7 @@ export function ConfirmModal({
   danger,
   onConfirm,
   onCancel,
-}: ConfirmModalProps) {
+}: Readonly<ConfirmModalProps>) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onCancel()
@@ -30,25 +30,40 @@ export function ConfirmModal({
   }, [onCancel, onConfirm])
   return (
     <div
-      onClick={onCancel}
-      role="dialog"
-      aria-modal="true"
       style={{
         position: 'fixed',
         inset: 0,
-        background: 'rgba(8,10,14,0.45)',
-        backdropFilter: 'blur(2px)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
         zIndex: 10000,
       }}
     >
-      <div
-        onClick={(e) => e.stopPropagation()}
+      {/* Backdrop: a native button so backdrop-click-to-cancel stays
+          keyboard- and pointer-accessible without ARIA hacks. */}
+      <button
+        type="button"
+        aria-label={cancelLabel}
+        onClick={onCancel}
         style={{
+          position: 'absolute',
+          inset: 0,
+          border: 'none',
+          padding: 0,
+          cursor: 'default',
+          background: 'rgba(8,10,14,0.45)',
+          backdropFilter: 'blur(2px)',
+        }}
+      />
+      <dialog
+        open
+        aria-modal="true"
+        style={{
+          position: 'relative',
+          margin: 0,
           width: 'min(420px, calc(100vw - 48px))',
           background: 'var(--surface)',
+          color: 'var(--text)',
           borderRadius: 'var(--r-card)',
           boxShadow: 'var(--shadow-pop)',
           border: '1px solid var(--border)',
@@ -99,7 +114,7 @@ export function ConfirmModal({
             {confirmLabel}
           </Button>
         </div>
-      </div>
+      </dialog>
     </div>
   )
 }

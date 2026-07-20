@@ -22,7 +22,7 @@ export function Field({
   className,
   style,
   ...inputProps
-}: FieldProps) {
+}: Readonly<FieldProps>) {
   return (
     <div
       className={['v-input', className].filter(Boolean).join(' ')}

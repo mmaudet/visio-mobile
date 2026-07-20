@@ -44,14 +44,11 @@ export function IconBtn({
   className,
   ariaLabel,
   ...rest
-}: IconBtnProps) {
+}: Readonly<IconBtnProps>) {
   const bg = BG[variant]
-  const color =
-    variant === 'accent' || variant === 'danger'
-      ? '#fff'
-      : variant === 'off'
-        ? 'var(--danger)'
-        : (tint ?? 'var(--text)')
+  let color = tint ?? 'var(--text)'
+  if (variant === 'accent' || variant === 'danger') color = '#fff'
+  else if (variant === 'off') color = 'var(--danger)'
 
   const btnStyle: CSSProperties = {
     width: dim,

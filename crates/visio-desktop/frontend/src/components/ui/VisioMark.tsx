@@ -13,7 +13,7 @@ export function VisioMark({
   size = 26,
   dark = false,
   className,
-}: VisioMarkProps) {
+}: Readonly<VisioMarkProps>) {
   const arc = dark ? '#8C9CFF' : '#000091'
   return (
     <svg

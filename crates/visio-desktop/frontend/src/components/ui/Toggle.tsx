@@ -5,7 +5,12 @@ export interface ToggleProps {
   ariaLabel?: string
 }
 
-export function Toggle({ on, onChange, disabled, ariaLabel }: ToggleProps) {
+export function Toggle({
+  on,
+  onChange,
+  disabled,
+  ariaLabel,
+}: Readonly<ToggleProps>) {
   return (
     <button
       type="button"

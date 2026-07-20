@@ -49,7 +49,10 @@ function NavItem({
   title,
   testId,
   onClick,
-}: NavItemProps) {
+}: Readonly<NavItemProps>) {
+  let color = 'var(--text-2)'
+  if (disabled) color = 'var(--text-3)'
+  else if (active) color = 'var(--accent)'
   const style: CSSProperties = {
     display: 'flex',
     alignItems: 'center',
@@ -59,11 +62,7 @@ function NavItem({
     borderRadius: 10,
     cursor: disabled ? 'not-allowed' : 'pointer',
     background: active ? 'var(--accent-soft)' : 'transparent',
-    color: disabled
-      ? 'var(--text-3)'
-      : active
-        ? 'var(--accent)'
-        : 'var(--text-2)',
+    color,
     border: 'none',
     width: '100%',
     fontFamily: 'var(--font-ui)',
@@ -98,7 +97,7 @@ export function DeskSidebar({
   labels,
   disabled,
   onProfileClick,
-}: DeskSidebarProps) {
+}: Readonly<DeskSidebarProps>) {
   return (
     <aside
       style={{

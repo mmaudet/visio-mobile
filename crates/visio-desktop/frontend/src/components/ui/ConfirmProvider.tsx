@@ -6,7 +6,9 @@ interface PendingConfirm extends ConfirmOptions {
   resolve: (value: boolean) => void
 }
 
-export function ConfirmProvider({ children }: { children: ReactNode }) {
+export function ConfirmProvider({
+  children,
+}: Readonly<{ children: ReactNode }>) {
   const [pending, setPending] = useState<PendingConfirm | null>(null)
   const pendingRef = useRef<PendingConfirm | null>(null)
   pendingRef.current = pending

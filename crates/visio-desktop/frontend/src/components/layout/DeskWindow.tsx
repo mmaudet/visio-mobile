@@ -13,7 +13,11 @@ export interface DeskWindowProps {
  * 1200×750 du design ici — la maquette était un cadre, l'app réelle remplit
  * sa fenêtre native.
  */
-export function DeskWindow({ children, screenBg, style }: DeskWindowProps) {
+export function DeskWindow({
+  children,
+  screenBg,
+  style,
+}: Readonly<DeskWindowProps>) {
   return (
     <div
       style={{

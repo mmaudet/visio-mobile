@@ -82,7 +82,7 @@ function chainUnlisten(
 interface AudioLevelProps {
   level: number
 }
-function AudioLevel({ level }: AudioLevelProps) {
+function AudioLevel({ level }: Readonly<AudioLevelProps>) {
   // Clip level into [0..1] and amplify low values — get_mic_level returns
   // an RMS that sits around 0.02-0.15 for normal speech; without scaling
   // we'd never light up more than one bar.
@@ -90,7 +90,10 @@ function AudioLevel({ level }: AudioLevelProps) {
   const amplified = Math.pow(norm, 0.45)
   const bars = useMemo(() => {
     const base = [5, 7, 10, 13, 15, 13, 10, 7, 5]
-    return base.map((b) => Math.round(b * (0.35 + amplified * 1.4)))
+    return base.map((b, i) => ({
+      id: `vu-bar-${i}`,
+      h: Math.round(b * (0.35 + amplified * 1.4)),
+    }))
   }, [amplified])
   const lit = Math.min(9, Math.max(1, Math.round(amplified * 9)))
   return (
@@ -98,13 +101,13 @@ function AudioLevel({ level }: AudioLevelProps) {
       data-testid="prejoin-vu-track"
       style={{ display: 'flex', alignItems: 'center', gap: 3, height: 18 }}
     >
-      {bars.map((h, i) => (
+      {bars.map((bar, i) => (
         <div
-          key={i}
+          key={bar.id}
           data-testid="prejoin-vu-bar"
           style={{
             width: 3,
-            height: Math.max(3, h),
+            height: Math.max(3, bar.h),
             borderRadius: 2,
             background: i < lit ? '#fff' : 'rgba(255,255,255,0.3)',
             transition: 'background .08s linear',
@@ -121,7 +124,7 @@ interface DDeviceProps {
   value: string
   onClick?: () => void
 }
-function DDevice({ icon, label, value, onClick }: DDeviceProps) {
+function DDevice({ icon, label, value, onClick }: Readonly<DDeviceProps>) {
   return (
     <button
       type="button"
@@ -207,7 +210,7 @@ export function LobbyScreen({
   onAdmitAll,
   onJoined,
   onCancel,
-}: LobbyScreenProps) {
+}: Readonly<LobbyScreenProps>) {
   const [displayName, setDisplayName] = useState(initialUsername ?? '')
   const [isMicOn, setIsMicOn] = useState(true)
   const [isCameraOn, setIsCameraOn] = useState(false)
@@ -989,13 +992,19 @@ export function LobbyScreen({
 // Inline background-effects panel rendered in the Lobby right column.
 // Same content as CallScreen's BgPicker popover, but as a regular card so
 // it doesn't overlay the camera preview.
+const EFFECT_PREVIEW_BG: Record<string, string> = {
+  off: 'repeating-linear-gradient(45deg, var(--surface-2) 0 6px, var(--surface) 6px 12px)',
+  blur: 'linear-gradient(135deg, #c5cad6, #8a93a8)',
+  'blur-light': 'linear-gradient(135deg, #e8eaf0, #b9bfcc)',
+}
+
 interface BgPanelProps {
   t: TFunction
   bgMode: string
   bgImages: BgImage[]
   onSetBgMode: (mode: string) => void
 }
-function BgPanel({ t, bgMode, bgImages, onSetBgMode }: BgPanelProps) {
+function BgPanel({ t, bgMode, bgImages, onSetBgMode }: Readonly<BgPanelProps>) {
   const effects: Array<[string, string, string]> = [
     ['off', t('bg.off'), 'noBg'],
     ['blur', t('bg.blurStrong'), 'blurStrong'],
@@ -1040,12 +1049,7 @@ function BgPanel({ t, bgMode, bgImages, onSetBgMode }: BgPanelProps) {
                 borderRadius: 8,
                 padding: 0,
                 overflow: 'hidden',
-                background:
-                  mode === 'off'
-                    ? 'repeating-linear-gradient(45deg, var(--surface-2) 0 6px, var(--surface) 6px 12px)'
-                    : mode === 'blur'
-                      ? 'linear-gradient(135deg, #c5cad6, #8a93a8)'
-                      : 'linear-gradient(135deg, #e8eaf0, #b9bfcc)',
+                background: EFFECT_PREVIEW_BG[mode],
                 cursor: 'pointer',
                 position: 'relative',
                 display: 'flex',
@@ -1118,7 +1122,12 @@ interface PickerMenuProps {
   onPick: (key: string) => void
   onClose: () => void
 }
-function PickerMenu({ title, items, onPick, onClose }: PickerMenuProps) {
+function PickerMenu({
+  title,
+  items,
+  onPick,
+  onClose,
+}: Readonly<PickerMenuProps>) {
   useEffect(() => {
     const onDoc = (e: MouseEvent) => {
       const tgt = e.target as Element

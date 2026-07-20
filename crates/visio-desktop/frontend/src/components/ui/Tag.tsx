@@ -19,7 +19,7 @@ export interface TagProps {
   children: ReactNode
 }
 
-export function Tag({ tone = 'neutral', dot, children }: TagProps) {
+export function Tag({ tone = 'neutral', dot, children }: Readonly<TagProps>) {
   const [fg, bg] = TONES[tone]
   return (
     <span className="v-tag" style={{ color: fg, background: bg }}>

@@ -10,7 +10,7 @@ const AV_TONES = [
 
 function avTone(name: string) {
   let s = 0
-  for (const ch of name) s += ch.charCodeAt(0)
+  for (const ch of name) s += ch.codePointAt(0) ?? 0
   return AV_TONES[s % AV_TONES.length]
 }
 
@@ -31,7 +31,12 @@ export interface AvatarProps {
   ring?: number
 }
 
-export function Avatar({ name = '', size = 36, src, ring }: AvatarProps) {
+export function Avatar({
+  name = '',
+  size = 36,
+  src,
+  ring,
+}: Readonly<AvatarProps>) {
   return (
     <div
       aria-hidden

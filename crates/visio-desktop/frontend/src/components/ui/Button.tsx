@@ -21,7 +21,7 @@ export function Button({
   children,
   type = 'button',
   ...rest
-}: ButtonProps) {
+}: Readonly<ButtonProps>) {
   const classes = [
     'v-btn',
     variant,

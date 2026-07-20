@@ -91,7 +91,7 @@ const TONE_PALETTE = [
 ]
 function toneFor(seed: string): string {
   let s = 0
-  for (const c of seed) s += c.charCodeAt(0)
+  for (const c of seed) s += c.codePointAt(0) ?? 0
   return TONE_PALETTE[s % TONE_PALETTE.length]
 }
 
@@ -130,7 +130,7 @@ function buildDisplayItems(
   for (const p of participants) {
     // Rust's get_participants list can include the local participant. Skip
     // them here — they're already inserted from the `local` argument above.
-    if (local && p.sid === local.sid) continue
+    if (p.sid === local?.sid) continue
     items.push({
       key: `${p.sid}-cam`,
       participant: p,
@@ -188,15 +188,12 @@ function qualityToBars(q: string): number {
   if (q === 'Poor') return 1
   return 0
 }
-function QualityBars({ quality }: { quality: string }) {
+function QualityBars({ quality }: Readonly<{ quality: string }>) {
   const lit = qualityToBars(quality)
   if (lit === 0) return null
-  const color =
-    quality === 'Poor'
-      ? 'var(--danger)'
-      : quality === 'Good'
-        ? 'var(--warn)'
-        : 'var(--live)'
+  let color = 'var(--live)'
+  if (quality === 'Poor') color = 'var(--danger)'
+  else if (quality === 'Good') color = 'var(--warn)'
   return (
     <div
       style={{
@@ -245,7 +242,13 @@ interface CallTileProps {
   reactions?: Array<{ id: number; emoji: string; ts: number }>
   t: TFunction
 }
-function CallTile({ item, frame, big, reactions = [], t }: CallTileProps) {
+function CallTile({
+  item,
+  frame,
+  big,
+  reactions = [],
+  t,
+}: Readonly<CallTileProps>) {
   const { participant: p, tone, isLocal, source } = item
   const name =
     isLocal && p.name === 'You' ? p.name : p.name || p.identity || '—'
@@ -385,7 +388,13 @@ interface ChatPanelProps {
   onSend: (text: string) => void
   onClose: () => void
 }
-function ChatPanel({ t, messages, localSid, onSend, onClose }: ChatPanelProps) {
+function ChatPanel({
+  t,
+  messages,
+  localSid,
+  onSend,
+  onClose,
+}: Readonly<ChatPanelProps>) {
   const [draft, setDraft] = useState('')
   const scrollerRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
@@ -598,7 +607,7 @@ function ParticipantsPanel({
   pinnedSid,
   onTogglePin,
   onClose,
-}: ParticipantsPanelProps) {
+}: Readonly<ParticipantsPanelProps>) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose()
@@ -621,7 +630,7 @@ function ParticipantsPanel({
   const all: Participant[] = []
   if (local) all.push(local)
   for (const p of participants) {
-    if (local && p.sid === local.sid) continue
+    if (p.sid === local?.sid) continue
     all.push(p)
   }
   return (
@@ -879,7 +888,10 @@ function DeskCtrl({
   caretTestId,
   badgeTestId,
   children,
-}: DeskCtrlProps) {
+}: Readonly<DeskCtrlProps>) {
+  let ctrlBg = 'rgba(255,255,255,0.13)'
+  if (danger) ctrlBg = 'var(--danger)'
+  else if (active) ctrlBg = 'rgba(255,255,255,0.22)'
   return (
     <div
       style={{
@@ -909,11 +921,7 @@ function DeskCtrl({
             borderRadius: wide ? 14 : '50%',
             border: 'none',
             cursor: 'pointer',
-            background: danger
-              ? 'var(--danger)'
-              : active
-                ? 'rgba(255,255,255,0.22)'
-                : 'rgba(255,255,255,0.13)',
+            background: ctrlBg,
             color: '#fff',
             display: 'flex',
             alignItems: 'center',
@@ -1033,7 +1041,7 @@ function AudioPicker({
   onPickInput,
   onPickOutput,
   onClose,
-}: AudioPickerProps) {
+}: Readonly<AudioPickerProps>) {
   return (
     <CallPicker
       title={t('devicePicker.audio.title')}
@@ -1093,7 +1101,7 @@ function VideoPicker({
   onPickInput,
   onSetBgMode,
   onClose,
-}: VideoPickerProps) {
+}: Readonly<VideoPickerProps>) {
   return (
     <CallPicker
       title={t('devicePicker.video.title')}
@@ -1163,7 +1171,7 @@ export function BgPicker({
   onSetBgMode,
   onClose,
   placement = 'bottom-center',
-}: BgPickerProps) {
+}: Readonly<BgPickerProps>) {
   return (
     <CallPicker title={t('bg.title')} onClose={onClose} placement={placement}>
       <Section label={t('devicePicker.video.effects')}>
@@ -1203,7 +1211,12 @@ interface BgImageGridProps {
   bgMode: string
   onSetBgMode: (mode: string) => void
 }
-function BgImageGrid({ t, images, bgMode, onSetBgMode }: BgImageGridProps) {
+function BgImageGrid({
+  t,
+  images,
+  bgMode,
+  onSetBgMode,
+}: Readonly<BgImageGridProps>) {
   return (
     <div
       style={{
@@ -1298,7 +1311,7 @@ function CallPicker({
   onClose,
   placement = 'bottom-center',
   testId,
-}: CallPickerProps) {
+}: Readonly<CallPickerProps>) {
   useEffect(() => {
     const onDoc = (e: MouseEvent) => {
       const tgt = e.target as Element
@@ -1364,7 +1377,7 @@ interface SectionProps {
   label: string
   children: ReactNode
 }
-function Section({ label, children }: SectionProps) {
+function Section({ label, children }: Readonly<SectionProps>) {
   return (
     <div style={{ marginTop: 4 }}>
       <div
@@ -1390,7 +1403,12 @@ interface PickerRowProps {
   onClick: () => void
   testId?: string
 }
-function PickerRow({ label, active, onClick, testId }: PickerRowProps) {
+function PickerRow({
+  label,
+  active,
+  onClick,
+  testId,
+}: Readonly<PickerRowProps>) {
   return (
     <button
       type="button"
@@ -1435,7 +1453,7 @@ function PickerRow({ label, active, onClick, testId }: PickerRowProps) {
   )
 }
 
-function Empty({ label }: { label: string }) {
+function Empty({ label }: Readonly<{ label: string }>) {
   return (
     <div
       style={{
@@ -1453,7 +1471,7 @@ function Empty({ label }: { label: string }) {
 // CallScreen — main composition
 // ---------------------------------------------------------------------------
 
-export function CallScreen(props: CallScreenProps) {
+export function CallScreen(props: Readonly<CallScreenProps>) {
   const confirm = useConfirm()
   const {
     t,
@@ -1503,7 +1521,7 @@ export function CallScreen(props: CallScreenProps) {
     unreadCount,
   } = props
 
-  const [chatOpen, setChatOpenState] = useState(false)
+  const [chatOpenState, setChatOpenState] = useState(false)
   const [reactionOpen, setReactionOpen] = useState(false)
   const [infoOpen, setInfoOpen] = useState(false)
   // Screen-share source picker. null = closed, [] = loading, [...] = shown.
@@ -1624,6 +1642,104 @@ export function CallScreen(props: CallScreenProps) {
   const cols = gridCols(items.length)
   const rows = gridRows(items.length)
   const total = items.length
+
+  // Video-stage content, picked by participant count and layout mode.
+  let stageContent: ReactNode
+  if (total === 0) {
+    stageContent = (
+      <div
+        style={{
+          width: '100%',
+          height: '100%',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          color: 'rgba(255,255,255,0.5)',
+          fontSize: 14,
+        }}
+      >
+        {t('call.waiting')}
+      </div>
+    )
+  } else if (layoutMode === 'speaker' && total > 1) {
+    stageContent = (
+      <div
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 12,
+          height: '100%',
+        }}
+      >
+        <div style={{ flex: 1, minHeight: 0 }}>
+          <CallTile
+            key={items[0].key}
+            item={items[0]}
+            t={t}
+            frame={
+              items[0].trackSid
+                ? (videoFrames.get(items[0].trackSid) ?? null)
+                : null
+            }
+            big
+            reactions={liveReactions.filter(
+              (r) => r.sid === items[0].participant.sid
+            )}
+          />
+        </div>
+        <div
+          style={{
+            flexShrink: 0,
+            display: 'grid',
+            gridAutoColumns: '160px',
+            gridAutoFlow: 'column',
+            gap: 8,
+            height: 100,
+            overflowX: 'auto',
+          }}
+        >
+          {items.slice(1).map((it) => (
+            <CallTile
+              key={it.key}
+              item={it}
+              t={t}
+              frame={
+                it.trackSid ? (videoFrames.get(it.trackSid) ?? null) : null
+              }
+              reactions={liveReactions.filter(
+                (r) => r.sid === it.participant.sid
+              )}
+            />
+          ))}
+        </div>
+      </div>
+    )
+  } else {
+    stageContent = (
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: cols,
+          gridTemplateRows: rows,
+          gap: 12,
+          height: '100%',
+        }}
+      >
+        {items.map((it) => (
+          <CallTile
+            key={it.key}
+            item={it}
+            t={t}
+            frame={it.trackSid ? (videoFrames.get(it.trackSid) ?? null) : null}
+            big={total === 1}
+            reactions={liveReactions.filter(
+              (r) => r.sid === it.participant.sid
+            )}
+          />
+        ))}
+      </div>
+    )
+  }
 
   return (
     <div
@@ -1796,101 +1912,9 @@ export function CallScreen(props: CallScreenProps) {
               {t('call.alone')}
             </div>
           )}
-          {total === 0 ? (
-            <div
-              style={{
-                width: '100%',
-                height: '100%',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: 'rgba(255,255,255,0.5)',
-                fontSize: 14,
-              }}
-            >
-              {t('call.waiting')}
-            </div>
-          ) : layoutMode === 'speaker' && total > 1 ? (
-            <div
-              style={{
-                display: 'flex',
-                flexDirection: 'column',
-                gap: 12,
-                height: '100%',
-              }}
-            >
-              <div style={{ flex: 1, minHeight: 0 }}>
-                <CallTile
-                  key={items[0].key}
-                  item={items[0]}
-                  t={t}
-                  frame={
-                    items[0].trackSid
-                      ? (videoFrames.get(items[0].trackSid) ?? null)
-                      : null
-                  }
-                  big
-                  reactions={liveReactions.filter(
-                    (r) => r.sid === items[0].participant.sid
-                  )}
-                />
-              </div>
-              <div
-                style={{
-                  flexShrink: 0,
-                  display: 'grid',
-                  gridAutoColumns: '160px',
-                  gridAutoFlow: 'column',
-                  gap: 8,
-                  height: 100,
-                  overflowX: 'auto',
-                }}
-              >
-                {items.slice(1).map((it) => (
-                  <CallTile
-                    key={it.key}
-                    item={it}
-                    t={t}
-                    frame={
-                      it.trackSid
-                        ? (videoFrames.get(it.trackSid) ?? null)
-                        : null
-                    }
-                    reactions={liveReactions.filter(
-                      (r) => r.sid === it.participant.sid
-                    )}
-                  />
-                ))}
-              </div>
-            </div>
-          ) : (
-            <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: cols,
-                gridTemplateRows: rows,
-                gap: 12,
-                height: '100%',
-              }}
-            >
-              {items.map((it) => (
-                <CallTile
-                  key={it.key}
-                  item={it}
-                  t={t}
-                  frame={
-                    it.trackSid ? (videoFrames.get(it.trackSid) ?? null) : null
-                  }
-                  big={total === 1}
-                  reactions={liveReactions.filter(
-                    (r) => r.sid === it.participant.sid
-                  )}
-                />
-              ))}
-            </div>
-          )}
+          {stageContent}
         </div>
-        {chatOpen && (
+        {chatOpenState && (
           <ChatPanel
             t={t}
             messages={messages}
@@ -1918,7 +1942,7 @@ export function CallScreen(props: CallScreenProps) {
         style={{
           position: 'absolute',
           left: 0,
-          right: chatOpen || peopleOpen ? 340 : 0,
+          right: chatOpenState || peopleOpen ? 340 : 0,
           bottom: 18,
           zIndex: 6,
           display: 'flex',
@@ -2043,10 +2067,10 @@ export function CallScreen(props: CallScreenProps) {
           <DeskCtrl
             name="chat"
             label={t('call.discussion')}
-            active={chatOpen}
-            badge={chatOpen ? 0 : unreadCount}
+            active={chatOpenState}
+            badge={chatOpenState ? 0 : unreadCount}
             onClick={() => {
-              const next = !chatOpen
+              const next = !chatOpenState
               setChatOpen(next)
               if (next && peopleOpen) onTogglePeople()
             }}
@@ -2058,7 +2082,7 @@ export function CallScreen(props: CallScreenProps) {
             label={t('call.label.people')}
             active={peopleOpen}
             onClick={() => {
-              if (!peopleOpen && chatOpen) setChatOpen(false)
+              if (!peopleOpen && chatOpenState) setChatOpen(false)
               onTogglePeople()
             }}
             testId="call-participants-button"
@@ -2104,7 +2128,11 @@ interface CallInfoPopoverProps {
   meetUrl: string
   onClose: () => void
 }
-function CallInfoPopover({ t, meetUrl, onClose }: CallInfoPopoverProps) {
+function CallInfoPopover({
+  t,
+  meetUrl,
+  onClose,
+}: Readonly<CallInfoPopoverProps>) {
   const [copied, setCopied] = useState(false)
   useEffect(() => {
     const onDoc = (e: MouseEvent) => {
@@ -2220,7 +2248,7 @@ function ScreenSharePicker({
   sources,
   onPick,
   onClose,
-}: ScreenSharePickerProps) {
+}: Readonly<ScreenSharePickerProps>) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose()
@@ -2233,22 +2261,35 @@ function ScreenSharePicker({
   const loading = sources.length === 0
   return (
     <div
-      onClick={onClose}
       style={{
         position: 'absolute',
         inset: 0,
-        background: 'rgba(8, 10, 14, 0.72)',
-        backdropFilter: 'blur(12px)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
         zIndex: 100,
       }}
     >
+      {/* Backdrop: a native button so click-outside-to-close stays
+          keyboard- and pointer-accessible without ARIA hacks. */}
+      <button
+        type="button"
+        aria-label={t('settings.cancel')}
+        onClick={onClose}
+        style={{
+          position: 'absolute',
+          inset: 0,
+          border: 'none',
+          padding: 0,
+          cursor: 'default',
+          background: 'rgba(8, 10, 14, 0.72)',
+          backdropFilter: 'blur(12px)',
+        }}
+      />
       <div
         data-testid="screen-share-source-picker"
-        onClick={(e) => e.stopPropagation()}
         style={{
+          position: 'relative',
           background: '#1c1f26',
           color: '#fff',
           width: 720,
@@ -2359,7 +2400,7 @@ function ScreenSourceSection({
   onPick,
   emptyHint,
   indexOffset = 0,
-}: ScreenSourceSectionProps) {
+}: Readonly<ScreenSourceSectionProps>) {
   return (
     <div>
       <div
@@ -2464,7 +2505,7 @@ interface ReactionPickerProps {
   onPick: (emoji: string) => void
   onClose: () => void
 }
-function ReactionPicker({ t, onPick, onClose }: ReactionPickerProps) {
+function ReactionPicker({ t, onPick, onClose }: Readonly<ReactionPickerProps>) {
   useEffect(() => {
     const off = (e: MouseEvent) => {
       const tgt = e.target as Element

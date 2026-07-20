@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useReducer, useState } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import { Icon } from '../components/Icon'
 import { Tag } from '../components/ui/Tag'
@@ -88,8 +88,7 @@ function fmtMeetingDate(meeting: Meeting, t: TFunction): string {
   return `${dateLabel} ${time}`
 }
 
-function eyebrowDate(t: TFunction): string {
-  void t
+function eyebrowDate(): string {
   const d = new Date()
   // Capitalised first letter, e.g. "Mardi 6 juin"
   const s = d.toLocaleDateString(undefined, {
@@ -125,6 +124,63 @@ function accessTone(
   }
 }
 
+/** Ordered candidate room URLs for a raw join input: full URL, host/path,
+ *  bare slug (authenticated instance first, then every known instance,
+ *  de-duplicated), or an alias resolved by Rust. */
+async function buildJoinCandidates(
+  trimmed: string,
+  authenticatedMeetInstance: string,
+  meetInstances: string[]
+): Promise<string[]> {
+  if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+    return [trimmed]
+  }
+  if (trimmed.includes('/')) return [`https://${trimmed}`]
+  if (/^[a-z]{3}-[a-z]{4}-[a-z]{3}$/.test(trimmed)) {
+    const candidates: string[] = []
+    if (authenticatedMeetInstance) {
+      candidates.push(`https://${authenticatedMeetInstance}/${trimmed}`)
+    }
+    for (const inst of meetInstances) {
+      const u = `https://${inst}/${trimmed}`
+      if (!candidates.includes(u)) candidates.push(u)
+    }
+    return candidates
+  }
+  try {
+    const resolved = await invoke<string | null>('resolve_visio_alias', {
+      name: trimmed,
+    })
+    return resolved ? [resolved] : []
+  } catch {
+    return []
+  }
+}
+
+type JoinProbe =
+  | { kind: 'valid' }
+  | { kind: 'auth_required'; url: string }
+  | { kind: 'not_found' }
+  | { kind: 'aborted' }
+
+/** Probe each candidate URL with validate_room until one is joinable. */
+async function probeJoinCandidates(
+  candidates: string[],
+  signal: AbortSignal
+): Promise<JoinProbe> {
+  for (const url of candidates) {
+    if (signal.aborted) return { kind: 'aborted' }
+    const result = await invoke<{ status: string }>('validate_room', {
+      url,
+      username: null,
+    })
+    if (signal.aborted) return { kind: 'aborted' }
+    if (result.status === 'valid') return { kind: 'valid' }
+    if (result.status === 'auth_required') return { kind: 'auth_required', url }
+  }
+  return { kind: 'not_found' }
+}
+
 interface MeetingRowProps {
   t: TFunction
   meeting: Meeting
@@ -132,7 +188,7 @@ interface MeetingRowProps {
   onJoin: () => void
 }
 
-function MeetingRow({ t, meeting, last, onJoin }: MeetingRowProps) {
+function MeetingRow({ t, meeting, last, onJoin }: Readonly<MeetingRowProps>) {
   const live = isOngoing(meeting)
   const access = accessTone(undefined, t)
   const avatars = pickAvatars(meeting)
@@ -182,7 +238,7 @@ function MeetingRow({ t, meeting, last, onJoin }: MeetingRowProps) {
         <div style={{ display: 'flex' }}>
           {avatars.slice(0, 4).map((n, i) => (
             <div
-              key={i}
+              key={n}
               style={{
                 marginLeft: i ? -9 : 0,
                 boxShadow: '0 0 0 2px var(--ring-color)',
@@ -236,7 +292,7 @@ export function HomeScreen({
   authError,
   onLaunchOidc,
   registerPostAuthAction,
-}: HomeScreenProps) {
+}: Readonly<HomeScreenProps>) {
   const [joinCode, setJoinCode] = useState('')
   const [search, setSearch] = useState('')
   const [joinStatus, setJoinStatus] = useState<
@@ -270,54 +326,19 @@ export function HomeScreen({
     const ctl = new AbortController()
     const timer = setTimeout(async () => {
       try {
-        const candidates: string[] = []
-        if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
-          candidates.push(trimmed)
-        } else if (trimmed.includes('/')) {
-          candidates.push(`https://${trimmed}`)
-        } else if (/^[a-z]{3}-[a-z]{4}-[a-z]{3}$/.test(trimmed)) {
-          if (authenticatedMeetInstance) {
-            candidates.push(`https://${authenticatedMeetInstance}/${trimmed}`)
-          }
-          for (const inst of meetInstances) {
-            const u = `https://${inst}/${trimmed}`
-            if (!candidates.includes(u)) candidates.push(u)
-          }
-        } else {
-          try {
-            const resolved = await invoke<string | null>(
-              'resolve_visio_alias',
-              {
-                name: trimmed,
-              }
-            )
-            if (resolved) candidates.push(resolved)
-          } catch {
-            /* ignore */
-          }
-        }
+        const candidates = await buildJoinCandidates(
+          trimmed,
+          authenticatedMeetInstance,
+          meetInstances
+        )
         if (candidates.length === 0) {
           if (!ctl.signal.aborted) setJoinStatus('not_found')
           return
         }
-        for (const url of candidates) {
-          if (ctl.signal.aborted) return
-          const result = await invoke<{ status: string }>('validate_room', {
-            url,
-            username: null,
-          })
-          if (ctl.signal.aborted) return
-          if (result.status === 'valid') {
-            setJoinStatus('valid')
-            return
-          }
-          if (result.status === 'auth_required') {
-            setAuthRoomUrl(url)
-            setJoinStatus('auth_required')
-            return
-          }
-        }
-        setJoinStatus('not_found')
+        const probe = await probeJoinCandidates(candidates, ctl.signal)
+        if (probe.kind === 'aborted') return
+        if (probe.kind === 'auth_required') setAuthRoomUrl(probe.url)
+        setJoinStatus(probe.kind)
       } catch {
         if (!ctl.signal.aborted) setJoinStatus('idle')
       }
@@ -383,9 +404,9 @@ export function HomeScreen({
   }, [meetings, search, isCalendarMode])
 
   // Force a 60s rerender so the "Live" badges stay accurate
-  const [, setTick] = useState(0)
+  const [, forceTick] = useReducer((n: number) => n + 1, 0)
   useEffect(() => {
-    const id = setInterval(() => setTick((n) => n + 1), 60_000)
+    const id = setInterval(() => forceTick(), 60_000)
     return () => clearInterval(id)
   }, [])
 
@@ -473,7 +494,7 @@ export function HomeScreen({
         }}
       >
         <div>
-          <div className="v-eyebrow">{eyebrowDate(t)}</div>
+          <div className="v-eyebrow">{eyebrowDate()}</div>
           <h1 className="v-h1" style={{ fontSize: 28, marginTop: 6 }}>
             {userFirstName
               ? `${t('home.greeting')}, ${userFirstName}`

@@ -110,6 +110,41 @@ const SUPPORTED_LANGS = Object.keys(translations)
 
 const SLUG_REGEX = /^[a-z]{3}-[a-z]{4}-[a-z]{3}$/
 
+/** Ordered candidate room URLs for a raw join input: full URL, host/path,
+ *  bare slug (every known instance, authenticated instance first), or an
+ *  alias resolved by Rust. Extracted from handleJoinByCode (S3776). */
+async function joinCandidates(
+  trimmed: string,
+  authenticatedMeetInstance: string,
+  meetInstances: string[]
+): Promise<string[]> {
+  const candidates: string[] = []
+  if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+    candidates.push(trimmed)
+  } else if (trimmed.includes('/')) {
+    candidates.push(`https://${trimmed}`)
+  } else if (SLUG_REGEX.test(trimmed)) {
+    // slug seul → essayer chaque instance connue
+    for (const inst of meetInstances) {
+      candidates.push(`https://${inst}/${trimmed}`)
+    }
+    if (authenticatedMeetInstance) {
+      candidates.unshift(`https://${authenticatedMeetInstance}/${trimmed}`)
+    }
+  } else {
+    // alias éventuel
+    try {
+      const resolved = await invoke<string | null>('resolve_visio_alias', {
+        name: trimmed,
+      })
+      if (resolved) candidates.push(resolved)
+    } catch {
+      /* ignore */
+    }
+  }
+  return candidates
+}
+
 // How long the desktop waits for the visio://auth-callback deep link after
 // opening the browser before surfacing an error (instances without PKCE
 // support never redirect back).
@@ -738,7 +773,7 @@ function ProfileMenu({
   onOpenSettings,
   onSignOut,
   onClose,
-}: ProfileMenuProps) {
+}: Readonly<ProfileMenuProps>) {
   useEffect(() => {
     const onDoc = (e: MouseEvent) => {
       const tgt = e.target as Element | null
@@ -919,9 +954,10 @@ export default function App() {
   // ("image:N") and an absolute file:// path or /public path the UI can render
   // as a thumbnail. The list is populated at startup once the Rust side has
   // registered the images.
-  // TODO: replace the static 1..8 list with a Tauri command that lists the
-  // unpacked `backgrounds/` resource dir at runtime (avoids touching this file
-  // every time a designer drops a new JPEG in assets/backgrounds/).
+  // Note: the static 1..8 list could eventually be replaced by a Tauri
+  // command listing the unpacked `backgrounds/` resource dir at runtime
+  // (avoids touching this file every time a designer drops a new JPEG in
+  // assets/backgrounds/).
   const [bgImages, setBgImages] = useState<
     Array<{ id: number; thumbUrl: string }>
   >([])
@@ -1294,7 +1330,7 @@ export default function App() {
           ? 'dark'
           : 'light'
       }
-      root.setAttribute('data-theme', resolved)
+      root.dataset.theme = resolved
     }
     applyResolved()
     if (theme === 'system') {
@@ -1785,35 +1821,11 @@ export default function App() {
       setHomeJoinPending(true)
       try {
         const trimmed = raw.trim().replace(/\/$/, '')
-        const candidates: string[] = []
-        if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
-          candidates.push(trimmed)
-        } else if (trimmed.includes('/')) {
-          candidates.push(`https://${trimmed}`)
-        } else if (SLUG_REGEX.test(trimmed)) {
-          // slug seul → essayer chaque instance connue
-          for (const inst of meetInstances) {
-            candidates.push(`https://${inst}/${trimmed}`)
-          }
-          if (authenticatedMeetInstance) {
-            candidates.unshift(
-              `https://${authenticatedMeetInstance}/${trimmed}`
-            )
-          }
-        } else {
-          // alias éventuel
-          try {
-            const resolved = await invoke<string | null>(
-              'resolve_visio_alias',
-              {
-                name: trimmed,
-              }
-            )
-            if (resolved) candidates.push(resolved)
-          } catch {
-            /* ignore */
-          }
-        }
+        const candidates = await joinCandidates(
+          trimmed,
+          authenticatedMeetInstance,
+          meetInstances
+        )
         if (candidates.length === 0) {
           setHomeJoinError(t('home.error.noUrl'))
           return
@@ -2272,7 +2284,7 @@ export default function App() {
           </DeskWindow>
         )}
         {infoToast && (
-          <div
+          <output
             style={{
               position: 'fixed',
               bottom: 24,
@@ -2288,10 +2300,9 @@ export default function App() {
               border: '1px solid var(--border)',
               zIndex: 9000,
             }}
-            role="status"
           >
             {infoToast}
-          </div>
+          </output>
         )}
         {view === 'home' &&
           oidcEnabled &&

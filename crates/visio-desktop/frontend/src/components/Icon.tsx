@@ -79,7 +79,6 @@ export interface IconProps {
   style?: CSSProperties
   color?: string
   className?: string
-  title?: string
 }
 
 export function Icon({
@@ -89,8 +88,7 @@ export function Icon({
   style,
   color,
   className,
-  title,
-}: IconProps) {
+}: Readonly<IconProps>) {
   const d = ICON_PATHS[name] ?? ''
   return (
     <svg
@@ -104,9 +102,7 @@ export function Icon({
       strokeLinejoin="round"
       style={{ display: 'block', flexShrink: 0, ...style }}
       className={className}
-      role={title ? 'img' : undefined}
-      aria-label={title}
-      aria-hidden={title ? undefined : true}
+      aria-hidden
       dangerouslySetInnerHTML={{ __html: d }}
     />
   )

@@ -28,7 +28,7 @@ export function VideoTile({
   radius = 'var(--r-tile)',
   children,
   videoSlot,
-}: VideoTileProps) {
+}: Readonly<VideoTileProps>) {
   const tone = p.tone || '#3a5bd9'
   const style: CSSProperties = {
     position: 'relative',

@@ -79,7 +79,7 @@ interface GCardProps {
   title: string
   children: ReactNode
 }
-function GCard({ title, children }: GCardProps) {
+function GCard({ title, children }: Readonly<GCardProps>) {
   return (
     <div>
       <div className="v-eyebrow" style={{ marginBottom: 10 }}>
@@ -97,7 +97,11 @@ interface TrailValProps {
   mono?: boolean
   showChevron?: boolean
 }
-function TrailVal({ value, mono, showChevron = true }: TrailValProps) {
+function TrailVal({
+  value,
+  mono,
+  showChevron = true,
+}: Readonly<TrailValProps>) {
   return (
     <div
       style={{
@@ -153,7 +157,7 @@ function PopoverMenu({
   onClose,
   footer,
   align = 'right',
-}: PopoverMenuProps) {
+}: Readonly<PopoverMenuProps>) {
   useEffect(() => {
     const onDoc = (e: MouseEvent) => {
       const tgt = e.target as Element | null
@@ -172,6 +176,17 @@ function PopoverMenu({
   }, [onClose])
   const positional: CSSProperties =
     align === 'right' ? { right: 0 } : { left: 0 }
+  const emptyPlaceholder = footer ? null : (
+    <div
+      style={{
+        padding: '10px 12px',
+        fontSize: 13,
+        color: 'var(--text-3)',
+      }}
+    >
+      —
+    </div>
+  )
   return (
     <div
       data-settings-popover
@@ -196,62 +211,50 @@ function PopoverMenu({
       >
         {title}
       </div>
-      {items.length === 0 ? (
-        footer ? null : (
-          <div
-            style={{
-              padding: '10px 12px',
-              fontSize: 13,
-              color: 'var(--text-3)',
-            }}
-          >
-            —
-          </div>
-        )
-      ) : (
-        items.map((it) => (
-          <button
-            type="button"
-            key={it.key}
-            data-testid={it.testId}
-            onClick={() => onPick(it.key)}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 10,
-              width: '100%',
-              border: 'none',
-              background: 'transparent',
-              cursor: 'pointer',
-              padding: '9px 10px',
-              borderRadius: 8,
-              fontSize: 13.5,
-              color: 'var(--text)',
-              fontFamily: 'var(--font-ui)',
-              textAlign: 'left',
-            }}
-          >
-            <Icon
-              name="check"
-              size={15}
+      {items.length === 0
+        ? emptyPlaceholder
+        : items.map((it) => (
+            <button
+              type="button"
+              key={it.key}
+              data-testid={it.testId}
+              onClick={() => onPick(it.key)}
               style={{
-                color: it.active ? 'var(--accent)' : 'transparent',
-                flexShrink: 0,
-              }}
-            />
-            <span
-              style={{
-                flex: 1,
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                whiteSpace: 'nowrap',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 10,
+                width: '100%',
+                border: 'none',
+                background: 'transparent',
+                cursor: 'pointer',
+                padding: '9px 10px',
+                borderRadius: 8,
+                fontSize: 13.5,
+                color: 'var(--text)',
+                fontFamily: 'var(--font-ui)',
+                textAlign: 'left',
               }}
             >
-              {it.label}
-            </span>
-          </button>
-        ))
-      )}
+              <Icon
+                name="check"
+                size={15}
+                style={{
+                  color: it.active ? 'var(--accent)' : 'transparent',
+                  flexShrink: 0,
+                }}
+              />
+              <span
+                style={{
+                  flex: 1,
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {it.label}
+              </span>
+            </button>
+          ))}
       {footer && (
         <div style={{ padding: 6, borderTop: '1px solid var(--hair)' }}>
           {footer}
@@ -280,7 +283,7 @@ function InlineEditor({
   hint,
   t,
   inputTestId,
-}: InlineEditorProps) {
+}: Readonly<InlineEditorProps>) {
   const [value, setValue] = useState(initialValue)
   const inputRef = useRef<HTMLInputElement | null>(null)
   useEffect(() => {
@@ -379,7 +382,7 @@ export function SettingsScreen({
   onCalendarUrlChange,
   appVersion,
   translations,
-}: SettingsScreenProps) {
+}: Readonly<SettingsScreenProps>) {
   const confirm = useConfirm()
   const [open, setOpen] = useState<OpenPopover>(null)
   const [micOnJoin, setMicOnJoin] = useState(true)
