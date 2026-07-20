@@ -1558,6 +1558,11 @@ function CreateRoomDialog({
     ? `visio://${createdUrl.replace(/^https?:\/\//, '')}`
     : ''
 
+  const isNotInvited = useCallback(
+    (u: UserSearchResult) => !invitedUsers.some((inv) => inv.id === u.id),
+    [invitedUsers]
+  )
+
   useEffect(() => {
     if (searchQuery.length < 3) {
       setSearchResults([])
@@ -1568,15 +1573,13 @@ function CreateRoomDialog({
         const results = await invoke<UserSearchResult[]>('search_users', {
           query: searchQuery,
         })
-        setSearchResults(
-          results.filter((u) => !invitedUsers.some((inv) => inv.id === u.id))
-        )
+        setSearchResults(results.filter(isNotInvited))
       } catch {
         setSearchResults([])
       }
     }, 300)
     return () => clearTimeout(timer)
-  }, [searchQuery, invitedUsers])
+  }, [searchQuery, isNotInvited])
 
   const handleCreate = async () => {
     setCreating(true)
@@ -2058,6 +2061,11 @@ function InfoSidebar({
   }, [roomId])
 
   // Member search effect
+  const isNotMember = useCallback(
+    (u: UserSearchResult) => !roomAccesses.some((a) => a.user.id === u.id),
+    [roomAccesses]
+  )
+
   useEffect(() => {
     if (memberSearch.length < 3) {
       setMemberResults([])
@@ -2068,15 +2076,22 @@ function InfoSidebar({
         const results = await invoke<UserSearchResult[]>('search_users', {
           query: memberSearch,
         })
-        setMemberResults(
-          results.filter((u) => !roomAccesses.some((a) => a.user.id === u.id))
-        )
+        setMemberResults(results.filter(isNotMember))
       } catch {
         setMemberResults([])
       }
     }, 300)
     return () => clearTimeout(timer)
-  }, [memberSearch, roomAccesses])
+  }, [memberSearch, isNotMember])
+
+  const handleRemoveAccess = async (accessId: string) => {
+    try {
+      await invoke('remove_access', { accessId })
+      setRoomAccesses((prev) => prev.filter((a) => a.id !== accessId))
+    } catch {
+      /* ignore */
+    }
+  }
 
   const handleCopyHttp = async () => {
     try {
@@ -2214,16 +2229,7 @@ function InfoSidebar({
                   <button
                     type="button"
                     className="btn btn-sm btn-danger"
-                    onClick={async () => {
-                      try {
-                        await invoke('remove_access', { accessId: access.id })
-                        setRoomAccesses((prev) =>
-                          prev.filter((a) => a.id !== access.id)
-                        )
-                      } catch {
-                        /* ignore */
-                      }
-                    }}
+                    onClick={() => handleRemoveAccess(access.id)}
                   >
                     {t('restricted.remove')}
                   </button>
