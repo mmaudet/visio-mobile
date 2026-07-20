@@ -406,6 +406,7 @@ export function HomeScreen({
           >
             {showNewMeeting && (
               <button
+                data-testid="home-create-room-button"
                 onClick={onNewMeeting}
                 style={{
                   border: 'none',
@@ -477,6 +478,7 @@ export function HomeScreen({
                   style={{ color: 'var(--text-3)' }}
                 />
                 <input
+                  data-testid="home-room-url-input"
                   value={joinCode}
                   onChange={(e) => setJoinCode(e.target.value)}
                   onKeyDown={(e) => {
@@ -486,31 +488,44 @@ export function HomeScreen({
                   aria-label={t('home.join.placeholder')}
                 />
                 {joinStatus === 'checking' && (
-                  <Icon
-                    name="dot"
-                    size={10}
-                    style={{ color: 'var(--text-3)' }}
-                  />
+                  <span data-testid="home-room-status">
+                    <Icon
+                      name="dot"
+                      size={10}
+                      style={{ color: 'var(--text-3)' }}
+                    />
+                  </span>
                 )}
                 {joinStatus === 'valid' && (
-                  <Icon
-                    name="check"
-                    size={16}
-                    style={{ color: 'var(--live)' }}
-                  />
+                  <span data-testid="home-room-status">
+                    <Icon
+                      name="check"
+                      size={16}
+                      style={{ color: 'var(--live)' }}
+                    />
+                  </span>
                 )}
                 {joinStatus === 'auth_required' && (
-                  <Icon
-                    name="lock"
-                    size={15}
-                    style={{ color: 'var(--warn)' }}
-                  />
+                  <span data-testid="home-room-status">
+                    <Icon
+                      name="lock"
+                      size={15}
+                      style={{ color: 'var(--warn)' }}
+                    />
+                  </span>
                 )}
                 {joinStatus === 'not_found' && (
-                  <Icon name="x" size={15} style={{ color: 'var(--danger)' }} />
+                  <span data-testid="home-room-status">
+                    <Icon
+                      name="x"
+                      size={15}
+                      style={{ color: 'var(--danger)' }}
+                    />
+                  </span>
                 )}
               </div>
               <Button
+                data-testid="home-join-button"
                 variant={joinStatus === 'valid' ? 'primary' : 'secondary'}
                 full
                 onClick={submitJoin}

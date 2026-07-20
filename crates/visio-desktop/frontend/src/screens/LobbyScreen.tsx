@@ -94,10 +94,14 @@ function AudioLevel({ level }: AudioLevelProps) {
   }, [amplified])
   const lit = Math.min(9, Math.max(1, Math.round(amplified * 9)))
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 3, height: 18 }}>
+    <div
+      data-testid="prejoin-vu-track"
+      style={{ display: 'flex', alignItems: 'center', gap: 3, height: 18 }}
+    >
       {bars.map((h, i) => (
         <div
           key={i}
+          data-testid="prejoin-vu-bar"
           style={{
             width: 3,
             height: Math.max(3, h),
@@ -747,6 +751,7 @@ export function LobbyScreen({
                 }}
               >
                 <IconBtn
+                  data-testid="prejoin-mic-button"
                   name={isMicOn ? 'mic' : 'micOff'}
                   dim={46}
                   size={20}
@@ -756,6 +761,7 @@ export function LobbyScreen({
                   ariaLabel={isMicOn ? t('control.mute') : t('control.unmute')}
                 />
                 <IconBtn
+                  data-testid="prejoin-camera-button"
                   name={isCameraOn ? 'video' : 'videoOff'}
                   dim={46}
                   size={20}
@@ -965,6 +971,7 @@ export function LobbyScreen({
         }}
       >
         <Button
+          data-testid="prejoin-join-button"
           variant="primary"
           onClick={() => handleJoinNow(isCameraOn)}
           style={{ height: 48, minWidth: 280 }}

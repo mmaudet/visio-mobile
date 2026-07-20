@@ -37,6 +37,7 @@ interface NavItemProps {
   active: boolean
   disabled?: boolean
   title?: string
+  testId?: string
   onClick: () => void
 }
 
@@ -46,6 +47,7 @@ function NavItem({
   active,
   disabled,
   title,
+  testId,
   onClick,
 }: NavItemProps) {
   const style: CSSProperties = {
@@ -73,7 +75,13 @@ function NavItem({
     opacity: disabled ? 0.55 : 1,
   }
   return (
-    <button onClick={onClick} disabled={disabled} title={title} style={style}>
+    <button
+      data-testid={testId}
+      onClick={onClick}
+      disabled={disabled}
+      title={title}
+      style={style}
+    >
       <Icon name={icon as IconName} size={19} />
       <span style={{ whiteSpace: 'nowrap' }}>{label}</span>
     </button>
@@ -151,6 +159,7 @@ export function DeskSidebar({
         icon="settings"
         label={labels.settings}
         active={active === 'settings'}
+        testId="sidebar-settings-link"
         onClick={() => onNavigate('settings')}
       />
 

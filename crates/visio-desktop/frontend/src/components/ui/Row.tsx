@@ -11,6 +11,7 @@ export interface RowProps {
   last?: boolean
   onClick?: () => void
   ariaLabel?: string
+  testId?: string
 }
 
 export function Row({
@@ -23,10 +24,12 @@ export function Row({
   last,
   onClick,
   ariaLabel,
+  testId,
 }: RowProps) {
   const interactive = !!onClick
   return (
     <div
+      data-testid={testId}
       role={interactive ? 'button' : undefined}
       tabIndex={interactive ? 0 : undefined}
       aria-label={ariaLabel}

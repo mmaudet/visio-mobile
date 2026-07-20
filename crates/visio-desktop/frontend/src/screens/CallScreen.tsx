@@ -409,6 +409,7 @@ function ChatPanel({ t, messages, localSid, onSend, onClose }: ChatPanelProps) {
 
   return (
     <div
+      data-testid="call-chat-sidebar"
       style={{
         width: 340,
         flexShrink: 0,
@@ -434,6 +435,7 @@ function ChatPanel({ t, messages, localSid, onSend, onClose }: ChatPanelProps) {
           {t('call.discussion')}
         </span>
         <button
+          data-testid="chat-close-button"
           onClick={onClose}
           style={{
             background: 'transparent',
@@ -450,6 +452,7 @@ function ChatPanel({ t, messages, localSid, onSend, onClose }: ChatPanelProps) {
       </div>
       <div
         ref={scrollerRef}
+        data-testid="chat-message-list"
         className="v-scroll"
         style={{
           flex: 1,
@@ -462,6 +465,7 @@ function ChatPanel({ t, messages, localSid, onSend, onClose }: ChatPanelProps) {
       >
         {messages.length === 0 && (
           <div
+            data-testid="chat-empty"
             style={{
               color: 'rgba(255,255,255,0.4)',
               fontSize: 13,
@@ -472,11 +476,12 @@ function ChatPanel({ t, messages, localSid, onSend, onClose }: ChatPanelProps) {
             {t('chat.noMessages')}
           </div>
         )}
-        {messages.map((m) => {
+        {messages.map((m, i) => {
           const me = m.sender_sid === localSid
           return (
             <div
               key={m.id}
+              data-testid={`chat-bubble-${i}`}
               style={{
                 display: 'flex',
                 flexDirection: 'column',
@@ -537,6 +542,7 @@ function ChatPanel({ t, messages, localSid, onSend, onClose }: ChatPanelProps) {
           }}
         >
           <input
+            data-testid="chat-message-input"
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
             onKeyDown={(e) => {
@@ -559,6 +565,7 @@ function ChatPanel({ t, messages, localSid, onSend, onClose }: ChatPanelProps) {
           />
         </div>
         <IconBtn
+          data-testid="chat-send-button"
           name="send"
           dim={42}
           size={18}
@@ -845,6 +852,9 @@ interface DeskCtrlProps {
   onCaretClick?: () => void
   showsMenu?: boolean
   badge?: number
+  testId?: string
+  caretTestId?: string
+  badgeTestId?: string
   children?: ReactNode
 }
 function DeskCtrl({
@@ -859,6 +869,9 @@ function DeskCtrl({
   onCaretClick,
   showsMenu,
   badge,
+  testId,
+  caretTestId,
+  badgeTestId,
   children,
 }: DeskCtrlProps) {
   return (
@@ -878,6 +891,7 @@ function DeskCtrl({
     >
       <div style={{ position: 'relative' }}>
         <button
+          data-testid={testId}
           onClick={onClick}
           aria-label={label}
           title={hint ? `${label} (${hint})` : label}
@@ -911,6 +925,7 @@ function DeskCtrl({
         {caret && (
           <button
             data-call-caret
+            data-testid={caretTestId}
             onClick={onCaretClick}
             aria-label={`${label} — options`}
             style={{
@@ -947,6 +962,7 @@ function DeskCtrl({
         )}
         {badge != null && badge > 0 && (
           <span
+            data-testid={badgeTestId}
             style={{
               position: 'absolute',
               top: -4,
@@ -1011,17 +1027,22 @@ function AudioPicker({
   onClose,
 }: AudioPickerProps) {
   return (
-    <CallPicker title={t('devicePicker.audio.title')} onClose={onClose}>
+    <CallPicker
+      title={t('devicePicker.audio.title')}
+      onClose={onClose}
+      testId="device-picker-audio"
+    >
       <Section label={t('devicePicker.audio.mic')}>
         {audioInputs.length === 0 ? (
           <Empty label="—" />
         ) : (
-          audioInputs.map((d) => (
+          audioInputs.map((d, i) => (
             <PickerRow
               key={d.name}
               label={d.name}
               active={d.name === selectedInput}
               onClick={() => onPickInput(d.name)}
+              testId={`device-option-input-${i}`}
             />
           ))
         )}
@@ -1030,12 +1051,13 @@ function AudioPicker({
         {audioOutputs.length === 0 ? (
           <Empty label="—" />
         ) : (
-          audioOutputs.map((d) => (
+          audioOutputs.map((d, i) => (
             <PickerRow
               key={d.name}
               label={d.name}
               active={d.name === selectedOutput}
               onClick={() => onPickOutput(d.name)}
+              testId={`device-option-output-${i}`}
             />
           ))
         )}
@@ -1065,17 +1087,22 @@ function VideoPicker({
   onClose,
 }: VideoPickerProps) {
   return (
-    <CallPicker title={t('devicePicker.video.title')} onClose={onClose}>
+    <CallPicker
+      title={t('devicePicker.video.title')}
+      onClose={onClose}
+      testId="device-picker-video"
+    >
       <Section label={t('devicePicker.video.camera')}>
         {videoInputs.length === 0 ? (
           <Empty label="—" />
         ) : (
-          videoInputs.map((d) => (
+          videoInputs.map((d, i) => (
             <PickerRow
               key={d.unique_id}
               label={d.name}
               active={d.unique_id === selectedInput}
               onClick={() => onPickInput(d.unique_id)}
+              testId={`device-option-camera-${i}`}
             />
           ))
         )}
@@ -1254,12 +1281,14 @@ interface CallPickerProps {
   children: ReactNode
   onClose: () => void
   placement?: CallPickerPlacement
+  testId?: string
 }
 function CallPicker({
   title,
   children,
   onClose,
   placement = 'bottom-center',
+  testId,
 }: CallPickerProps) {
   useEffect(() => {
     const onDoc = (e: MouseEvent) => {
@@ -1291,6 +1320,7 @@ function CallPicker({
   return (
     <div
       data-call-picker
+      data-testid={testId}
       style={{
         position: 'absolute',
         ...placementStyle,
@@ -1349,10 +1379,12 @@ interface PickerRowProps {
   label: string
   active: boolean
   onClick: () => void
+  testId?: string
 }
-function PickerRow({ label, active, onClick }: PickerRowProps) {
+function PickerRow({ label, active, onClick, testId }: PickerRowProps) {
   return (
     <button
+      data-testid={testId}
       onClick={onClick}
       style={{
         display: 'flex',
@@ -1700,6 +1732,7 @@ export function CallScreen(props: CallScreenProps) {
           )}
         </div>
         <IconBtn
+          data-testid="call-layout-toggle-button"
           name={layoutMode === 'speaker' ? 'pin' : 'grid'}
           dim={36}
           size={18}
@@ -1725,6 +1758,7 @@ export function CallScreen(props: CallScreenProps) {
         }}
       >
         <div
+          data-testid="call-participant-grid"
           style={{
             position: 'relative',
             flex: 1,
@@ -1902,6 +1936,8 @@ export function CallScreen(props: CallScreenProps) {
               showsMenu={showMicPicker}
               onClick={onToggleMic}
               onCaretClick={onShowMicPicker}
+              testId="call-mic-button"
+              caretTestId="call-mic-chevron"
             />
             {showMicPicker && (
               <AudioPicker
@@ -1932,6 +1968,8 @@ export function CallScreen(props: CallScreenProps) {
               showsMenu={showCamPicker}
               onClick={onToggleCam}
               onCaretClick={onShowCamPicker}
+              testId="call-camera-button"
+              caretTestId="call-camera-chevron"
             />
             {showCamPicker && (
               <VideoPicker
@@ -1960,6 +1998,7 @@ export function CallScreen(props: CallScreenProps) {
             }
             active={localHasShare}
             onClick={onShareClick}
+            testId="call-screen-share-button"
           />
           {/* Effets button removed — background picker is accessible via
               the camera caret popover (Section "Effets"). Keeping a dedicated
@@ -1989,6 +2028,7 @@ export function CallScreen(props: CallScreenProps) {
             }
             active={isHandRaised}
             onClick={onToggleHandRaise}
+            testId="call-hand-raise-button"
           />
           <DeskCtrl
             name="chat"
@@ -2000,6 +2040,8 @@ export function CallScreen(props: CallScreenProps) {
               setChatOpen(next)
               if (next && peopleOpen) onTogglePeople()
             }}
+            testId="call-chat-button"
+            badgeTestId="call-unread-badge"
           />
           <DeskCtrl
             name="users"
@@ -2009,6 +2051,7 @@ export function CallScreen(props: CallScreenProps) {
               if (!peopleOpen && chatOpen) setChatOpen(false)
               onTogglePeople()
             }}
+            testId="call-participants-button"
           />
           <div style={{ width: 10 }} />
           <DeskCtrl
@@ -2016,6 +2059,7 @@ export function CallScreen(props: CallScreenProps) {
             label={t('call.leave')}
             danger
             wide
+            testId="call-hangup-button"
             onClick={async () => {
               const ok = await confirm({
                 title: t('call.leave'),
@@ -2191,6 +2235,7 @@ function ScreenSharePicker({
       }}
     >
       <div
+        data-testid="screen-share-source-picker"
         onClick={(e) => e.stopPropagation()}
         style={{
           background: '#1c1f26',
@@ -2278,6 +2323,7 @@ function ScreenSharePicker({
               sources={windows}
               onPick={onPick}
               emptyHint={t('call.screenPermissionHint')}
+              indexOffset={monitors.length}
             />
           </div>
         )}
@@ -2291,12 +2337,16 @@ interface ScreenSourceSectionProps {
   sources: ScreenSource[]
   onPick: (sourceId: string) => void
   emptyHint?: string
+  /** 0-based offset for `screen-share-source-N` testids. Monitors come first,
+   *  so the windows section passes `monitors.length` (spec indexing rule). */
+  indexOffset?: number
 }
 function ScreenSourceSection({
   title,
   sources,
   onPick,
   emptyHint,
+  indexOffset = 0,
 }: ScreenSourceSectionProps) {
   return (
     <div>
@@ -2324,9 +2374,10 @@ function ScreenSourceSection({
             gap: 12,
           }}
         >
-          {sources.map((s) => (
+          {sources.map((s, i) => (
             <button
               key={s.id}
+              data-testid={`screen-share-source-${indexOffset + i}`}
               onClick={() => onPick(s.id)}
               style={{
                 border: '1px solid rgba(255,255,255,0.08)',

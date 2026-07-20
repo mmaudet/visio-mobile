@@ -136,6 +136,7 @@ interface PopoverItem {
   key: string
   label: string
   active: boolean
+  testId?: string
 }
 interface PopoverMenuProps {
   title: string
@@ -211,6 +212,7 @@ function PopoverMenu({
         items.map((it) => (
           <button
             key={it.key}
+            data-testid={it.testId}
             onClick={() => onPick(it.key)}
             style={{
               display: 'flex',
@@ -900,6 +902,7 @@ export function SettingsScreen({
                 title={t('settings.row.language')}
                 trailing={<TrailVal value={languageLabel} />}
                 onClick={() => toggleMenu('language')}
+                testId="settings-language-select"
               />
               {open === 'language' && (
                 <PopoverMenu
@@ -908,6 +911,7 @@ export function SettingsScreen({
                     key: code,
                     label: translations[code]?.[`lang.${code}`] ?? code,
                     active: lang === code,
+                    testId: `settings-language-${code}`,
                   }))}
                   onPick={handlePickLanguage}
                   onClose={closeMenu}
